@@ -43,3 +43,15 @@ coverage/
 
 # Uploaded files
 backend/uploads/
+
+# Logs
+logs/
+backend/logs/
+*.log
+
+# Production env
+.env.production
+
+# Docker volumes (local)
+postgres_data/
+redis_data/

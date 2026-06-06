@@ -1,0 +1,100 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          target: runner
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:latest
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:latest
+            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            cd /opt/pulsemate
+
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Pull new images
+            docker compose -f docker-compose.prod.yml pull backend frontend
+
+            # Run migrations before swapping containers
+            docker compose -f docker-compose.prod.yml run --rm backend npx prisma migrate deploy
+
+            # Rolling restart — one replica at a time
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend
+
+            # Prune old images
+            docker image prune -f
+
+            echo "✅ Deploy complete: ${{ github.sha }}"
+
+      - name: Health check
+        run: |
+          echo "Waiting 20s for containers to stabilize..."
+          sleep 20
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.DEPLOY_HOST }}/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Health check failed — HTTP $STATUS"
+            exit 1
+          fi
+          echo "✅ Health check passed — HTTP $STATUS"
+
+      - name: Notify on success
+        if: success()
+        run: echo "Deploy ${{ github.sha }} succeeded"
+
+      - name: Notify on failure
+        if: failure()
+        uses: 8398a57/action-slack@v3
+        with:
+          status: failure
+          text: "🚨 PulseMate prod deploy FAILED — ${{ github.sha }} — check Actions"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
