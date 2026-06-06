@@ -21,6 +21,7 @@ enum ApprovalStatus {
   VERIFIED
   REJECTED
   SUSPENDED
+  CHANGES_REQUIRED
 }
 
 enum AdminLevel {
@@ -221,6 +222,12 @@ model Clinic {
   additionalDocuments   Json?
   specialties           String[]
   specialtyOther        String?
+  changesRequestedReason String?
+  adminNotes            String?
+  rejectedById          String?
+  rejectedAt            DateTime?
+  suspendedReason       String?
+  lastResubmittedAt     DateTime?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -231,8 +238,23 @@ model Clinic {
   appointments       Appointment[]
   queues             Queue[]
   receptionistProfiles ReceptionistProfile[]
+  verificationLogs   ClinicVerificationLog[]
 
   @@map("clinics")
+}
+
+model ClinicVerificationLog {
+  id         String   @id @default(uuid())
+  clinicId   String
+  adminId    String?
+  oldStatus  String
+  newStatus  String
+  remark     String?
+  createdAt  DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_verification_logs")
 }
 
 model ClinicStaff {

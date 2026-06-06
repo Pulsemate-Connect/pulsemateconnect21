@@ -20,6 +20,13 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // Proxy uploaded files so they load as same-origin /uploads/* requests.
+      // This means stored URLs like http://localhost:5000/uploads/... are
+      // rewritten to /uploads/... and proxied correctly by Vite.
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       '/socket.io': {
         target: 'http://localhost:5000',
         changeOrigin: true,

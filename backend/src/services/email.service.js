@@ -308,6 +308,157 @@ const sendClinicOwnerVerificationOtpEmail = async (userEmail, otp, userName) => 
   return true;
 };
 
+const sendClinicApprovedEmail = async (userEmail, userName, clinicName) => {
+  const subject = '🎉 Your PulseMate Clinic is Approved!';
+  const text = [
+    `Hello ${userName || 'there'},`,
+    '',
+    `Congratulations! Your clinic "${clinicName}" has been verified and approved on PulseMate.`,
+    '',
+    'You can now:',
+    '• Add doctors and receptionists',
+    '• Receive patient bookings',
+    '• Manage your queue',
+    '• Appear in patient search',
+    '',
+    'Login to your dashboard to get started.',
+    '',
+    'Thanks,',
+    'PulseMate Team',
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello ${userName || 'there'},</p>
+      <p>🎉 Congratulations! Your clinic <strong>${clinicName}</strong> has been <span style="color:#16a34a;font-weight:700">verified and approved</span> on PulseMate.</p>
+      <p>You can now add doctors, receive bookings, and manage your queue from your dashboard.</p>
+      <p style="color:#64748b;font-size:14px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
+  return true;
+};
+
+const sendClinicRejectedEmail = async (userEmail, userName, clinicName, reason) => {
+  const subject = 'PulseMate Clinic Verification Update';
+  const text = [
+    `Hello ${userName || 'there'},`,
+    '',
+    `We have reviewed your clinic "${clinicName}" registration on PulseMate.`,
+    '',
+    'Unfortunately, your clinic verification has been rejected for the following reason:',
+    '',
+    reason || 'Please contact support for more details.',
+    '',
+    'You may edit your clinic details and resubmit for review from your dashboard.',
+    '',
+    'Thanks,',
+    'PulseMate Team',
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello ${userName || 'there'},</p>
+      <p>We have reviewed your clinic <strong>${clinicName}</strong> registration.</p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:16px 0">
+        <p style="color:#dc2626;font-weight:700;margin:0 0 6px">Reason for rejection:</p>
+        <p style="margin:0;color:#7f1d1d">${reason || 'Please contact support for details.'}</p>
+      </div>
+      <p>You can edit your details and resubmit from your dashboard.</p>
+      <p style="color:#64748b;font-size:14px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
+  return true;
+};
+
+const sendClinicChangesRequestedEmail = async (userEmail, userName, clinicName, reason) => {
+  const subject = 'Action Required: Changes Requested for Your PulseMate Clinic';
+  const text = [
+    `Hello ${userName || 'there'},`,
+    '',
+    `Our admin team has reviewed your clinic "${clinicName}" and requires some changes before approval.`,
+    '',
+    'Changes requested:',
+    '',
+    reason || 'Please check your dashboard for details.',
+    '',
+    'Please update your clinic information and resubmit from your dashboard.',
+    '',
+    'Thanks,',
+    'PulseMate Team',
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello ${userName || 'there'},</p>
+      <p>Our admin team has reviewed your clinic <strong>${clinicName}</strong> and requires some changes.</p>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:16px 0">
+        <p style="color:#d97706;font-weight:700;margin:0 0 6px">Changes requested:</p>
+        <p style="margin:0;color:#78350f">${reason || 'Please check your dashboard for details.'}</p>
+      </div>
+      <p>Please update your clinic information and resubmit from your dashboard.</p>
+      <p style="color:#64748b;font-size:14px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
+  return true;
+};
+
+const sendClinicSuspendedEmail = async (userEmail, userName, clinicName, reason) => {
+  const subject = 'Important: Your PulseMate Clinic Has Been Suspended';
+  const text = [
+    `Hello ${userName || 'there'},`,
+    '',
+    `Your clinic "${clinicName}" on PulseMate has been suspended.`,
+    '',
+    'Reason:',
+    reason || 'Please contact support for details.',
+    '',
+    'During suspension, your clinic will not appear in patient search and bookings will be disabled.',
+    '',
+    'Please contact PulseMate support if you believe this is an error.',
+    '',
+    'Thanks,',
+    'PulseMate Team',
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello ${userName || 'there'},</p>
+      <p>Your clinic <strong>${clinicName}</strong> has been <span style="color:#6b7280;font-weight:700">suspended</span>.</p>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin:16px 0">
+        <p style="color:#374151;font-weight:700;margin:0 0 6px">Reason:</p>
+        <p style="margin:0;color:#6b7280">${reason || 'Please contact support for details.'}</p>
+      </div>
+      <p>Contact PulseMate support if you believe this is an error.</p>
+      <p style="color:#64748b;font-size:14px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
+  return true;
+};
+
+const sendClinicResubmittedEmail = async (adminEmail, clinicName, ownerName) => {
+  const subject = `PulseMate: Clinic Resubmitted for Review — ${clinicName}`;
+  const text = [
+    'Hello Admin,',
+    '',
+    `Clinic "${clinicName}" owned by ${ownerName} has been resubmitted for review.`,
+    '',
+    'Please log in to the admin dashboard to review the updated details.',
+    '',
+    'Thanks,',
+    'PulseMate System',
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello Admin,</p>
+      <p>Clinic <strong>${clinicName}</strong> (owner: ${ownerName}) has been <span style="color:#2563eb;font-weight:700">resubmitted for review</span>.</p>
+      <p>Please log in to the admin dashboard to review the updated details.</p>
+      <p style="color:#64748b;font-size:14px">PulseMate System</p>
+    </div>`;
+  const sent = await sendTransactionalEmail({ to: adminEmail, subject, text, html });
+  if (!sent) logEmail(subject, adminEmail, text);
+  return true;
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendPasswordChangedEmail,
@@ -316,4 +467,9 @@ module.exports = {
   sendClinicOwnerVerificationEmail,
   sendClinicOwnerVerificationOtpEmail,
   sendTransactionalEmail,
+  sendClinicApprovedEmail,
+  sendClinicRejectedEmail,
+  sendClinicChangesRequestedEmail,
+  sendClinicSuspendedEmail,
+  sendClinicResubmittedEmail,
 };

@@ -6,12 +6,14 @@ import * as SecureStore from 'expo-secure-store';
 // iOS simulator    : 'http://localhost:5000/api'
 // Real device      : 'http://<YOUR_MACHINE_LAN_IP>:5000/api'
 //                    (run `ipconfig` on Windows / `ifconfig` on Mac to find it)
-export const BASE_URL = 'http://192.168.31.240:5000/api';
+export const BASE_URL = 'http://192.168.1.14:5000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Attach token to every request
@@ -19,7 +21,7 @@ api.interceptors.request.use(async (config) => {
   try {
     const token = await SecureStore.getItemAsync('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
-  } catch {}
+  } catch { }
   return config;
 });
 

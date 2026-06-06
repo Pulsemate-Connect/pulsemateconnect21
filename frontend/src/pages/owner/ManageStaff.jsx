@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import StatusBadge from '../../components/ui/StatusBadge';
+import ClinicNotVerifiedGuard from '../../components/ui/ClinicNotVerifiedGuard';
 import toast from 'react-hot-toast';
 
 const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
@@ -157,6 +158,7 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
 
   return (
     <DashboardLayout>
+      <ClinicNotVerifiedGuard>
       <div className="page-container">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-text-primary">Manage {title}</h1>
@@ -450,6 +452,7 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
           </div>
         </form>
       </Modal>
+      </ClinicNotVerifiedGuard>
     </DashboardLayout>
   );
 };

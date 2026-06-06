@@ -3,11 +3,31 @@ import api from './axios';
 export const getAdminDashboard = () =>
   api.get('/admin/dashboard');
 
+// ── Clinic management ──────────────────────────────────────────────────────
+export const getAllAdminClinics = (params) =>
+  api.get('/admin/all-clinics', { params });
+
+export const getAdminClinicStats = (params) =>
+  api.get('/admin/all-clinics/stats', { params });
+
+export const getAdminClinicDetail = (id) =>
+  api.get(`/admin/all-clinics/${id}`);
+
+export const approveClinic = (id) =>
+  api.patch(`/admin/clinics/${id}/approve`);
+
+export const rejectClinic = (id, reason) =>
+  api.patch(`/admin/clinics/${id}/reject`, { reason });
+
+export const requestClinicChanges = (id, reason) =>
+  api.patch(`/admin/clinics/${id}/request-changes`, { reason });
+
+export const suspendClinic = (id, reason) =>
+  api.patch(`/admin/clinics/${id}/suspend`, { reason });
+
+// ── Legacy approval endpoints (ClinicApprovals.jsx still uses these) ────────
 export const getAdminClinics = (params) =>
   api.get('/admin/clinics', { params });
-
-export const approveClinic = (id, approved) =>
-  api.patch(`/admin/clinics/${id}/approve`, { approved });
 
 export const getPendingClinicApprovals = () =>
   api.get('/approvals/clinics/pending');
@@ -21,6 +41,7 @@ export const decideClinicApproval = (clinicId, data) =>
 export const decideDoctorApproval = (doctorUserId, data) =>
   api.patch(`/approvals/doctors/${doctorUserId}`, data);
 
+// ── User management ──────────────────────────────────────────────────────
 export const getAdminUsers = (params) =>
   api.get('/admin/users', { params });
 

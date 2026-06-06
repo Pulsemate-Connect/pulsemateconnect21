@@ -112,9 +112,10 @@ export default function LoginScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      const res = await sendOtp(mobile.trim(), 'LOGIN');
+      const fullNumber = `+91${mobile.trim()}`;
+      const res = await sendOtp(fullNumber, 'LOGIN');
       const devOtp = String(res.data.data?.devOtp || '');
-      navigation.navigate('Otp', { mobile: mobile.trim(), devOtp });
+      navigation.navigate('Otp', { mobile: fullNumber, devOtp });
     } catch (err) {
       const msg   = err.response?.data?.message || 'Failed to send OTP';
       Alert.alert('Error', msg);

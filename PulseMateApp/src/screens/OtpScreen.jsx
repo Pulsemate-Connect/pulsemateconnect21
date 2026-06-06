@@ -349,7 +349,7 @@ export default function OtpScreen({ route, navigation }) {
               <Text style={os.sheetSub}>Enter the 6-digit OTP sent to </Text>
               <View style={os.phoneChip}>
                 <Ionicons name="phone-portrait-outline" size={12} color={SKY6} />
-                <Text style={os.phoneChipText}>+91 {mobile}</Text>
+                <Text style={os.phoneChipText}>{mobile.startsWith('+91') ? mobile : `+91 ${mobile}`}</Text>
               </View>
             </View>
           </View>

@@ -711,7 +711,7 @@ const ClinicOwnerRegisterPage = () => {
 
     setIsSendingEmailVerification(true);
     try {
-      await sendClinicOwnerEmailVerification(form.email.trim(), form.ownerName.trim());
+      await sendClinicOwnerEmailVerification(form.email.trim(), form.ownerName.trim() || 'there');
       toast.success('Verification code sent to the owner email address');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to send verification email');

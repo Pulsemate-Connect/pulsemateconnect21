@@ -29,10 +29,18 @@ const authenticateUser = async (req, res, next) => {
 
     if (!user) return sendError(res, 'Authentication required', 401);
     if (!user.isActive) return sendError(res, 'Account is disabled', 403);
-    if (user.approvalStatus === 'SUSPENDED') {
+
+    // SUSPENDED and REJECTED clinic owners are still allowed to:
+    //  - read their own clinic status  (GET  /clinics/my-status)
+    //  - resubmit their clinic         (PATCH /clinics/my-resubmit)
+    // All other endpoints remain blocked.
+    const CLINIC_SELF_SERVICE_PATHS = ['/api/clinics/my-status', '/api/clinics/my-resubmit'];
+    const isSelfService = CLINIC_SELF_SERVICE_PATHS.some((p) => req.path === p || req.originalUrl.startsWith(p));
+
+    if (user.approvalStatus === 'SUSPENDED' && !isSelfService) {
       return sendError(res, user.suspendedReason || 'Account is suspended', 403);
     }
-    if (user.approvalStatus === 'REJECTED') {
+    if (user.approvalStatus === 'REJECTED' && !isSelfService) {
       return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
     }
 
@@ -72,8 +80,8 @@ const requireVerifiedClinic = async (req, res, next) => {
 
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
   if (!clinic) return sendError(res, 'Clinic not found', 404);
-  if (clinic.approvalStatus !== 'VERIFIED') {
-    return sendError(res, 'Clinic verification is pending', 403);
+  if (clinic.approvalStatus !== 'VERIFIED' || !clinic.isActive) {
+    return sendError(res, 'Clinic verification is required before using this feature.', 403);
   }
 
   req.clinic = clinic;

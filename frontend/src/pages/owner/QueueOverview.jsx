@@ -5,6 +5,7 @@ import { getQueue } from '../../api/reception.api';
 import StatusBadge from '../../components/ui/StatusBadge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
+import ClinicNotVerifiedGuard from '../../components/ui/ClinicNotVerifiedGuard';
 import useSocket from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
@@ -78,6 +79,7 @@ const QueueOverview = () => {
 
   return (
     <DashboardLayout>
+      <ClinicNotVerifiedGuard>
       <div className="page-container">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -125,6 +127,7 @@ const QueueOverview = () => {
           </div>
         )}
       </div>
+      </ClinicNotVerifiedGuard>
     </DashboardLayout>
   );
 };

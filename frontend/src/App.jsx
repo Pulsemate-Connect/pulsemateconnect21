@@ -40,13 +40,15 @@ import FollowUpBooking from './pages/receptionist/FollowUpBooking';
 
 import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ClinicProfile from './pages/owner/ClinicProfile';
+import ClinicEditResubmit from './pages/owner/ClinicEditResubmit';
 import ManageStaff from './pages/owner/ManageStaff';
 import OwnerAppointments from './pages/owner/OwnerAppointments';
 import QueueOverview from './pages/owner/QueueOverview';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
-import ClinicApprovals from './pages/admin/ClinicApprovals';
 import UsersManagement from './pages/admin/UsersManagement';
+import ClinicVerification from './pages/admin/ClinicVerification';
+import ClinicVerificationDetail from './pages/admin/ClinicVerificationDetail';
 
 const AppRoutes = () => {
   useFcm();
@@ -107,6 +109,7 @@ const AppRoutes = () => {
       <Route path="/owner/appointments" element={<Navigate to="/clinic/appointments" replace />} />
       <Route path="/owner/queue" element={<Navigate to="/clinic/queue" replace />} />
       <Route path="/clinic/dashboard" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerDashboard /></ProtectedRoute>} />
+      <Route path="/clinic/edit-resubmit" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicEditResubmit /></ProtectedRoute>} />
       <Route path="/clinic/profile" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicProfile /></ProtectedRoute>} />
       <Route path="/clinic/profile/:id" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicProfile /></ProtectedRoute>} />
       <Route path="/clinic/doctors" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="DOCTOR" /></ProtectedRoute>} />
@@ -116,7 +119,9 @@ const AppRoutes = () => {
 
       <Route path="/admin" element={<PublicRoute><AdminLoginPage /></PublicRoute>} />
       <Route path="/admin/dashboard" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/admin/clinics" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicApprovals /></ProtectedRoute>} />
+      <Route path="/admin/clinics" element={<Navigate to="/admin/clinics/verify" replace />} />
+      <Route path="/admin/clinics/verify" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerification /></ProtectedRoute>} />
+      <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerificationDetail /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><UsersManagement /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

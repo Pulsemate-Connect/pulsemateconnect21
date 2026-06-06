@@ -2,6 +2,12 @@ const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
 const { createAuditLog } = require('../services/audit.service');
 const { hashPassword } = require('../utils/hash');
+const {
+  sendClinicApprovedEmail,
+  sendClinicRejectedEmail,
+  sendClinicChangesRequestedEmail,
+  sendClinicSuspendedEmail,
+} = require('../services/email.service');
 
 const ROOT_ADMIN_LEVEL = 'ROOT';
 const MANAGEABLE_ADMIN_LEVELS = ['SUPER_ADMIN', 'SUPPORT', 'FINANCE'];
@@ -11,29 +17,39 @@ const isAdminUser = (user) => user?.role === 'SUPER_ADMIN' && !!user?.adminProfi
 
 const getDashboard = async (req, res, next) => {
   try {
-    const clinicReviewStatuses = ['PENDING', 'UNDER_REVIEW'];
-    const doctorReviewStatuses = ['PENDING', 'UNDER_REVIEW'];
     const [
       totalUsers,
       pendingClinics,
+      underReviewClinics,
       pendingDoctors,
       verifiedClinics,
       verifiedDoctors,
+      rejectedClinics,
+      changesRequiredClinics,
+      suspendedClinics,
     ] = await Promise.all([
       prisma.user.count(),
-      prisma.clinic.count({ where: { approvalStatus: { in: clinicReviewStatuses } } }),
-      prisma.doctorProfile.count({ where: { approvalStatus: { in: doctorReviewStatuses } } }),
+      prisma.clinic.count({ where: { approvalStatus: 'PENDING' } }),
+      prisma.clinic.count({ where: { approvalStatus: 'UNDER_REVIEW' } }),
+      prisma.doctorProfile.count({ where: { approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] } } }),
       prisma.clinic.count({ where: { approvalStatus: 'VERIFIED' } }),
       prisma.doctorProfile.count({ where: { approvalStatus: 'VERIFIED' } }),
+      prisma.clinic.count({ where: { approvalStatus: 'REJECTED' } }),
+      prisma.clinic.count({ where: { approvalStatus: 'CHANGES_REQUIRED' } }),
+      prisma.clinic.count({ where: { approvalStatus: 'SUSPENDED' } }),
     ]);
 
     return sendSuccess(res, {
       stats: {
         totalUsers,
         pendingClinics,
+        underReviewClinics,
         pendingDoctors,
         verifiedClinics,
         verifiedDoctors,
+        rejectedClinics,
+        changesRequiredClinics,
+        suspendedClinics,
       },
     });
   } catch (error) {
@@ -93,8 +109,13 @@ const approveClinic = async (req, res, next) => {
   try {
     const { clinicId } = req.params;
 
-    const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: { owner: { select: { id: true, name: true, email: true } } },
+    });
     if (!clinic) return sendError(res, 'Clinic not found', 404);
+
+    const oldStatus = clinic.approvalStatus;
 
     const updated = await prisma.$transaction(async (tx) => {
       const verifiedClinic = await tx.clinic.update({
@@ -102,22 +123,37 @@ const approveClinic = async (req, res, next) => {
         data: {
           approvalStatus: 'VERIFIED',
           isVerified: true,
+          isActive: true,
           rejectionReason: null,
+          changesRequestedReason: null,
+          suspendedReason: null,
           verifiedAt: new Date(),
           verifiedById: req.user.id,
         },
       });
 
-      const owner = await tx.user.update({
+      await tx.user.update({
         where: { id: clinic.ownerId },
+        data: { approvalStatus: 'VERIFIED', rejectionReason: null },
+      });
+
+      await tx.clinicVerificationLog.create({
         data: {
-          approvalStatus: 'VERIFIED',
-          rejectionReason: null,
+          clinicId,
+          adminId: req.user.id,
+          oldStatus,
+          newStatus: 'VERIFIED',
+          remark: 'Clinic approved',
         },
       });
 
-      return { clinic: verifiedClinic, owner };
+      return { clinic: verifiedClinic };
     });
+
+    // Send email notification (fire-and-forget)
+    if (clinic.owner?.email) {
+      sendClinicApprovedEmail(clinic.owner.email, clinic.owner.name, clinic.name).catch(() => { });
+    }
 
     await createAuditLog({
       userId: req.user.id,
@@ -136,10 +172,16 @@ const approveClinic = async (req, res, next) => {
 const rejectClinic = async (req, res, next) => {
   try {
     const { clinicId } = req.params;
-    const { rejectionReason } = req.body;
+    const { rejectionReason, reason } = req.body;
+    const rejectReason = rejectionReason || reason || 'Clinic registration rejected';
 
-    const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: { owner: { select: { id: true, name: true, email: true } } },
+    });
     if (!clinic) return sendError(res, 'Clinic not found', 404);
+
+    const oldStatus = clinic.approvalStatus;
 
     const updated = await prisma.$transaction(async (tx) => {
       const rejectedClinic = await tx.clinic.update({
@@ -147,28 +189,43 @@ const rejectClinic = async (req, res, next) => {
         data: {
           approvalStatus: 'REJECTED',
           isVerified: false,
-          rejectionReason: rejectionReason || 'Clinic registration rejected',
+          isActive: false,
+          rejectionReason: rejectReason,
+          rejectedById: req.user.id,
+          rejectedAt: new Date(),
           verifiedAt: null,
           verifiedById: null,
         },
       });
 
-      const owner = await tx.user.update({
+      await tx.user.update({
         where: { id: clinic.ownerId },
+        data: { approvalStatus: 'REJECTED', rejectionReason: rejectReason },
+      });
+
+      await tx.clinicVerificationLog.create({
         data: {
-          approvalStatus: 'REJECTED',
-          rejectionReason: rejectionReason || 'Clinic registration rejected',
+          clinicId,
+          adminId: req.user.id,
+          oldStatus,
+          newStatus: 'REJECTED',
+          remark: rejectReason,
         },
       });
 
-      return { clinic: rejectedClinic, owner };
+      return { clinic: rejectedClinic };
     });
+
+    if (clinic.owner?.email) {
+      sendClinicRejectedEmail(clinic.owner.email, clinic.owner.name, clinic.name, rejectReason).catch(() => { });
+    }
 
     await createAuditLog({
       userId: req.user.id,
       action: 'CLINIC_REJECTED',
       entityType: 'Clinic',
       entityId: clinicId,
+      metadata: { reason: rejectReason },
       ipAddress: req.ip,
     });
 
@@ -569,6 +626,278 @@ const resetDatabase = async (req, res, next) => {
   }
 };
 
+const requestClinicChanges = async (req, res, next) => {
+  try {
+    const { clinicId } = req.params;
+    const { reason } = req.body;
+    if (!reason?.trim()) return sendError(res, 'Reason is required for requesting changes', 400);
+
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: { owner: { select: { id: true, name: true, email: true } } },
+    });
+    if (!clinic) return sendError(res, 'Clinic not found', 404);
+
+    const oldStatus = clinic.approvalStatus;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.clinic.update({
+        where: { id: clinicId },
+        data: {
+          approvalStatus: 'CHANGES_REQUIRED',
+          isVerified: false,
+          isActive: false,
+          changesRequestedReason: reason.trim(),
+        },
+      });
+
+      await tx.user.update({
+        where: { id: clinic.ownerId },
+        data: { approvalStatus: 'CHANGES_REQUIRED' },
+      });
+
+      await tx.clinicVerificationLog.create({
+        data: {
+          clinicId,
+          adminId: req.user.id,
+          oldStatus,
+          newStatus: 'CHANGES_REQUIRED',
+          remark: reason.trim(),
+        },
+      });
+    });
+
+    if (clinic.owner?.email) {
+      sendClinicChangesRequestedEmail(clinic.owner.email, clinic.owner.name, clinic.name, reason.trim()).catch(() => { });
+    }
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'CLINIC_CHANGES_REQUESTED',
+      entityType: 'Clinic',
+      entityId: clinicId,
+      metadata: { reason },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, {}, 'Changes requested successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+const suspendClinic = async (req, res, next) => {
+  try {
+    const { clinicId } = req.params;
+    const { reason } = req.body;
+    if (!reason?.trim()) return sendError(res, 'Reason is required for suspending a clinic', 400);
+
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: { owner: { select: { id: true, name: true, email: true } } },
+    });
+    if (!clinic) return sendError(res, 'Clinic not found', 404);
+
+    const oldStatus = clinic.approvalStatus;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.clinic.update({
+        where: { id: clinicId },
+        data: {
+          approvalStatus: 'SUSPENDED',
+          isVerified: false,
+          isActive: false,
+          suspendedReason: reason.trim(),
+        },
+      });
+
+      await tx.user.update({
+        where: { id: clinic.ownerId },
+        data: { approvalStatus: 'SUSPENDED', suspendedReason: reason.trim() },
+      });
+
+      // Cancel all active/pending appointments at this clinic
+      // so patients are not waiting for bookings that will never be served
+      await tx.appointment.updateMany({
+        where: {
+          clinicId,
+          status: { in: ['BOOKED', 'PENDING_PAYMENT', 'CHECKED_IN', 'IN_QUEUE', 'CALLED'] },
+        },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Cancel corresponding queue items
+      await tx.queueItem.updateMany({
+        where: {
+          queue: { clinicId },
+          status: { in: ['WAITING', 'CALLED'] },
+        },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Close any active queues
+      await tx.queue.updateMany({
+        where: { clinicId, status: { in: ['ACTIVE', 'PAUSED'] } },
+        data: { status: 'CLOSED' },
+      });
+
+      await tx.clinicVerificationLog.create({
+        data: {
+          clinicId,
+          adminId: req.user.id,
+          oldStatus,
+          newStatus: 'SUSPENDED',
+          remark: reason.trim(),
+        },
+      });
+    });
+
+    if (clinic.owner?.email) {
+      sendClinicSuspendedEmail(clinic.owner.email, clinic.owner.name, clinic.name, reason.trim()).catch(() => { });
+    }
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'CLINIC_SUSPENDED',
+      entityType: 'Clinic',
+      entityId: clinicId,
+      metadata: { reason },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, {}, 'Clinic suspended successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── GET /admin/all-clinics/stats — per-status counts matching current filters ─
+// Uses the same search/state/city/clinicType filters as the table list,
+// so stats cards and table always use the same dataset.
+const getClinicStats = async (req, res, next) => {
+  try {
+    const { state, city, clinicType, search } = req.query;
+
+    // Build base where (same logic as getAllClinics, WITHOUT status filter)
+    const baseWhere = {};
+    if (state) baseWhere.state = { contains: state, mode: 'insensitive' };
+    if (city) baseWhere.city = { contains: city, mode: 'insensitive' };
+    if (clinicType) baseWhere.clinicType = { contains: clinicType, mode: 'insensitive' };
+    if (search) {
+      baseWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { clinicRegistrationNumber: { contains: search, mode: 'insensitive' } },
+        { owner: { name: { contains: search, mode: 'insensitive' } } },
+        { owner: { mobile: { contains: search } } },
+        { owner: { email: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const STATUSES = ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'CHANGES_REQUIRED', 'SUSPENDED'];
+
+    const counts = await Promise.all(
+      STATUSES.map((s) =>
+        prisma.clinic.count({ where: { ...baseWhere, approvalStatus: s } })
+      )
+    );
+
+    const stats = Object.fromEntries(STATUSES.map((s, i) => [s, counts[i]]));
+    stats.TOTAL = counts.reduce((sum, n) => sum + n, 0);
+
+    return res.json({ success: true, data: { stats } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── GET /admin/all-clinics — paginated, filtered clinic list for admin ────────
+const getAllClinics = async (req, res, next) => {
+  try {
+    const {
+      page = 1, limit = 20,
+      status, state, city, clinicType, search,
+    } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where = {};
+    if (status) where.approvalStatus = status;
+    if (state) where.state = { contains: state, mode: 'insensitive' };
+    if (city) where.city = { contains: city, mode: 'insensitive' };
+    if (clinicType) where.clinicType = { contains: clinicType, mode: 'insensitive' };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { clinicRegistrationNumber: { contains: search, mode: 'insensitive' } },
+        { owner: { name: { contains: search, mode: 'insensitive' } } },
+        { owner: { mobile: { contains: search } } },
+        { owner: { email: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [clinics, total] = await Promise.all([
+      prisma.clinic.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        select: {
+          id: true,
+          name: true,
+          clinicType: true,
+          city: true,
+          state: true,
+          approvalStatus: true,
+          submittedAt: true,
+          createdAt: true,
+          owner: {
+            select: { id: true, name: true, mobile: true, email: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.clinic.count({ where }),
+    ]);
+
+    return res.json({
+      success: true,
+      data: { clinics },
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── GET /admin/all-clinics/:clinicId — full clinic detail for admin review ────
+const getClinicDetail = async (req, res, next) => {
+  try {
+    const { clinicId } = req.params;
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: {
+        owner: {
+          select: {
+            id: true, name: true, mobile: true, email: true,
+            isPhoneVerified: true, isEmailVerified: true,
+            approvalStatus: true, createdAt: true,
+          },
+        },
+        verificationLogs: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!clinic) return sendError(res, 'Clinic not found', 404);
+    return sendSuccess(res, { clinic });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboard,
   getPendingClinics,
@@ -582,4 +911,9 @@ module.exports = {
   createAdminAccount,
   deleteAdminAccount,
   resetDatabase,
+  requestClinicChanges,
+  suspendClinic,
+  getAllClinics,
+  getClinicStats,
+  getClinicDetail,
 };

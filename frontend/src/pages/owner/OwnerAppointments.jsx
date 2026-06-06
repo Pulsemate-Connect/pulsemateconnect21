@@ -4,6 +4,7 @@ import { getMyClinics, getClinicAppointments } from '../../api/clinic.api';
 import StatusBadge from '../../components/ui/StatusBadge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
+import ClinicNotVerifiedGuard from '../../components/ui/ClinicNotVerifiedGuard';
 import toast from 'react-hot-toast';
 
 const STATUS_OPTIONS = ['', 'BOOKED', 'CHECKED_IN', 'IN_QUEUE', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
@@ -52,6 +53,7 @@ const OwnerAppointments = () => {
 
   return (
     <DashboardLayout>
+      <ClinicNotVerifiedGuard>
       <div className="page-container">
         <h1 className="text-2xl font-bold text-text-primary mb-6">Appointments</h1>
 
@@ -171,6 +173,7 @@ const OwnerAppointments = () => {
           </div>
         )}
       </div>
+      </ClinicNotVerifiedGuard>
     </DashboardLayout>
   );
 };

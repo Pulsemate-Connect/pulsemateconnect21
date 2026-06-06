@@ -20,6 +20,7 @@ const sendEmailVerification = async (email, ownerName) => {
 
   if (recent) {
     const secondsLeft = Math.ceil((recent.createdAt.getTime() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000);
+    console.log(`[DEV EMAIL OTP] Cooldown active for ${normalizedEmail}, ${secondsLeft}s left`);
     const error = new Error(`Please wait ${secondsLeft} seconds before requesting a new verification email`);
     error.status = 429;
     throw error;
@@ -36,10 +37,9 @@ const sendEmailVerification = async (email, ownerName) => {
     maxAttempts: EMAIL_VERIFICATION_MAX_ATTEMPTS,
   });
 
+  console.log(`\n[DEV EMAIL OTP] ${normalizedEmail}: ${rawToken}\n`);
+  logger.info(`[DEV EMAIL OTP] ${normalizedEmail}: ${rawToken}`);
   await sendClinicOwnerVerificationOtpEmail(normalizedEmail, rawToken, ownerName);
-  if (process.env.NODE_ENV !== 'production') {
-    logger.info(`Clinic owner email OTP for ${normalizedEmail}: ${rawToken}`);
-  }
 
   return {
     message: 'Verification code sent successfully',

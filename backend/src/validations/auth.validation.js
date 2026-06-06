@@ -92,7 +92,7 @@ const clinicOwnerOtpVerifySchema = z
 
 const clinicOwnerEmailVerificationSendSchema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
-  ownerName: z.string().trim().min(2).max(120).optional(),
+  ownerName: z.string().trim().max(120).optional().or(z.literal('')),
 });
 
 const clinicOwnerEmailOtpVerifySchema = z.object({

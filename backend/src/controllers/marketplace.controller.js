@@ -9,23 +9,42 @@ const listMarketplaceDoctors = async (req, res, next) => {
       where: {
         approvalStatus: 'VERIFIED',
         marketplaceVisible: true,
+        // Doctor must be linked to at least one verified + active clinic
+        doctorClinics: {
+          some: {
+            inviteStatus: 'ACCEPTED',
+            isActive: true,
+            clinic: { approvalStatus: 'VERIFIED', isActive: true },
+          },
+        },
         ...(specialization ? { specialization: { contains: specialization, mode: 'insensitive' } } : {}),
         ...(experienceYears ? { experienceYears: { gte: Number(experienceYears) } } : {}),
         ...(city
           ? {
-              doctorClinics: {
-                some: {
-                  inviteStatus: 'ACCEPTED',
-                  clinic: { city: { contains: city, mode: 'insensitive' } },
+            doctorClinics: {
+              some: {
+                inviteStatus: 'ACCEPTED',
+                isActive: true,
+                clinic: {
+                  approvalStatus: 'VERIFIED',
+                  isActive: true,
+                  city: { contains: city, mode: 'insensitive' },
                 },
               },
-            }
+            },
+          }
           : {}),
       },
       include: {
         user: { select: { id: true, name: true, mobile: true, email: true } },
         doctorClinics: {
-          where: { inviteStatus: 'ACCEPTED', removedAt: null },
+          // Only expose verified + active clinic links
+          where: {
+            inviteStatus: 'ACCEPTED',
+            removedAt: null,
+            isActive: true,
+            clinic: { approvalStatus: 'VERIFIED', isActive: true },
+          },
           include: { clinic: { select: { id: true, name: true, city: true } } },
         },
       },

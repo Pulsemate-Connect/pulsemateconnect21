@@ -73,6 +73,135 @@ const getMyClinics = async (req, res, next) => {
 };
 
 /**
+ * GET /api/clinics/my-status - Get owner's first clinic with full verification status
+ */
+const getMyClinicStatus = async (req, res, next) => {
+  try {
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+      include: {
+        verificationLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!clinic) return sendError(res, 'No clinic found for this owner', 404);
+
+    return sendSuccess(res, { clinic });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/clinics/my-resubmit - Resubmit clinic after REJECTED or CHANGES_REQUIRED
+ * Accepts all editable clinic fields, updates in a single transaction,
+ * resets status to PENDING, clears reasons, and writes a verification log.
+ */
+const resubmitClinic = async (req, res, next) => {
+  try {
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!clinic) return sendError(res, 'No clinic found', 404);
+
+    if (!['REJECTED', 'CHANGES_REQUIRED'].includes(clinic.approvalStatus)) {
+      return sendError(res, 'Clinic can only be resubmitted when status is REJECTED or CHANGES_REQUIRED', 400);
+    }
+
+    const oldStatus = clinic.approvalStatus;
+
+    // All fields the owner is allowed to update on resubmit
+    const allowedFields = [
+      // Basic info
+      'name', 'phone', 'address', 'landmark', 'city', 'state', 'district',
+      'pincode', 'googleMapsLocation', 'latitude', 'longitude',
+      'emergencyContactNumber', 'alternateEmail', 'description',
+      // Clinic type & specialties
+      'clinicType', 'clinicTypeOther', 'specialties', 'specialtyOther', 'doctorCount',
+      // Branding
+      'clinicLogoUrl', 'clinicCoverImageUrl',
+      // Operations
+      'consultationModes', 'weeklySchedule', 'openingHours',
+      'avgConsultationMinutes', 'appointmentSlotMinutes', 'dailyPatientCapacity',
+      // Facilities & services
+      'facilities', 'languagesSpoken', 'paymentMethods', 'insuranceSupported',
+      // Compliance
+      'clinicRegistrationNumber', 'gstNumber', 'panNumber',
+      'licenseDocumentUrl', 'clinicLicenseDocument',
+      'medicalEstablishmentCertificateUrl', 'gstCertificateUrl',
+      'panCardUrl', 'additionalDocuments',
+    ];
+
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
+
+    // Keep clinicLicenseDocument in sync with licenseDocumentUrl
+    if (updateData.licenseDocumentUrl && !updateData.clinicLicenseDocument) {
+      updateData.clinicLicenseDocument = updateData.licenseDocumentUrl;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedClinic = await tx.clinic.update({
+        where: { id: clinic.id },
+        data: {
+          ...updateData,
+          approvalStatus: 'PENDING',
+          isVerified: false,
+          isActive: false,
+          rejectionReason: null,
+          changesRequestedReason: null,
+          suspendedReason: null,
+          rejectedById: null,
+          rejectedAt: null,
+          lastResubmittedAt: new Date(),
+          submittedAt: new Date(),
+        },
+      });
+
+      await tx.user.update({
+        where: { id: req.user.id },
+        data: { approvalStatus: 'PENDING', rejectionReason: null },
+      });
+
+      await tx.clinicVerificationLog.create({
+        data: {
+          clinicId: clinic.id,
+          adminId: null,
+          oldStatus,
+          newStatus: 'PENDING',
+          remark: 'Owner resubmitted clinic for review',
+        },
+      });
+
+      return updatedClinic;
+    });
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'CLINIC_RESUBMITTED',
+      entityType: 'Clinic',
+      entityId: clinic.id,
+      metadata: { oldStatus, fieldsUpdated: Object.keys(updateData) },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, { clinic: updated }, 'Clinic resubmitted for review successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * GET /api/clinics/:id - Get clinic details
  */
 const getClinic = async (req, res, next) => {
@@ -373,16 +502,16 @@ const getClinicRevenue = async (req, res, next) => {
 
     if (period === 'today') {
       startDate = new Date(); startDate.setUTCHours(0, 0, 0, 0);
-      endDate   = new Date(); endDate.setUTCHours(23, 59, 59, 999);
+      endDate = new Date(); endDate.setUTCHours(23, 59, 59, 999);
     } else if (period === 'week') {
       startDate = new Date(); startDate.setDate(now.getDate() - 6); startDate.setUTCHours(0, 0, 0, 0);
-      endDate   = new Date(); endDate.setUTCHours(23, 59, 59, 999);
+      endDate = new Date(); endDate.setUTCHours(23, 59, 59, 999);
     } else if (period === 'month') {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1); startDate.setUTCHours(0, 0, 0, 0);
-      endDate   = new Date(); endDate.setUTCHours(23, 59, 59, 999);
+      endDate = new Date(); endDate.setUTCHours(23, 59, 59, 999);
     } else {
       startDate = new Date(0);
-      endDate   = new Date();
+      endDate = new Date();
     }
 
     // All paid payments for this clinic in range
@@ -405,7 +534,7 @@ const getClinicRevenue = async (req, res, next) => {
     });
 
     const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const cashRevenue  = payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amount, 0);
+    const cashRevenue = payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amount, 0);
     const onlineRevenue = payments.filter((p) => p.method !== 'CASH').reduce((sum, p) => sum + p.amount, 0);
 
     // Revenue by doctor
@@ -418,7 +547,7 @@ const getClinicRevenue = async (req, res, next) => {
 
     // Today's appointment count
     const todayStart = new Date(); todayStart.setUTCHours(0, 0, 0, 0);
-    const todayEnd   = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
+    const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
     const [totalAppointments, completedToday, pendingPayments] = await Promise.all([
       prisma.appointment.count({ where: { clinicId, appointmentDate: { gte: todayStart, lte: todayEnd } } }),
       prisma.appointment.count({ where: { clinicId, status: 'COMPLETED', appointmentDate: { gte: todayStart, lte: todayEnd } } }),
@@ -494,6 +623,8 @@ const getClinicAppointments = async (req, res, next) => {
 module.exports = {
   createClinic,
   getMyClinics,
+  getMyClinicStatus,
+  resubmitClinic,
   getClinic,
   updateClinic,
   addStaff,

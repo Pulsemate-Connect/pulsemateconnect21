@@ -5,12 +5,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Animated, Easing,
-  Dimensions, StatusBar,
+  Dimensions, StatusBar, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useAuth } from '../store/authStore';
-import { getMyAppointments, getLiveQueue } from '../api/patient';
+import { getMyAppointments, getLiveQueue, getNearby } from '../api/patient';
 
 const { width: W } = Dimensions.get('window');
 const LOGO = require('../../assets/logo1.jpeg');
@@ -38,19 +39,8 @@ const SPECS = [
   { icon: 'eye',            label: 'Eye Care',      color: '#06B6D4', bg: '#CFFAFE' },
 ];
 
-// ── Nearby clinics (static demo) ──────────────────────────────────────────────
-const CLINICS = [
-  { name: 'Apollo Clinic',      area: 'Koramangala',  rating: 4.8, dist: '0.8 km', tag: 'Open Now',  tagColor: '#10B981' },
-  { name: 'Fortis Health',      area: 'Indiranagar',  rating: 4.6, dist: '1.4 km', tag: 'Open Now',  tagColor: '#10B981' },
-  { name: 'Manipal Hospital',   area: 'Whitefield',   rating: 4.9, dist: '3.2 km', tag: 'Busy',      tagColor: '#F59E0B' },
-];
-
-// ── Recommended doctors (static demo) ────────────────────────────────────────
-const DOCTORS = [
-  { name: 'Dr. Priya Sharma',   spec: 'Cardiologist',      exp: '12 yrs', fee: '₹500', rating: 4.9, avail: 'Today' },
-  { name: 'Dr. Rahul Mehta',    spec: 'Orthopedic',        exp: '8 yrs',  fee: '₹400', rating: 4.7, avail: 'Tomorrow' },
-  { name: 'Dr. Anita Verma',    spec: 'Pediatrician',      exp: '15 yrs', fee: '₹350', rating: 4.8, avail: 'Today' },
-];
+// ── Nearby clinics (loaded from API) ─────────────────────────────────────────
+// ── Recommended doctors (loaded from API) ────────────────────────────────────
 
 // ── Animated pulse dot ────────────────────────────────────────────────────────
 function PulseDot({ color = TEAL }) {
@@ -142,6 +132,13 @@ export default function HomeScreen({ navigation }) {
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
 
+  // ── Location & Nearby ──────────────────────────────────────────────────────
+  const [location,       setLocation]       = useState(null);
+  const [locationStatus, setLocationStatus] = useState('idle'); // idle | asking | granted | denied
+  const [nearbyClinics,  setNearbyClinics]  = useState([]);
+  const [nearbyDoctors,  setNearbyDoctors]  = useState([]);
+  const [nearbyLoading,  setNearbyLoading]  = useState(false);
+
   const enterA = useRef(new Animated.Value(0)).current;
   const slideA = useRef(new Animated.Value(20)).current;
 
@@ -170,6 +167,61 @@ export default function HomeScreen({ navigation }) {
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
+
+  // ── Request location & fetch nearby ───────────────────────────────────────
+  const fetchNearby = useCallback(async (coords) => {
+    if (!coords) return;
+    setNearbyLoading(true);
+    try {
+      const res = await getNearby({
+        lat: coords.latitude,
+        lng: coords.longitude,
+        radius: 50,
+        type: 'all',
+        limit: 10,
+      });
+      const data = res.data.data || {};
+      setNearbyClinics(data.clinics || []);
+      setNearbyDoctors(data.doctors || []);
+    } catch {
+      setNearbyClinics([]);
+      setNearbyDoctors([]);
+    } finally {
+      setNearbyLoading(false);
+    }
+  }, []);
+
+  const requestLocation = useCallback(async () => {
+    setLocationStatus('asking');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationStatus('denied');
+        return;
+      }
+      setLocationStatus('granted');
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLocation(loc.coords);
+      fetchNearby(loc.coords);
+    } catch {
+      setLocationStatus('denied');
+    }
+  }, [fetchNearby]);
+
+  // Auto-request location on mount
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        setLocationStatus('granted');
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setLocation(loc.coords);
+        fetchNearby(loc.coords);
+      } else {
+        setLocationStatus('idle');
+      }
+    })();
+  }, [fetchNearby]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -361,52 +413,118 @@ export default function HomeScreen({ navigation }) {
           {/* ── Nearby Clinics ── */}
           <View style={hs.section}>
             <SectionHeader title="Nearby Clinics" onViewAll={() => navigation.navigate('Search')} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
-              {CLINICS.map((c) => (
-                <TouchableOpacity key={c.name} style={hs.clinicCard} onPress={() => navigation.navigate('Search')} activeOpacity={0.88}>
-                  <View style={hs.clinicIconWrap}>
-                    <Ionicons name="business" size={22} color={SKY6} />
-                  </View>
-                  <Text style={hs.clinicName}>{c.name}</Text>
-                  <Text style={hs.clinicArea}>{c.area}</Text>
-                  <View style={hs.clinicMeta}>
-                    <Ionicons name="star" size={11} color="#F59E0B" />
-                    <Text style={hs.clinicRating}>{c.rating}</Text>
-                    <View style={hs.metaDot} />
-                    <Text style={hs.clinicDist}>{c.dist}</Text>
-                  </View>
-                  <View style={[hs.clinicTag, { backgroundColor: c.tagColor + '20' }]}>
-                    <View style={[hs.clinicTagDot, { backgroundColor: c.tagColor }]} />
-                    <Text style={[hs.clinicTagText, { color: c.tagColor }]}>{c.tag}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {locationStatus === 'idle' && (
+              <TouchableOpacity style={hs.locationPrompt} onPress={requestLocation} activeOpacity={0.85}>
+                <View style={hs.locationPromptIcon}>
+                  <Ionicons name="location-outline" size={24} color={SKY6} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={hs.locationPromptTitle}>Enable Location</Text>
+                  <Text style={hs.locationPromptSub}>Tap to find clinics near you</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={SKY5} />
+              </TouchableOpacity>
+            )}
+            {locationStatus === 'asking' && (
+              <View style={hs.locationPrompt}>
+                <ActivityIndicator color={SKY5} />
+                <Text style={[hs.locationPromptSub, { marginLeft: 12 }]}>Getting your location…</Text>
+              </View>
+            )}
+            {locationStatus === 'denied' && (
+              <TouchableOpacity style={hs.locationPrompt} onPress={requestLocation} activeOpacity={0.85}>
+                <Ionicons name="location-outline" size={22} color="#EF4444" />
+                <Text style={[hs.locationPromptSub, { marginLeft: 10, color: '#EF4444' }]}>
+                  Location denied — tap to retry
+                </Text>
+              </TouchableOpacity>
+            )}
+            {locationStatus === 'granted' && nearbyLoading && (
+              <ActivityIndicator color={SKY5} style={{ marginVertical: 20 }} />
+            )}
+            {locationStatus === 'granted' && !nearbyLoading && nearbyClinics.length === 0 && (
+              <View style={hs.emptyCard}>
+                <Ionicons name="business-outline" size={30} color={MUTED} />
+                <Text style={[hs.emptySub, { marginTop: 8 }]}>No verified clinics found within 50 km</Text>
+              </View>
+            )}
+            {locationStatus === 'granted' && !nearbyLoading && nearbyClinics.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
+                {nearbyClinics.map((c) => (
+                  <TouchableOpacity key={c.id} style={hs.clinicCard} onPress={() => navigation.navigate('Search')} activeOpacity={0.88}>
+                    <View style={hs.clinicIconWrap}>
+                      <Ionicons name="business" size={22} color={SKY6} />
+                    </View>
+                    <Text style={hs.clinicName} numberOfLines={1}>{c.name}</Text>
+                    <Text style={hs.clinicArea} numberOfLines={1}>{c.district || c.city}</Text>
+                    <View style={hs.clinicMeta}>
+                      <Ionicons name="navigate-outline" size={11} color={SKY5} />
+                      <Text style={hs.clinicDist}>{c.distanceKm} km</Text>
+                    </View>
+                    {c.specialties?.length > 0 && (
+                      <View style={[hs.clinicTag, { backgroundColor: '#EFF6FF' }]}>
+                        <Text style={[hs.clinicTagText, { color: SKY6 }]} numberOfLines={1}>
+                          {c.specialties[0]}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
-          {/* ── Recommended Doctors ── */}
+          {/* ── Nearby Doctors ── */}
           <View style={hs.section}>
-            <SectionHeader title="Recommended Doctors" onViewAll={() => navigation.navigate('DoctorsTab')} />
-            {DOCTORS.map((doc) => (
-              <TouchableOpacity key={doc.name} style={hs.docCard} onPress={() => navigation.navigate('DoctorsTab')} activeOpacity={0.88}>
+            <SectionHeader title="Nearby Doctors" onViewAll={() => navigation.navigate('DoctorsTab')} />
+            {locationStatus === 'granted' && nearbyLoading && (
+              <ActivityIndicator color={SKY5} style={{ marginVertical: 20 }} />
+            )}
+            {locationStatus !== 'granted' && (
+              <View style={hs.emptyCard}>
+                <Ionicons name="person-outline" size={30} color={MUTED} />
+                <Text style={[hs.emptySub, { marginTop: 8 }]}>Enable location to see nearby doctors</Text>
+              </View>
+            )}
+            {locationStatus === 'granted' && !nearbyLoading && nearbyDoctors.length === 0 && (
+              <View style={hs.emptyCard}>
+                <Ionicons name="person-outline" size={30} color={MUTED} />
+                <Text style={[hs.emptySub, { marginTop: 8 }]}>No doctors found within 50 km</Text>
+              </View>
+            )}
+            {locationStatus === 'granted' && !nearbyLoading && nearbyDoctors.map((doc) => (
+              <TouchableOpacity
+                key={doc.id}
+                style={hs.docCard}
+                onPress={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { id: doc.id } })}
+                activeOpacity={0.88}
+              >
                 <View style={hs.docAvatar}>
-                  <Text style={hs.docAvatarText}>{doc.name.split(' ')[1]?.charAt(0) || 'D'}</Text>
+                  <Text style={hs.docAvatarText}>{doc.user?.name?.split(' ')[1]?.charAt(0) || doc.user?.name?.charAt(0) || 'D'}</Text>
                 </View>
                 <View style={hs.docInfo}>
-                  <Text style={hs.docName}>{doc.name}</Text>
-                  <Text style={hs.docSpec}>{doc.spec}  ·  {doc.exp} exp</Text>
+                  <Text style={hs.docName}>Dr. {doc.user?.name}</Text>
+                  <Text style={hs.docSpec}>{doc.specialization}{doc.experienceYears ? `  ·  ${doc.experienceYears} yrs` : ''}</Text>
                   <View style={hs.docMeta}>
-                    <Ionicons name="star" size={11} color="#F59E0B" />
-                    <Text style={hs.docRating}>{doc.rating}</Text>
+                    <Ionicons name="navigate-outline" size={11} color={SKY5} />
+                    <Text style={hs.docRating}>{doc.distanceKm} km</Text>
                     <View style={hs.metaDot} />
-                    <Ionicons name="time-outline" size={11} color={MUTED} />
-                    <Text style={hs.docAvailText}>{doc.avail}</Text>
+                    <Ionicons name="business-outline" size={11} color={MUTED} />
+                    <Text style={hs.docAvailText} numberOfLines={1}>{doc.nearestClinic?.name}</Text>
                   </View>
                 </View>
                 <View style={hs.docRight}>
-                  <Text style={hs.docFee}>{doc.fee}</Text>
-                  <Text style={hs.docFeeLabel}>Consult fee</Text>
-                  <TouchableOpacity style={hs.docBookBtn} activeOpacity={0.85}>
+                  {doc.consultationFee ? (
+                    <>
+                      <Text style={hs.docFee}>₹{doc.consultationFee}</Text>
+                      <Text style={hs.docFeeLabel}>Consult fee</Text>
+                    </>
+                  ) : null}
+                  <TouchableOpacity
+                    style={hs.docBookBtn}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { id: doc.id } })}
+                  >
                     <Text style={hs.docBookText}>Book</Text>
                   </TouchableOpacity>
                 </View>
@@ -609,6 +727,20 @@ const hs = StyleSheet.create({
   emptyBtnText: { fontSize: 14, fontWeight: '700', color: WHITE },
 
   // ── Nearby clinics ───────────────────────────────────────────────────────────
+  locationPrompt: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: WHITE, borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+    marginBottom: 4,
+  },
+  locationPromptIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center',
+  },
+  locationPromptTitle: { fontSize: 14, fontWeight: '700', color: SLATE },
+  locationPromptSub:   { fontSize: 12, color: MUTED, marginTop: 2 },
   clinicCard: {
     width: 160, backgroundColor: WHITE, borderRadius: 18,
     padding: 14,

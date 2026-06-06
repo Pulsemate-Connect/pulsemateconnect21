@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+
   html,
   body,
   #root {
@@ -14,8 +15,8 @@
   }
 
   body {
-    background-color: #F9FAFB;
-    color: #111827;
+    background-color: #F8FAFC;
+    color: #0F172A;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -37,51 +38,40 @@
 }
 
 @layer components {
+
   /* Button variants */
   .btn-primary {
-    @apply bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 
-           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 
-           disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
+    @apply bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
   }
 
   .btn-secondary {
-    @apply bg-secondary-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-secondary-600 
-           focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:ring-offset-2 
-           disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
+    @apply bg-secondary-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-secondary-600 focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
   }
 
   .btn-outline {
-    @apply border border-primary-600 text-primary-600 px-4 py-2 rounded-lg font-medium 
-           hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 
-           focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
+    @apply border border-primary-600 text-primary-600 px-4 py-2 rounded-lg font-medium hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
   }
 
   .btn-danger {
-    @apply bg-error text-white px-4 py-2 rounded-lg font-medium hover:bg-red-600 
-           focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 
-           disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
+    @apply bg-error text-white px-4 py-2 rounded-lg font-medium hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
   }
 
   .btn-ghost {
-    @apply text-text-muted px-4 py-2 rounded-lg font-medium hover:bg-gray-100 
-           focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 
-           disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
+    @apply text-text-muted px-4 py-2 rounded-lg font-medium hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200;
   }
 
   /* Card */
   .card {
-    @apply bg-card rounded-xl shadow-card border border-border p-6;
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-6;
   }
 
   .card-hover {
-    @apply card hover:shadow-card-hover transition-shadow duration-200 cursor-pointer;
+    @apply card hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer;
   }
 
   /* Form inputs */
   .input {
-    @apply w-full px-3 py-2.5 border border-border rounded-lg text-text-primary 
-           placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500 
-           focus:border-transparent transition-all duration-200 bg-white;
+    @apply w-full px-3 py-2.5 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white;
   }
 
   .input-error {
@@ -161,7 +151,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Pulse animation for live indicator */
@@ -170,61 +162,142 @@
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2); opacity: 0; }
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }
 
 @keyframes soft-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(18px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes slide-in-left {
-  from { opacity: 0; transform: translateX(-60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes scale-bounce {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes pulse-ring-step {
-  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
-  70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
 }
 
 @keyframes tooltip-fade {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes checkmark-pop {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-  50% { box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.15); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.15);
+  }
 }
 
 .animate-slide-in-right {
@@ -319,8 +392,8 @@
   display: inline-flex;
 }
 
-.tooltip-trigger:hover + .tooltip-content,
-.tooltip-trigger:focus + .tooltip-content {
+.tooltip-trigger:hover+.tooltip-content,
+.tooltip-trigger:focus+.tooltip-content {
   display: block;
 }
 
@@ -368,7 +441,7 @@
     display: none;
   }
 
-  .stepper-mobile-scroll > * {
+  .stepper-mobile-scroll>* {
     scroll-snap-align: center;
     flex-shrink: 0;
   }

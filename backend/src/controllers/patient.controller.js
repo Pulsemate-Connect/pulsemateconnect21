@@ -4,14 +4,29 @@ const { notifyAppointmentBooked } = require('../services/notification.service');
 
 /**
  * GET /api/patient/doctors - Search doctors
+ * Only returns doctors who are linked to at least one VERIFIED + active clinic.
+ * The doctorClinics include only returns verified + active clinic entries.
  */
 const searchDoctors = async (req, res, next) => {
   try {
     const { specialization, city, name, available, page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
+    // Base filter — doctor must be verified, user active,
+    // AND linked to at least one verified active clinic
+    const verifiedClinicFilter = {
+      some: {
+        isActive: true,
+        inviteStatus: 'ACCEPTED',
+        clinic: { approvalStatus: 'VERIFIED', isActive: true },
+      },
+    };
+
     const where = {
+      approvalStatus: 'VERIFIED',
+      marketplaceVisible: true,
       user: { isActive: true, role: 'DOCTOR' },
+      doctorClinics: verifiedClinicFilter,
     };
 
     if (specialization) {
@@ -23,39 +38,49 @@ const searchDoctors = async (req, res, next) => {
     }
 
     if (name) {
-      where.user = {
-        ...where.user,
-        name: { contains: name, mode: 'insensitive' },
-      };
+      where.user = { ...where.user, name: { contains: name, mode: 'insensitive' } };
     }
 
-    const doctorWhere = { ...where };
-
     if (city) {
-      doctorWhere.doctorClinics = {
+      where.doctorClinics = {
         some: {
           isActive: true,
-          clinic: { city: { contains: city, mode: 'insensitive' }, isVerified: true },
+          inviteStatus: 'ACCEPTED',
+          clinic: {
+            approvalStatus: 'VERIFIED',
+            isActive: true,
+            city: { contains: city, mode: 'insensitive' },
+          },
         },
       };
     }
 
     const [doctors, total] = await Promise.all([
       prisma.doctorProfile.findMany({
-        where: doctorWhere,
+        where,
         skip: parseInt(skip),
         take: parseInt(limit),
         include: {
           user: { select: { id: true, name: true, mobile: true } },
           doctorClinics: {
-            where: { isActive: true },
+            // Only expose verified + active clinic relationships to the patient
+            where: {
+              isActive: true,
+              inviteStatus: 'ACCEPTED',
+              clinic: { approvalStatus: 'VERIFIED', isActive: true },
+            },
             include: {
-              clinic: { select: { id: true, name: true, city: true, address: true, isVerified: true } },
+              clinic: {
+                select: {
+                  id: true, name: true, city: true, address: true,
+                  isVerified: true, approvalStatus: true,
+                },
+              },
             },
           },
         },
       }),
-      prisma.doctorProfile.count({ where: doctorWhere }),
+      prisma.doctorProfile.count({ where }),
     ]);
 
     return sendPaginated(res, doctors, total, page, limit);
@@ -66,6 +91,7 @@ const searchDoctors = async (req, res, next) => {
 
 /**
  * GET /api/patient/doctors/:id - Get doctor profile
+ * Only shows clinic relationships where the clinic is VERIFIED and active.
  */
 const getDoctorProfile = async (req, res, next) => {
   try {
@@ -76,18 +102,17 @@ const getDoctorProfile = async (req, res, next) => {
       include: {
         user: { select: { id: true, name: true, mobile: true } },
         doctorClinics: {
-          where: { isActive: true },
+          where: {
+            isActive: true,
+            inviteStatus: 'ACCEPTED',
+            clinic: { approvalStatus: 'VERIFIED', isActive: true },
+          },
           include: {
             clinic: {
               select: {
-                id: true,
-                name: true,
-                city: true,
-                address: true,
-                phone: true,
-                openingTime: true,
-                closingTime: true,
-                isVerified: true,
+                id: true, name: true, city: true, address: true, phone: true,
+                openingTime: true, closingTime: true,
+                isVerified: true, approvalStatus: true,
               },
             },
           },
@@ -107,10 +132,24 @@ const getDoctorProfile = async (req, res, next) => {
 
 /**
  * POST /api/patient/appointments - Book appointment
+ * Clinic must be VERIFIED and active before a booking is accepted.
  */
 const bookAppointment = async (req, res, next) => {
   try {
     const { doctorId, clinicId, appointmentType, appointmentDate, slotTime, symptoms } = req.body;
+
+    // Verify the clinic is approved and active
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { id: true, approvalStatus: true, isActive: true, name: true },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'Clinic not found', 404);
+    }
+    if (clinic.approvalStatus !== 'VERIFIED' || !clinic.isActive) {
+      return sendError(res, 'Clinic verification is required before using this feature.', 403);
+    }
 
     // Verify doctor-clinic relationship
     const doctorClinic = await prisma.doctorClinic.findFirst({
@@ -221,11 +260,15 @@ const bookAppointment = async (req, res, next) => {
       }
     }
 
-    return sendSuccess(res, { appointment }, 'Appointment booked successfully', 201);
+    // Fire-and-forget booking confirmation notification
+    notifyAppointmentBooked(
+      req.user.id,
+      appointment.doctor?.user?.name || 'the doctor',
+      appointmentDate,
+      queueNumber
+    ).catch(() => { });
 
-    // Send booking confirmation notification (fire-and-forget)
-    const doctorName = appointment.doctor?.user?.name || 'the doctor';
-    notifyAppointmentBooked(req.user.id, doctorName, appointmentDate, queueNumber).catch(() => {});
+    return sendSuccess(res, { appointment }, 'Appointment booked successfully', 201);
   } catch (error) {
     next(error);
   }
@@ -472,14 +515,14 @@ const updateProfile = async (req, res, next) => {
 
     // Build profile update — only include fields that were actually sent in the request body
     const profileUpdate = {};
-    if (age !== undefined)              profileUpdate.age = age || null;
-    if (dob !== undefined)              profileUpdate.dob = dob ? new Date(dob) : null;
-    if (gender !== undefined)           profileUpdate.gender = gender || null;
-    if (address !== undefined)          profileUpdate.address = address || null;
-    if (city !== undefined)             profileUpdate.city = city || null;
+    if (age !== undefined) profileUpdate.age = age || null;
+    if (dob !== undefined) profileUpdate.dob = dob ? new Date(dob) : null;
+    if (gender !== undefined) profileUpdate.gender = gender || null;
+    if (address !== undefined) profileUpdate.address = address || null;
+    if (city !== undefined) profileUpdate.city = city || null;
     if (emergencyContact !== undefined) profileUpdate.emergencyContact = emergencyContact || null;
-    if (bloodGroup !== undefined)       profileUpdate.bloodGroup = bloodGroup || null;
-    if (allergies !== undefined)        profileUpdate.allergies = allergies || null;
+    if (bloodGroup !== undefined) profileUpdate.bloodGroup = bloodGroup || null;
+    if (allergies !== undefined) profileUpdate.allergies = allergies || null;
     if (existingDiseases !== undefined) profileUpdate.existingDiseases = existingDiseases || null;
     if (insuranceProvider !== undefined) profileUpdate.insuranceProvider = insuranceProvider || null;
     profileUpdate.profileCompleted = profileCompleted;
@@ -518,6 +561,151 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+/**
+ * Haversine distance in km between two lat/lng points
+ */
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/**
+ * GET /api/patient/nearby?lat=xx&lng=yy&radius=10&type=clinics|doctors|all
+ * Returns nearby verified clinics and/or doctors sorted by distance
+ */
+const getNearby = async (req, res, next) => {
+  try {
+    const { lat, lng, radius = 50, type = 'all', limit = 20 } = req.query;
+
+    if (!lat || !lng) {
+      return sendError(res, 'lat and lng query params are required', 400);
+    }
+
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+    const radiusKm = parseFloat(radius);
+    const maxResults = parseInt(limit);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+      return sendError(res, 'Invalid lat/lng values', 400);
+    }
+
+    const result = {};
+
+    // ── Nearby Clinics ───────────────────────────────────────────────────────
+    if (type === 'clinics' || type === 'all') {
+      const clinics = await prisma.clinic.findMany({
+        where: {
+          approvalStatus: 'VERIFIED',
+          isVerified: true,
+          isActive: true,
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          city: true,
+          district: true,
+          latitude: true,
+          longitude: true,
+          phone: true,
+          openingHours: true,
+          specialties: true,
+          clinicType: true,
+          clinicLogoUrl: true,
+          consultationModes: true,
+          _count: { select: { appointments: true } },
+        },
+      });
+
+      const nearbyClinics = clinics
+        .map((c) => {
+          const distKm = haversineKm(userLat, userLng, c.latitude, c.longitude);
+          return { ...c, distanceKm: Math.round(distKm * 10) / 10 };
+        })
+        .filter((c) => c.distanceKm <= radiusKm)
+        .sort((a, b) => a.distanceKm - b.distanceKm)
+        .slice(0, maxResults);
+
+      result.clinics = nearbyClinics;
+    }
+
+    // ── Nearby Doctors (via their clinics) ───────────────────────────────────
+    if (type === 'doctors' || type === 'all') {
+      const doctorClinics = await prisma.doctorClinic.findMany({
+        where: {
+          isActive: true,
+          clinic: {
+            approvalStatus: 'VERIFIED',
+            isVerified: true,
+            latitude: { not: null },
+            longitude: { not: null },
+          },
+          doctor: {
+            approvalStatus: 'VERIFIED',
+            user: { isActive: true },
+          },
+        },
+        select: {
+          consultationFee: true,
+          clinic: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
+          doctor: {
+            select: {
+              id: true,
+              specialization: true,
+              experienceYears: true,
+              offlineAvailable: true,
+              onlineAvailable: true,
+              user: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      // Deduplicate doctors, keep closest clinic
+      const doctorMap = new Map();
+      for (const dc of doctorClinics) {
+        const distKm = haversineKm(userLat, userLng, dc.clinic.latitude, dc.clinic.longitude);
+        if (distKm > radiusKm) continue;
+        const existing = doctorMap.get(dc.doctor.id);
+        if (!existing || distKm < existing.distanceKm) {
+          doctorMap.set(dc.doctor.id, {
+            ...dc.doctor,
+            nearestClinic: dc.clinic,
+            consultationFee: dc.consultationFee,
+            distanceKm: Math.round(distKm * 10) / 10,
+          });
+        }
+      }
+
+      result.doctors = Array.from(doctorMap.values())
+        .sort((a, b) => a.distanceKm - b.distanceKm)
+        .slice(0, maxResults);
+    }
+
+    return sendSuccess(res, result, 'Nearby results fetched successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   searchDoctors,
   getDoctorProfile,
@@ -528,4 +716,5 @@ module.exports = {
   cancelAppointment,
   getProfile,
   updateProfile,
+  getNearby,
 };

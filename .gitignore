@@ -40,3 +40,6 @@ frontend/node_modules/
 
 # Coverage
 coverage/
+
+# Uploaded files
+backend/uploads/

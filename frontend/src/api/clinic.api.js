@@ -6,6 +6,12 @@ export const createClinic = (data) =>
 export const getMyClinics = () =>
   api.get('/clinics/my');
 
+export const getMyClinicStatus = () =>
+  api.get('/clinics/my-status');
+
+export const resubmitClinic = (data) =>
+  api.patch('/clinics/my-resubmit', data);
+
 export const getClinic = (id) =>
   api.get(`/clinics/${id}`);
 

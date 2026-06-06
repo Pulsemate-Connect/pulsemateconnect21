@@ -23,6 +23,14 @@ const getLoginRoute = (pathname) => {
 
 const canAccessPendingRoute = (pathname, role) => {
   const allowedHome = ROLE_HOME[role];
+  // Clinic owners with non-verified status can access dashboard + edit-resubmit
+  if (role === 'CLINIC_OWNER') {
+    return [
+      '/verification-pending',
+      '/clinic/dashboard',
+      '/clinic/edit-resubmit',
+    ].includes(pathname);
+  }
   return pathname === '/verification-pending' || pathname === allowedHome;
 };
 

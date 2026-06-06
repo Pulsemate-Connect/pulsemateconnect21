@@ -28,7 +28,7 @@ const {
   verifyEmailVerificationToken,
 } = require('../services/email-verification.service');
 
-const buildFileUrl = (req, fileName) => `${req.protocol}://${req.get('host')}/uploads/clinic-owner/${fileName}`;
+const buildFileUrl = (req, fileName) => `/uploads/clinic-owner/${fileName}`;
 
 const baseUserInclude = {
   adminProfile: true,
@@ -125,7 +125,7 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
 
 const patientSendOtpHandler = async (req, res, next) => {
   try {
-    const result = await sendOtp(req.body.phone, 'LOGIN');
+    const result = await sendOtp(req.body.phone || req.body.mobile, 'LOGIN');
     return sendSuccess(res, result, 'OTP sent successfully');
   } catch (error) {
     next(error);
@@ -203,9 +203,12 @@ const clinicOwnerSendEmailOtpHandler = async (req, res, next) => {
 
 const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
   try {
-    const email = req.body.email || req.query.email;
+    // Normalize email to lowercase — verification record was stored lowercase
+    const rawEmail = req.body.email || req.query.email;
+    const email = rawEmail ? rawEmail.toLowerCase() : undefined;
     const otp = req.body.otp || req.query.token;
-    const verified = req.body.email && req.body.otp
+
+    const verified = (email && otp)
       ? await verifyEmailVerificationToken(email, otp)
       : await verifyEmailVerificationToken(otp);
 
@@ -225,11 +228,12 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
 
 const patientVerifyOtpHandler = async (req, res, next) => {
   try {
-    const { phone, otp, name } = req.body;
-    await verifyOtp(phone, otp, 'LOGIN');
+    const { phone, mobile, otp, name } = req.body;
+    const mobileNumber = phone || mobile;
+    await verifyOtp(mobileNumber, otp, 'LOGIN');
 
     let user = await prisma.user.findUnique({
-      where: { mobile: phone },
+      where: { mobile: mobileNumber },
       include: baseUserInclude,
     });
 
@@ -237,7 +241,7 @@ const patientVerifyOtpHandler = async (req, res, next) => {
     if (!user) {
       user = await prisma.user.create({
         data: {
-          mobile: phone,
+          mobile: mobileNumber,
           name: name || null,
           role: 'PATIENT',
           approvalStatus: 'VERIFIED',

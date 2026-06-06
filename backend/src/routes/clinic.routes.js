@@ -9,6 +9,8 @@ const {
 const {
   createClinic,
   getMyClinics,
+  getMyClinicStatus,
+  resubmitClinic,
   getClinic,
   updateClinic,
   addStaff,
@@ -25,6 +27,8 @@ router.use(authenticate);
 
 router.post('/', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'PATIENT'), validate(createClinicSchema), createClinic);
 router.get('/my', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), getMyClinics);
+router.get('/my-status', authorize('CLINIC_OWNER'), getMyClinicStatus);
+router.patch('/my-resubmit', authorize('CLINIC_OWNER'), resubmitClinic);
 router.post('/receptionists', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), createReceptionistHandler);
 router.get('/:id', getClinic);
 router.patch('/:id', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), validate(updateClinicSchema), updateClinic);
