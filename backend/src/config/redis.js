@@ -3,16 +3,22 @@ const logger = require('./logger');
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
+  enableReadyCheck: false,
+  lazyConnect: true,
   retryStrategy: (times) => {
-    if (times > 10) return null; // stop retrying
-    return Math.min(times * 100, 3000);
+    if (times > 5) return null; // stop retrying after 5 attempts
+    return Math.min(times * 200, 3000);
   },
-  lazyConnect: false,
 });
 
 redis.on('connect', () => logger.info('Redis connected'));
-redis.on('error', (err) => logger.error('Redis error', { message: err.message }));
+redis.on('ready', () => logger.info('Redis ready'));
+redis.on('error', (err) => logger.warn('Redis error (non-fatal)', { message: err.message }));
 redis.on('close', () => logger.warn('Redis connection closed'));
+
+// Attempt lazy connect — failure is non-fatal; app works without Redis
+redis.connect().catch((err) => {
+  logger.warn('Redis unavailable — continuing without cache', { message: err.message });
+});
 
 module.exports = redis;

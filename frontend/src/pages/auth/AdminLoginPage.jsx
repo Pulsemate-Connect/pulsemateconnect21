@@ -11,9 +11,8 @@ const AdminLoginPage = () => {
   const { setAuth, clearAuth } = useAuthStore();
   const resetCredentials = location.state?.resetCredentials;
   const [form, setForm] = useState({
-    identifier: resetCredentials?.email || 'sahilnaik1515@gmail.com',
+    identifier: resetCredentials?.email || '',
     password: resetCredentials?.password || '',
-    securityCode: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -106,7 +105,7 @@ const AdminLoginPage = () => {
                   autoFocus
                   value={form.identifier}
                   onChange={(event) => setForm((current) => ({ ...current, identifier: event.target.value }))}
-                  placeholder="sahilnaik1515@gmail.com"
+                  placeholder="admin@pulsemate.in"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 />
               </div>
@@ -130,20 +129,6 @@ const AdminLoginPage = () => {
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Security code</label>
-                <input
-                  type="text"
-                  value={form.securityCode}
-                  onChange={(event) => setForm((current) => ({ ...current, securityCode: event.target.value }))}
-                  placeholder="Reserved for upcoming 2FA"
-                  className="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-slate-500 placeholder-slate-400 outline-none"
-                />
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  This field is a placeholder for the next admin security step and is not required yet.
-                </p>
               </div>
 
               <div className="flex items-center justify-between text-sm">

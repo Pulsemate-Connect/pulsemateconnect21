@@ -22,7 +22,7 @@ const createClinic = async (req, res, next) => {
         closingTime,
         description,
         ownerId: req.user.id,
-        staff: {
+        clinicStaff: {
           create: {
             userId: req.user.id,
             role: 'OWNER',
@@ -61,7 +61,7 @@ const getMyClinics = async (req, res, next) => {
     const clinics = await prisma.clinic.findMany({
       where: { ownerId: req.user.id },
       include: {
-        _count: { select: { staff: true, appointments: true } },
+        _count: { select: { clinicStaff: true, appointments: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -212,7 +212,7 @@ const getClinic = async (req, res, next) => {
       where: { id },
       include: {
         owner: { select: { id: true, name: true, mobile: true, email: true } },
-        staff: {
+        clinicStaff: {
           where: { isActive: true },
           include: {
             user: {
@@ -570,6 +570,43 @@ const getClinicRevenue = async (req, res, next) => {
 };
 
 
+/**
+ * GET /api/clinic/:id/booking-metrics
+ * Returns free vs paid booking breakdown for the clinic owner dashboard.
+ */
+const getClinicBookingMetrics = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+
+    // Access check
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!clinic) return sendError(res, 'Access denied', 403);
+    }
+
+    const [freeBookings, paidBookings] = await Promise.all([
+      // Free bookings for this clinic = payments with amount 0
+      prisma.payment.count({
+        where: { amount: 0, status: 'PAID', appointment: { clinicId } },
+      }),
+      // Paid bookings for this clinic = payments with amount > 0
+      prisma.payment.count({
+        where: { amount: { gt: 0 }, status: 'PAID', appointment: { clinicId } },
+      }),
+    ]);
+
+    const total = freeBookings + paidBookings;
+    return sendSuccess(res, {
+      freeBookings,
+      paidBookings,
+      totalBookings: total,
+      freeBookingRate: total > 0 ? Math.round((freeBookings / total) * 100) : 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getClinicAppointments = async (req, res, next) => {
   try {
     const { id: clinicId } = req.params;
@@ -632,5 +669,6 @@ module.exports = {
   getDoctorInvites,
   updateStaffStatus,
   getClinicRevenue,
+  getClinicBookingMetrics,
   getClinicAppointments,
 };

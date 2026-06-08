@@ -37,8 +37,22 @@ const PaymentPage = () => {
   const handleRazorpayPayment = async () => {
     setIsPaying(true);
     try {
-      const orderRes = await initiatePayment(appointmentId);
-      const { order, key, amount, devMode } = orderRes.data.data;
+      const orderRes = await initiatePayment({
+        doctorId: appointment.doctorId,
+        clinicId: appointment.clinicId,
+        appointmentType: appointment.appointmentType,
+        appointmentDate: appointment.appointmentDate,
+        slotTime: appointment.slotTime,
+        symptoms: appointment.symptoms,
+      });
+      const { order, key, amount, devMode, isFree } = orderRes.data.data;
+
+      // Free booking edge case — shouldn't normally land here but handle gracefully
+      if (isFree) {
+        toast.success('🎉 Free booking confirmed!');
+        navigate('/patient/appointments');
+        return;
+      }
 
       // Dev mode: skip Razorpay SDK, auto-verify
       if (devMode) {
@@ -115,8 +129,11 @@ const PaymentPage = () => {
     );
   }
 
-  const fee = 10; // Fixed ₹10 booking fee
+  // Detect free booking from the existing payment record
+  const isFreeBooking =
+    payment?.amount === 0 || payment?.razorpayOrderId?.startsWith('free_');
   const isPaid = payment?.status === 'PAID';
+  const fee = isFreeBooking ? 0 : 10;
 
   return (
     <DashboardLayout>
@@ -174,29 +191,59 @@ const PaymentPage = () => {
         </div>
 
         {/* Payment summary */}
-        <div className="card mb-6">
+        <div className={`card mb-6 ${isFreeBooking ? 'border-emerald-200 bg-emerald-50/40' : ''}`}>
           <h2 className="font-semibold text-text-primary mb-4">Payment Summary</h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-text-muted">Booking Fee (Platform)</span>
-              <span className="font-semibold text-gray-900">₹10</span>
+              {isFreeBooking ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="line-through text-gray-400 text-xs">₹10</span>
+                  <span className="font-bold text-emerald-700">FREE</span>
+                </span>
+              ) : (
+                <span className="font-semibold text-gray-900">₹10</span>
+              )}
             </div>
             <div className="flex justify-between">
               <span className="text-text-muted">Consultation Fee</span>
-              <span className="text-gray-400 italic text-xs">Pay at clinic — ₹{appointment?.doctor?.consultationFee || 0}</span>
+              <span className="text-gray-400 italic text-xs">
+                Pay at clinic — ₹{appointment?.doctor?.consultationFee || 0}
+              </span>
             </div>
             <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
               <span>Pay Now</span>
-              <span className="text-primary-600">₹10</span>
+              <span className={isFreeBooking ? 'text-emerald-700' : 'text-primary-600'}>
+                ₹{fee}
+              </span>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-3">
-            Consultation fee is paid directly at the clinic after your visit.
-          </p>
+          {isFreeBooking ? (
+            <p className="text-xs text-emerald-600 mt-3 font-medium">
+              🎁 First booking benefit — platform fee waived
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400 mt-3">
+              Consultation fee is paid directly at the clinic after your visit.
+            </p>
+          )}
         </div>
 
         {/* Payment status / action */}
-        {isPaid ? (
+        {isFreeBooking && isPaid ? (
+          /* FREE BOOKING — already confirmed */
+          <div className="card bg-emerald-50 border-emerald-200 text-center py-6">
+            <p className="text-4xl mb-3">🎉</p>
+            <p className="font-semibold text-emerald-800 text-lg">First Booking Free!</p>
+            <p className="text-sm text-emerald-700 mt-1">
+              Your appointment is confirmed at no charge.
+            </p>
+            <p className="text-xs text-emerald-500 mt-2">
+              Queue number assigned · No payment required
+            </p>
+          </div>
+        ) : isPaid ? (
+          /* PAID — payment complete */
           <div className="card bg-green-50 border-green-200 text-center py-6">
             <p className="text-4xl mb-3">✅</p>
             <p className="font-semibold text-green-800 text-lg">Payment Completed</p>
@@ -204,25 +251,25 @@ const PaymentPage = () => {
               Paid via {payment.method} on{' '}
               {new Date(payment.paidAt).toLocaleDateString('en-IN')}
             </p>
-            {payment.razorpayPaymentId && !payment.razorpayPaymentId.startsWith('dev_') && (
+            {payment.razorpayPaymentId && !payment.razorpayPaymentId.startsWith('dev_') &&
+              !payment.razorpayPaymentId.startsWith('free_') && (
               <p className="text-xs text-green-500 mt-1">
                 Transaction ID: {payment.razorpayPaymentId}
               </p>
             )}
           </div>
         ) : (
+          /* PENDING — show pay button */
           <div className="space-y-3">
             <button
               onClick={handleRazorpayPayment}
-              disabled={isPaying || fee === 0}
+              disabled={isPaying}
               className="btn-primary w-full py-4 text-base font-semibold"
             >
               {isPaying ? (
                 <span className="flex items-center justify-center gap-2">
                   <LoadingSpinner size="sm" /> Processing...
                 </span>
-              ) : fee === 0 ? (
-                'No payment required'
               ) : (
                 `💳 Pay ₹${fee} via Razorpay`
               )}

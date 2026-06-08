@@ -1,0 +1,19 @@
+{
+  "name": "pulsemate-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright E2E tests for PulseMate",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:patient": "playwright test tests/e2e/patient",
+    "test:e2e:doctor": "playwright test tests/e2e/doctor",
+    "test:e2e:reception": "playwright test tests/e2e/reception",
+    "test:e2e:cycles": "playwright test tests/e2e/cycles"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

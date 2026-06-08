@@ -18,6 +18,7 @@ const {
   getDoctorInvites,
   updateStaffStatus,
   getClinicRevenue,
+  getClinicBookingMetrics,
   getClinicAppointments,
 } = require('../controllers/clinic.controller');
 const { createReceptionistHandler } = require('../controllers/auth.controller');
@@ -37,6 +38,7 @@ router.get('/:id/staff', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'RECEPTIONIST'
 router.get('/:id/doctor-invites', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getDoctorInvites);
 router.patch('/:id/staff/:staffId/status', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, updateStaffStatus);
 router.get('/:id/revenue', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getClinicRevenue);
+router.get('/:id/booking-metrics', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getClinicBookingMetrics);
 router.get('/:id/appointments', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST'), getClinicAppointments);
 
 module.exports = router;

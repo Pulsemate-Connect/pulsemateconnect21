@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView,
-  Animated, Easing, Dimensions, StatusBar, Modal,
+  Dimensions, StatusBar, Modal, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,16 +111,7 @@ const fs = StyleSheet.create({
 });
 
 // ── Doctor card ───────────────────────────────────────────────────────────────
-function DoctorCard({ doc, onViewProfile, onBook, index }) {
-  const enterA = useRef(new Animated.Value(0)).current;
-  const slideA = useRef(new Animated.Value(24)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(enterA, { toValue: 1, duration: 400, delay: index * 80, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slideA, { toValue: 0, duration: 400, delay: index * 80, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, []);
+function DoctorCard({ doc, onViewProfile, onBook }) {
 
   const spec   = doc.specialization || 'General Physician';
   const cfg    = SPECS.find((s) => s.key === spec) || SPECS[1];
@@ -136,7 +127,7 @@ function DoctorCard({ doc, onViewProfile, onBook, index }) {
   const isOffline = doc.offlineAvailable;
 
   return (
-    <Animated.View style={[dc.wrap, { opacity: enterA, transform: [{ translateY: slideA }] }]}>
+    <View style={dc.wrap}>
       {/* Top accent strip */}
       <View style={[dc.topStrip, { backgroundColor: accent }]} />
 
@@ -206,20 +197,6 @@ function DoctorCard({ doc, onViewProfile, onBook, index }) {
 
       {/* ── Stats bar ── */}
       <View style={dc.statsBar}>
-        {/* Rating */}
-        <View style={dc.statItem}>
-          <Ionicons name="star" size={13} color="#F59E0B" />
-          <Text style={dc.statVal}>4.8</Text>
-          <Text style={dc.statLabel}>(120+)</Text>
-        </View>
-        <View style={dc.statSep} />
-        {/* Patients */}
-        <View style={dc.statItem}>
-          <Ionicons name="people-outline" size={13} color={MUTED} />
-          <Text style={dc.statVal}>500+</Text>
-          <Text style={dc.statLabel}>Patients</Text>
-        </View>
-        <View style={dc.statSep} />
         {/* Consult modes */}
         <View style={dc.statItem}>
           {isOnline  && <Ionicons name="videocam-outline"  size={13} color={SKY5} />}
@@ -232,14 +209,16 @@ function DoctorCard({ doc, onViewProfile, onBook, index }) {
           <Text style={[dc.feeVal, { color: accent }]}>{fee}</Text>
           <Text style={dc.statLabel}>Consult</Text>
         </View>
+        <View style={dc.statSep} />
+        {/* Experience */}
+        <View style={dc.statItem}>
+          <Ionicons name="briefcase-outline" size={13} color={MUTED} />
+          <Text style={dc.statVal}>{exp > 0 ? `${exp} yrs` : '—'}</Text>
+        </View>
       </View>
 
-      {/* ── Available badge + actions ── */}
+      {/* ── Actions ── */}
       <View style={dc.footer}>
-        <View style={dc.availBadge}>
-          <View style={dc.availDot} />
-          <Text style={dc.availText}>Available Today</Text>
-        </View>
         <View style={dc.btnRow}>
           <TouchableOpacity style={dc.profileBtn} onPress={onViewProfile} activeOpacity={0.8}>
             <Text style={[dc.profileBtnText, { color: accent }]}>Profile</Text>
@@ -250,7 +229,7 @@ function DoctorCard({ doc, onViewProfile, onBook, index }) {
           </TouchableOpacity>
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -522,13 +501,10 @@ const dc = StyleSheet.create({
 
   // Footer
   footer: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
     paddingHorizontal: 16, paddingVertical: 12,
     borderTopWidth: 1, borderTopColor: '#F1F5F9',
   },
-  availBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  availDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
-  availText:   { fontSize: 12, fontWeight: '700', color: '#10B981' },
   btnRow:      { flexDirection: 'row', gap: 8 },
   profileBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0' },
   profileBtnText: { fontSize: 12, fontWeight: '700' },

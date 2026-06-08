@@ -49,6 +49,26 @@ const StatIcon = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h6a2 2 0 002-2v-5M9 21H5a2 2 0 01-2-2v-5m0 0h18" />
     </svg>
   ),
+  Gift: () => (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H7a3 3 0 000 6h5m0-6a4 4 0 014-4h1a3 3 0 010 6h-5m-7 4h14a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1v-7a1 1 0 011-1z" />
+    </svg>
+  ),
+  CreditCard: () => (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+    </svg>
+  ),
+  TrendingUp: () => (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  ),
+  Currency: () => (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8h6m-5 0a3 3 0 110 6H9l3 6m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
 };
 
 // ── Reusable premium stat card ────────────────────────────────────────────────
@@ -62,6 +82,10 @@ const StatCard = ({ label, value, icon: Icon, colorScheme, loading }) => {
     gray:   { bg: 'bg-gray-100',  icon: 'text-gray-500',   accent: 'bg-gray-400'   },
     indigo: { bg: 'bg-indigo-50', icon: 'text-indigo-600', accent: 'bg-indigo-500' },
     teal:   { bg: 'bg-teal-50',   icon: 'text-teal-600',   accent: 'bg-teal-500'   },
+    emerald:{ bg: 'bg-emerald-50',icon: 'text-emerald-600',accent: 'bg-emerald-500'},
+    violet: { bg: 'bg-violet-50', icon: 'text-violet-600', accent: 'bg-violet-500' },
+    amber:  { bg: 'bg-amber-50',  icon: 'text-amber-600',  accent: 'bg-amber-500'  },
+    cyan:   { bg: 'bg-cyan-50',   icon: 'text-cyan-600',   accent: 'bg-cyan-500'   },
   };
   const s = schemes[colorScheme] || schemes.blue;
 
@@ -124,6 +148,7 @@ const AdminDashboard = () => {
   const currentUser = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const [stats, setStats] = useState(null);
+  const [bookingMetrics, setBookingMetrics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -136,6 +161,7 @@ const AdminDashboard = () => {
       try {
         const res = await getAdminDashboard();
         setStats(res.data.data.stats);
+        setBookingMetrics(res.data.data.bookingMetrics ?? null);
       } catch (_) {
         console.error('Failed to load stats');
       } finally {
@@ -248,6 +274,41 @@ const AdminDashboard = () => {
             value={stats?.verifiedDoctors}
             icon={StatIcon.Stethoscope}
             colorScheme="teal"
+            loading={isLoading}
+          />
+        </div>
+
+        {/* ── Booking Metrics ──────────────────────────────────────────── */}
+        <div className="mb-3">
+          <SectionLabel>Booking Metrics</SectionLabel>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <StatCard
+            label="Free Bookings"
+            value={bookingMetrics?.freeBookings}
+            icon={StatIcon.Gift}
+            colorScheme="emerald"
+            loading={isLoading}
+          />
+          <StatCard
+            label="Paid Bookings"
+            value={bookingMetrics?.paidBookings}
+            icon={StatIcon.CreditCard}
+            colorScheme="violet"
+            loading={isLoading}
+          />
+          <StatCard
+            label="Conversion Rate"
+            value={bookingMetrics ? `${bookingMetrics.conversionRate}%` : undefined}
+            icon={StatIcon.TrendingUp}
+            colorScheme="amber"
+            loading={isLoading}
+          />
+          <StatCard
+            label="Total Revenue"
+            value={bookingMetrics ? `₹${bookingMetrics.totalRevenue}` : undefined}
+            icon={StatIcon.Currency}
+            colorScheme="cyan"
             loading={isLoading}
           />
         </div>

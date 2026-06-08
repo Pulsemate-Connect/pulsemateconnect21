@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import useAuthStore from '../store/authStore';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
@@ -13,7 +14,8 @@ const useSocket = () => {
 
   const getSocket = useCallback(() => {
     if (!socketInstance) {
-      const token = localStorage.getItem('accessToken');
+      // Token lives in Zustand state — never in localStorage
+      const token = useAuthStore.getState().accessToken || null;
       socketInstance = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket', 'polling'],

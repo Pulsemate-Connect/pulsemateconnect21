@@ -10,8 +10,10 @@ export const cancelAppointment = (id) => api.patch(`/patient/appointments/${id}/
 export const getLiveQueue = (apptId) => api.get(`/patient/queue/${apptId}`);
 export const getPatientProfile = () => api.get('/patient/profile');
 export const updatePatientProfile = (data) => api.patch('/patient/profile', data);
-export const getMyPrescriptions = (params) => api.get('/prescriptions/my', { params });
-export const getPrescription = (id) => api.get(`/prescriptions/${id}`);
 export const initiatePayment = (data) => api.post('/payments/initiate', data);
 export const verifyPayment = (data) => api.post('/payments/verify', data);
 export const getMyPayments = (params) => api.get('/payments/my', { params });
+export const getBookingStatus = () => api.get('/payments/booking-status');
+export const getAvailableSlots = (doctorId, params) => api.get(`/doctor/${doctorId}/slots`, { params });
+export const getDoctorAvailability = (doctorId, params) => api.get(`/doctor/${doctorId}/availability`, { params });
+export const requestRefund = (data) => api.post('/payments/refund', data);

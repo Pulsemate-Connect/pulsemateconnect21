@@ -1,57 +1,63 @@
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
 .pnp
 .pnp.js
 
-# Environment files - NEVER commit these
+# ── Environment files — NEVER commit ──────────────────────────────────────────
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
+.env.production
 backend/.env
 frontend/.env
+PulseMateApp/.env
 
-# Build outputs
+# ── Build outputs ─────────────────────────────────────────────────────────────
 dist/
 build/
 out/
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 logs/
+backend/logs/
 
-# OS files
+# ── OS / Editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Editor
-.vscode/settings.json
 *.swp
 *.swo
 
-# Prisma
-backend/node_modules/
-frontend/node_modules/
-
-# Coverage
+# ── Coverage ──────────────────────────────────────────────────────────────────
 coverage/
 
-# Uploaded files
+# ── Uploaded user files (use S3 in production) ────────────────────────────────
 backend/uploads/
 
-# Logs
-logs/
-backend/logs/
-*.log
+# ── Expo local cache ──────────────────────────────────────────────────────────
+PulseMateApp/.expo/
+PulseMateApp/.claude/
 
-# Production env
-.env.production
+# ── AI editor configs ─────────────────────────────────────────────────────────
+.claude/
 
-# Docker volumes (local)
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+
+# ── Misc junk ─────────────────────────────────────────────────────────────────
+*.zip
+*.pdf
+*.jpeg
+*.jpg
+*.png
+!PulseMateApp/assets/**
+!frontend/public/**
+
+# ── Docker local volumes ──────────────────────────────────────────────────────
 postgres_data/
 redis_data/

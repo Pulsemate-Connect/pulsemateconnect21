@@ -1,12 +1,15 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-// ── Change BASE_URL to match your environment ──────────────────────────────
-// Android emulator : 'http://10.0.2.2:5000/api'
-// iOS simulator    : 'http://localhost:5000/api'
-// Real device      : 'http://<YOUR_MACHINE_LAN_IP>:5000/api'
-//                    (run `ipconfig` on Windows / `ifconfig` on Mac to find it)
-export const BASE_URL = 'http://192.168.1.14:5000/api';
+// ── API URL resolution ─────────────────────────────────────────────────────
+// Dev  : uses extra.apiUrl from app.json  (your LAN IP)
+// Prod : uses extra.apiUrlProd from app.json (your deployed backend)
+// To switch to production, update "apiUrlProd" in app.json before building.
+const isDev = __DEV__;
+export const BASE_URL = isDev
+  ? (Constants.expoConfig?.extra?.apiUrl ?? 'http://192.168.31.77:5000/api')
+  : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://YOUR_DEPLOYED_BACKEND_URL/api');
 
 const api = axios.create({
   baseURL: BASE_URL,

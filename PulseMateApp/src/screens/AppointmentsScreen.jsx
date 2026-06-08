@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, ScrollView,
+  ActivityIndicator, Alert, ScrollView, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,15 +47,19 @@ export default function AppointmentsScreen({ navigation }) {
   const [loading, setLoading]     = useState(true);
   const [cancelling, setCancelling] = useState(null);
   const [queueMap, setQueueMap]   = useState({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAllPast, setShowAllPast] = useState(false);
 
+  // Load ALL appointments once on mount, fetch queue data for active ones.
+  // queueMap is NOT re-fetched on filter changes — it's stable for the session.
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = filter !== 'All' ? { status: filter } : {};
-      const res = await getMyAppointments(params);
+      const res = await getMyAppointments({});
       const all = res.data.data || [];
       setAppointments(all);
 
+      // Only fetch queue for active appointments — once, on initial load
       const active = all.filter((a) =>
         ['BOOKED','CHECKED_IN','IN_QUEUE','IN_CONSULTATION','CALLED'].includes(a.status)
       );
@@ -64,21 +68,26 @@ export default function AppointmentsScreen({ navigation }) {
         try {
           const qr = await getLiveQueue(a.id);
           const { queueInfo: qi } = qr.data.data;
-          // Normalize keys for the UI
           qMap[a.id] = qi ? {
-            position:            qi.position,
-            patientsAhead:       qi.patientsAhead,
+            position:             qi.position,
+            patientsAhead:        qi.patientsAhead,
             estimatedWaitMinutes: qi.estimatedWaitMinutes,
-            status:              qi.status,
+            status:               qi.status,
           } : null;
         } catch {}
       }));
       setQueueMap(qMap);
     } catch {}
     finally { setLoading(false); }
-  }, [filter]);
+  }, []); // ← no filter dependency — loads all once
 
   useEffect(() => { load(); }, [load]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const handleCancel = (id) => {
     Alert.alert('Cancel Appointment', 'Are you sure you want to cancel?', [
@@ -92,12 +101,17 @@ export default function AppointmentsScreen({ navigation }) {
     ]);
   };
 
-  const upcoming = appointments.filter((a) =>
-    ['BOOKED','CHECKED_IN','IN_QUEUE','IN_CONSULTATION','CALLED','PENDING_PAYMENT'].includes(a.status)
-  );
-  const past = appointments.filter((a) =>
-    ['COMPLETED','CANCELLED','NO_SHOW'].includes(a.status)
-  );
+  const upcoming = appointments
+    .filter((a) => ['BOOKED','CHECKED_IN','IN_QUEUE','IN_CONSULTATION','CALLED','PENDING_PAYMENT'].includes(a.status))
+    .filter((a) => filter === 'All' || a.status === filter);
+
+  const allPast = appointments
+    .filter((a) => ['COMPLETED','CANCELLED','NO_SHOW'].includes(a.status))
+    .filter((a) => filter === 'All' || a.status === filter);
+
+  // Show 3 most recent by default; expand on "View All"
+  const PAST_PREVIEW = 3;
+  const past = showAllPast ? allPast : allPast.slice(0, PAST_PREVIEW);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -170,7 +184,7 @@ export default function AppointmentsScreen({ navigation }) {
         </View>
 
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}>
 
           {/* ── Upcoming ── */}
           {upcoming.length > 0 && (
@@ -234,6 +248,12 @@ export default function AppointmentsScreen({ navigation }) {
                             <Text style={[s.tokenNum, { color }]}>#{appt.queueNumber}</Text>
                           </View>
                         )}
+                        {/* Free booking badge */}
+                        {appt.payment?.amount === 0 && appt.payment?.status === 'PAID' && (
+                          <View style={[s.tokenBox, { backgroundColor: '#D1FAE5', marginTop: 4 }]}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#059669' }}>🎉 Free</Text>
+                          </View>
+                        )}
                         <Ionicons name="chevron-forward" size={14} color={colors.textMuted} style={{ marginTop: 4 }} />
                       </View>
                     </View>
@@ -285,72 +305,114 @@ export default function AppointmentsScreen({ navigation }) {
           )}
 
           {/* ── Past ── */}
-          {past.length > 0 && (
+          {allPast.length > 0 && (
             <View style={s.section}>
               <View style={s.sectionRow}>
                 <Text style={s.sectionTitle}>Past Appointments</Text>
-                <TouchableOpacity style={s.viewAllBtn}>
-                  <Text style={s.viewAllTxt}>View All</Text>
-                  <Ionicons name="chevron-forward" size={13} color={colors.primary} />
-                </TouchableOpacity>
+                {allPast.length > PAST_PREVIEW && (
+                  <TouchableOpacity
+                    style={s.viewAllBtn}
+                    onPress={() => setShowAllPast((prev) => !prev)}
+                  >
+                    <Text style={s.viewAllTxt}>
+                      {showAllPast ? 'Show Less' : `View All (${allPast.length})`}
+                    </Text>
+                    <Ionicons
+                      name={showAllPast ? 'chevron-up' : 'chevron-forward'}
+                      size={13}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
 
               {past.map((appt) => {
                 const color      = specColor(appt.doctor?.specialization);
                 const isComplete = appt.status === 'COMPLETED';
+                const canRebook  = appt.doctor?.id && appt.clinic?.id;
                 return (
-                  <TouchableOpacity
-                    key={appt.id}
-                    style={s.pastCard}
-                    onPress={() => navigation.navigate('AppointmentDetail', { id: appt.id })}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[s.pastAvatar, { backgroundColor: color + '18' }]}>
-                      <Text style={[s.pastAvatarTxt, { color }]}>
-                        {appt.doctor?.user?.name?.charAt(0)?.toUpperCase() || 'D'}
-                      </Text>
-                    </View>
-                    <View style={s.pastInfo}>
-                      <Text style={s.pastName}>Dr. {appt.doctor?.user?.name}</Text>
-                      <Text style={[s.pastSpec, { color }]}>
-                        {appt.doctor?.specialization || 'General Physician'}
-                      </Text>
-                      <View style={s.pastLoc}>
-                        <Ionicons name="location-outline" size={11} color={colors.textMuted} />
-                        <Text style={s.pastLocTxt} numberOfLines={1}>
-                          {appt.clinic?.name}{appt.clinic?.city ? `, ${appt.clinic.city}` : ''}
+                  <View key={appt.id}>
+                    <TouchableOpacity
+                      style={s.pastCard}
+                      onPress={() => navigation.navigate('AppointmentDetail', { id: appt.id })}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[s.pastAvatar, { backgroundColor: color + '18' }]}>
+                        <Text style={[s.pastAvatarTxt, { color }]}>
+                          {appt.doctor?.user?.name?.charAt(0)?.toUpperCase() || 'D'}
                         </Text>
                       </View>
-                    </View>
-                    <View style={s.pastRight}>
-                      <View style={s.pastDateRow}>
-                        <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
-                        <Text style={s.pastDate}>
-                          {new Date(appt.appointmentDate).toLocaleDateString('en-IN', {
-                            day: '2-digit', month: 'short', year: 'numeric',
-                          })}
+                      <View style={s.pastInfo}>
+                        <Text style={s.pastName}>Dr. {appt.doctor?.user?.name}</Text>
+                        <Text style={[s.pastSpec, { color }]}>
+                          {appt.doctor?.specialization || 'General Physician'}
                         </Text>
+                        <View style={s.pastLoc}>
+                          <Ionicons name="location-outline" size={11} color={colors.textMuted} />
+                          <Text style={s.pastLocTxt} numberOfLines={1}>
+                            {appt.clinic?.name}{appt.clinic?.city ? `, ${appt.clinic.city}` : ''}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={[s.pastBadge, { backgroundColor: isComplete ? '#D1FAE5' : '#FEE2E2' }]}>
-                        <Ionicons
-                          name={isComplete ? 'checkmark-circle' : 'close-circle'}
-                          size={12}
-                          color={isComplete ? '#10B981' : colors.danger}
-                        />
-                        <Text style={[s.pastBadgeTxt, { color: isComplete ? '#10B981' : colors.danger }]}>
-                          {isComplete ? 'Completed' : appt.status === 'CANCELLED' ? 'Cancelled' : 'No Show'}
-                        </Text>
+                      <View style={s.pastRight}>
+                        <View style={s.pastDateRow}>
+                          <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
+                          <Text style={s.pastDate}>
+                            {new Date(appt.appointmentDate).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short', year: 'numeric',
+                            })}
+                          </Text>
+                        </View>
+                        {/* Free booking badge */}
+                        {appt.payment?.amount === 0 && appt.payment?.status === 'PAID' ? (
+                          <View style={[s.pastBadge, { backgroundColor: '#D1FAE5' }]}>
+                            <Text style={[s.pastBadgeTxt, { color: '#059669' }]}>🎉 Free</Text>
+                          </View>
+                        ) : (
+                          <View style={[s.pastBadge, { backgroundColor: isComplete ? '#D1FAE5' : '#FEE2E2' }]}>
+                            <Ionicons
+                              name={isComplete ? 'checkmark-circle' : 'close-circle'}
+                              size={12}
+                              color={isComplete ? '#10B981' : colors.danger}
+                            />
+                            <Text style={[s.pastBadgeTxt, { color: isComplete ? '#10B981' : colors.danger }]}>
+                              {isComplete ? 'Completed' : appt.status === 'CANCELLED' ? 'Cancelled' : 'No Show'}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
-                  </TouchableOpacity>
+                      <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                    </TouchableOpacity>
+
+                    {/* Book Again — one-tap rebook */}
+                    {canRebook && (
+                      <TouchableOpacity
+                        style={s.bookAgainBtn}
+                        onPress={() => navigation.navigate('HomeTab', {
+                          screen: 'Booking',
+                          params: {
+                            doctorId:   appt.doctor.id,
+                            clinicId:   appt.clinic.id,
+                            doctorName: appt.doctor?.user?.name,
+                            clinicName: appt.clinic?.name,
+                            fee:        appt.doctor?.consultationFee,
+                            specialization: appt.doctor?.specialization,
+                          },
+                        })}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="refresh" size={13} color={colors.primary} />
+                        <Text style={s.bookAgainText}>Book Again</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 );
               })}
             </View>
           )}
 
           {/* No upcoming but has past */}
-          {upcoming.length === 0 && past.length > 0 && (
+          {upcoming.length === 0 && allPast.length > 0 && (
             <View style={s.noUpCard}>
               <Text style={{ fontSize: 32 }}>📅</Text>
               <View style={{ flex: 1, marginLeft: 12 }}>
@@ -446,6 +508,10 @@ const s = StyleSheet.create({
   pastDate:         { fontSize: 11, color: colors.textMuted },
   pastBadge:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: radius.full },
   pastBadgeTxt:     { fontSize: 11, fontWeight: '700' },
+
+  // Book Again
+  bookAgainBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, marginHorizontal: 0, marginTop: -2, marginBottom: 10, backgroundColor: '#EFF6FF', borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  bookAgainText: { fontSize: 12, fontWeight: '700', color: colors.primary },
 
   // No upcoming
   noUpCard:         { marginHorizontal: 16, backgroundColor: '#EFF6FF', borderRadius: radius.xl, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, ...shadow.sm },

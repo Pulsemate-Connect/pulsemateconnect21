@@ -1,6 +1,5 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
-const { notifyFollowUpReminder } = require('../services/notification.service');
 
 /**
  * GET /api/doctor/today - Today's appointments

@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  PulseMate Connect — App Entry + Premium Splash Screen
 // ─────────────────────────────────────────────────────────────────────────────
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {
@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './src/store/authStore';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -69,7 +70,7 @@ function Particle({ x, y, label, delay }) {
 
 // ─── ECG heartbeat line ───────────────────────────────────────────────────────
 function EcgLine({ progress }) {
-  const pts = [[0,0],[10,0],[16,0],[20,-30],[25,24],[29,-20],[33,0],[45,0],[49,-8],[53,0],[65,0],[69,-5],[73,0],[100,0]];
+  const pts = [[0, 0], [10, 0], [16, 0], [20, -30], [25, 24], [29, -20], [33, 0], [45, 0], [49, -8], [53, 0], [65, 0], [69, -5], [73, 0], [100, 0]];
   const LW = W * 0.74;
   const MY = 24;
   const clipW = progress.interpolate({ inputRange: [0, 1], outputRange: [0, LW] });
@@ -124,13 +125,13 @@ function EcgLine({ progress }) {
 
 // ─── Logo mark: real image + ripple rings ────────────────────────────────────
 function LogoMark({ pulse }) {
-  const sc  = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
+  const sc = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
   const glo = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.15, 0.45, 0.15] });
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 30 }}>
       {/* Ripple rings */}
-      <Ring size={210} delay={0}    color={SKY4} />
-      <Ring size={168} delay={700}  color={SKY5} />
+      <Ring size={210} delay={0} color={SKY4} />
+      <Ring size={168} delay={700} color={SKY5} />
       <Ring size={126} delay={1400} color={TEAL} />
       {/* Glow halo behind logo */}
       <Animated.View style={{
@@ -147,18 +148,18 @@ function LogoMark({ pulse }) {
 
 // ─── Main SplashScreen ────────────────────────────────────────────────────────
 function SplashScreen() {
-  const enter   = useRef(new Animated.Value(0)).current;
-  const slideY  = useRef(new Animated.Value(36)).current;
-  const tagA    = useRef(new Animated.Value(0)).current;
-  const ecgA    = useRef(new Animated.Value(0)).current;
-  const barA    = useRef(new Animated.Value(0)).current;
-  const badgeA  = useRef(new Animated.Value(0)).current;
-  const pulse   = useRef(new Animated.Value(0)).current;
+  const enter = useRef(new Animated.Value(0)).current;
+  const slideY = useRef(new Animated.Value(36)).current;
+  const tagA = useRef(new Animated.Value(0)).current;
+  const ecgA = useRef(new Animated.Value(0)).current;
+  const barA = useRef(new Animated.Value(0)).current;
+  const badgeA = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Logo entrance
     Animated.parallel([
-      Animated.timing(enter,  { toValue: 1, duration: 650, delay: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(enter, { toValue: 1, duration: 650, delay: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(slideY, { toValue: 0, duration: 650, delay: 150, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
     ]).start();
     // Badge pop
@@ -234,7 +235,7 @@ function SplashScreen() {
       <Animated.View style={[sp.bottom, { opacity: tagA }]}>
         {/* Feature chips */}
         <View style={sp.chips}>
-          {[['🏥','Clinics'],['👨‍⚕️','Doctors'],['📋','Records'],['💊','Prescriptions']].map(([ic, lb]) => (
+          {[['🏥', 'Clinics'], ['👨‍⚕️', 'Doctors'], ['📋', 'Records'], ['💊', 'Prescriptions']].map(([ic, lb]) => (
             <View key={lb} style={sp.chip}>
               <Text style={sp.chipIcon}>{ic}</Text>
               <Text style={sp.chipText}>{lb}</Text>
@@ -260,18 +261,24 @@ function SplashScreen() {
 }
 
 // ─── Root navigator ───────────────────────────────────────────────────────────
-function RootNavigator() {
+function RootNavigator({ navigationRef }) {
   const { user, loading } = useAuth();
+
+  // Register push token when authenticated, remove on logout
+  usePushNotifications(navigationRef, !!user);
+
   if (loading) return <SplashScreen />;
   return user ? <MainNavigator /> : <AuthNavigator />;
 }
 
 export default function App() {
+  const navigationRef = useNavigationContainerRef();
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator navigationRef={navigationRef} />
         </NavigationContainer>
         <Toast
           config={{

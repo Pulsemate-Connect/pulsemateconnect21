@@ -26,14 +26,15 @@ export const suspendClinic = (id, reason) =>
   api.patch(`/admin/clinics/${id}/suspend`, { reason });
 
 // ── Legacy approval endpoints (ClinicApprovals.jsx still uses these) ────────
+// These proxy to the admin routes which are the canonical implementation.
 export const getAdminClinics = (params) =>
-  api.get('/admin/clinics', { params });
+  api.get('/admin/all-clinics', { params });
 
 export const getPendingClinicApprovals = () =>
-  api.get('/approvals/clinics/pending');
+  api.get('/admin/pending-clinics');
 
 export const getPendingDoctorApprovals = () =>
-  api.get('/approvals/doctors/pending');
+  api.get('/admin/pending-doctors');
 
 export const decideClinicApproval = (clinicId, data) =>
   api.patch(`/approvals/clinics/${clinicId}`, data);

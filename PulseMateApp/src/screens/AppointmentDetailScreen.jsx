@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppointmentDetail, cancelAppointment } from '../api/patient';
+import api from '../api/axios';
 import StatusBadge from '../components/StatusBadge';
 import Card from '../components/Card';
 import { colors } from '../theme';
+
+const openMaps = (lat, lng, name) => {
+  if (!lat || !lng) return;
+  const url = Platform.OS === 'ios'
+    ? `maps://?q=${encodeURIComponent(name)}&ll=${lat},${lng}`
+    : `geo:${lat},${lng}?q=${encodeURIComponent(name)}`;
+  Linking.openURL(url).catch(() =>
+    Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`)
+  );
+};
 
 export default function AppointmentDetailScreen({ route, navigation }) {
   const { id } = route.params;
@@ -31,6 +42,28 @@ export default function AppointmentDetailScreen({ route, navigation }) {
         }
       }},
     ]);
+  };
+
+  const handleRefund = () => {
+    Alert.alert(
+      'Request Refund',
+      'This will request a refund for your booking fee. The appointment will be cancelled if still active.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Request Refund', style: 'destructive', onPress: async () => {
+          try {
+            await api.post('/payments/refund', { appointmentId: id, reason: 'Patient requested refund' });
+            Alert.alert('✓ Refund Requested', 'Your refund has been processed.');
+            // Reload the appointment detail
+            getAppointmentDetail(id)
+              .then((r) => setAppt(r.data.data.appointment))
+              .catch(() => {});
+          } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Refund request failed');
+          }
+        }},
+      ]
+    );
   };
 
   if (loading) return (
@@ -96,6 +129,29 @@ export default function AppointmentDetailScreen({ route, navigation }) {
             <Ionicons name="location-outline" size={16} color={colors.textMuted} />
             <Text style={s.infoText}>{appt.clinic?.address}, {appt.clinic?.city}</Text>
           </View>
+          {/* Quick actions */}
+          <View style={s.clinicActions}>
+            {appt.clinic?.phone && (
+              <TouchableOpacity
+                style={[s.clinicActionBtn, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}
+                onPress={() => Linking.openURL(`tel:${appt.clinic.phone}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call" size={15} color="#10B981" />
+                <Text style={[s.clinicActionText, { color: '#065F46' }]}>Call Clinic</Text>
+              </TouchableOpacity>
+            )}
+            {appt.clinic?.latitude && appt.clinic?.longitude && (
+              <TouchableOpacity
+                style={[s.clinicActionBtn, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}
+                onPress={() => openMaps(appt.clinic.latitude, appt.clinic.longitude, appt.clinic.name)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="navigate" size={15} color={colors.primary} />
+                <Text style={[s.clinicActionText, { color: colors.primaryDark }]}>Directions</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </Card>
 
         {/* Appointment info */}
@@ -126,13 +182,15 @@ export default function AppointmentDetailScreen({ route, navigation }) {
           <Text style={s.sectionTitle}>Payment</Text>
           <View style={s.payRow}>
             <Text style={s.payLabel}>Booking Fee</Text>
-            <Text style={s.payVal}>₹{appt.payment?.amount || 10}</Text>
+            <Text style={s.payVal}>
+              {appt.payment?.amount === 0 ? '🎉 FREE' : `₹${appt.payment?.amount || 10}`}
+            </Text>
           </View>
           <View style={s.payRow}>
             <Text style={s.payLabel}>Status</Text>
             <View style={[s.payStatus, { backgroundColor: isPaid ? '#D1FAE5' : '#FEF3C7' }]}>
               <Text style={[s.payStatusText, { color: isPaid ? '#065F46' : '#92400E' }]}>
-                {isPaid ? '✓ Paid' : 'Pending'}
+                {appt.payment?.status === 'REFUNDED' ? '↩ Refunded' : isPaid ? '✓ Paid' : 'Pending'}
               </Text>
             </View>
           </View>
@@ -143,21 +201,6 @@ export default function AppointmentDetailScreen({ route, navigation }) {
             </View>
           )}
         </Card>
-
-        {/* Follow-up */}
-        {appt.prescription?.followUpDate && (
-          <Card style={{ backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' }}>
-            <View style={s.followRow}>
-              <Ionicons name="calendar-outline" size={18} color="#EA580C" />
-              <View>
-                <Text style={s.followTitle}>Follow-up Required</Text>
-                <Text style={s.followDate}>
-                  {new Date(appt.prescription.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </Text>
-              </View>
-            </View>
-          </Card>
-        )}
 
         {/* Actions */}
         <View style={s.actions}>
@@ -170,21 +213,19 @@ export default function AppointmentDetailScreen({ route, navigation }) {
               <Text style={s.primaryBtnText}>Track Live Queue</Text>
             </TouchableOpacity>
           )}
-          {appt.prescription?.id && (
-            <TouchableOpacity
-              style={[s.primaryBtn, { backgroundColor: '#7C3AED' }]}
-              onPress={() => navigation.navigate('AppointmentsTab', {
-                screen: 'AppointmentDetail', params: { id: appt.id },
-              })}
-            >
-              <Ionicons name="medical-outline" size={18} color="#fff" />
-              <Text style={s.primaryBtnText}>View Prescription</Text>
-            </TouchableOpacity>
-          )}
           {['BOOKED','IN_QUEUE'].includes(appt.status) && (
             <TouchableOpacity style={s.dangerBtn} onPress={handleCancel}>
               <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
               <Text style={s.dangerBtnText}>Cancel Appointment</Text>
+            </TouchableOpacity>
+          )}
+          {/* Refund — only for completed paid appointments (not free) */}
+          {appt.status === 'COMPLETED' &&
+            appt.payment?.status === 'PAID' &&
+            appt.payment?.amount > 0 && (
+            <TouchableOpacity style={s.refundBtn} onPress={handleRefund}>
+              <Ionicons name="return-up-back-outline" size={18} color="#6B7280" />
+              <Text style={s.refundBtnText}>Request Refund</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -228,12 +269,17 @@ const s = StyleSheet.create({
   payVal:       { fontSize: 14, fontWeight: '600', color: colors.text },
   payStatus:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   payStatusText:{ fontSize: 12, fontWeight: '700' },
-  followRow:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  followTitle:  { fontSize: 14, fontWeight: '700', color: '#EA580C' },
-  followDate:   { fontSize: 13, color: '#C2410C', marginTop: 2 },
   actions:      { gap: 10, marginTop: 4 },
+  clinicActions:{ flexDirection: 'row', gap: 10, marginTop: 10 },
+  clinicActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, borderRadius: 10, paddingVertical: 10, borderWidth: 1,
+  },
+  clinicActionText: { fontSize: 12, fontWeight: '700' },
   primaryBtn:   { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryBtnText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
   dangerBtn:    { borderWidth: 1.5, borderColor: colors.danger, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   dangerBtnText:{ color: colors.danger, fontWeight: '700', fontSize: 15 },
+  refundBtn:    { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  refundBtnText:{ color: '#6B7280', fontWeight: '600', fontSize: 13 },
 });

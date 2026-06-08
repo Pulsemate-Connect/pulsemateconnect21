@@ -8,27 +8,26 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import HomeScreen            from '../screens/HomeScreen';
-import SearchScreen          from '../screens/SearchScreen';
-import DoctorDetailScreen    from '../screens/DoctorDetailScreen';
-import BookingScreen         from '../screens/BookingScreen';
-import AppointmentsScreen    from '../screens/AppointmentsScreen';
-import AppointmentDetail     from '../screens/AppointmentDetailScreen';
-import LiveQueueScreen       from '../screens/LiveQueueScreen';
-import PrescriptionsScreen   from '../screens/PrescriptionsScreen';
-import PrescriptionDetail    from '../screens/PrescriptionDetailScreen';
-import PaymentsScreen        from '../screens/PaymentsScreen';
-import ProfileScreen         from '../screens/ProfileScreen';
-import EditProfileScreen     from '../screens/EditProfileScreen';
-import ProfileWizardScreen   from '../screens/ProfileWizardScreen';
-import NotificationsScreen   from '../screens/NotificationsScreen';
+import HomeScreen from '../screens/HomeScreen';
+import SearchScreen from '../screens/SearchScreen';
+import DoctorDetailScreen from '../screens/DoctorDetailScreen';
+import BookingScreen from '../screens/BookingScreen';
+import AppointmentsScreen from '../screens/AppointmentsScreen';
+import AppointmentDetail from '../screens/AppointmentDetailScreen';
+import LiveQueueScreen from '../screens/LiveQueueScreen';
+import PaymentsScreen from '../screens/PaymentsScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import ProfileWizardScreen from '../screens/ProfileWizardScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 
-const Tab   = createBottomTabNavigator();
+const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 // Brand tokens
-const SKY5  = '#0EA5E9';
-const SKY6  = '#0284C7';
+const SKY5 = '#0EA5E9';
+const SKY6 = '#0284C7';
 const SLATE = '#0F172A';
 const MUTED = '#94A3B8';
 const WHITE = '#FFFFFF';
@@ -37,12 +36,14 @@ const WHITE = '#FFFFFF';
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="Home"          component={HomeScreen} />
-      <Stack.Screen name="Search"        component={SearchScreen} />
-      <Stack.Screen name="DoctorDetail"  component={DoctorDetailScreen} />
-      <Stack.Screen name="Booking"       component={BookingScreen} />
-      <Stack.Screen name="LiveQueue"     component={LiveQueueScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Search" component={SearchScreen} />
+      <Stack.Screen name="DoctorDetail" component={DoctorDetailScreen} />
+      <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
     </Stack.Navigator>
   );
 }
@@ -50,10 +51,11 @@ function HomeStack() {
 function SearchStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="SearchMain"   component={SearchScreen} />
+      <Stack.Screen name="SearchMain" component={SearchScreen} />
       <Stack.Screen name="DoctorDetail" component={DoctorDetailScreen} />
-      <Stack.Screen name="Booking"      component={BookingScreen} />
-      <Stack.Screen name="LiveQueue"    component={LiveQueueScreen} />
+      <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
+      <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
     </Stack.Navigator>
   );
 }
@@ -61,18 +63,9 @@ function SearchStack() {
 function AppointmentsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="Appointments"      component={AppointmentsScreen} />
+      <Stack.Screen name="Appointments" component={AppointmentsScreen} />
       <Stack.Screen name="AppointmentDetail" component={AppointmentDetail} />
-      <Stack.Screen name="LiveQueue"         component={LiveQueueScreen} />
-    </Stack.Navigator>
-  );
-}
-
-function PrescriptionsStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="Prescriptions"      component={PrescriptionsScreen} />
-      <Stack.Screen name="PrescriptionDetail" component={PrescriptionDetail} />
+      <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
     </Stack.Navigator>
   );
 }
@@ -80,27 +73,27 @@ function PrescriptionsStack() {
 function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="Profile"        component={ProfileScreen} />
-      <Stack.Screen name="EditProfile"    component={EditProfileScreen} />
-      <Stack.Screen name="ProfileWizard"  component={ProfileWizardScreen} />
-      <Stack.Screen name="Payments"       component={PaymentsScreen} />
-      <Stack.Screen name="Notifications"  component={NotificationsScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
+      <Stack.Screen name="Payments" component={PaymentsScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     </Stack.Navigator>
   );
 }
 
 // ── Tab config ────────────────────────────────────────────────────────────────
 const TABS = [
-  { name: 'HomeTab',         label: 'Home',    icon: 'home',          component: HomeStack         },
-  { name: 'DoctorsTab',      label: 'Doctors', icon: 'person',        component: SearchStack       },
-  { name: 'AppointmentsTab', label: 'Appts',   icon: 'calendar',      component: AppointmentsStack },
-  { name: 'RecordsTab',      label: 'Records', icon: 'folder',        component: PrescriptionsStack },
-  { name: 'ProfileTab',      label: 'Profile', icon: 'person-circle', component: ProfileStack      },
+  { name: 'HomeTab', label: 'Home', icon: 'home', component: HomeStack },
+  { name: 'DoctorsTab', label: 'Doctors', icon: 'person', component: SearchStack },
+  { name: 'AppointmentsTab', label: 'Appts', icon: 'calendar', component: AppointmentsStack },
+  { name: 'ProfileTab', label: 'Profile', icon: 'person-circle', component: ProfileStack },
 ];
 // ── Custom tab bar button ─────────────────────────────────────────────────────
 function TabButton({ tab, focused, onPress }) {
   const scaleA = useRef(new Animated.Value(1)).current;
-  const dotA   = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const dotA = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.spring(dotA, {
@@ -158,7 +151,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
 
       <View style={tb.tabRow}>
         {state.routes.map((route, index) => {
-          const tab     = TABS.find((t) => t.name === route.name);
+          const tab = TABS.find((t) => t.name === route.name);
           const focused = state.index === index;
 
           const onPress = () => {

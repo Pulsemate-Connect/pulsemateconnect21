@@ -20,3 +20,17 @@ export const getDoctorProfile = () =>
 
 export const updateDoctorProfile = (data) =>
   api.patch('/doctor/profile', data);
+
+// ── Schedule management ───────────────────────────────────────────────────────
+
+/** GET /doctor/:doctorId/availability?clinicId= — fetch weekly schedule */
+export const getDoctorSchedule = (doctorId, params) =>
+  api.get(`/doctor/${doctorId}/availability`, { params });
+
+/** POST /doctor/availability — upsert a single day's schedule */
+export const setDaySchedule = (data) =>
+  api.post('/doctor/availability', data);
+
+/** PUT /doctor/availability/:id — update an existing schedule record */
+export const updateDaySchedule = (id, data) =>
+  api.put(`/doctor/availability/${id}`, data);

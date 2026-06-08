@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { getMyNotifications } from '../api/notification.api';
 import toast from 'react-hot-toast';
 
 // SVG icon components
@@ -39,6 +40,7 @@ const NAV_ITEMS = {
     { path: '/doctor/dashboard',    label: 'Dashboard',    icon: Icon.Chart    },
     { path: '/doctor/appointments', label: 'Appointments', icon: Icon.Calendar },
     { path: '/doctor/queue',        label: 'My Queue',     icon: Icon.Queue    },
+    { path: '/doctor/schedule',     label: 'Schedule',     icon: Icon.Calendar },
     { path: '/doctor/profile',      label: 'Profile',      icon: Icon.User     },
   ],
   RECEPTIONIST: [
@@ -51,7 +53,6 @@ const NAV_ITEMS = {
     { path: '/patient/home',          label: 'Home',         icon: Icon.Home     },
     { path: '/patient/search',        label: 'Find Doctors', icon: Icon.Search   },
     { path: '/patient/appointments',  label: 'Appointments', icon: Icon.Calendar },
-    { path: '/patient/prescriptions', label: 'Prescriptions',icon: Icon.Pill     },
     { path: '/patient/profile',       label: 'Profile',      icon: Icon.User     },
   ],
 };
@@ -63,9 +64,45 @@ const ROLE_LABEL = {
 
 const DashboardLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate  = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await getMyNotifications();
+        if (!cancelled) setUnreadCount(res.data.data.unreadCount || 0);
+      } catch {}
+    };
+
+    fetchUnread();
+
+    // Poll every 60 seconds for new notifications
+    const interval = setInterval(fetchUnread, 60_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [user]);
+
+  // Refresh unread count whenever user navigates to a new page
+  // (catching the case where they just came back from NotificationsPage)
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await getMyNotifications();
+        setUnreadCount(res.data.data.unreadCount || 0);
+      } catch {}
+    };
+    fetchUnread();
+  }, [location.pathname, user]);
 
   const hasLimitedAccess = ['DOCTOR', 'CLINIC_OWNER'].includes(user?.role) && user?.status && user.status !== 'VERIFIED';
   let navItems = hasLimitedAccess
@@ -81,9 +118,16 @@ const DashboardLayout = ({ children }) => {
   }
 
   const handleLogout = async () => {
+    const role = user?.role;
     await logout();
     toast.success('Signed out');
-    navigate('/login');
+    if (role === 'SUPER_ADMIN') {
+      navigate('/admin');
+    } else if (role === 'PATIENT') {
+      navigate('/login');
+    } else {
+      navigate('/portal');
+    }
   };
 
   const isActive = (path) => {
@@ -225,11 +269,21 @@ const DashboardLayout = ({ children }) => {
 
           <div className="ml-auto flex items-center gap-3">
             {/* Notification bell */}
-            <button className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
+            <button
+              onClick={() => navigate('/notifications')}
+              className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
+              aria-label="Notifications"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center px-1">
+                  <span className="text-white text-[9px] font-bold leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                </span>
+              )}
             </button>
 
             {/* User avatar + name */}

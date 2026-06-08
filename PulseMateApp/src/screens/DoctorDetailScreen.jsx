@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Animated, Easing, Dimensions, StatusBar,
+  Linking, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,15 +33,22 @@ const SPEC_CFG = {
 };
 const getSpec = (s) => SPEC_CFG[s] || { color: SKY5, bg: '#E0F2FE', icon: 'medical' };
 
-// ── Static mock reviews ───────────────────────────────────────────────────────
-const REVIEWS = [
-  { name: 'Priya M.',   rating: 5, text: 'Very thorough and caring. Explained everything clearly.',       time: '2 days ago'  },
-  { name: 'Rahul S.',   rating: 5, text: 'Excellent doctor. Diagnosed my issue quickly and accurately.',  time: '1 week ago'  },
-  { name: 'Anita K.',   rating: 4, text: 'Good experience overall. Wait time was a bit long.',            time: '2 weeks ago' },
-];
-
 // ── Day abbreviations ─────────────────────────────────────────────────────────
 const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat', Sunday:'Sun' };
+
+// ── Maps navigation helper ────────────────────────────────────────────────────
+const openMaps = (lat, lng, name) => {
+  if (!lat || !lng) {
+    Alert.alert('No Location', 'Clinic location coordinates are not available.');
+    return;
+  }
+  const url = Platform.OS === 'ios'
+    ? `maps://?q=${encodeURIComponent(name)}&ll=${lat},${lng}`
+    : `geo:${lat},${lng}?q=${encodeURIComponent(name)}`;
+  Linking.openURL(url).catch(() =>
+    Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`)
+  );
+};
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ title, icon, children, accent = SKY5 }) {
@@ -128,13 +136,29 @@ function ClinicCard({ dc, accent, onBook }) {
         </View>
       </View>
 
-      {/* Phone */}
-      {dc.clinic?.phone && (
-        <View style={dd.clinicMetaItem}>
-          <Ionicons name="call-outline" size={13} color={MUTED} />
-          <Text style={dd.clinicMetaText}>{dc.clinic.phone}</Text>
-        </View>
-      )}
+      {/* Action buttons row — call + directions + book */}
+      <View style={dd.clinicActions}>
+        {dc.clinic?.phone && (
+          <TouchableOpacity
+            style={[dd.clinicActionBtn, { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }]}
+            onPress={() => Linking.openURL(`tel:${dc.clinic.phone}`)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call" size={15} color="#10B981" />
+            <Text style={[dd.clinicActionText, { color: '#065F46' }]}>Call Clinic</Text>
+          </TouchableOpacity>
+        )}
+        {(dc.clinic?.latitude && dc.clinic?.longitude) ? (
+          <TouchableOpacity
+            style={[dd.clinicActionBtn, { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }]}
+            onPress={() => openMaps(dc.clinic.latitude, dc.clinic.longitude, dc.clinic.name)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="navigate" size={15} color={SKY6} />
+            <Text style={[dd.clinicActionText, { color: SKY7 }]}>Directions</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       {/* Book button */}
       <TouchableOpacity
@@ -192,7 +216,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
     getDoctorProfile(doctorId)
       .then((r) => {
         setDoctor(r.data.data.doctor);
-        Animated.timing(enterA, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+        Animated.timing(enterA, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -205,10 +229,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
       Animated.spring(heartA, { toValue: 1, friction: 4, useNativeDriver: true }),
     ]).start();
   };
-
-  // Header opacity on scroll
-  const headerBg = scrollY.interpolate({ inputRange: [0, 120], outputRange: ['rgba(3,105,161,0)', 'rgba(3,105,161,1)'], extrapolate: 'clamp' });
-  const headerTitleOp = scrollY.interpolate({ inputRange: [80, 140], outputRange: [0, 1], extrapolate: 'clamp' });
 
   if (loading) return (
     <View style={dd.loadWrap}>
@@ -240,50 +260,39 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const firstClinic = doctor.doctorClinics?.[0];
 
   const handleBook = (dc) => navigation.navigate('Booking', {
-    doctorId:   doctor.id,
-    clinicId:   dc?.clinic?.id || firstClinic?.clinic?.id,
-    doctorName: doctor.user?.name,
-    clinicName: dc?.clinic?.name || firstClinic?.clinic?.name,
-    fee:        dc?.consultationFee || doctor.consultationFee,
+    doctorId:       doctor.id,
+    clinicId:       dc?.clinic?.id || firstClinic?.clinic?.id,
+    doctorName:     doctor.user?.name,
+    clinicName:     dc?.clinic?.name || firstClinic?.clinic?.name,
+    fee:            dc?.consultationFee || doctor.consultationFee,
+    specialization: doctor.specialization,
   });
 
   return (
     <View style={dd.root}>
       <StatusBar barStyle="light-content" backgroundColor={SKY7} translucent />
 
-      {/* ── Floating header (appears on scroll) ── */}
-      <Animated.View style={[dd.floatingHeader, { backgroundColor: headerBg, paddingTop: insets.top }]}>
+      {/* ── Static header ── */}
+      <View style={[dd.staticHeader, { paddingTop: insets.top + 6, backgroundColor: accent }]}>
         <TouchableOpacity style={dd.floatBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={20} color={WHITE} />
         </TouchableOpacity>
-        <Animated.Text style={[dd.floatTitle, { opacity: headerTitleOp }]} numberOfLines={1}>
-          Dr. {doctor.user?.name}
-        </Animated.Text>
+        <Text style={dd.floatTitle} numberOfLines={1}>Dr. {doctor.user?.name}</Text>
         <Animated.View style={{ transform: [{ scale: heartA }] }}>
           <TouchableOpacity style={dd.floatHeart} onPress={handleSave} activeOpacity={0.8}>
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={20} color={saved ? '#FB7185' : WHITE} />
           </TouchableOpacity>
         </Animated.View>
-      </Animated.View>
+      </View>
 
-      <Animated.ScrollView
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Hero banner ── */}
         <View style={[dd.heroBanner, { backgroundColor: accent }]}>
-          {/* Decorative blobs */}
-          <View style={dd.blobTL} />
-          <View style={dd.blobBR} />
-          {/* Dot grid */}
-          <View style={dd.dotGrid} pointerEvents="none">
-            {Array.from({ length: 20 }).map((_, i) => <View key={i} style={dd.dot} />)}
-          </View>
 
-          {/* Status bar spacer */}
-          <View style={{ height: insets.top + 52 }} />
+          {/* No spacer needed — static header is not overlapping */}
 
           {/* Avatar + name block */}
           <View style={dd.heroContent}>
@@ -312,19 +321,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
           {/* Stats strip */}
           <View style={dd.heroStats}>
             <View style={dd.heroStat}>
-              <Text style={dd.heroStatNum}>4.8</Text>
-              <View style={{ flexDirection: 'row', gap: 1 }}>
-                {[1,2,3,4,5].map((i) => <Ionicons key={i} name="star" size={9} color="#FCD34D" />)}
-              </View>
-              <Text style={dd.heroStatLabel}>Rating</Text>
-            </View>
-            <View style={dd.heroStatSep} />
-            <View style={dd.heroStat}>
-              <Text style={dd.heroStatNum}>500+</Text>
-              <Text style={dd.heroStatLabel}>Patients</Text>
-            </View>
-            <View style={dd.heroStatSep} />
-            <View style={dd.heroStat}>
               <Text style={dd.heroStatNum}>{exp}+</Text>
               <Text style={dd.heroStatLabel}>Years Exp</Text>
             </View>
@@ -332,6 +328,11 @@ export default function DoctorDetailScreen({ route, navigation }) {
             <View style={dd.heroStat}>
               <Text style={dd.heroStatNum}>{avgMins}m</Text>
               <Text style={dd.heroStatLabel}>Avg Visit</Text>
+            </View>
+            <View style={dd.heroStatSep} />
+            <View style={dd.heroStat}>
+              <Text style={dd.heroStatNum}>{doctor.offlineAvailable && doctor.onlineAvailable ? 'Both' : doctor.onlineAvailable ? 'Online' : 'Clinic'}</Text>
+              <Text style={dd.heroStatLabel}>Mode</Text>
             </View>
           </View>
         </View>
@@ -446,35 +447,18 @@ export default function DoctorDetailScreen({ route, navigation }) {
           {/* ── REVIEWS TAB ── */}
           {tab === 'reviews' && (
             <View style={dd.tabContent}>
-              {/* Rating summary */}
-              <View style={dd.ratingCard}>
-                <View style={dd.ratingLeft}>
-                  <Text style={[dd.ratingBig, { color: accent }]}>4.8</Text>
-                  <Stars rating={5} size={16} />
-                  <Text style={dd.ratingCount}>Based on 120+ reviews</Text>
-                </View>
-                <View style={dd.ratingBars}>
-                  {[5, 4, 3, 2, 1].map((star) => {
-                    const pct = star === 5 ? 72 : star === 4 ? 18 : star === 3 ? 6 : star === 2 ? 3 : 1;
-                    return (
-                      <View key={star} style={dd.ratingBarRow}>
-                        <Text style={dd.ratingBarLabel}>{star}</Text>
-                        <Ionicons name="star" size={10} color="#F59E0B" />
-                        <View style={dd.ratingBarTrack}>
-                          <View style={[dd.ratingBarFill, { width: `${pct}%`, backgroundColor: accent }]} />
-                        </View>
-                        <Text style={dd.ratingBarPct}>{pct}%</Text>
-                      </View>
-                    );
-                  })}
-                </View>
+              <View style={dd.emptyTab}>
+                <Ionicons name="star-outline" size={48} color={MUTED} />
+                <Text style={[dd.emptyTabText, { fontWeight: '700', fontSize: 16, color: SLATE, marginTop: 12 }]}>No reviews yet</Text>
+                <Text style={[dd.emptyTabText, { marginTop: 6, textAlign: 'center' }]}>
+                  Patient reviews will appear here after appointments are completed.
+                </Text>
               </View>
-              {REVIEWS.map((r, i) => <ReviewCard key={i} review={r} />)}
             </View>
           )}
 
         </Animated.View>
-      </Animated.ScrollView>
+      </ScrollView>
 
       {/* ── Sticky bottom bar ── */}
       <View style={[dd.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
@@ -507,9 +491,13 @@ const dd = StyleSheet.create({
   retryBtn:  { backgroundColor: SKY5, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   retryText: { fontSize: 14, fontWeight: '700', color: WHITE },
 
-  // Floating header
+  // Static header
+  staticHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 12, gap: 12,
+  },
+  // Floating header (kept for reference but no longer used as animated overlay)
   floatingHeader: {
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100,
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 12, gap: 12,
   },
@@ -607,6 +595,12 @@ const dd = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
   },
   clinicBookText: { fontSize: 14, fontWeight: '800', color: WHITE, flex: 1, textAlign: 'center' },
+  clinicActions: { flexDirection: 'row', gap: 10, marginTop: 2 },
+  clinicActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderRadius: 10, paddingVertical: 10, borderWidth: 1,
+  },
+  clinicActionText: { fontSize: 12, fontWeight: '700' },
 
   // Reviews
   ratingCard: {

@@ -1,6 +1,6 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/response');
-const { notifyAppointmentBooked } = require('../services/notification.service');
+const { notifyAppointmentBooked, notifyAppointmentCancelled, notifyDoctorNewBooking, sendNotification } = require('../services/fcm.service');
 
 /**
  * GET /api/patient/doctors - Search doctors
@@ -185,7 +185,7 @@ const bookAppointment = async (req, res, next) => {
     // For offline appointments, assign queue number
     if (appointmentType === 'OFFLINE') {
       const today = new Date(appointmentDate);
-      today.setHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0); // use UTC midnight to match Queue.date storage
 
       // Get or create queue
       let queue = await prisma.queue.findFirst({
@@ -268,6 +268,15 @@ const bookAppointment = async (req, res, next) => {
       queueNumber
     ).catch(() => { });
 
+    // Notify doctor of new booking
+    if (appointment.doctor?.user?.id) {
+      notifyDoctorNewBooking(
+        appointment.doctor.user.id,
+        req.user.name || 'A patient',
+        appointmentDate
+      ).catch(() => { });
+    }
+
     return sendSuccess(res, { appointment }, 'Appointment booked successfully', 201);
   } catch (error) {
     next(error);
@@ -292,7 +301,6 @@ const getMyAppointments = async (req, res, next) => {
           },
           clinic: { select: { id: true, name: true, address: true, city: true, phone: true } },
           queueItem: true,
-          prescription: { select: { id: true, requiresFollowUp: true, followUpDate: true, diagnosis: true } },
           payment: { select: { id: true, status: true, amount: true, method: true } },
         },
         orderBy: { appointmentDate: 'desc' },
@@ -319,8 +327,9 @@ const getAppointmentDetails = async (req, res, next) => {
         doctor: {
           include: { user: { select: { id: true, name: true } } },
         },
-        clinic: { select: { id: true, name: true, address: true, city: true, phone: true } },
+        clinic: { select: { id: true, name: true, address: true, city: true, phone: true, latitude: true, longitude: true } },
         queueItem: true,
+        payment: { select: { id: true, status: true, amount: true, method: true, paidAt: true, razorpayPaymentId: true } },
       },
     });
 
@@ -358,8 +367,25 @@ const getLiveQueue = async (req, res, next) => {
       return sendError(res, 'Appointment not found', 404);
     }
 
+    // Always compute roomName so mobile can connect socket even before queue item exists
+    const apptDateStr = new Date(appointment.appointmentDate).toISOString().split('T')[0];
+    const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${apptDateStr}`;
+
     if (!appointment.queueItem) {
-      return sendSuccess(res, { appointment, queueInfo: null });
+      return sendSuccess(res, {
+        appointment,
+        queueInfo: {
+          queueNumber: appointment.queueNumber || null,
+          position: null,
+          status: appointment.status,
+          estimatedWaitMinutes: appointment.estimatedWaitMinutes || null,
+          patientsAhead: null,
+          currentlyServing: null,
+          queueStatus: 'ACTIVE',
+          roomName,
+          appointmentDate: appointment.appointmentDate,
+        }
+      });
     }
 
     // Get current consultation info
@@ -388,7 +414,8 @@ const getLiveQueue = async (req, res, next) => {
       patientsAhead,
       currentlyServing: currentlyServing?.queueNumber || null,
       queueStatus: appointment.queueItem.queue.status,
-      roomName: `queue:${appointment.clinicId}:${appointment.doctorId}:${new Date().toISOString().split('T')[0]}`,
+      roomName,
+      appointmentDate: appointment.appointmentDate,
     };
 
     return sendSuccess(res, { appointment, queueInfo });
@@ -406,7 +433,10 @@ const cancelAppointment = async (req, res, next) => {
 
     const appointment = await prisma.appointment.findFirst({
       where: { id, patientId: req.user.id },
-      include: { queueItem: true },
+      include: {
+        queueItem: true,
+        doctor: { include: { user: { select: { name: true } } } },
+      },
     });
 
     if (!appointment) {
@@ -428,6 +458,34 @@ const cancelAppointment = async (req, res, next) => {
         data: { status: 'CANCELLED' },
       });
     }
+
+    // Notify all stakeholders (fire-and-forget)
+    try {
+      const doctorName = appointment.doctor?.user?.name || 'the doctor';
+      const date = appointment.appointmentDate;
+
+      // 1. Notify patient
+      notifyAppointmentCancelled(req.user.id, doctorName, date).catch(() => { });
+
+      // 2. Notify doctor
+      const doctorProfile = await prisma.doctorProfile.findUnique({ where: { id: appointment.doctorId }, select: { userId: true } });
+      if (doctorProfile) {
+        sendNotification(doctorProfile.userId, {
+          title: '❌ Appointment Cancelled',
+          body: `Patient cancelled appointment on ${new Date(date).toLocaleDateString('en-IN')}.`,
+          data: { type: 'APPOINTMENT_CANCELLED', appointmentId: appointment.id },
+        }).catch(() => { });
+      }
+
+      // 3. Notify clinic owner + receptionists
+      const clinic = await prisma.clinic.findUnique({ where: { id: appointment.clinicId }, select: { ownerId: true } });
+      if (clinic) {
+        const cancelMsg = { title: '❌ Appointment Cancelled', body: `An appointment was cancelled by the patient.`, data: { type: 'APPOINTMENT_CANCELLED' } };
+        sendNotification(clinic.ownerId, cancelMsg).catch(() => { });
+        const receptionists = await prisma.clinicStaff.findMany({ where: { clinicId: appointment.clinicId, role: 'RECEPTIONIST', isActive: true }, select: { userId: true } });
+        receptionists.forEach(r => sendNotification(r.userId, cancelMsg).catch(() => { }));
+      }
+    } catch { }
 
     return sendSuccess(res, {}, 'Appointment cancelled successfully');
   } catch (error) {

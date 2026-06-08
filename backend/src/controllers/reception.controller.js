@@ -1,7 +1,12 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
-const { createAuditLog } = require('../services/audit.service');
-const { notifyQueueCalled, notifyQueuePaused } = require('../services/notification.service');
+const {
+  notifyQueueCalled,
+  notifyQueuePaused,
+  notifyQueueResumed,
+  notifyDoctorFollowUp,
+  notifyReceptionistNewWalkIn,
+} = require('../services/fcm.service');
 
 /**
  * Helper: Get or create today's queue for a doctor in a clinic
@@ -92,7 +97,6 @@ const getQueue = async (req, res, next) => {
                 payment: {
                   select: { status: true, amount: true, method: true },
                 },
-                prescription: { select: { requiresFollowUp: true } },
               },
             },
           },
@@ -192,6 +196,17 @@ const addWalkIn = async (req, res, next) => {
       });
     }
 
+    // Notify receptionist of new walk-in (find receptionist for this clinic)
+    try {
+      const receptionists = await prisma.clinicStaff.findMany({
+        where: { clinicId, role: 'RECEPTIONIST', isActive: true },
+        select: { userId: true },
+      });
+      for (const r of receptionists) {
+        notifyReceptionistNewWalkIn(r.userId, patient.name).catch(() => { });
+      }
+    } catch { /* non-critical */ }
+
     return sendSuccess(res, { appointment, queueItem, queueNumber }, 'Walk-in patient added to queue', 201);
   } catch (error) {
     next(error);
@@ -212,7 +227,6 @@ const addFollowUp = async (req, res, next) => {
       where: { id: originalAppointmentId },
       include: {
         patient: { select: { id: true, name: true, mobile: true } },
-        prescription: { select: { requiresFollowUp: true, diagnosis: true } },
       },
     });
 
@@ -239,9 +253,7 @@ const addFollowUp = async (req, res, next) => {
     const queueNumber = (lastItem?.queueNumber || 0) + 1;
 
     // Count ONLY regular (non-follow-up) waiting patients — follow-up goes before them
-    const regularWaitingCount = await prisma.queueItem.count({
-      where: { queueId: queue.id, status: 'WAITING', isFollowUp: false },
-    });
+    // (used for position calculation context — follow-ups precede regular patients)
 
     // Follow-up position = number of other follow-ups already waiting + 1
     const followUpWaitingCount = await prisma.queueItem.count({
@@ -320,6 +332,17 @@ const addFollowUp = async (req, res, next) => {
       io.to(roomName).emit('queue:positionUpdated', { queueId: queue.id });
     }
 
+    // Notify the doctor about the follow-up patient
+    try {
+      const doctorUser = await prisma.user.findFirst({
+        where: { doctorProfile: { id: doctorId } },
+        select: { id: true },
+      });
+      if (doctorUser) {
+        notifyDoctorFollowUp(doctorUser.id, originalAppointment.patient.name).catch(() => { });
+      }
+    } catch { /* non-critical */ }
+
     return sendSuccess(
       res,
       { appointment: followUpAppointment, queueItem, queueNumber },
@@ -381,7 +404,7 @@ const callNext = async (req, res, next) => {
 
     const queue = await prisma.queue.findUnique({
       where: { id: queueId },
-      include: { doctor: true },
+      include: { doctor: { include: { user: { select: { name: true } } } } },
     });
 
     if (!queue) {
@@ -454,7 +477,7 @@ const callNext = async (req, res, next) => {
     if (nextItem.appointmentId) {
       await prisma.appointment.update({
         where: { id: nextItem.appointmentId },
-        data: { status: 'IN_CONSULTATION' },
+        data: { status: 'CALLED' },
       });
     }
 
@@ -463,11 +486,10 @@ const callNext = async (req, res, next) => {
     await recalculatePositions(queueId, avgMins);
 
     // Send FCM push notification to the called patient
-    await notifyQueueCalled(
+    notifyQueueCalled(
       nextItem.patientId,
-      nextItem.queueNumber,
-      queue.doctor?.user?.name || 'the doctor'
-    );
+      nextItem.queueNumber
+    ).catch(() => { });
 
     // Emit socket events
     const io = req.app.get('io');
@@ -638,6 +660,23 @@ const resumeQueue = async (req, res, next) => {
       const today = new Date().toISOString().split('T')[0];
       io.to(`queue:${queue.clinicId}:${queue.doctorId}:${today}`).emit('queue:resumed', { queueId });
     }
+
+    // Notify all waiting patients that queue has resumed
+    try {
+      const resumedQueue = await prisma.queue.findUnique({
+        where: { id: queueId },
+        include: { doctor: { include: { user: { select: { name: true } } } } },
+      });
+      const waitingPatients = await prisma.queueItem.findMany({
+        where: { queueId, status: 'WAITING' },
+        select: { patientId: true },
+      });
+      const doctorName = resumedQueue?.doctor?.user?.name || 'the doctor';
+      const uniquePatientIds = [...new Set(waitingPatients.map((i) => i.patientId))];
+      for (const patientId of uniquePatientIds) {
+        notifyQueueResumed(patientId, doctorName).catch(() => { });
+      }
+    } catch { /* notification failure must not break the main flow */ }
 
     return sendSuccess(res, { queue }, 'Queue resumed');
   } catch (error) {

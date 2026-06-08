@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getMyNotifications } from '../api/auth';
+import { getMyNotifications, markNotificationRead as apiMarkRead, markAllNotificationsRead } from '../api/auth';
 import { colors, shadow, radius } from '../theme';
 
 const FILTERS = [
@@ -52,8 +52,14 @@ export default function NotificationsScreen({ navigation }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const markRead  = (id) => setReadIds((p) => new Set([...p, id]));
-  const markAll   = () => setReadIds(new Set(notifications.map((n) => n.id)));
+  const markRead  = (id) => {
+    setReadIds((p) => new Set([...p, id]));
+    apiMarkRead(id).catch(() => {});
+  };
+  const markAll   = () => {
+    setReadIds(new Set(notifications.map((n) => n.id)));
+    markAllNotificationsRead().catch(() => {});
+  };
 
   const handlePress = (n) => {
     markRead(n.id);
@@ -86,7 +92,7 @@ export default function NotificationsScreen({ navigation }) {
           <Text style={s.title}>Notifications</Text>
           <Text style={s.subtitle}>Stay updated with your appointments and health</Text>
         </View>
-        <TouchableOpacity style={s.iconBtn} onPress={markAll}>
+        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('NotificationSettings')}>
           <Ionicons name="settings-outline" size={20} color={colors.text} />
         </TouchableOpacity>
       </View>

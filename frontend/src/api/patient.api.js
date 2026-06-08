@@ -26,3 +26,6 @@ export const getPatientProfile = () =>
 
 export const updatePatientProfile = (data) =>
   api.patch('/patient/profile', data);
+
+export const getNearby = (params) =>
+  api.get('/patient/nearby', { params });

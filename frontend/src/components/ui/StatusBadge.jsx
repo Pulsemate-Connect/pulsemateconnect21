@@ -26,7 +26,6 @@ const STATUS_CONFIG = {
   VERIFIED: { label: 'Verified', className: 'badge-success' },
   PENDING: { label: 'Pending', className: 'badge-warning' },
   UNDER_REVIEW: { label: 'Under Review', className: 'bg-blue-100 text-blue-700 badge' },
-  REJECTED: { label: 'Rejected', className: 'badge-error' },
   CHANGES_REQUIRED: { label: 'Changes Required', className: 'bg-orange-100 text-orange-700 badge' },
   SUSPENDED: { label: 'Suspended', className: 'bg-gray-800 text-white badge' },
 

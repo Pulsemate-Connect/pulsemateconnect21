@@ -227,8 +227,7 @@ export default function WelcomeScreen({ navigation }) {
 
   const current = SLIDES[slide];
 
-  const goLogin      = () => navigation.navigate('Onboarding');
-  const goStaffLogin = () => navigation.navigate('Login');
+  const goLogin = () => navigation.navigate('Login');
 
   return (
     <View style={ws.root}>
@@ -330,23 +329,6 @@ export default function WelcomeScreen({ navigation }) {
             <Text style={ws.btnPrimaryText}>Get Started</Text>
             <Ionicons name="arrow-forward" size={16} color={WHITE} />
           </TouchableOpacity>
-
-          {/* Sign In */}
-          <TouchableOpacity style={ws.btnSecondary} onPress={goLogin} activeOpacity={0.8}>
-            <Ionicons name="log-in-outline" size={17} color={SKY7} />
-            <Text style={ws.btnSecondaryText}>Sign In to Existing Account</Text>
-          </TouchableOpacity>
-
-          {/* Staff Login */}
-          <TouchableOpacity style={ws.staffBtn} onPress={goStaffLogin} activeOpacity={0.7}>
-            <View style={ws.staffBtnLeft}>
-              <View style={ws.staffIcon}>
-                <Ionicons name="briefcase-outline" size={14} color={SKY7} />
-              </View>
-              <Text style={ws.staffBtnText}>Staff / Doctor Login</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color={SKY7} />
-          </TouchableOpacity>
         </Animated.View>
 
         {/* Terms */}
@@ -426,25 +408,9 @@ const ws = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 8,
   },
   btnPrimaryText: { fontSize: 16, fontWeight: '800', color: WHITE, letterSpacing: 0.2 },
-  btnSecondary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 16, paddingVertical: 15,
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1.5, borderColor: '#BAE6FD',
-  },
-  btnSecondaryText: { fontSize: 15, fontWeight: '700', color: SKY7 },
 
   // Terms
   terms:     { fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 17 },
   termsLink: { fontWeight: '700' },
 
-  // Staff login
-  staffBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD',
-  },
-  staffBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  staffIcon:    { width: 28, height: 28, borderRadius: 8, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
-  staffBtnText: { fontSize: 14, fontWeight: '700', color: SKY7 },
 });

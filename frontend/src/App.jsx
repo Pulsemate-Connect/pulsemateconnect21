@@ -24,14 +24,13 @@ import DoctorProfile from './pages/patient/DoctorProfile';
 import MyAppointments from './pages/patient/MyAppointments';
 import LiveQueue from './pages/patient/LiveQueue';
 import PatientProfile from './pages/patient/PatientProfile';
-import MyPrescriptions from './pages/patient/MyPrescriptions';
 import PaymentPage from './pages/patient/PaymentPage';
 
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import DoctorAppointments from './pages/doctor/DoctorAppointments';
 import DoctorQueue from './pages/doctor/DoctorQueue';
 import DoctorProfilePage from './pages/doctor/DoctorProfilePage';
-import WritePrescription from './pages/doctor/WritePrescription';
+import DoctorSchedulePage from './pages/doctor/DoctorSchedulePage';
 
 import ReceptionDashboard from './pages/receptionist/ReceptionDashboard';
 import TodayQueue from './pages/receptionist/TodayQueue';
@@ -49,6 +48,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
 import ClinicVerification from './pages/admin/ClinicVerification';
 import ClinicVerificationDetail from './pages/admin/ClinicVerificationDetail';
+import NotificationsPage from './pages/notifications/NotificationsPage';
+import NotificationSettingsPage from './pages/notifications/NotificationSettingsPage';
 
 const AppRoutes = () => {
   useFcm();
@@ -82,7 +83,6 @@ const AppRoutes = () => {
       <Route path="/patient/appointments/:id" element={<ProtectedRoute roles={['PATIENT']}><MyAppointments /></ProtectedRoute>} />
       <Route path="/patient/queue/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><LiveQueue /></ProtectedRoute>} />
       <Route path="/patient/profile" element={<ProtectedRoute roles={['PATIENT']}><PatientProfile /></ProtectedRoute>} />
-      <Route path="/patient/prescriptions" element={<ProtectedRoute roles={['PATIENT']}><MyPrescriptions /></ProtectedRoute>} />
       <Route path="/patient/payment/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><PaymentPage /></ProtectedRoute>} />
 
       <Route path="/doctor" element={<Navigate to="/doctor/dashboard" replace />} />
@@ -90,7 +90,7 @@ const AppRoutes = () => {
       <Route path="/doctor/appointments" element={<ProtectedRoute roles={['DOCTOR']}><DoctorAppointments /></ProtectedRoute>} />
       <Route path="/doctor/queue" element={<ProtectedRoute roles={['DOCTOR']}><DoctorQueue /></ProtectedRoute>} />
       <Route path="/doctor/profile" element={<ProtectedRoute roles={['DOCTOR']}><DoctorProfilePage /></ProtectedRoute>} />
-      <Route path="/doctor/prescription/:appointmentId" element={<ProtectedRoute roles={['DOCTOR']}><WritePrescription /></ProtectedRoute>} />
+      <Route path="/doctor/schedule" element={<ProtectedRoute roles={['DOCTOR']}><DoctorSchedulePage /></ProtectedRoute>} />
 
       <Route path="/reception" element={<Navigate to="/receptionist/dashboard" replace />} />
       <Route path="/reception/queue" element={<Navigate to="/receptionist/queue" replace />} />
@@ -123,6 +123,9 @@ const AppRoutes = () => {
       <Route path="/admin/clinics/verify" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerification /></ProtectedRoute>} />
       <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerificationDetail /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><UsersManagement /></ProtectedRoute>} />
+
+      <Route path="/notifications" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationsPage /></ProtectedRoute>} />
+      <Route path="/notifications/settings" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationSettingsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

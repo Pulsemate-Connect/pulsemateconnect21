@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getDoctorAppointments, startConsultation, completeConsultation } from '../../api/doctor.api';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -152,9 +151,6 @@ const DoctorAppointments = () => {
                 onChange={(e) => setNotesModal({ ...notesModal, notes: e.target.value })}
               />
             </div>
-            <p className="text-xs text-text-muted">
-              💡 You can write a detailed prescription after completing the consultation.
-            </p>
             <div className="flex gap-3">
               <button onClick={() => setNotesModal(null)} className="btn-ghost flex-1">Cancel</button>
               <button
@@ -226,15 +222,6 @@ const AppointmentRow = ({ appt, onStart, onComplete, actionLoading }) => (
             >
               {actionLoading === appt.id + 'complete' ? <LoadingSpinner size="sm" /> : '✅ Complete'}
             </button>
-          )}
-          {/* Write / Edit prescription for completed appointments */}
-          {appt.status === 'COMPLETED' && (
-            <Link
-              to={`/doctor/prescription/${appt.id}`}
-              className="btn-outline text-xs py-1.5 px-3"
-            >
-              💊 {appt.prescription ? 'Edit Rx' : 'Write Rx'}
-            </Link>
           )}
         </div>
       </div>

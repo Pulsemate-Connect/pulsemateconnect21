@@ -1,15 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  BookingScreen — PulseMate Connect  |  Appointment Booking
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Animated,
   Easing, Dimensions, StatusBar, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { initiatePayment, verifyPayment, getPatientProfile } from '../api/patient';
+import { initiatePayment, verifyPayment, getPatientProfile, getAvailableSlots, getBookingStatus } from '../api/patient';
 
 const { width: W } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ const PURPLE_L  = '#EDE9FE';
 const GREEN     = '#10B981';
 const GREEN_L   = '#D1FAE5';
 const AMBER     = '#F59E0B';
+const AMBER_L   = '#FEF3C7';
 const RED       = '#EF4444';
 const WHITE     = '#FFFFFF';
 const SLATE     = '#0F172A';
@@ -31,11 +33,6 @@ const MUTED     = '#94A3B8';
 const BG        = '#F0F7FF';
 const CARD      = '#FFFFFF';
 const BORDER    = '#E2E8F0';
-
-// ── Time slots ────────────────────────────────────────────────────────────────
-const MORNING_SLOTS   = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30'];
-const AFTERNOON_SLOTS = ['12:00', '12:30', '13:00', '14:00', '14:30', '15:00'];
-const EVENING_SLOTS   = ['16:00', '16:30', '17:00', '17:30', '18:00', '18:30'];
 
 // ── Symptom quick-picks ───────────────────────────────────────────────────────
 const SYMPTOM_CHIPS = [
@@ -101,7 +98,7 @@ function Section({ icon, title, badge, optional, children }) {
 }
 
 // ── Success overlay ───────────────────────────────────────────────────────────
-function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView }) {
+function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, isFree }) {
   const scaleA = useRef(new Animated.Value(0)).current;
   const fadeA  = useRef(new Animated.Value(0)).current;
   const checkA = useRef(new Animated.Value(0)).current;
@@ -131,13 +128,13 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView }
         </View>
 
         <Animated.View style={[so.checkCircle, { transform: [{ scale: checkA }] }]}>
-          <View style={so.checkInner}>
-            <Ionicons name="checkmark" size={36} color={WHITE} />
+          <View style={[so.checkInner, isFree && { backgroundColor: '#10B981' }]}>
+            <Ionicons name={isFree ? 'gift' : 'checkmark'} size={36} color={WHITE} />
           </View>
         </Animated.View>
 
-        <Text style={so.title}>Booking Confirmed!</Text>
-        <Text style={so.sub}>Your appointment has been successfully booked.</Text>
+        <Text style={so.title}>{isFree ? '🎉 First Booking Free!' : 'Booking Confirmed!'}</Text>
+        <Text style={so.sub}>{isFree ? 'Your appointment is confirmed at no charge.' : 'Your appointment has been successfully booked.'}</Text>
 
         <View style={so.detailBox}>
           <View style={so.detailRow}>
@@ -202,18 +199,22 @@ export default function BookingScreen({ route, navigation }) {
   const { doctorId, clinicId, doctorName, clinicName, fee, specialization } = route.params || {};
   const insets = useSafeAreaInsets();
 
-  const [type,       setType]       = useState('OFFLINE');
-  const [date,       setDate]       = useState('');
-  const [slot,       setSlot]       = useState('');
-  const [symptoms,   setSymptoms]   = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [patient,    setPatient]    = useState(null);
-  const [success,    setSuccess]    = useState(false);
-  const [bookedAppt, setBookedAppt] = useState(null);
-  const [symFocused, setSymFocused] = useState(false);
+  const [type,            setType]            = useState('OFFLINE');
+  const [date,            setDate]            = useState('');
+  const [slot,            setSlot]            = useState('');
+  const [symptoms,        setSymptoms]        = useState('');
+  const [loading,         setLoading]         = useState(false);
+  const [patient,         setPatient]         = useState(null);
+  const [profileComplete, setProfileComplete] = useState(true);
+  const [success,         setSuccess]         = useState(false);
+  const [bookedAppt,      setBookedAppt]      = useState(null);
+  const [symFocused,      setSymFocused]      = useState(false);
+  const [isFreeBooking,   setIsFreeBooking]   = useState(false); // true = first booking, no payment needed
 
-  const enterA = useRef(new Animated.Value(0)).current;
-  const slideA = useRef(new Animated.Value(24)).current;
+  // ── Dynamic slots ──────────────────────────────────────────────────────────
+  const [slots,        setSlots]        = useState([]);   // [{time, label, available, booked, past}]
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsSource,  setSlotsSource]  = useState('none'); // 'doctorAvailability'|'doctorClinic'|'none'|'fallback'
 
   // Generate next 14 days
   const days = Array.from({ length: 14 }, (_, i) => {
@@ -228,13 +229,56 @@ export default function BookingScreen({ route, navigation }) {
     };
   });
 
+  useFocusEffect(
+    useCallback(() => {
+      const check = async () => {
+        try {
+          const [profileRes, statusRes] = await Promise.all([
+            getPatientProfile(),
+            getBookingStatus().catch(() => null),
+          ]);
+          const u = profileRes.data.data.user;
+          setPatient(u);
+          const pp = u?.patientProfile;
+          const complete = !!(u?.name && pp?.gender && pp?.emergencyContact);
+          setProfileComplete(complete);
+
+          // Set free booking eligibility from server
+          const status = statusRes?.data?.data;
+          if (status) {
+            setIsFreeBooking(!status.freeBookingUsed);
+          }
+        } catch {}
+      };
+      check();
+    }, [])
+  );
+
+  // ── Fetch available slots whenever date changes ────────────────────────────
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(enterA, { toValue: 1, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slideA, { toValue: 0, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-    getPatientProfile().then((r) => setPatient(r.data.data.user)).catch(() => {});
-  }, []);
+    if (!date || !doctorId || !clinicId) return;
+    setSlotsLoading(true);
+    setSlot('');  // reset selected slot when date changes
+    setSlots([]);
+    getAvailableSlots(doctorId, { clinicId, date })
+      .then((r) => {
+        const data = r.data.data;
+        setSlotsSource(data.source || 'none');
+        // Only show real slots from the backend — no hardcoded fallback
+        if (Array.isArray(data.slots) && data.slots.length > 0) {
+          setSlots(data.slots);
+        } else {
+          setSlots([]);
+          setSlotsSource('none');
+        }
+      })
+      .catch(() => {
+        // Network error — show empty state, never fake slots
+        setSlots([]);
+        setSlotsSource('none');
+      })
+      .finally(() => setSlotsLoading(false));
+  }, [date, doctorId, clinicId]);
 
   const addSymptomChip = (chip) => {
     const current = symptoms.trim();
@@ -246,6 +290,22 @@ export default function BookingScreen({ route, navigation }) {
   };
 
   const handleBook = async () => {
+    // ── Profile gate: name, gender, emergency contact are required ──
+    if (!profileComplete) {
+      Alert.alert(
+        'Complete Your Profile First',
+        'Please add your name, gender, and emergency contact number before booking an appointment.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Update Profile',
+            onPress: () => navigation.navigate('ProfileWizard', { returnTo: 'Booking' }),
+          },
+        ]
+      );
+      return;
+    }
+
     if (!date) { Alert.alert('Select Date', 'Please pick an appointment date.'); return; }
     setLoading(true);
     try {
@@ -256,7 +316,17 @@ export default function BookingScreen({ route, navigation }) {
         slotTime:  slot     || undefined,
         symptoms:  symptoms.trim() || undefined,
       });
-      const { appointmentId, order, devMode } = initRes.data.data;
+
+      const { appointmentId, order, devMode, isFree, appointment: freeAppt } = initRes.data.data;
+
+      // ── FREE BOOKING PATH (first booking — no payment needed) ──────────────
+      if (isFree) {
+        setBookedAppt(freeAppt || { queueNumber: null });
+        setSuccess(true);
+        return;
+      }
+
+      // ── PAID BOOKING PATH ──────────────────────────────────────────────────
       if (devMode || order?.id?.startsWith('order_dev_')) {
         const verifyRes = await verifyPayment({
           appointmentId,
@@ -267,7 +337,34 @@ export default function BookingScreen({ route, navigation }) {
         setBookedAppt(verifyRes.data.data.appointment);
         setSuccess(true);
       } else {
-        Alert.alert('Payment Required', `Order ID: ${order.id}\nAmount: ₹${(order.amount / 100).toFixed(0)}`);
+        // Real Razorpay — open Razorpay standard checkout in browser.
+        // react-native-razorpay native SDK can be added for a native checkout experience,
+        // but this Linking approach works for Expo managed workflow without ejecting.
+        try {
+          const { Linking } = require('react-native');
+          // Build Razorpay hosted checkout URL
+          const params = [
+            `key=${encodeURIComponent(order.key || key || '')}`,
+            `order_id=${encodeURIComponent(order.id)}`,
+            `amount=${order.amount}`,
+            `currency=INR`,
+            `name=${encodeURIComponent('PulseMate')}`,
+            `description=${encodeURIComponent('Appointment Booking Fee')}`,
+            `callback_url=${encodeURIComponent('pulsemate://payment-callback')}`,
+          ].join('&');
+          const checkoutUrl = `https://api.razorpay.com/v1/checkout/embedded?${params}`;
+          await Linking.openURL(checkoutUrl);
+          Alert.alert(
+            '💳 Complete Payment',
+            'Your browser has opened with the payment page. Return here once payment is complete and pull-to-refresh on Appointments.',
+            [{ text: 'OK' }]
+          );
+        } catch {
+          Alert.alert(
+            'Payment Required',
+            `Please pay ₹${(order.amount / 100).toFixed(0)} to confirm your booking.\nOrder ID: ${order.id}`
+          );
+        }
       }
     } catch (err) {
       Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
@@ -276,7 +373,7 @@ export default function BookingScreen({ route, navigation }) {
     }
   };
 
-  const canBook    = !!date && !loading;
+  const canBook    = !!date && !loading && profileComplete;
   const consultFee = fee || 0;
   const p          = patient?.patientProfile;
   const patientAge = p?.dob
@@ -335,16 +432,11 @@ export default function BookingScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Progress dots */}
-        <View style={bs.progressRow}>
-          <StepDots current={step} total={4} />
-          <Text style={bs.progressText}>Step {step + 1} of 4</Text>
-        </View>
+        {/* Progress dots removed — single page form */}
       </View>
 
       {/* ── Scrollable form ── */}
-      <Animated.ScrollView
-        style={{ opacity: enterA, transform: [{ translateY: slideA }] }}
+      <ScrollView
         contentContainerStyle={[bs.scroll, { paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -413,36 +505,83 @@ export default function BookingScreen({ route, navigation }) {
         </Section>
 
         {/* ── 3. Time Slot ── */}
-        <Section icon="time-outline" title="Preferred Time" optional>
-          {[
-            { label: 'Morning',   icon: 'sunny-outline',        slots: MORNING_SLOTS   },
-            { label: 'Afternoon', icon: 'partly-sunny-outline', slots: AFTERNOON_SLOTS },
-            { label: 'Evening',   icon: 'moon-outline',         slots: EVENING_SLOTS   },
-          ].map(({ label, icon, slots }) => (
-            <View key={label} style={bs.slotGroup}>
-              <View style={bs.slotGroupHeader}>
-                <Ionicons name={icon} size={13} color={MUTED} />
-                <Text style={bs.slotGroupLabel}>{label}</Text>
+        {date && (
+          <Section icon="time-outline" title="Select Time" badge={slot ? fmt12(slot) : null}>
+            {slotsLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 16, gap: 8 }}>
+                <ActivityIndicator color={PRIMARY} />
+                <Text style={{ color: MUTED, fontSize: 12 }}>Checking availability...</Text>
               </View>
-              <View style={bs.slotRow}>
-                {slots.map((s) => {
-                  const active = slot === s;
-                  return (
-                    <TouchableOpacity
-                      key={s}
-                      style={[bs.slotChip, active && bs.slotChipActive]}
-                      onPress={() => setSlot(slot === s ? '' : s)}
-                      activeOpacity={0.8}
-                    >
-                      {active && <Ionicons name="time" size={11} color={PRIMARY} style={{ marginRight: 3 }} />}
-                      <Text style={[bs.slotText, active && bs.slotTextActive]}>{fmt12(s)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            ) : slots.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
+                <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="calendar-outline" size={26} color={MUTED} />
+                </View>
+                <Text style={{ color: SLATE, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
+                  {slotsSource === 'none'
+                    ? 'Not Available'
+                    : 'No Slots Available'}
+                </Text>
+                <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', lineHeight: 18, maxWidth: 260 }}>
+                  {slotsSource === 'none'
+                    ? 'The doctor has not configured their schedule for this day. Try a different date.'
+                    : 'All slots for this day are fully booked. Please choose another date.'}
+                </Text>
               </View>
-            </View>
-          ))}
-        </Section>
+            ) : (
+              (() => {
+                const morning   = slots.filter(s => { const h = parseInt(s.time); return h < 12; });
+                const afternoon = slots.filter(s => { const h = parseInt(s.time); return h >= 12 && h < 17; });
+                const evening   = slots.filter(s => { const h = parseInt(s.time); return h >= 17; });
+                const groups = [
+                  { label: '🌅 Morning',   items: morning   },
+                  { label: '☀️ Afternoon', items: afternoon },
+                  { label: '🌆 Evening',   items: evening   },
+                ].filter(g => g.items.length > 0);
+
+                return (
+                  <View style={{ gap: 14 }}>
+                    {groups.map(group => (
+                      <View key={group.label}>
+                        <Text style={bs.slotGroupLabel}>{group.label}</Text>
+                        <View style={bs.slotRow}>
+                          {group.items.map(s => {
+                            const isSelected = slot === s.time;
+                            const disabled   = !s.available;
+                            return (
+                              <TouchableOpacity
+                                key={s.time}
+                                style={[
+                                  bs.slotChip,
+                                  isSelected && bs.slotChipActive,
+                                  disabled   && bs.slotChipDisabled,
+                                ]}
+                                onPress={() => !disabled && setSlot(isSelected ? '' : s.time)}
+                                disabled={disabled}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={[
+                                  bs.slotChipText,
+                                  isSelected && bs.slotChipTextActive,
+                                  disabled   && { color: MUTED },
+                                ]}>
+                                  {fmt12(s.time)}
+                                </Text>
+                                {s.booked && (
+                                  <Text style={bs.slotBooked}>Booked</Text>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()
+            )}
+          </Section>
+        )}
 
         {/* ── 4. Symptoms ── */}
         <Section icon="medical-outline" title="Symptoms / Reason" optional>
@@ -484,10 +623,29 @@ export default function BookingScreen({ route, navigation }) {
         {/* ── 5. Patient Summary ── */}
         {patient && (
           <Section icon="person-outline" title="Patient Details">
-            <View style={bs.autoFillBanner}>
-              <Ionicons name="checkmark-circle" size={14} color={GREEN} />
-              <Text style={bs.autoFillBannerText}>Auto-filled from your profile</Text>
-            </View>
+            {/* ── Incomplete profile warning ── */}
+            {!profileComplete && (
+              <TouchableOpacity
+                style={bs.profileWarning}
+                onPress={() => navigation.navigate('ProfileWizard', { returnTo: 'Booking' })}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="warning-outline" size={18} color={AMBER} />
+                <View style={{ flex: 1 }}>
+                  <Text style={bs.profileWarningTitle}>Profile incomplete</Text>
+                  <Text style={bs.profileWarningText}>
+                    Name, gender and emergency contact are required before booking. Tap to complete your profile.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={AMBER} />
+              </TouchableOpacity>
+            )}
+            {profileComplete && (
+              <View style={bs.autoFillBanner}>
+                <Ionicons name="checkmark-circle" size={14} color={GREEN} />
+                <Text style={bs.autoFillBannerText}>Auto-filled from your profile</Text>
+              </View>
+            )}
             <View style={bs.patientCard}>
               <View style={bs.patientAvatarWrap}>
                 <Text style={bs.patientAvatarText}>{patient.name?.charAt(0)?.toUpperCase() || 'P'}</Text>
@@ -518,10 +676,17 @@ export default function BookingScreen({ route, navigation }) {
                   </View>
                 )}
               </View>
-              <View style={bs.patientVerifiedBadge}>
-                <Ionicons name="shield-checkmark" size={22} color={GREEN} />
-                <Text style={bs.patientVerifiedText}>Verified</Text>
-              </View>
+              {(patient.isPhoneVerified || patient.isEmailVerified) ? (
+                <View style={bs.patientVerifiedBadge}>
+                  <Ionicons name="shield-checkmark" size={22} color={GREEN} />
+                  <Text style={bs.patientVerifiedText}>Verified</Text>
+                </View>
+              ) : (
+                <View style={[bs.patientVerifiedBadge, { alignItems: 'center' }]}>
+                  <Ionicons name="shield-outline" size={22} color={AMBER} />
+                  <Text style={[bs.patientVerifiedText, { color: AMBER, fontSize: 8 }]}>Pending</Text>
+                </View>
+              )}
             </View>
             {p?.emergencyContact && (
               <View style={bs.emergencyRow}>
@@ -532,26 +697,32 @@ export default function BookingScreen({ route, navigation }) {
           </Section>
         )}
 
-        {/* ── 6. Payment Summary ── */}
+        {/* ── 4. Payment Summary ── */}
         <Section icon="card-outline" title="Payment Summary">
-          {/* Razorpay trust bar */}
-          <View style={bs.rzpBar}>
-            <View style={bs.rzpLeft}>
-              <View style={bs.rzpIconWrap}>
-                <Ionicons name="shield-checkmark" size={16} color={PURPLE} />
-              </View>
-              <View>
-                <Text style={bs.rzpTitle}>Secured by Razorpay</Text>
-                <Text style={bs.rzpSub}>256-bit SSL encrypted payment</Text>
+          {/* ── First Booking Free banner ── */}
+          {isFreeBooking && (
+            <View style={{
+              flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+              backgroundColor: '#D1FAE5', borderRadius: 12,
+              padding: 12, marginBottom: 14,
+              borderWidth: 1, borderColor: '#6EE7B7',
+            }}>
+              <Text style={{ fontSize: 20 }}>🎉</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>
+                  First Booking Free!
+                </Text>
+                <Text style={{ fontSize: 11, color: '#047857', marginTop: 2, lineHeight: 16 }}>
+                  Your first appointment on PulseMate is completely free.
+                  No payment required — queue assigned instantly.
+                </Text>
               </View>
             </View>
-            <View style={bs.rzpMethods}>
-              {['UPI', 'Card', 'NB'].map((m) => (
-                <View key={m} style={bs.rzpMethod}>
-                  <Text style={bs.rzpMethodText}>{m}</Text>
-                </View>
-              ))}
-            </View>
+          )}
+          {/* Inline secure badge */}
+          <View style={bs.secureInline}>
+            <Ionicons name="lock-closed" size={12} color={TEAL} />
+            <Text style={bs.secureInlineText}>Secured by Razorpay · 256-bit SSL</Text>
           </View>
 
           {/* Line items */}
@@ -561,7 +732,14 @@ export default function BookingScreen({ route, navigation }) {
                 <Ionicons name="phone-portrait-outline" size={14} color={MUTED} />
                 <Text style={bs.payLineLabel}>Platform Booking Fee</Text>
               </View>
-              <Text style={bs.payLineVal}>₹10</Text>
+              {isFreeBooking ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 12, color: MUTED, textDecorationLine: 'line-through' }}>₹10</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: GREEN }}>FREE</Text>
+                </View>
+              ) : (
+                <Text style={bs.payLineVal}>₹10</Text>
+              )}
             </View>
 
             <View style={bs.payLineDivider} />
@@ -602,13 +780,19 @@ export default function BookingScreen({ route, navigation }) {
           </View>
 
           {/* Total row */}
-          <View style={bs.payTotal}>
+          <View style={[bs.payTotal, isFreeBooking && { borderColor: GREEN + '40', backgroundColor: GREEN_L }]}>
             <View style={bs.payTotalLeft}>
-              <Text style={bs.payTotalLabel}>Total to Pay Now</Text>
-              <Text style={bs.payTotalSub}>Consultation fee paid separately at clinic</Text>
+              <Text style={bs.payTotalLabel}>{isFreeBooking ? '🎉 First Booking Free!' : 'Total to Pay Now'}</Text>
+              <Text style={bs.payTotalSub}>
+                {isFreeBooking
+                  ? 'Platform fee waived for your first booking'
+                  : 'Consultation fee paid separately at clinic'}
+              </Text>
             </View>
             <View style={bs.payTotalRight}>
-              <Text style={bs.payTotalVal}>₹10</Text>
+              <Text style={[bs.payTotalVal, isFreeBooking && { color: GREEN }]}>
+                {isFreeBooking ? '₹0' : '₹10'}
+              </Text>
             </View>
           </View>
         </Section>
@@ -622,29 +806,70 @@ export default function BookingScreen({ route, navigation }) {
             A ₹10 platform fee secures your slot. The consultation fee of ₹{consultFee} is paid directly at the clinic.
           </Text>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
 
       {/* ── Sticky bottom CTA ── */}
       <View style={[bs.stickyBar, { paddingBottom: insets.bottom + 10 }]}>
         <View style={bs.stickyLeft}>
-          <Text style={bs.stickyLabel}>Pay Now</Text>
-          <View style={bs.stickyAmountRow}>
-            <Text style={bs.stickyAmount}>₹10</Text>
-            <Text style={bs.stickyAmountNote}> platform fee</Text>
-          </View>
+          {profileComplete ? (
+            <>
+              <Text style={bs.stickyLabel}>Pay Now</Text>
+              <View style={bs.stickyAmountRow}>
+                {isFreeBooking ? (
+                  <>
+                    <Text style={{ fontSize: 12, color: MUTED, textDecorationLine: 'line-through', marginRight: 4 }}>₹10</Text>
+                    <Text style={[bs.stickyAmount, { color: GREEN }]}>₹0</Text>
+                    <Text style={bs.stickyAmountNote}> · Free</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={bs.stickyAmount}>₹10</Text>
+                    <Text style={bs.stickyAmountNote}> platform fee</Text>
+                  </>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={bs.stickyWarningRow}>
+                <Ionicons name="warning" size={14} color={AMBER} />
+                <Text style={bs.stickyWarningText}>Profile required</Text>
+              </View>
+              <Text style={bs.stickyWarningHint}>Add name, gender & emergency contact</Text>
+            </>
+          )}
         </View>
         <TouchableOpacity
-          style={[bs.payBtn, !canBook && bs.payBtnDisabled]}
-          onPress={handleBook}
-          disabled={!canBook}
+          style={[
+            bs.payBtn,
+            !profileComplete && bs.payBtnProfile,
+            (!date || loading) && profileComplete && bs.payBtnDisabled,
+            isFreeBooking && profileComplete && { backgroundColor: GREEN, shadowColor: GREEN },
+          ]}
+          onPress={profileComplete ? handleBook : () => navigation.navigate('ProfileWizard', { returnTo: 'Booking' })}
+          disabled={loading}
           activeOpacity={0.88}
         >
           {loading ? (
             <ActivityIndicator color={WHITE} size="small" />
+          ) : profileComplete ? (
+            isFreeBooking ? (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color={WHITE} />
+                <Text style={bs.payBtnText}>Confirm Free Booking</Text>
+                <Ionicons name="arrow-forward" size={16} color={WHITE} />
+              </>
+            ) : (
+              <>
+                <Ionicons name="card" size={18} color={WHITE} />
+                <Text style={bs.payBtnText}>Proceed to Pay</Text>
+                <Ionicons name="arrow-forward" size={16} color={WHITE} />
+              </>
+            )
           ) : (
             <>
-              <Ionicons name="card" size={18} color={WHITE} />
-              <Text style={bs.payBtnText}>Proceed to Pay</Text>
+              <Ionicons name="person-circle-outline" size={18} color={WHITE} />
+              <Text style={bs.payBtnText}>Complete Profile</Text>
               <Ionicons name="arrow-forward" size={16} color={WHITE} />
             </>
           )}
@@ -658,6 +883,7 @@ export default function BookingScreen({ route, navigation }) {
         date={date}
         slot={slot}
         queueNumber={bookedAppt?.queueNumber}
+        isFree={isFreeBooking}
         onView={() => navigation.navigate('AppointmentsTab')}
       />
     </View>
@@ -814,6 +1040,10 @@ const bs = StyleSheet.create({
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18, shadowRadius: 4, elevation: 2,
   },
+  slotChipDisabled:{ opacity: 0.4 },
+  slotChipText:    { fontSize: 12, fontWeight: '600', color: SLATE_6 },
+  slotChipTextActive: { color: PRIMARY_D, fontWeight: '800' },
+  slotBooked:      { fontSize: 9, color: RED, fontWeight: '700', marginLeft: 4 },
   slotText:        { fontSize: 12, fontWeight: '600', color: SLATE_6 },
   slotTextActive:  { color: PRIMARY_D, fontWeight: '800' },
 
@@ -847,6 +1077,14 @@ const bs = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, marginBottom: 12,
   },
   autoFillBannerText:{ fontSize: 12, fontWeight: '700', color: '#065F46' },
+  profileWarning: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: AMBER_L, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  profileWarningTitle: { fontSize: 13, fontWeight: '800', color: '#92400E', marginBottom: 2 },
+  profileWarningText:  { fontSize: 11, color: '#92400E', lineHeight: 16 },
   patientCard:      {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#F8FAFC', borderRadius: 16, padding: 14, marginBottom: 8,
@@ -868,6 +1106,12 @@ const bs = StyleSheet.create({
   patientVerifiedText: { fontSize: 9, fontWeight: '700', color: GREEN },
   emergencyRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
   emergencyText:    { fontSize: 12, color: MUTED },
+
+  secureInline: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: 10,
+  },
+  secureInlineText: { fontSize: 11, color: MUTED, fontWeight: '600' },
 
   // ── Payment summary ───────────────────────────────────────────────────────────
   rzpBar:       {
@@ -952,5 +1196,9 @@ const bs = StyleSheet.create({
     shadowOpacity: 0.4, shadowRadius: 14, elevation: 8,
   },
   payBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
+  payBtnProfile: { backgroundColor: AMBER, shadowColor: AMBER, shadowOpacity: 0.4, elevation: 8 },
   payBtnText:   { fontSize: 15, fontWeight: '800', color: WHITE, letterSpacing: -0.2 },
+  stickyWarningRow:  { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
+  stickyWarningText: { fontSize: 12, fontWeight: '800', color: AMBER },
+  stickyWarningHint: { fontSize: 10, color: MUTED, fontWeight: '500' },
 });

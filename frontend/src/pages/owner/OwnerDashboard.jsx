@@ -266,7 +266,7 @@ const PERIODS = [
 //  OwnerDashboard
 // ─────────────────────────────────────────────────────────────────────────────
 const OwnerDashboard = () => {
-  const { user, refreshUser } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   // Always load clinic status regardless of approval state
   const [clinicStatus, setClinicStatus] = useState(null);
@@ -324,7 +324,6 @@ const OwnerDashboard = () => {
     try {
       await resubmitClinic(data);
       toast.success('Clinic resubmitted for review!');
-      if (refreshUser) await refreshUser();
       await loadStatus();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to resubmit');

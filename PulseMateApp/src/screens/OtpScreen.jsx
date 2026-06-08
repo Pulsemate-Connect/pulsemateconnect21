@@ -1,197 +1,116 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  OtpScreen — PulseMate Connect  |  Premium OTP verification
-// ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, Image, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Alert, Animated, Easing, Dimensions, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyOtp, sendOtp } from '../api/auth';
 import { useAuth } from '../store/authStore';
-import { colors, shadow, radius } from '../theme';
-
-const LOGO = require('../../assets/logo1.jpeg');
 
 const { width: W, height: H } = Dimensions.get('window');
 
-// Brand tokens
-const SKY4  = '#38BDF8';
-const SKY5  = '#0EA5E9';
-const SKY6  = '#0284C7';
-const SKY7  = '#0369A1';
-const SKY9  = '#0C4A6E';
-const TEAL  = '#2DD4BF';
-const ROSE  = '#FB7185';
-const WHITE = '#FFFFFF';
+const BG     = '#E8F4FF';
+const BLUE   = '#2563EB';
+const BLUE_L = '#EFF6FF';
+const BLUE_B = '#BFDBFE';
+const GREEN  = '#22C55E';
+const GREEN_L= '#DCFCE7';
+const AMBER  = '#F59E0B';
+const AMBER_L= '#FEF3C7';
+const RED    = '#EF4444';
+const WHITE  = '#FFFFFF';
+const GRAY   = '#6B7280';
+const DARK   = '#111827';
 
-// ─── Phone + SMS illustration ─────────────────────────────────────────────────
-function PhoneIllustration() {
-  const bubble1 = useRef(new Animated.Value(0)).current;
-  const bubble2 = useRef(new Animated.Value(0)).current;
-  const bubble3 = useRef(new Animated.Value(0)).current;
-  const pulse   = useRef(new Animated.Value(0)).current;
-  const smsBadge = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Pulse glow loop
-    Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ])).start();
-
-    // Message bubbles fade in sequentially
-    Animated.sequence([
-      Animated.timing(bubble1, { toValue: 1, duration: 400, delay: 300, useNativeDriver: true }),
-      Animated.timing(bubble2, { toValue: 1, duration: 400, delay: 100, useNativeDriver: true }),
-      Animated.timing(bubble3, { toValue: 1, duration: 400, delay: 100, useNativeDriver: true }),
-    ]).start();
-
-    // SMS badge pop in
-    Animated.spring(smsBadge, { toValue: 1, friction: 4, tension: 100, delay: 900, useNativeDriver: true }).start();
-  }, []);
-
-  const glowOp = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.4] });
-
+/* ─── Step indicator ─────────────────────────────────────────────────────── */
+function StepRow({ current }) {
+  const steps = [
+    { n: '1', label: 'Enter Number' },
+    { n: '2', label: 'Get OTP' },
+    { n: '3', label: 'Verified' },
+  ];
   return (
-    <View style={ph.wrap}>
-      {/* Glow rings */}
-      <Animated.View style={[ph.ring, ph.ring3, { opacity: glowOp }]} />
-      <Animated.View style={[ph.ring, ph.ring2, { opacity: Animated.multiply(glowOp, 1.5) }]} />
-
-      {/* Phone outline */}
-      <View style={ph.phone}>
-        {/* Phone top notch */}
-        <View style={ph.notch} />
-        {/* Screen area with message bubbles */}
-        <View style={ph.screen}>
-          <Animated.View style={[ph.bubble, ph.bubbleLeft,  { opacity: bubble1, transform: [{ translateX: bubble1.interpolate({ inputRange: [0,1], outputRange: [-10, 0] }) }] }]}>
-            <View style={ph.bubbleDot} /><View style={[ph.bubbleDot, { width: 28 }]} /><View style={[ph.bubbleDot, { width: 20 }]} />
-          </Animated.View>
-          <Animated.View style={[ph.bubble, ph.bubbleRight, { opacity: bubble2, transform: [{ translateX: bubble2.interpolate({ inputRange: [0,1], outputRange: [10, 0] }) }] }]}>
-            <View style={[ph.bubbleDot, { width: 32, backgroundColor: SKY4 }]} /><View style={[ph.bubbleDot, { width: 22, backgroundColor: SKY4 }]} />
-          </Animated.View>
-          <Animated.View style={[ph.bubble, ph.bubbleLeft,  { opacity: bubble3, transform: [{ translateX: bubble3.interpolate({ inputRange: [0,1], outputRange: [-10, 0] }) }] }]}>
-            <View style={[ph.bubbleDot, { width: 24 }]} /><View style={[ph.bubbleDot, { width: 16 }]} />
-          </Animated.View>
-        </View>
-        {/* Phone bottom bar */}
-        <View style={ph.homeBar} />
-      </View>
-
-      {/* Floating SMS badge */}
-      <Animated.View style={[ph.smsBadge, { transform: [{ scale: smsBadge }] }]}>
-        <Ionicons name="chatbubble-ellipses" size={13} color={SKY6} />
-        <Text style={ph.smsText}>SMS</Text>
-      </Animated.View>
-
-      {/* Floating chips */}
-      <View style={[ph.chip, ph.chipLeft]}>
-        <Ionicons name="shield-checkmark" size={11} color={SKY6} />
-        <Text style={ph.chipText}>256-bit SSL</Text>
-      </View>
-      <View style={[ph.chip, ph.chipRight]}>
-        <Ionicons name="time-outline" size={11} color={SKY6} />
-        <Text style={ph.chipText}>5 min OTP</Text>
-      </View>
+    <View style={sr.row}>
+      {steps.map((s, i) => {
+        const done   = current > i + 1;
+        const active = current === i + 1;
+        return (
+          <View key={s.n} style={sr.item}>
+            <View style={[sr.dot, done ? sr.dotDone : active ? sr.dotActive : sr.dotOff]}>
+              {done
+                ? <Ionicons name="checkmark" size={10} color={WHITE} />
+                : <Text style={[sr.num, active ? sr.numActive : sr.numOff]}>{s.n}</Text>
+              }
+            </View>
+            <Text style={[sr.label, done ? sr.labelDone : active ? sr.labelActive : sr.labelOff]}>
+              {s.label}
+            </Text>
+            {i < steps.length - 1 && (
+              <View style={[sr.line, done ? sr.lineDone : sr.lineOff]} />
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
 
-// ─── Circular countdown timer ─────────────────────────────────────────────────
-function CircularTimer({ cooldown, total = 30 }) {
-  const fraction = cooldown / total;
-  // Border trick: show arc by selectively coloring border sides
-  const borderTopColor    = SKY5;
-  const borderRightColor  = fraction > (22 / total) ? SKY5 : 'transparent';
-  const borderBottomColor = fraction > (15 / total) ? SKY5 : 'transparent';
-  const borderLeftColor   = fraction > (7  / total) ? SKY5 : 'transparent';
+const sr = StyleSheet.create({
+  row:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 18 },
+  item:      { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dot:       { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  dotActive: { backgroundColor: BLUE },
+  dotDone:   { backgroundColor: GREEN },
+  dotOff:    { backgroundColor: '#E5E7EB' },
+  num:       { fontSize: 10, fontWeight: '800' },
+  numActive: { color: WHITE },
+  numOff:    { color: GRAY },
+  label:     { fontSize: 10, fontWeight: '600' },
+  labelActive:{ color: BLUE },
+  labelDone:  { color: GREEN },
+  labelOff:   { color: '#9CA3AF' },
+  line:       { width: 20, height: 1.5, borderRadius: 1 },
+  lineDone:   { backgroundColor: GREEN },
+  lineOff:    { backgroundColor: '#E5E7EB' },
+});
 
-  const rotation = `${(1 - fraction) * 360}deg`;
-
-  return (
-    <View style={ct.wrap}>
-      {/* Background ring */}
-      <View style={ct.bgRing} />
-      {/* Colored arc overlay */}
-      <View style={[ct.arc, {
-        borderTopColor,
-        borderRightColor,
-        borderBottomColor,
-        borderLeftColor,
-        transform: [{ rotate: rotation }],
-      }]} />
-      {/* Center text */}
-      <View style={ct.center}>
-        <Text style={ct.number}>{cooldown}</Text>
-        <Text style={ct.unit}>sec</Text>
-      </View>
-    </View>
-  );
-}
-
-// ─── Success overlay ──────────────────────────────────────────────────────────
-function SuccessOverlay({ visible, successScale }) {
-  if (!visible) return null;
-  return (
-    <Animated.View style={[so.overlay, { opacity: successScale.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] }) }]}>
-      <Animated.View style={[so.circle, { transform: [{ scale: successScale }] }]}>
-        <Ionicons name="checkmark" size={48} color={WHITE} />
-      </Animated.View>
-      <Text style={so.title}>Verified!</Text>
-      <Text style={so.sub}>Welcome to PulseMate Connect</Text>
-    </Animated.View>
-  );
-}
-
-// ─── Main OtpScreen ───────────────────────────────────────────────────────────
+/* ─── OtpScreen ──────────────────────────────────────────────────────────── */
 export default function OtpScreen({ route, navigation }) {
   const { mobile, devOtp: initialDevOtp } = route.params;
   const { signIn } = useAuth();
 
-  const [digits,       setDigits]       = useState(['', '', '', '', '', '']);
-  const [name,         setName]         = useState('');
-  const [loading,      setLoading]      = useState(false);
-  const [status,       setStatus]       = useState('idle'); // 'idle' | 'success' | 'error'
-  const [cooldown,     setCooldown]     = useState(30);
-  const [devOtp,       setDevOtp]       = useState(initialDevOtp || '');
-  const [focusedIndex, setFocusedIndex] = useState(null);
+  const [digits,      setDigits]      = useState(['', '', '', '', '', '']);
+  const [name,        setName]        = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [status,      setStatus]      = useState('idle'); // 'idle'|'success'|'error'
+  const [cooldown,    setCooldown]    = useState(30);
+  const [devOtp,      setDevOtp]      = useState(initialDevOtp || '');
+  const [focusedIdx,  setFocusedIdx]  = useState(null);
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
-  const enterA       = useRef(new Animated.Value(0)).current;
-  const slideA       = useRef(new Animated.Value(24)).current;
-  const sheetA       = useRef(new Animated.Value(0)).current;
   const progressA    = useRef(new Animated.Value(0)).current;
 
-  // 6 individual input refs
-  const inputRefs = useRef(Array(6).fill(null).map(() => useRef(null))).current;
+  const r0 = useRef(null); const r1 = useRef(null); const r2 = useRef(null);
+  const r3 = useRef(null); const r4 = useRef(null); const r5 = useRef(null);
+  const refs = [r0, r1, r2, r3, r4, r5];
 
-  // Entrance animation
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(enterA, { toValue: 1, duration: 550, delay: 80, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slideA, { toValue: 0, duration: 550, delay: 80, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
-      Animated.timing(sheetA, { toValue: 1, duration: 500, delay: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
     startCooldown(30);
-    // Auto-focus first box
-    setTimeout(() => inputRefs[0].current?.focus(), 600);
+    setTimeout(() => refs[0].current?.focus(), 150);
   }, []);
 
-  // Progress bar animation
   useEffect(() => {
     const filled = digits.filter(Boolean).length;
     Animated.timing(progressA, {
       toValue: filled / 6,
-      duration: 150,
+      duration: 120,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
   }, [digits]);
 
-  // Auto-verify when all 6 digits filled
   useEffect(() => {
     if (digits.join('').length === 6 && status === 'idle') {
       handleVerify();
@@ -201,26 +120,19 @@ export default function OtpScreen({ route, navigation }) {
   const startCooldown = (secs) => {
     setCooldown(secs);
     const t = setInterval(() => {
-      setCooldown((c) => {
-        if (c <= 1) { clearInterval(t); return 0; }
-        return c - 1;
-      });
+      setCooldown((c) => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; });
     }, 1000);
   };
 
-  const handleDigitChange = (text, index) => {
-    const digit = text.replace(/\D/g, '').slice(-1);
-    const newDigits = [...digits];
-    newDigits[index] = digit;
-    setDigits(newDigits);
-    if (digit && index < 5) inputRefs[index + 1].current?.focus();
-    if (!digit && index > 0 && !text) inputRefs[index - 1].current?.focus();
+  const handleDigitChange = (text, i) => {
+    const d = text.replace(/\D/g, '').slice(-1);
+    const next = [...digits]; next[i] = d; setDigits(next);
+    if (d && i < 5) refs[i + 1].current?.focus();
+    if (!d && i > 0 && !text) refs[i - 1].current?.focus();
   };
 
-  const handleKeyPress = (e, index) => {
-    if (e.nativeEvent.key === 'Backspace' && !digits[index] && index > 0) {
-      inputRefs[index - 1].current?.focus();
-    }
+  const handleKeyPress = (e, i) => {
+    if (e.nativeEvent.key === 'Backspace' && !digits[i] && i > 0) refs[i - 1].current?.focus();
   };
 
   const fillDevOtp = () => {
@@ -231,11 +143,11 @@ export default function OtpScreen({ route, navigation }) {
 
   const triggerShake = () => {
     Animated.sequence([
-      Animated.timing(shake, { toValue: 10,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: -10, duration: 60, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 8,   duration: 60, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: -8,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 0,   duration: 60, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: 10,  duration: 55, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: -10, duration: 55, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: 8,   duration: 55, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: -8,  duration: 55, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: 0,   duration: 55, useNativeDriver: true }),
     ]).start(() => setStatus('idle'));
   };
 
@@ -246,13 +158,8 @@ export default function OtpScreen({ route, navigation }) {
     try {
       const res = await verifyOtp(mobile, code, 'LOGIN', name || undefined);
       setStatus('success');
-      Animated.spring(successScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
-      setTimeout(() => signIn(res.data.data.accessToken, res.data.data.user), 1800);
+      Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
+      setTimeout(() => signIn(res.data.data.accessToken, res.data.data.user), 1600);
     } catch (err) {
       setStatus('error');
       triggerShake();
@@ -269,115 +176,130 @@ export default function OtpScreen({ route, navigation }) {
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
       startCooldown(30);
-      setTimeout(() => inputRefs[0].current?.focus(), 100);
+      setTimeout(() => refs[0].current?.focus(), 100);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to resend OTP');
     }
   };
 
-  const code       = digits.join('');
-  const canVerify  = code.length === 6 && !loading;
-
-  // Box style helper
-  const getBoxStyle = (index) => {
-    const filled  = digits[index] !== '';
-    const focused = focusedIndex === index;
+  const boxStyle = (i) => {
+    const filled  = digits[i] !== '';
+    const focused = focusedIdx === i;
     if (status === 'error')   return [os.box, os.boxError];
     if (status === 'success') return [os.box, os.boxSuccess];
-    if (filled)               return [os.box, os.boxFilled];
     if (focused)              return [os.box, os.boxFocused];
+    if (filled)               return [os.box, os.boxFilled];
     return [os.box];
   };
 
+  const canVerify = digits.join('').length === 6 && !loading;
+
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar barStyle="light-content" backgroundColor={SKY9} translucent />
-
-      {/* ── Background ── */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: SKY9 }]} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: SKY7, opacity: 0.55 }]} />
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: H * 0.55, backgroundColor: SKY5, opacity: 0.2 }} />
-      <View style={os.blob1} /><View style={os.blob2} />
-      <View style={os.dotGrid} pointerEvents="none">
-        {Array.from({ length: 24 }).map((_, i) => <View key={i} style={os.dot} />)}
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
       {/* Success overlay */}
-      <SuccessOverlay visible={status === 'success'} successScale={successScale} />
+      {status === 'success' && (
+        <Animated.View style={[os.successOverlay, { opacity: successScale }]}>
+          <Animated.View style={[os.successCircle, { transform: [{ scale: successScale }] }]}>
+            <Ionicons name="checkmark" size={44} color={WHITE} />
+          </Animated.View>
+          <Text style={os.successTitle}>Verified!</Text>
+          <Text style={os.successSub}>Welcome to PulseMate Connect</Text>
+        </Animated.View>
+      )}
 
       <ScrollView
         contentContainerStyle={os.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Top zone ── */}
-        <Animated.View style={[os.top, { opacity: enterA, transform: [{ translateY: slideA }] }]}>
-          <View style={{ height: 52 }} />
+        {/* ── Top bar ── */}
+        <View style={os.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={os.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={20} color={BLUE} />
+          </TouchableOpacity>
 
-          {/* Logo row */}
-          <View style={os.logoRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={os.backBtn} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={20} color={WHITE} />
-            </TouchableOpacity>
-            <Image source={LOGO} style={os.logoImg} resizeMode="cover" />
-            <View>
-              <Text style={os.logoName}>PulseMate Connect</Text>
-              <Text style={os.logoSub}>Healthcare Platform</Text>
-            </View>
-            <View style={os.secureBadge}>
-              <Ionicons name="lock-closed" size={10} color={TEAL} />
-              <Text style={os.secureText}>Secure</Text>
-            </View>
+          <View style={os.logoBox}>
+            <Ionicons name="pulse" size={22} color={BLUE} />
           </View>
 
-          {/* Phone illustration */}
-          <PhoneIllustration />
-        </Animated.View>
+          <View style={os.secureBadge}>
+            <View style={os.secureIcon}><Ionicons name="shield-checkmark" size={12} color={WHITE} /></View>
+            <View>
+              <Text style={os.secureTitle}>Secure Login</Text>
+              <Text style={os.secureSub}>256-bit SSL</Text>
+            </View>
+          </View>
+        </View>
 
-        {/* ── White bottom sheet ── */}
-        <Animated.View style={[os.sheet, {
-          opacity: sheetA,
-          transform: [{ translateY: sheetA.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
-        }]}>
-          {/* Drag handle */}
-          <View style={os.dragHandle} />
+        {/* ── Headline ── */}
+        <Text style={os.headline}>
+          PulseMate <Text style={os.headlineBlue}>Connect</Text>
+        </Text>
+        <Text style={os.headlineSub}>Healthcare Platform</Text>
 
-          {/* Header */}
-          <View style={os.sheetHeader}>
-            <Text style={os.heading}>Verify Mobile Number</Text>
-            <View style={os.sentToRow}>
-              <Text style={os.sheetSub}>Enter the 6-digit OTP sent to </Text>
-              <View style={os.phoneChip}>
-                <Ionicons name="phone-portrait-outline" size={12} color={SKY6} />
-                <Text style={os.phoneChipText}>{mobile.startsWith('+91') ? mobile : `+91 ${mobile}`}</Text>
+        {/* ── Feature chips ── */}
+        <View style={os.chips}>
+          {[
+            { icon: 'calendar-outline',   label: 'Book',  sub: 'Appointments' },
+            { icon: 'people-outline',     label: 'Track', sub: 'Live Queue' },
+            { icon: 'document-text-outline', label: 'Get', sub: 'Prescriptions' },
+          ].map((f) => (
+            <View key={f.label} style={os.chip}>
+              <Ionicons name={f.icon} size={14} color={BLUE} />
+              <View>
+                <Text style={os.chipLabel}>{f.label}</Text>
+                <Text style={os.chipSub}>{f.sub}</Text>
               </View>
             </View>
+          ))}
+        </View>
+
+        {/* ── OTP form card ── */}
+        <View style={os.formCard}>
+          {/* Header */}
+          <View style={os.formHeader}>
+            <View style={os.formIconBox}>
+              <Ionicons name="chatbubble-ellipses" size={20} color={BLUE} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={os.formTitle}>Enter OTP</Text>
+              <Text style={os.formSub}>Sent to <Text style={os.mobileHighlight}>{mobile}</Text></Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Text style={os.changeBtn}>Change</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sent-to chip */}
+          <View style={os.sentChip}>
+            <View style={os.sentDot} />
+            <Text style={os.sentText}>OTP sent successfully</Text>
           </View>
 
           {/* Dev OTP banner */}
-          {devOtp ? (
-            <View style={os.devBanner}>
-              <Ionicons name="construct" size={14} color="#92400E" />
-              <Text style={os.devLabel}>Dev OTP</Text>
+          {!!devOtp && (
+            <TouchableOpacity onPress={fillDevOtp} activeOpacity={0.8} style={os.devBanner}>
+              <Ionicons name="construct-outline" size={14} color="#92400E" />
+              <Text style={os.devLabel}>Dev OTP:</Text>
               <Text style={os.devCode}>{devOtp}</Text>
-              <TouchableOpacity onPress={fillDevOtp} style={os.devUse} activeOpacity={0.8}>
-                <Text style={os.devUseText}>Tap to fill</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+              <View style={os.devTap}><Text style={os.devTapText}>Tap to fill</Text></View>
+            </TouchableOpacity>
+          )}
 
-          {/* OTP boxes row */}
+          {/* OTP boxes */}
           <Animated.View style={[os.boxesRow, { transform: [{ translateX: shake }] }]}>
-            {digits.map((digit, index) => (
+            {digits.map((d, i) => (
               <TextInput
-                key={index}
-                ref={inputRefs[index]}
-                style={[...getBoxStyle(index), os.boxText]}
-                value={digit}
-                onChangeText={(text) => handleDigitChange(text, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-                onFocus={() => setFocusedIndex(index)}
-                onBlur={() => setFocusedIndex(null)}
+                key={i}
+                ref={refs[i]}
+                style={boxStyle(i)}
+                value={d}
+                onChangeText={(t) => handleDigitChange(t, i)}
+                onKeyPress={(e) => handleKeyPress(e, i)}
+                onFocus={() => setFocusedIdx(i)}
+                onBlur={() => setFocusedIdx(null)}
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
@@ -394,231 +316,180 @@ export default function OtpScreen({ route, navigation }) {
             }]} />
           </View>
 
-          {/* Resend section */}
-          <View style={os.resendSection}>
+          {/* Resend */}
+          <View style={os.resendRow}>
             {cooldown > 0 ? (
               <>
-                <CircularTimer cooldown={cooldown} total={30} />
-                <View style={os.resendTextWrap}>
-                  <Text style={os.resendMuted}>Resend OTP in</Text>
-                  <Text style={os.resendCountdown}>{cooldown} seconds</Text>
-                </View>
+                <View style={os.resendTimer}><Text style={os.resendTimerNum}>{cooldown}</Text></View>
+                <Text style={os.resendMuted}>Resend OTP in <Text style={os.resendSecs}>{cooldown}s</Text></Text>
               </>
             ) : (
-              <>
-                <View style={os.resendReadyDot} />
-                <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
-                  <Text style={os.resendLink}>Resend OTP</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
+                <Text style={os.resendLink}>Resend OTP</Text>
+              </TouchableOpacity>
             )}
-          </View>
-
-          {/* Name field */}
-          <Text style={os.label}>
-            Your Name <Text style={os.optional}>(required for new accounts)</Text>
-          </Text>
-          <View style={os.nameInputWrap}>
-            <Ionicons name="person-outline" size={17} color={colors.textMuted} style={{ marginLeft: 14 }} />
-            <TextInput
-              style={os.nameInput}
-              placeholder="Full name"
-              value={name}
-              onChangeText={setName}
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="words"
-              returnKeyType="done"
-            />
           </View>
 
           {/* Verify button */}
           <TouchableOpacity
-            style={[os.btnPrimary, !canVerify && os.btnDisabled]}
+            style={[os.btn, !canVerify && os.btnDisabled]}
             onPress={handleVerify}
             disabled={!canVerify}
-            activeOpacity={0.88}
+            activeOpacity={0.85}
           >
-            {loading ? (
-              <ActivityIndicator color={WHITE} size="small" />
-            ) : (
-              <>
-                <Ionicons name="shield-checkmark" size={17} color={WHITE} />
-                <Text style={os.btnPrimaryText}>Verify & Continue</Text>
-                <Ionicons name="checkmark" size={16} color={WHITE} />
-              </>
-            )}
+            {loading
+              ? <ActivityIndicator color={WHITE} size="small" />
+              : <>
+                  <Ionicons name="shield-checkmark" size={16} color={WHITE} />
+                  <Text style={os.btnText}>Verify &amp; Continue</Text>
+                  <Ionicons name="checkmark" size={16} color={WHITE} />
+                </>
+            }
           </TouchableOpacity>
 
-          {/* Security note */}
-          <View style={os.securityNote}>
-            <Ionicons name="lock-closed-outline" size={14} color={SKY6} />
-            <Text style={os.securityNoteText}>
-              OTP expires in 5 minutes. Never share your OTP with anyone, including PulseMate support.
-            </Text>
+          {/* Step indicator */}
+          <StepRow current={2} />
+        </View>
+
+        {/* ── Trust badges ── */}
+        <View style={os.trustRow}>
+          {[
+            { icon: 'shield-outline',       label: 'Secure OTP Login' },
+            { icon: 'lock-closed-outline',  label: 'No Password\nRequired' },
+            { icon: 'people-outline',       label: 'Trusted by\nClinics' },
+          ].map((b) => (
+            <View key={b.label} style={os.trustBadge}>
+              <Ionicons name={b.icon} size={16} color={BLUE} />
+              <Text style={os.trustLabel}>{b.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Privacy note ── */}
+        <View style={os.privacyCard}>
+          <View style={os.privacyIcon}><Ionicons name="lock-closed" size={16} color={BLUE} /></View>
+          <Text style={os.privacyText}>
+            OTP expires in 5 minutes. Never share your OTP with anyone.
+          </Text>
+          <View style={os.otpBadge}>
+            <View style={os.otpDot} /><Text style={os.otpBadgeText}>OTP Verified</Text>
           </View>
-        </Animated.View>
+        </View>
+
+        {/* ── Footer ── */}
+        <Text style={os.terms}>
+          By continuing, you agree to our{' '}
+          <Text style={os.termsLink}>Terms &amp; Conditions</Text>
+          {' '}and{' '}
+          <Text style={os.termsLink}>Privacy Policy</Text>
+        </Text>
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-// ─── Phone illustration styles ────────────────────────────────────────────────
-const ph = StyleSheet.create({
-  wrap:      { height: H * 0.22, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  ring:      { position: 'absolute', borderWidth: 1.5, borderColor: SKY4 },
-  ring3:     { width: 160, height: 160, borderRadius: 80 },
-  ring2:     { width: 110, height: 110, borderRadius: 55 },
-  phone: {
-    width: 68, height: 110,
-    borderRadius: 14,
-    borderWidth: 2.5,
-    borderColor: WHITE,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    overflow: 'hidden',
-    shadowColor: SKY5, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16, elevation: 10,
-  },
-  notch:     { width: 24, height: 6, borderRadius: 3, backgroundColor: WHITE, marginTop: 6, opacity: 0.7 },
-  screen:    { flex: 1, width: '100%', paddingHorizontal: 6, paddingVertical: 8, gap: 6 },
-  bubble:    { borderRadius: 8, padding: 5, gap: 3 },
-  bubbleLeft:  { backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'flex-start' },
-  bubbleRight: { backgroundColor: 'rgba(14,165,233,0.35)', alignSelf: 'flex-end' },
-  bubbleDot:   { height: 4, width: 36, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.7)' },
-  homeBar:   { width: 28, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.5)', marginBottom: 6 },
-  smsBadge:  {
-    position: 'absolute', top: '8%', right: W * 0.12,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: WHITE, borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 4,
-  },
-  smsText:   { fontSize: 11, fontWeight: '800', color: SKY6 },
-  chip:      { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: WHITE, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-  chipLeft:  { left: W * 0.04, top: '30%' },
-  chipRight: { right: W * 0.04, top: '58%' },
-  chipText:  { fontSize: 10, fontWeight: '700', color: SKY7 },
-});
-
-// ─── Circular timer styles ────────────────────────────────────────────────────
-const ct = StyleSheet.create({
-  wrap:   { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  bgRing: { position: 'absolute', width: 56, height: 56, borderRadius: 28, borderWidth: 3, borderColor: '#E2E8F0' },
-  arc:    { position: 'absolute', width: 56, height: 56, borderRadius: 28, borderWidth: 3 },
-  center: { alignItems: 'center' },
-  number: { fontSize: 16, fontWeight: '800', color: SKY6, lineHeight: 18 },
-  unit:   { fontSize: 8,  fontWeight: '600', color: colors.textMuted },
-});
-
-// ─── Success overlay styles ───────────────────────────────────────────────────
-const so = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    zIndex: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  circle: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: TEAL,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: TEAL, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12,
-  },
-  title: { fontSize: 28, fontWeight: '800', color: '#0F172A', letterSpacing: -0.5 },
-  sub:   { fontSize: 14, color: colors.textMuted },
-});
-
-// ─── Main screen styles ───────────────────────────────────────────────────────
 const os = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: SKY9 },
-  scroll: { flexGrow: 1 },
+  root:   { flex: 1, backgroundColor: BG },
+  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 52 },
 
-  blob1: { position: 'absolute', top: -80, left: -80, width: 220, height: 220, borderRadius: 110, backgroundColor: SKY5, opacity: 0.12 },
-  blob2: { position: 'absolute', top: H * 0.25, right: -60, width: 160, height: 160, borderRadius: 80, backgroundColor: TEAL, opacity: 0.08 },
+  /* success overlay */
+  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.96)', zIndex: 200, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  successCircle:  { width: 96, height: 96, borderRadius: 48, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', shadowColor: GREEN, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  successTitle:   { fontSize: 28, fontWeight: '900', color: DARK },
+  successSub:     { fontSize: 14, color: GRAY },
 
-  dotGrid: { position: 'absolute', top: H * 0.04, right: 14, width: 90, flexDirection: 'row', flexWrap: 'wrap', gap: 11, opacity: 0.18 },
-  dot:     { width: 3, height: 3, borderRadius: 2, backgroundColor: WHITE },
+  /* top bar */
+  topBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  backBtn:     { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BLUE_B },
+  logoBox:     { width: 56, height: 56, backgroundColor: WHITE, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, borderWidth: 1, borderColor: '#DBEAFE' },
+  secureBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: WHITE, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2, borderWidth: 1, borderColor: '#D1FAE5' },
+  secureIcon:  { width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
+  secureTitle: { fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
+  secureSub:   { fontSize: 9,  color: GRAY,  lineHeight: 11, marginTop: 1 },
 
-  top: { alignItems: 'center' },
+  /* headline */
+  headline:    { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },
+  headlineBlue:{ color: BLUE },
+  headlineSub: { fontSize: 13, color: GRAY, textAlign: 'center', marginBottom: 16 },
 
-  logoRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start', paddingHorizontal: 22, marginBottom: 4 },
-  backBtn:    { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 2 },
-  logoImg:    { width: 32, height: 32, borderRadius: 10 },
-  logoName:   { fontSize: 14, fontWeight: '800', color: WHITE, letterSpacing: -0.2 },
-  logoSub:    { fontSize: 10, color: 'rgba(255,255,255,0.55)', marginTop: 1 },
-  secureBadge:{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(45,212,191,0.18)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(45,212,191,0.3)', marginLeft: 'auto' },
-  secureText: { fontSize: 10, fontWeight: '700', color: TEAL },
+  /* chips */
+  chips:    { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  chip:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: WHITE, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#DBEAFE', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  chipLabel:{ fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
+  chipSub:  { fontSize: 9,  color: GRAY,  lineHeight: 11, marginTop: 1 },
 
-  sheet: {
-    backgroundColor: WHITE,
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40,
-    minHeight: H * 0.62,
-    ...shadow.lg,
-  },
+  /* form card */
+  formCard:   { backgroundColor: WHITE, borderRadius: 20, padding: 20, marginBottom: 14, borderWidth: 1, borderColor: '#DBEAFE', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  formHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  formIconBox:{ width: 42, height: 42, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  formTitle:  { fontSize: 14, fontWeight: '800', color: DARK, lineHeight: 18 },
+  formSub:    { fontSize: 11, color: GRAY,  lineHeight: 15, marginTop: 2, flex: 1 },
+  mobileHighlight: { color: BLUE, fontWeight: '700' },
+  changeBtn:  { fontSize: 12, color: BLUE, fontWeight: '700', textDecorationLine: 'underline' },
 
-  dragHandle: { width: 44, height: 4, borderRadius: 2, backgroundColor: SKY5, alignSelf: 'center', marginBottom: 20, marginTop: 10 },
+  sentChip:   { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: GREEN_L, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#BBF7D0' },
+  sentDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  sentText:   { fontSize: 11, fontWeight: '600', color: '#15803D' },
 
-  sheetHeader: { marginBottom: 20 },
-  heading:     { fontSize: 26, fontWeight: '800', color: '#0F172A', letterSpacing: -0.6, marginBottom: 8 },
-  sheetSub:    { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-  sentToRow:   { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  phoneChip:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#BFDBFE' },
-  phoneChipText: { fontSize: 13, fontWeight: '700', color: SKY6 },
+  devBanner:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AMBER_L, borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#FDE68A' },
+  devLabel:   { fontSize: 12, color: '#92400E', fontWeight: '600' },
+  devCode:    { flex: 1, fontSize: 18, fontWeight: '900', color: '#92400E', letterSpacing: 4 },
+  devTap:     { backgroundColor: AMBER, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  devTapText: { fontSize: 11, fontWeight: '700', color: WHITE },
 
-  devBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: '#FDE68A' },
-  devLabel:  { fontSize: 12, color: '#92400E', fontWeight: '600' },
-  devCode:   { flex: 1, fontSize: 18, fontWeight: '800', color: '#92400E', letterSpacing: 6 },
-  devUse:    { backgroundColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  devUseText:{ fontSize: 12, fontWeight: '700', color: WHITE },
-
-  // OTP boxes
-  boxesRow: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 12 },
+  /* OTP boxes */
+  boxesRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginBottom: 10 },
   box: {
-    width: 48, height: 58, borderRadius: 14,
-    borderWidth: 2, borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-    fontSize: 26, fontWeight: '800',
-    textAlign: 'center', color: '#0F172A',
+    width: 46, height: 56, borderRadius: 14,
+    borderWidth: 2, borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    fontSize: 24, fontWeight: '900',
+    textAlign: 'center', color: DARK,
   },
-  boxFilled:  { borderColor: SKY5, backgroundColor: '#EFF6FF' },
-  boxFocused: {
-    borderColor: SKY5, borderWidth: 2.5, backgroundColor: WHITE,
-    shadowColor: SKY5, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
-  },
-  boxError:   { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
-  boxSuccess: { borderColor: TEAL, backgroundColor: '#F0FDFA' },
-  boxText:    { fontSize: 26, fontWeight: '800', textAlign: 'center', color: '#0F172A' },
+  boxFilled:  { borderColor: BLUE, backgroundColor: BLUE_L },
+  boxFocused: { borderColor: BLUE, borderWidth: 2.5, backgroundColor: WHITE, shadowColor: BLUE, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  boxError:   { borderColor: RED,  backgroundColor: '#FEF2F2' },
+  boxSuccess: { borderColor: GREEN, backgroundColor: GREEN_L },
 
-  // Progress bar
-  progressTrack: { height: 3, backgroundColor: '#E2E8F0', borderRadius: 2, marginBottom: 20, overflow: 'hidden' },
-  progressFill:  { height: 3, backgroundColor: SKY5, borderRadius: 2 },
+  /* progress */
+  progressTrack: { height: 3, backgroundColor: '#E5E7EB', borderRadius: 2, marginBottom: 16, overflow: 'hidden' },
+  progressFill:  { height: 3, backgroundColor: BLUE, borderRadius: 2 },
 
-  // Resend
-  resendSection:  { flexDirection: 'row', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 24 },
-  resendTextWrap: { gap: 2 },
-  resendMuted:    { fontSize: 12, color: colors.textMuted },
-  resendCountdown:{ fontSize: 14, fontWeight: '700', color: SKY6 },
-  resendReadyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: TEAL },
-  resendLink:     { fontSize: 14, fontWeight: '700', color: SKY5 },
+  /* resend */
+  resendRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 18 },
+  resendTimer:   { width: 36, height: 36, borderRadius: 18, backgroundColor: BLUE_L, borderWidth: 2, borderColor: BLUE_B, alignItems: 'center', justifyContent: 'center' },
+  resendTimerNum:{ fontSize: 13, fontWeight: '800', color: BLUE },
+  resendMuted:   { fontSize: 12, color: GRAY },
+  resendSecs:    { color: BLUE, fontWeight: '700' },
+  resendLink:    { fontSize: 13, fontWeight: '700', color: BLUE },
 
-  // Name input
-  label:         { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 8 },
-  optional:      { fontWeight: '400', color: colors.textMuted },
-  nameInputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.bg, marginBottom: 24 },
-  nameInput:     { flex: 1, fontSize: 15, color: '#0F172A', paddingHorizontal: 12, paddingVertical: 14 },
+  /* name */
+  label:         { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 8 },
+  labelOptional: { fontWeight: '400', color: GRAY },
+  nameRow:       { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, backgroundColor: '#F9FAFB', marginBottom: 18 },
+  nameInput:     { flex: 1, fontSize: 15, color: DARK, paddingHorizontal: 12, paddingVertical: 14 },
 
-  // Verify button
-  btnPrimary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: SKY5, borderRadius: 16, paddingVertical: 17, marginBottom: 20,
-    shadowColor: SKY5, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 8,
-  },
-  btnDisabled:    { opacity: 0.45, shadowOpacity: 0 },
-  btnPrimaryText: { fontSize: 16, fontWeight: '800', color: WHITE, letterSpacing: 0.2 },
+  /* button */
+  btn:     { backgroundColor: BLUE, borderRadius: 16, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: BLUE, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  btnDisabled: { opacity: 0.5, shadowOpacity: 0 },
+  btnText: { fontSize: 15, fontWeight: '800', color: WHITE, letterSpacing: 0.3 },
 
-  // Security note
-  securityNote:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#F0F9FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BAE6FD' },
-  securityNoteText: { flex: 1, fontSize: 11, color: '#475569', lineHeight: 16 },
+  /* trust */
+  trustRow:   { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 14 },
+  trustBadge: { alignItems: 'center', gap: 4, flex: 1 },
+  trustLabel: { fontSize: 10, color: GRAY, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+
+  /* privacy */
+  privacyCard: { backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: '#DBEAFE', padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  privacyIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
+  privacyText: { flex: 1, fontSize: 11, color: GRAY, lineHeight: 16 },
+  otpBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: GREEN_L, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 5, borderWidth: 1, borderColor: '#BBF7D0', alignSelf: 'flex-start', flexShrink: 0 },
+  otpDot:      { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  otpBadgeText:{ fontSize: 10, fontWeight: '800', color: '#15803D' },
+
+  /* terms */
+  terms:    { textAlign: 'center', fontSize: 11, color: GRAY, lineHeight: 18 },
+  termsLink:{ color: BLUE, fontWeight: '700' },
 });

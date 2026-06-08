@@ -1,12 +1,134 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import AuthLayout from '../../layouts/AuthLayout';
 import { sendOtp, verifyOtp } from '../../api/auth.api';
 import useAuthStore from '../../store/authStore';
 
+/* ── tiny SVG icons ─────────────────────────────────────────────────────── */
+const IconCalendar = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+);
+const IconUsers = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+const IconClipboard = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+    <rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 12h6M9 16h4" />
+  </svg>
+);
+const IconSend = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+);
+const IconShield = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+const IconLock = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+const IconPhone = () => (
+  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12 19.79 19.79 0 0 1 1.08 3.38 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+  </svg>
+);
+
+/* ── Queue illustration (pure SVG, no external images needed) ────────────── */
+const QueueIllustration = () => (
+  <div className="flex items-center justify-center gap-3 py-2">
+    {/* Person with phone */}
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+        <svg viewBox="0 0 40 40" className="w-8 h-8">
+          <circle cx="20" cy="12" r="7" fill="#93C5FD" />
+          <path d="M6 38c0-7.732 6.268-14 14-14s14 6.268 14 14" fill="#BFDBFE" />
+          <rect x="22" y="18" width="10" height="14" rx="2" fill="#3B82F6" />
+          <rect x="23" y="20" width="8" height="9" rx="1" fill="#EFF6FF" />
+        </svg>
+      </div>
+    </div>
+
+    {/* Arrow */}
+    <div className="text-gray-400 text-lg font-bold">→</div>
+
+    {/* Queue card */}
+    <div className="bg-white rounded-2xl shadow-lg px-4 py-3 text-center border border-blue-100 min-w-[88px]">
+      <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Your Queue</p>
+      <p className="text-3xl font-black text-gray-900 leading-none mt-0.5">#12</p>
+      <p className="text-[9px] text-gray-400 mt-1">Estimated Wait</p>
+      <p className="text-sm font-bold text-blue-600">25 min</p>
+      <div className="mt-1.5 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-full w-3/5 bg-green-400 rounded-full" />
+      </div>
+    </div>
+
+    {/* Arrow */}
+    <div className="text-gray-400 text-lg font-bold">→</div>
+
+    {/* Doctor */}
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+        <svg viewBox="0 0 40 40" className="w-8 h-8">
+          <circle cx="20" cy="12" r="7" fill="#6EE7B7" />
+          <path d="M6 38c0-7.732 6.268-14 14-14s14 6.268 14 14" fill="#A7F3D0" />
+          {/* stethoscope */}
+          <path d="M18 26 Q14 28 14 32 Q14 36 18 36 Q22 36 22 32" stroke="#10B981" strokeWidth="1.5" fill="none" />
+          <circle cx="22" cy="32" r="2" fill="#10B981" />
+          <path d="M22 26 L22 30" stroke="#10B981" strokeWidth="1.5" />
+        </svg>
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Step indicator ──────────────────────────────────────────────────────── */
+const StepIndicator = ({ current }) => {
+  const steps = ['Enter Number', 'Get OTP', 'Verified'];
+  return (
+    <div className="flex items-center justify-center gap-1.5 mt-5">
+      {steps.map((label, i) => {
+        const idx = i + 1;
+        const active = current === idx;
+        const done = current > idx;
+        return (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all
+                ${done ? 'bg-green-500 text-white' : active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                {done ? <IconCheck /> : idx}
+              </div>
+              <span className={`text-[11px] font-medium ${active ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'}`}>
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`w-5 h-px ${current > idx ? 'bg-green-400' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ── Main page ───────────────────────────────────────────────────────────── */
 const LoginPage = () => {
-  const [step, setStep] = useState('mobile');
+  const [step, setStep] = useState(1); // 1 = enter number, 2 = enter OTP, 3 = verified
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,159 +141,311 @@ const LoginPage = () => {
   const startCountdown = () => {
     setCountdown(30);
     const timer = setInterval(() => {
-      setCountdown((current) => {
-        if (current <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return current - 1;
+      setCountdown((c) => {
+        if (c <= 1) { clearInterval(timer); return 0; }
+        return c - 1;
       });
     }, 1000);
   };
 
-  const handleSendOtp = async (event) => {
-    event?.preventDefault();
+  const handleSendOtp = async (e) => {
+    e?.preventDefault();
     if (!mobile.trim()) return toast.error('Enter your mobile number');
-
     setIsLoading(true);
     try {
-      const response = await sendOtp(mobile);
-      setStep('otp');
+      const res = await sendOtp(mobile);
+      setStep(2);
       startCountdown();
-      if (response.data.data?.devOtp) {
-        setDevOtp(response.data.data.devOtp);
-      }
-      toast.success('OTP sent');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to send OTP');
+      if (res.data.data?.devOtp) setDevOtp(res.data.data.devOtp);
+      toast.success('OTP sent successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send OTP');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (event) => {
-    event.preventDefault();
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
     if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
-
     setIsLoading(true);
     try {
-      const response = await verifyOtp(mobile, otp);
-      const { accessToken, user } = response.data.data;
-      setAuth(user, accessToken);
-      navigate('/patient/home');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Invalid OTP');
+      const res = await verifyOtp(mobile, otp);
+      const { accessToken, user } = res.data.data;
+      setStep(3);
+      setTimeout(() => {
+        setAuth(user, accessToken);
+        navigate('/patient/home');
+      }, 600);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid OTP');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <AuthLayout>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Patient Login</h1>
-        <p className="text-gray-500 text-sm mt-1">Patients login using mobile OTP. No password required.</p>
-      </div>
+    <div className="min-h-screen bg-[#EBF4FF] flex flex-col items-center justify-start px-4 py-6 overflow-y-auto">
+      <div className="w-full max-w-sm">
 
-      {step === 'mobile' && (
-        <form onSubmit={handleSendOtp} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="mobile">
-              Mobile number
-            </label>
-            <input
-              id="mobile"
-              type="tel"
-              autoFocus
-              value={mobile}
-              onChange={(event) => setMobile(event.target.value)}
-              placeholder="9876543210"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition bg-white"
-              required
-            />
+        {/* ── Top bar ── */}
+        <div className="flex items-start justify-between mb-5">
+          {/* Logo */}
+          <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center border border-blue-100">
+            <svg viewBox="0 0 40 40" className="w-9 h-9">
+              <rect width="40" height="40" rx="10" fill="#EFF6FF" />
+              <path d="M20 8 L20 32 M8 20 L32 20" stroke="#2563EB" strokeWidth="4" strokeLinecap="round" />
+              <path d="M12 14 Q20 6 28 14 Q36 22 28 30 Q20 38 12 30 Q4 22 12 14Z" fill="none" stroke="#10B981" strokeWidth="2" />
+            </svg>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
-          >
-            {isLoading ? 'Sending OTP...' : 'Send OTP'}
-          </button>
-        </form>
-      )}
-
-      {step === 'otp' && (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between">
+          {/* Secure badge */}
+          <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-green-100">
+            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+              <IconShield />
+            </div>
             <div>
-              <p className="text-xs text-blue-500 font-medium uppercase tracking-wide">OTP sent to</p>
-              <p className="text-sm font-semibold text-blue-900">{mobile}</p>
+              <p className="text-[10px] font-bold text-gray-800 leading-none">Secure Login</p>
+              <p className="text-[9px] text-gray-400 leading-none mt-0.5">256-bit SSL</p>
             </div>
-            <button type="button" onClick={() => setStep('mobile')} className="text-xs text-blue-500 hover:text-blue-700 underline">
-              Change
-            </button>
           </div>
+        </div>
 
-          {devOtp ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-              <p className="text-xs text-amber-600 font-medium">Dev OTP</p>
-              <p className="text-2xl font-bold text-amber-800 tracking-widest mt-0.5">{devOtp}</p>
+        {/* ── Headline ── */}
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+            PulseMate <span className="text-blue-600">Connect</span>
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">Healthcare Platform</p>
+        </div>
+
+        {/* ── Feature chips ── */}
+        <div className="flex gap-2 justify-center mb-5 flex-wrap">
+          {[
+            { icon: <IconCalendar />, label: 'Book', sub: 'Appointments' },
+            { icon: <IconUsers />,   label: 'Track', sub: 'Live Queue' },
+            { icon: <IconClipboard />, label: 'Get', sub: 'Prescriptions' },
+          ].map((f) => (
+            <div key={f.label}
+              className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-blue-50">
+              <div className="text-blue-500">{f.icon}</div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-800 leading-none">{f.label}</p>
+                <p className="text-[10px] text-gray-400 leading-none mt-0.5">{f.sub}</p>
+              </div>
             </div>
-          ) : null}
+          ))}
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="otp">
-              Enter 6-digit OTP
-            </label>
-            <input
-              id="otp"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              autoFocus
-              value={otp}
-              onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-3xl font-bold tracking-[0.4em] text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition bg-white"
-            />
+        {/* ── Hero illustration ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-blue-50 px-4 py-4 mb-4">
+          <QueueIllustration />
+          <div className="text-center mt-3">
+            <p className="font-black text-gray-900 text-base leading-tight">Skip the waiting room.</p>
+            <p className="text-blue-600 font-bold text-sm mt-0.5">
+              Book and track appointments in real time.
+            </p>
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || otp.length !== 6}
-            className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
-          >
-            {isLoading ? 'Verifying...' : 'Verify OTP'}
-          </button>
+        {/* ── Form card ── */}
+        <div className="bg-white rounded-2xl shadow-md border border-blue-50 px-5 py-5">
 
-          <div className="text-center">
-            {countdown > 0 ? (
-              <p className="text-sm text-gray-400">Resend in {countdown}s</p>
-            ) : (
-              <button type="button" onClick={handleSendOtp} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                Resend OTP
+          {step === 1 && (
+            <form onSubmit={handleSendOtp}>
+              {/* Form header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <IconPhone />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Enter Your Mobile Number</p>
+                  <p className="text-[11px] text-gray-400 leading-tight">We'll send you a one-time password (OTP)</p>
+                </div>
+              </div>
+
+              {/* Phone input */}
+              <div className="flex gap-2 mb-3">
+                {/* Country selector (display only) */}
+                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 cursor-default select-none flex-shrink-0">
+                  {/* India flag emoji */}
+                  <span className="text-base leading-none">🇮🇳</span>
+                  <span className="text-sm font-semibold text-gray-700">+91</span>
+                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+                <input
+                  type="tel"
+                  autoFocus
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  placeholder="98765 43210"
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-gray-900 text-sm placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                  required
+                />
+              </div>
+
+              {/* No password note */}
+              <div className="flex items-center gap-1.5 mb-4">
+                <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <IconCheck />
+                </div>
+                <p className="text-[11px] text-green-600 font-medium">No password needed — OTP only</p>
+              </div>
+
+              {/* CTA */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-200"
+              >
+                {isLoading ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : <IconSend />}
+                {isLoading ? 'Sending OTP...' : 'Send OTP'}
               </button>
-            )}
-          </div>
-        </form>
-      )}
 
-      <div className="mt-6 pt-6 border-t border-gray-100 text-center space-y-2">
-        <p className="text-sm text-gray-500">
-          New to PulseMate?{' '}
-          <Link to="/register" className="text-primary-600 font-semibold hover:text-primary-700">
-            Create patient account
-          </Link>
+              <StepIndicator current={1} />
+            </form>
+          )}
+
+          {step === 2 && (
+            <form onSubmit={handleVerifyOtp}>
+              {/* Sent-to banner */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide">OTP sent to</p>
+                  <p className="text-sm font-bold text-blue-900">+91 {mobile}</p>
+                </div>
+                <button type="button" onClick={() => { setStep(1); setOtp(''); }}
+                  className="text-[11px] text-blue-500 hover:text-blue-700 font-semibold underline">
+                  Change
+                </button>
+              </div>
+
+              {/* Dev OTP hint */}
+              {devOtp && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+                  <p className="text-[10px] text-amber-600 font-semibold">Dev OTP (auto-filled in dev mode)</p>
+                  <p className="text-2xl font-black text-amber-800 tracking-[0.3em] mt-0.5">{devOtp}</p>
+                </div>
+              )}
+
+              {/* OTP input */}
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Enter 6-digit OTP</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="● ● ● ● ● ●"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-2xl font-black tracking-[0.5em] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white mb-4"
+              />
+
+              <button
+                type="submit"
+                disabled={isLoading || otp.length !== 6}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-200"
+              >
+                {isLoading ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+                {isLoading ? 'Verifying...' : 'Verify OTP'}
+              </button>
+
+              <div className="text-center mt-3">
+                {countdown > 0 ? (
+                  <p className="text-xs text-gray-400">Resend in <span className="font-bold text-gray-600">{countdown}s</span></p>
+                ) : (
+                  <button type="button" onClick={handleSendOtp}
+                    className="text-xs text-blue-600 font-semibold hover:text-blue-700">
+                    Resend OTP
+                  </button>
+                )}
+              </div>
+
+              <StepIndicator current={2} />
+            </form>
+          )}
+
+          {step === 3 && (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <p className="font-black text-gray-900 text-base">Verified!</p>
+              <p className="text-xs text-gray-400 mt-1">Redirecting you...</p>
+              <StepIndicator current={3} />
+            </div>
+          )}
+        </div>
+
+        {/* ── Trust badges ── */}
+        <div className="flex justify-center gap-5 mt-4 px-2">
+          {[
+            { icon: <IconShield />, label: 'Secure OTP Login' },
+            { icon: <IconLock />,   label: 'No Password Required' },
+            { icon: <IconUsers />,  label: 'Trusted by Clinics' },
+          ].map((b) => (
+            <div key={b.label} className="flex flex-col items-center gap-1 flex-1">
+              <div className="text-blue-400">{b.icon}</div>
+              <p className="text-[10px] text-gray-500 font-medium text-center leading-tight">{b.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Privacy note ── */}
+        <div className="mt-4 bg-white rounded-2xl border border-blue-50 px-4 py-3 flex items-start gap-3 shadow-sm">
+          <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+            <IconLock />
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Your number is only used for authentication and is never shared with third parties.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 bg-green-50 border border-green-200 rounded-lg px-2 py-1 flex-shrink-0">
+            <div className="w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
+              <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <span className="text-[10px] font-bold text-green-700">OTP Verified</span>
+          </div>
+        </div>
+
+        {/* ── Footer links ── */}
+        <p className="text-center text-[11px] text-gray-400 mt-4 leading-relaxed px-2">
+          By continuing, you agree to our{' '}
+          <Link to="/terms" className="text-blue-600 font-semibold hover:underline">Terms &amp; Conditions</Link>
+          {' '}and{' '}
+          <Link to="/privacy" className="text-blue-600 font-semibold hover:underline">Privacy Policy</Link>
         </p>
-        <p className="text-sm text-gray-500">
-          Staff member?{' '}
-          <Link to="/staff/login" className="text-primary-600 font-semibold hover:text-primary-700">
-            Use staff login
-          </Link>
-        </p>
+
+        <div className="flex flex-col items-center gap-1 mt-4 pb-4">
+          <p className="text-xs text-gray-400">
+            Staff member?{' '}
+            <Link to="/staff/login" className="text-blue-600 font-semibold hover:underline">Use staff login</Link>
+          </p>
+        </div>
+
       </div>
-    </AuthLayout>
+    </div>
   );
 };
 

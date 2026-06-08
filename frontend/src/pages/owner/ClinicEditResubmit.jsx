@@ -122,7 +122,7 @@ const FileField = ({ label, fieldKey, accept = '.pdf,image/*', value, onUpload, 
 // ── Main Component ────────────────────────────────────────────────────────────
 const ClinicEditResubmit = () => {
   const navigate     = useNavigate();
-  const { refreshUser } = useAuthStore();
+  const { checkAuth } = useAuthStore();
 
   const [loading,      setLoading]      = useState(true);
   const [submitting,   setSubmitting]   = useState(false);
@@ -245,7 +245,7 @@ const ClinicEditResubmit = () => {
 
       await resubmitClinic(payload);
       toast.success('Clinic resubmitted for review! Our team will verify within 1–2 business days.');
-      if (refreshUser) await refreshUser();
+      await checkAuth();
       navigate('/clinic/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Resubmit failed. Please try again.');

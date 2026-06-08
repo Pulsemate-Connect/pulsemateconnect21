@@ -119,19 +119,64 @@ const notifyFollowUpReady = (userId, doctorName) =>
     data: { type: 'FOLLOW_UP_READY' },
   });
 
-const notifyPrescriptionReady = (userId, doctorName) =>
-  sendNotification(userId, {
-    title: '📋 Prescription Ready',
-    body: `Dr. ${doctorName} has issued your prescription. Tap to view.`,
-    data: { type: 'PRESCRIPTION_READY' },
-  });
-
 const notifyPaymentSuccess = (userId, amount) =>
   sendNotification(userId, {
     title: '💳 Payment Successful',
     body: `Payment of ₹${amount} received successfully.`,
     data: { type: 'PAYMENT_SUCCESS' },
   });
+
+const notifyAppointmentCancelled = (userId, doctorName, date) =>
+  sendNotification(userId, {
+    title: '❌ Appointment Cancelled',
+    body: `Your appointment with ${doctorName} on ${new Date(date).toLocaleDateString('en-IN')} has been cancelled.`,
+    data: { type: 'APPOINTMENT_CANCELLED' },
+  });
+
+const notifyQueueResumed = (userId, doctorName) =>
+  sendNotification(userId, {
+    title: '▶️ Queue Resumed',
+    body: `Dr. ${doctorName}'s queue has resumed. Please come back to the clinic.`,
+    data: { type: 'QUEUE_RESUMED' },
+  });
+
+const notifyDoctorNewBooking = (doctorUserId, patientName, date) =>
+  sendNotification(doctorUserId, {
+    title: '📅 New Appointment Booked',
+    body: `${patientName} booked an appointment for ${new Date(date).toLocaleDateString('en-IN')}.`,
+    data: { type: 'DOCTOR_NEW_BOOKING' },
+  });
+
+const notifyDoctorFollowUp = (doctorUserId, patientName) =>
+  sendNotification(doctorUserId, {
+    title: '🔄 Follow-up Patient Added',
+    body: `${patientName} has been added back to the queue as a follow-up.`,
+    data: { type: 'DOCTOR_FOLLOW_UP' },
+  });
+
+const notifyReceptionistNewWalkIn = (receptionistUserId, patientName) =>
+  sendNotification(receptionistUserId, {
+    title: '🚶 Walk-in Patient',
+    body: `${patientName || 'A new patient'} has been added to the queue.`,
+    data: { type: 'RECEPTIONIST_WALK_IN' },
+  });
+
+/**
+ * Notify multiple patients that the queue has been paused.
+ * Accepts an array of patientIds (mirrors notification.service signature).
+ */
+const notifyQueuePaused = async (patientIds, doctorName) => {
+  const ids = Array.isArray(patientIds) ? patientIds : [patientIds];
+  await Promise.all(
+    ids.map((id) =>
+      sendNotification(id, {
+        title: '⏸️ Queue Paused',
+        body: `Dr. ${doctorName}'s queue has been temporarily paused. Please wait.`,
+        data: { type: 'QUEUE_PAUSED' },
+      }).catch(() => { })
+    )
+  );
+};
 
 module.exports = {
   saveFcmToken,
@@ -140,6 +185,11 @@ module.exports = {
   notifyQueueCalled,
   notifyAppointmentBooked,
   notifyFollowUpReady,
-  notifyPrescriptionReady,
   notifyPaymentSuccess,
+  notifyAppointmentCancelled,
+  notifyQueueResumed,
+  notifyQueuePaused,
+  notifyDoctorNewBooking,
+  notifyDoctorFollowUp,
+  notifyReceptionistNewWalkIn,
 };

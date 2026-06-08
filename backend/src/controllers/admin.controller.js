@@ -27,6 +27,9 @@ const getDashboard = async (req, res, next) => {
       rejectedClinics,
       changesRequiredClinics,
       suspendedClinics,
+      freeBookings,
+      paidBookings,
+      totalRevenue,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.clinic.count({ where: { approvalStatus: 'PENDING' } }),
@@ -37,7 +40,21 @@ const getDashboard = async (req, res, next) => {
       prisma.clinic.count({ where: { approvalStatus: 'REJECTED' } }),
       prisma.clinic.count({ where: { approvalStatus: 'CHANGES_REQUIRED' } }),
       prisma.clinic.count({ where: { approvalStatus: 'SUSPENDED' } }),
+      // Free bookings = payments with amount = 0 and status PAID
+      prisma.payment.count({ where: { amount: 0, status: 'PAID' } }),
+      // Paid bookings = payments with amount > 0 and status PAID
+      prisma.payment.count({ where: { amount: { gt: 0 }, status: 'PAID' } }),
+      // Total platform revenue from ₹10 booking fees
+      prisma.payment.aggregate({
+        where: { amount: { gt: 0 }, status: 'PAID' },
+        _sum: { amount: true },
+      }),
     ]);
+
+    const totalPaidPlusFreeBkg = freeBookings + paidBookings;
+    const conversionRate = totalPaidPlusFreeBkg > 0
+      ? Math.round((paidBookings / totalPaidPlusFreeBkg) * 100)
+      : 0;
 
     return sendSuccess(res, {
       stats: {
@@ -50,6 +67,16 @@ const getDashboard = async (req, res, next) => {
         rejectedClinics,
         changesRequiredClinics,
         suspendedClinics,
+      },
+      bookingMetrics: {
+        freeBookings,
+        paidBookings,
+        totalBookings: totalPaidPlusFreeBkg,
+        conversionRate,       // % of bookings that were paid (not free)
+        totalRevenue: totalRevenue._sum.amount || 0,
+        revenuePerPatient: paidBookings > 0
+          ? Math.round(((totalRevenue._sum.amount || 0) / paidBookings) * 100) / 100
+          : 0,
       },
     });
   } catch (error) {
@@ -555,7 +582,6 @@ const resetDatabase = async (req, res, next) => {
       await tx.auditLog.deleteMany();
       await tx.fcmToken.deleteMany();
       await tx.payment.deleteMany();
-      await tx.prescription.deleteMany();
       await tx.queueItem.deleteMany();
       await tx.queue.deleteMany();
       await tx.appointment.deleteMany();

@@ -367,7 +367,7 @@ function StepMedical({ form, onChange, accent }) {
 }
 
 // ── Success overlay ───────────────────────────────────────────────────────────
-function SuccessOverlay({ visible }) {
+function SuccessOverlay({ visible, returnTo }) {
   const scaleA = useRef(new Animated.Value(0)).current;
   const fadeA  = useRef(new Animated.Value(0)).current;
 
@@ -388,9 +388,13 @@ function SuccessOverlay({ visible }) {
           <Ionicons name="checkmark" size={52} color={WHITE} />
         </View>
         <Text style={so.title}>Profile Complete!</Text>
-        <Text style={so.sub}>Your health profile is set up.{'\n'}Doctors can now provide better care.</Text>
+        <Text style={so.sub}>
+          {returnTo === 'Booking'
+            ? 'Taking you back to complete your booking…'
+            : 'Your health profile is set up.\nDoctors can now provide better care.'}
+        </Text>
         <View style={so.statsRow}>
-          {[['100%', 'Complete'], ['Secure', 'Encrypted'], ['Ready', 'To Book']].map(([val, lbl]) => (
+          {[['100%', 'Complete'], ['Secure', 'Encrypted'], [returnTo === 'Booking' ? '↩ Back' : 'Ready', returnTo === 'Booking' ? 'To Book' : 'To Book']].map(([val, lbl]) => (
             <View key={lbl} style={so.stat}>
               <Text style={so.statVal}>{val}</Text>
               <Text style={so.statLbl}>{lbl}</Text>
@@ -416,7 +420,7 @@ const so = StyleSheet.create({
 
 // ── Main ProfileWizardScreen ──────────────────────────────────────────────────
 export default function ProfileWizardScreen({ route, navigation }) {
-  const { profile } = route?.params || {};
+  const { profile, returnTo } = route?.params || {};
   const { updateUser } = useAuth();
   const insets = useSafeAreaInsets();
   const p = profile?.patientProfile;
@@ -505,12 +509,17 @@ export default function ProfileWizardScreen({ route, navigation }) {
       });
       updateUser({ name: res.data.data.user.name });
       setSuccess(true);
-      // After success: go to ProfileTab so user sees their filled details
+      // After success: return to booking flow if caller requested it, else go to ProfileTab
       setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'ProfileTab' }],
-        });
+        if (returnTo === 'Booking') {
+          // Pop back to wherever the Booking screen lives in the stack
+          navigation.goBack();
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'ProfileTab' }],
+          });
+        }
       }, 2400);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to save profile. Please try again.');
@@ -672,7 +681,7 @@ export default function ProfileWizardScreen({ route, navigation }) {
       </View>
 
       {/* ── Success overlay ── */}
-      <SuccessOverlay visible={success} />
+      <SuccessOverlay visible={success} returnTo={returnTo} />
     </View>
   );
 }

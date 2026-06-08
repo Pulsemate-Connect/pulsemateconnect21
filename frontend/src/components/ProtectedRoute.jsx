@@ -61,7 +61,7 @@ const ProtectedRoute = ({ children, roles, adminLevels }) => {
 
   if (
     ['CLINIC_OWNER', 'DOCTOR'].includes(user.role) &&
-    user.status !== 'VERIFIED' &&
+    (user.approvalStatus ?? user.status) !== 'VERIFIED' &&
     !canAccessPendingRoute(location.pathname, user.role)
   ) {
     return <Navigate to="/verification-pending" replace />;

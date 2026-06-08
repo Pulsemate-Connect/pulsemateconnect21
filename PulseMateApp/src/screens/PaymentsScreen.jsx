@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
+  TouchableOpacity, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getMyPayments } from '../api/patient';
+import { getMyPayments, requestRefund } from '../api/patient';
 import Card from '../components/Card';
 import { colors } from '../theme';
 
@@ -24,6 +25,7 @@ const STATUS_STYLE = {
 export default function PaymentsScreen() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [refunding, setRefunding] = useState(null); // appointmentId being refunded
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +36,32 @@ export default function PaymentsScreen() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleRefund = (pay) => {
+    Alert.alert(
+      'Request Refund',
+      `Are you sure you want to request a refund of ₹${pay.amount} for this booking?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request Refund',
+          style: 'destructive',
+          onPress: async () => {
+            setRefunding(pay.appointmentId);
+            try {
+              await requestRefund({ appointmentId: pay.appointmentId, reason: 'Patient requested refund' });
+              Alert.alert('✅ Refund Initiated', 'Your refund has been initiated. It may take 3-5 business days to reflect in your account.');
+              load(); // refresh payments list
+            } catch (err) {
+              Alert.alert('Refund Failed', err.response?.data?.message || 'Could not process refund. Please try again.');
+            } finally {
+              setRefunding(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const totalPaid = payments
     .filter((p) => p.status === 'PAID')
@@ -80,6 +108,9 @@ export default function PaymentsScreen() {
           }
           renderItem={({ item: pay }) => {
             const st = STATUS_STYLE[pay.status] || STATUS_STYLE.PENDING;
+            const canRefund = pay.status === 'PAID' && pay.amount > 0 &&
+              pay.appointment?.status !== 'COMPLETED' &&
+              pay.appointment?.status !== 'CANCELLED';
             return (
               <Card>
                 <View style={s.payRow}>
@@ -104,19 +135,44 @@ export default function PaymentsScreen() {
                     </Text>
                   </View>
                   <View style={s.payRight}>
-                    <Text style={s.payAmount}>₹{pay.amount}</Text>
+                    <Text style={s.payAmount}>
+                      {pay.amount === 0 ? <Text style={{ color: '#059669', fontWeight: '800' }}>FREE</Text> : `₹${pay.amount}`}
+                    </Text>
                     <View style={[s.statusBadge, { backgroundColor: st.bg }]}>
                       <Text style={[s.statusText, { color: st.text }]}>{pay.status}</Text>
                     </View>
                   </View>
                 </View>
 
-                {pay.razorpayPaymentId && (
+                {pay.razorpayPaymentId && !pay.razorpayPaymentId.startsWith('free_') && (
                   <View style={s.txnRow}>
                     <Ionicons name="receipt-outline" size={12} color={colors.textMuted} />
                     <Text style={s.txnId} numberOfLines={1}>
                       {pay.razorpayPaymentId}
                     </Text>
+                  </View>
+                )}
+
+                {/* Refund button — only for eligible PAID payments */}
+                {canRefund && (
+                  <TouchableOpacity
+                    style={s.refundBtn}
+                    onPress={() => handleRefund(pay)}
+                    disabled={refunding === pay.appointmentId}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="arrow-undo-outline" size={14} color="#DC2626" />
+                    <Text style={s.refundText}>
+                      {refunding === pay.appointmentId ? 'Processing...' : 'Request Refund'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* REFUNDED badge */}
+                {pay.status === 'REFUNDED' && (
+                  <View style={s.refundedBadge}>
+                    <Ionicons name="checkmark-circle-outline" size={14} color="#7C3AED" />
+                    <Text style={s.refundedText}>Refunded</Text>
                   </View>
                 )}
               </Card>
@@ -153,6 +209,17 @@ const s = StyleSheet.create({
 
   txnRow:       { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
   txnId:        { fontSize: 11, color: colors.textMuted, flex: 1 },
+
+  refundBtn:    {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 10, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FECACA',
+  },
+  refundText:   { fontSize: 12, fontWeight: '700', color: '#DC2626' },
+
+  refundedBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10,
+    backgroundColor: '#EDE9FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start' },
+  refundedText: { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
 
   empty:        { alignItems: 'center', paddingTop: 60 },
   emptyIcon:    { fontSize: 48, marginBottom: 12 },

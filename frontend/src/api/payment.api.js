@@ -17,3 +17,9 @@ export const getPaymentStatus = (appointmentId) =>
 
 export const getMyPayments = (params) =>
   api.get('/payments/my', { params });
+
+export const requestRefund = (data) =>
+  api.post('/payments/refund', data);
+
+export const getBookingStatus = () =>
+  api.get('/payments/booking-status');

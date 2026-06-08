@@ -7,14 +7,18 @@ const {
   markCashPayment,
   getPaymentStatus,
   getMyPayments,
+  requestRefund,
+  getBookingStatus,
 } = require('../controllers/payment.controller');
 
 router.use(authenticate);
 
 // Patient routes — also allow DOCTOR role to book for themselves
+router.get('/booking-status', authorize('PATIENT', 'DOCTOR'), getBookingStatus);
 router.post('/initiate', authorize('PATIENT', 'DOCTOR'), initiatePayment);
-router.post('/verify',   authorize('PATIENT', 'DOCTOR'), verifyPayment);
-router.get('/my',        authorize('PATIENT', 'DOCTOR'), getMyPayments);
+router.post('/verify', authorize('PATIENT', 'DOCTOR'), verifyPayment);
+router.get('/my', authorize('PATIENT', 'DOCTOR'), getMyPayments);
+router.post('/refund', authorize('PATIENT', 'CLINIC_OWNER', 'SUPER_ADMIN'), requestRefund);
 
 // Staff routes
 router.post('/cash', authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'), markCashPayment);

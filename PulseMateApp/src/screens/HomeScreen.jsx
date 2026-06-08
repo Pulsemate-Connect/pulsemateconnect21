@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  HomeScreen — PulseMate Connect  |  Premium Healthcare Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Animated, Easing,
+  RefreshControl, ActivityIndicator,
   Dimensions, StatusBar, Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from 'react-native';import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useAuth } from '../store/authStore';
 import { getMyAppointments, getLiveQueue, getNearby } from '../api/patient';
+import { getMyNotifications } from '../api/auth';
 
 const { width: W } = Dimensions.get('window');
 const LOGO = require('../../assets/logo1.jpeg');
@@ -23,40 +23,19 @@ const SLATE = '#0F172A'; const MUTED = '#94A3B8'; const BG = '#F0F7FF';
 
 // ── Quick actions ─────────────────────────────────────────────────────────────
 const QUICK = [
-  { icon: 'calendar',      label: 'Book\nAppointment', bg: '#EFF6FF', ic: SKY6,     action: 'book'         },
-  { icon: 'people',        label: 'Live\nQueue',       bg: '#F0FDFA', ic: '#0D9488', action: 'livequeue'    },
-  { icon: 'folder-open',   label: 'Reports',           bg: '#F5F3FF', ic: '#7C3AED', action: 'reports'      },
-  { icon: 'videocam',      label: 'Video\nConsult',    bg: '#FFF7ED', ic: '#EA580C', action: 'videoconsult' },
+  { icon: 'calendar',      label: 'Book\nAppointment', bg: '#EFF6FF', ic: SKY6,      action: 'book'          },
+  { icon: 'calendar-outline', label: 'Appointments',   bg: '#F0FDFA', ic: '#0D9488', action: 'appointments'  },
+  { icon: 'person-circle', label: 'My\nProfile',       bg: '#FFF7ED', ic: '#EA580C', action: 'profile'       },
 ];
 
-// ── Specializations ───────────────────────────────────────────────────────────
-const SPECS = [
-  { icon: 'fitness',        label: 'Physiotherapy', color: '#0EA5E9', bg: '#E0F2FE' },
-  { icon: 'happy',          label: 'Dental',        color: '#10B981', bg: '#D1FAE5' },
-  { icon: 'body',           label: 'Orthopedic',    color: '#8B5CF6', bg: '#EDE9FE' },
-  { icon: 'medkit',         label: 'General',       color: '#F59E0B', bg: '#FEF3C7' },
-  { icon: 'heart',          label: 'Pediatrics',    color: '#EF4444', bg: '#FEE2E2' },
-  { icon: 'eye',            label: 'Eye Care',      color: '#06B6D4', bg: '#CFFAFE' },
-];
+// ── Specializations removed — belongs in SearchScreen ────────────────────────
 
 // ── Nearby clinics (loaded from API) ─────────────────────────────────────────
 // ── Recommended doctors (loaded from API) ────────────────────────────────────
 
-// ── Animated pulse dot ────────────────────────────────────────────────────────
-function PulseDot({ color = TEAL }) {
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(a, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(a, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return (
-    <View style={{ width: 10, height: 10, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={{ position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: color, opacity: a.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0] }), transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }] }} />
-      <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
-    </View>
-  );
+// ── Simple live dot (no animation) ───────────────────────────────────────────
+function LiveIndicator() {
+  return <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: TEAL }} />;
 }
 
 // ── Section header ────────────────────────────────────────────────────────────
@@ -131,23 +110,13 @@ export default function HomeScreen({ navigation }) {
   const [queueInfo,    setQueueInfo]    = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
+  const [unreadCount,  setUnreadCount]  = useState(0);
 
   // ── Location & Nearby ──────────────────────────────────────────────────────
   const [location,       setLocation]       = useState(null);
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | asking | granted | denied
   const [nearbyClinics,  setNearbyClinics]  = useState([]);
-  const [nearbyDoctors,  setNearbyDoctors]  = useState([]);
   const [nearbyLoading,  setNearbyLoading]  = useState(false);
-
-  const enterA = useRef(new Animated.Value(0)).current;
-  const slideA = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(enterA, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slideA, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -164,6 +133,10 @@ export default function HomeScreen({ navigation }) {
           setQueueInfo(qRes.data.data?.queueInfo || null);
         } catch { setQueueInfo(null); }
       }
+      try {
+        const notifRes = await getMyNotifications();
+        setUnreadCount(notifRes.data.data.unreadCount || 0);
+      } catch {}
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -182,10 +155,8 @@ export default function HomeScreen({ navigation }) {
       });
       const data = res.data.data || {};
       setNearbyClinics(data.clinics || []);
-      setNearbyDoctors(data.doctors || []);
     } catch {
       setNearbyClinics([]);
-      setNearbyDoctors([]);
     } finally {
       setNearbyLoading(false);
     }
@@ -208,21 +179,7 @@ export default function HomeScreen({ navigation }) {
     }
   }, [fetchNearby]);
 
-  // Auto-request location on mount
-  useEffect(() => {
-    (async () => {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status === 'granted') {
-        setLocationStatus('granted');
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setLocation(loc.coords);
-        fetchNearby(loc.coords);
-      } else {
-        setLocationStatus('idle');
-      }
-    })();
-  }, [fetchNearby]);
-
+  // GPS is opt-in only — no auto-request on mount
   useEffect(() => { load(); }, [load]);
 
   const upcoming = appointments
@@ -230,16 +187,11 @@ export default function HomeScreen({ navigation }) {
     .slice(0, 3);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const greetIcon = hour < 12 ? '🌤️' : hour < 17 ? '☀️' : '🌙';
 
   const handleQuick = (action) => {
-    if (action === 'book')                navigation.navigate('Search');
-    else if (action === 'livequeue' && activeAppt) navigation.navigate('LiveQueue', { appointmentId: activeAppt.id });
-    else if (action === 'livequeue')      navigation.navigate('AppointmentsTab');
-    else if (action === 'reports')        navigation.navigate('ProfileTab', { screen: 'Profile' });
-    else if (action === 'videoconsult')   navigation.navigate('Search');
+    if (action === 'book')               navigation.navigate('Search');
+    else if (action === 'appointments')  navigation.navigate('AppointmentsTab');
+    else if (action === 'profile')       navigation.navigate('ProfileTab');
   };
 
   return (
@@ -249,24 +201,27 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={SKY5} />}
       >
-        <Animated.View style={{ opacity: enterA, transform: [{ translateY: slideA }] }}>
+        <View>
 
           {/* ── Header ── */}
           <View style={hs.header}>
             <View style={hs.headerLeft}>
-              {/* Logo image + brand name */}
               <Image source={LOGO} style={hs.logoImg} resizeMode="cover" />
               <View>
                 <Text style={hs.brandName}>
                   Pulse<Text style={{ color: SKY5 }}>Mate</Text>
                 </Text>
-                <Text style={hs.greetingSmall}>{greeting} {greetIcon}, {firstName}</Text>
+                <Text style={hs.greetingSmall}>Hello, {firstName}</Text>
               </View>
             </View>
             <View style={hs.headerRight}>
               <TouchableOpacity style={hs.iconBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.8}>
                 <Ionicons name="notifications-outline" size={20} color={SLATE} />
-                <View style={hs.notifDot} />
+                {unreadCount > 0 && (
+                  <View style={hs.notifDot}>
+                    <Text style={hs.notifDotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -300,7 +255,7 @@ export default function HomeScreen({ navigation }) {
               <View style={hs.heroTop}>
                 <View>
                   <View style={hs.heroLiveBadge}>
-                    <PulseDot color={TEAL} />
+                    <LiveIndicator />
                     <Text style={hs.heroLiveText}>LIVE QUEUE</Text>
                   </View>
                   <Text style={hs.heroClinic}>{activeAppt.clinic?.name}</Text>
@@ -365,21 +320,6 @@ export default function HomeScreen({ navigation }) {
                 <Text style={hs.quickLabel}>{item.label}</Text>
               </TouchableOpacity>
             ))}
-          </View>
-
-          {/* ── Specializations ── */}
-          <View style={hs.section}>
-            <SectionHeader title="Browse by Specialization" onViewAll={() => navigation.navigate('Search')} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={hs.specRow}>
-              {SPECS.map((sp) => (
-                <TouchableOpacity key={sp.label} style={hs.specItem} onPress={() => navigation.navigate('Search')} activeOpacity={0.8}>
-                  <View style={[hs.specIcon, { backgroundColor: sp.bg }]}>
-                    <Ionicons name={sp.icon} size={22} color={sp.color} />
-                  </View>
-                  <Text style={hs.specLabel}>{sp.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
           </View>
 
           {/* ── Upcoming Appointments ── */}
@@ -474,66 +414,8 @@ export default function HomeScreen({ navigation }) {
             )}
           </View>
 
-          {/* ── Nearby Doctors ── */}
-          <View style={hs.section}>
-            <SectionHeader title="Nearby Doctors" onViewAll={() => navigation.navigate('DoctorsTab')} />
-            {locationStatus === 'granted' && nearbyLoading && (
-              <ActivityIndicator color={SKY5} style={{ marginVertical: 20 }} />
-            )}
-            {locationStatus !== 'granted' && (
-              <View style={hs.emptyCard}>
-                <Ionicons name="person-outline" size={30} color={MUTED} />
-                <Text style={[hs.emptySub, { marginTop: 8 }]}>Enable location to see nearby doctors</Text>
-              </View>
-            )}
-            {locationStatus === 'granted' && !nearbyLoading && nearbyDoctors.length === 0 && (
-              <View style={hs.emptyCard}>
-                <Ionicons name="person-outline" size={30} color={MUTED} />
-                <Text style={[hs.emptySub, { marginTop: 8 }]}>No doctors found within 50 km</Text>
-              </View>
-            )}
-            {locationStatus === 'granted' && !nearbyLoading && nearbyDoctors.map((doc) => (
-              <TouchableOpacity
-                key={doc.id}
-                style={hs.docCard}
-                onPress={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { id: doc.id } })}
-                activeOpacity={0.88}
-              >
-                <View style={hs.docAvatar}>
-                  <Text style={hs.docAvatarText}>{doc.user?.name?.split(' ')[1]?.charAt(0) || doc.user?.name?.charAt(0) || 'D'}</Text>
-                </View>
-                <View style={hs.docInfo}>
-                  <Text style={hs.docName}>Dr. {doc.user?.name}</Text>
-                  <Text style={hs.docSpec}>{doc.specialization}{doc.experienceYears ? `  ·  ${doc.experienceYears} yrs` : ''}</Text>
-                  <View style={hs.docMeta}>
-                    <Ionicons name="navigate-outline" size={11} color={SKY5} />
-                    <Text style={hs.docRating}>{doc.distanceKm} km</Text>
-                    <View style={hs.metaDot} />
-                    <Ionicons name="business-outline" size={11} color={MUTED} />
-                    <Text style={hs.docAvailText} numberOfLines={1}>{doc.nearestClinic?.name}</Text>
-                  </View>
-                </View>
-                <View style={hs.docRight}>
-                  {doc.consultationFee ? (
-                    <>
-                      <Text style={hs.docFee}>₹{doc.consultationFee}</Text>
-                      <Text style={hs.docFeeLabel}>Consult fee</Text>
-                    </>
-                  ) : null}
-                  <TouchableOpacity
-                    style={hs.docBookBtn}
-                    activeOpacity={0.85}
-                    onPress={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { id: doc.id } })}
-                  >
-                    <Text style={hs.docBookText}>Book</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <View style={{ height: 32 }} />
-        </Animated.View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -567,10 +449,12 @@ const hs = StyleSheet.create({
     shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
   },
   notifDot: {
-    position: 'absolute', top: 8, right: 8,
-    width: 8, height: 8, borderRadius: 4,
+    position: 'absolute', top: 6, right: 6,
+    minWidth: 16, height: 16, borderRadius: 8,
     backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: WHITE,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
+  notifDotText: { fontSize: 8, color: '#fff', fontWeight: '800', lineHeight: 10 },
 
   // ── Search bar ───────────────────────────────────────────────────────────────
   searchBar: {

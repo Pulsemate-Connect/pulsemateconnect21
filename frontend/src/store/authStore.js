@@ -4,10 +4,12 @@ import { getMe, logout as logoutApi } from '../api/auth.api';
 const normalizeUser = (user) =>
   user
     ? {
-        ...user,
-        mobile: user.phone ?? user.mobile ?? '',
-        approvalStatus: user.status ?? user.approvalStatus ?? '',
-      }
+      ...user,
+      mobile: user.phone ?? user.mobile ?? '',
+      approvalStatus: user.approvalStatus ?? user.status ?? '',
+      // Keep status as an alias so ProtectedRoute checks work regardless of which field is used
+      status: user.approvalStatus ?? user.status ?? '',
+    }
     : null;
 
 const useAuthStore = create((set) => ({

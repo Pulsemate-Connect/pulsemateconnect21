@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
   getTodayAppointments,
@@ -24,7 +23,6 @@ const DoctorQueue = () => {
   // notes modal
   const [notesModal, setNotesModal] = useState(null); // { appointmentId }
   const [notes, setNotes] = useState('');
-  const [completedApptId, setCompletedApptId] = useState(null); // show Rx prompt after complete
   const { joinStaffQueueRoom, onEvent } = useSocket();
 
   const fetchData = useCallback(async () => {
@@ -94,7 +92,6 @@ const DoctorQueue = () => {
     try {
       await completeConsultation(notesModal.appointmentId, notes);
       toast.success('Consultation completed');
-      setCompletedApptId(notesModal.appointmentId);
       setNotesModal(null);
       fetchData();
     } catch (err) {
@@ -259,33 +256,6 @@ const DoctorQueue = () => {
           </div>
         </div>
       )}
-
-      {/* Write Prescription prompt after completing */}
-      {completedApptId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCompletedApptId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-            <div className="text-5xl mb-3">💊</div>
-            <h2 className="text-lg font-bold text-text-primary mb-1">Consultation Complete!</h2>
-            <p className="text-sm text-text-muted mb-6">Would you like to write a prescription for this patient?</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCompletedApptId(null)}
-                className="btn-outline flex-1"
-              >
-                Skip
-              </button>
-              <Link
-                to={`/doctor/prescription/${completedApptId}`}
-                onClick={() => setCompletedApptId(null)}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
-              >
-                💊 Write Prescription
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 };
@@ -355,18 +325,6 @@ const DoctorQueueCard = ({ appt, highlight, dimmed, actionLoading, onStart, onCo
               ✅ Complete
             </button>
           )}
-        </div>
-      )}
-
-      {/* Write / Edit prescription for completed */}
-      {isDone && (
-        <div className="mt-2 pt-2 border-t border-border">
-          <Link
-            to={`/doctor/prescription/${appt.id}`}
-            className="w-full text-sm py-2 px-3 rounded-lg border border-primary-300 text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            💊 {appt.prescription ? 'Edit Prescription' : 'Write Prescription'}
-          </Link>
         </div>
       )}
     </div>
