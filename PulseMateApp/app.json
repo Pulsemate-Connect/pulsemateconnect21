@@ -36,7 +36,21 @@
     "scheme": "pulsemate",
     "plugins": [
       "expo-secure-store",
-      "expo-location"
-    ]
+      "expo-location",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0EA5E9",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "PulseMate"
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://10.226.168.205:5000/api",
+      "apiUrlProd": "https://pulsemate-api.loca.lt/api"
+    }
   }
 }
