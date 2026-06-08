@@ -21,6 +21,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import ProfileWizardScreen from '../screens/ProfileWizardScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import RazorpayScreen from '../screens/RazorpayScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -40,6 +41,7 @@ function HomeStack() {
       <Stack.Screen name="Search" component={SearchScreen} />
       <Stack.Screen name="DoctorDetail" component={DoctorDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="Razorpay" component={RazorpayScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
@@ -54,8 +56,8 @@ function SearchStack() {
       <Stack.Screen name="SearchMain" component={SearchScreen} />
       <Stack.Screen name="DoctorDetail" component={DoctorDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="Razorpay" component={RazorpayScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
-      <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
     </Stack.Navigator>
   );
 }

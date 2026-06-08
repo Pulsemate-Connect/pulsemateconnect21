@@ -328,6 +328,7 @@ export default function BookingScreen({ route, navigation }) {
 
       // ── PAID BOOKING PATH ──────────────────────────────────────────────────
       if (devMode || order?.id?.startsWith('order_dev_')) {
+        // Dev mode — auto-verify without real payment
         const verifyRes = await verifyPayment({
           appointmentId,
           razorpayOrderId:   order.id,
@@ -337,34 +338,24 @@ export default function BookingScreen({ route, navigation }) {
         setBookedAppt(verifyRes.data.data.appointment);
         setSuccess(true);
       } else {
-        // Real Razorpay — open Razorpay standard checkout in browser.
-        // react-native-razorpay native SDK can be added for a native checkout experience,
-        // but this Linking approach works for Expo managed workflow without ejecting.
-        try {
-          const { Linking } = require('react-native');
-          // Build Razorpay hosted checkout URL
-          const params = [
-            `key=${encodeURIComponent(order.key || key || '')}`,
-            `order_id=${encodeURIComponent(order.id)}`,
-            `amount=${order.amount}`,
-            `currency=INR`,
-            `name=${encodeURIComponent('PulseMate')}`,
-            `description=${encodeURIComponent('Appointment Booking Fee')}`,
-            `callback_url=${encodeURIComponent('pulsemate://payment-callback')}`,
-          ].join('&');
-          const checkoutUrl = `https://api.razorpay.com/v1/checkout/embedded?${params}`;
-          await Linking.openURL(checkoutUrl);
-          Alert.alert(
-            '💳 Complete Payment',
-            'Your browser has opened with the payment page. Return here once payment is complete and pull-to-refresh on Appointments.',
-            [{ text: 'OK' }]
-          );
-        } catch {
-          Alert.alert(
-            'Payment Required',
-            `Please pay ₹${(order.amount / 100).toFixed(0)} to confirm your booking.\nOrder ID: ${order.id}`
-          );
-        }
+        // Live Razorpay — open WebView payment screen
+        setLoading(false);
+        navigation.navigate('Razorpay', {
+          appointmentId,
+          orderId:       order.id,
+          orderAmount:   order.amount,    // in paise
+          orderCurrency: order.currency || 'INR',
+          keyId:         order.key || initRes.data.data.key,
+          doctorName:    doctorName || 'Doctor',
+          patientName:   patient?.name || '',
+          patientEmail:  patient?.email || '',
+          patientMobile: patient?.mobile || '',
+          onSuccess: (confirmedAppt) => {
+            setBookedAppt(confirmedAppt);
+            setSuccess(true);
+          },
+        });
+        return; // loading already set false above
       }
     } catch (err) {
       Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
