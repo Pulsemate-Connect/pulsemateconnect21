@@ -6,10 +6,16 @@
 
 */
 -- CreateEnum
-CREATE TYPE "DoctorProfileStatus" AS ENUM ('INCOMPLETE', 'COMPLETE');
+DO $$ BEGIN
+  CREATE TYPE "DoctorProfileStatus" AS ENUM ('INCOMPLETE', 'COMPLETE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "DoctorVerificationStatus" AS ENUM ('NOT_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED');
+DO $$ BEGIN
+  CREATE TYPE "DoctorVerificationStatus" AS ENUM ('NOT_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- DropForeignKey
 ALTER TABLE "doctor_availabilities" DROP CONSTRAINT "doctor_availabilities_clinicId_fkey";
@@ -18,16 +24,16 @@ ALTER TABLE "doctor_availabilities" DROP CONSTRAINT "doctor_availabilities_clini
 ALTER TABLE "doctor_availabilities" DROP CONSTRAINT "doctor_availabilities_doctorId_fkey";
 
 -- DropIndex
-DROP INDEX "clinics_clinicRegistrationNumber_idx";
+DROP INDEX IF EXISTS "clinics_clinicRegistrationNumber_idx";
 
 -- DropIndex
-DROP INDEX "clinics_submittedAt_idx";
+DROP INDEX IF EXISTS "clinics_submittedAt_idx";
 
 -- DropIndex
-DROP INDEX "clinics_verifiedById_idx";
+DROP INDEX IF EXISTS "clinics_verifiedById_idx";
 
 -- DropIndex
-DROP INDEX "users_freeBookingUsed_idx";
+DROP INDEX IF EXISTS "users_freeBookingUsed_idx";
 
 -- AlterTable
 ALTER TABLE "doctor_profiles" ADD COLUMN     "gender" TEXT,
@@ -63,7 +69,7 @@ CREATE TABLE "prescriptions" (
 CREATE UNIQUE INDEX "prescriptions_appointmentId_key" ON "prescriptions"("appointmentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_firebaseUid_key" ON "users"("firebaseUid");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_firebaseUid_key" ON "users"("firebaseUid");
 
 -- AddForeignKey
 ALTER TABLE "prescriptions" ADD CONSTRAINT "prescriptions_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "appointments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
