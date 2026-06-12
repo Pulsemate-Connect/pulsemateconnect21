@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { firebasePhoneLogin } from '../../api/auth.api';
-import { sendOtpToPhone, verifyPhoneOtp } from '../../api/firebaseAuth';
+import { initRecaptcha, sendOtpToPhone, verifyPhoneOtp, clearRecaptcha, forceResetRecaptcha } from '../../api/firebaseAuth';
 import useAuthStore from '../../store/authStore';
 
 /* ── tiny SVG icons ─────────────────────────────────────────────────────── */
@@ -49,10 +49,9 @@ const IconPhone = () => (
   </svg>
 );
 
-/* ── Queue illustration (pure SVG, no external images needed) ────────────── */
+/* ── Queue illustration ───────────────────────────────────────────────────── */
 const QueueIllustration = () => (
   <div className="flex items-center justify-center gap-3 py-2">
-    {/* Person with phone */}
     <div className="flex flex-col items-center gap-1">
       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
         <svg viewBox="0 0 40 40" className="w-8 h-8">
@@ -63,11 +62,7 @@ const QueueIllustration = () => (
         </svg>
       </div>
     </div>
-
-    {/* Arrow */}
     <div className="text-gray-400 text-lg font-bold">→</div>
-
-    {/* Queue card */}
     <div className="bg-white rounded-2xl shadow-lg px-4 py-3 text-center border border-blue-100 min-w-[88px]">
       <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Your Queue</p>
       <p className="text-3xl font-black text-gray-900 leading-none mt-0.5">#12</p>
@@ -77,17 +72,12 @@ const QueueIllustration = () => (
         <div className="h-full w-3/5 bg-green-400 rounded-full" />
       </div>
     </div>
-
-    {/* Arrow */}
     <div className="text-gray-400 text-lg font-bold">→</div>
-
-    {/* Doctor */}
     <div className="flex flex-col items-center gap-1">
       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
         <svg viewBox="0 0 40 40" className="w-8 h-8">
           <circle cx="20" cy="12" r="7" fill="#6EE7B7" />
           <path d="M6 38c0-7.732 6.268-14 14-14s14 6.268 14 14" fill="#A7F3D0" />
-          {/* stethoscope */}
           <path d="M18 26 Q14 28 14 32 Q14 36 18 36 Q22 36 22 32" stroke="#10B981" strokeWidth="1.5" fill="none" />
           <circle cx="22" cy="32" r="2" fill="#10B981" />
           <path d="M22 26 L22 30" stroke="#10B981" strokeWidth="1.5" />
@@ -129,47 +119,61 @@ const StepIndicator = ({ current }) => {
 
 /* ── Main page ───────────────────────────────────────────────────────────── */
 const LoginPage = () => {
-  const [step, setStep] = useState(1); // 1 = enter number, 2 = enter OTP, 3 = verified
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [devOtp, setDevOtp] = useState('');
-  const [sessionInfo, setSessionInfo] = useState(''); // Firebase sessionInfo token
+  const [step, setStep]                     = useState(1);
+  const [mobile, setMobile]                 = useState('');
+  const [otp, setOtp]                       = useState('');
+  const [isLoading, setIsLoading]           = useState(false);
+  const [countdown, setCountdown]           = useState(0);
+  const [confirmationResult, setConfResult] = useState(null);
 
-  const navigate = useNavigate();
+  const otpInputRef = useRef(null);
+
+  const navigate    = useNavigate();
   const { setAuth } = useAuthStore();
+
+  // Clean up reCAPTCHA only on unmount
+  useEffect(() => {
+    return () => { clearRecaptcha(); };
+  }, []);
+
+  // Web OTP API - Auto-read OTP from SMS
+  useEffect(() => {
+    if (step === 2 && 'OTPCredential' in window) {
+      const abortController = new AbortController();
+      navigator.credentials.get({ otp: { transport: ['sms'] }, signal: abortController.signal })
+        .then(c => { if (c?.code) { setOtp(c.code); toast.success('OTP auto-filled from SMS'); } })
+        .catch(() => {});
+      return () => abortController.abort();
+    }
+  }, [step]);
 
   const startCountdown = () => {
     setCountdown(60);
     const timer = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) { clearInterval(timer); return 0; }
-        return c - 1;
-      });
+      setCountdown((c) => { if (c <= 1) { clearInterval(timer); return 0; } return c - 1; });
     }, 1000);
   };
 
-  // Normalise to E.164 +91XXXXXXXXXX
   const normalisePhone = (raw) => {
     const digits = raw.replace(/\D/g, '');
-    if (digits.length === 10) return `+91${digits}`;
+    if (digits.length === 10)                            return `+91${digits}`;
     if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
-    if (raw.trim().startsWith('+')) return raw.trim();
+    if (raw.trim().startsWith('+'))                      return raw.trim();
     return `+91${digits}`;
   };
 
+  /* ── Step 1: send OTP via Firebase JS SDK ──────────────────────────────── */
   const handleSendOtp = async (e) => {
     e?.preventDefault();
     if (!mobile.trim()) return toast.error('Enter your mobile number');
     setIsLoading(true);
     try {
-      const phone = normalisePhone(mobile);
-      const session = await sendOtpToPhone(phone);
-      setSessionInfo(session);
+      const phone  = normalisePhone(mobile);
+      const result = await sendOtpToPhone(phone);
+      setConfResult(result);
       setStep(2);
       startCountdown();
-      toast.success('OTP sent via Firebase');
+      toast.success('OTP sent to your mobile');
     } catch (err) {
       toast.error(err.message || 'Failed to send OTP');
     } finally {
@@ -177,22 +181,18 @@ const LoginPage = () => {
     }
   };
 
+  /* ── Step 2: verify OTP ─────────────────────────────────────────────────── */
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
-    if (!sessionInfo) return toast.error('Session expired. Please resend OTP.');
+    if (otp.length !== 6)    return toast.error('Enter the 6-digit OTP');
+    if (!confirmationResult) return toast.error('Session expired. Please resend OTP.');
     setIsLoading(true);
     try {
-      // Step 1: verify OTP with Firebase
-      const firebaseIdToken = await verifyPhoneOtp(sessionInfo, otp);
-      // Step 2: send Firebase ID token to our backend
-      const res = await firebasePhoneLogin(firebaseIdToken);
+      const firebaseIdToken = await verifyPhoneOtp(confirmationResult, otp);
+      const res             = await firebasePhoneLogin(firebaseIdToken);
       const { accessToken, user } = res.data.data;
       setStep(3);
-      setTimeout(() => {
-        setAuth(user, accessToken);
-        navigate('/patient/home');
-      }, 600);
+      setTimeout(() => { setAuth(user, accessToken); navigate('/patient/home'); }, 600);
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Invalid OTP');
     } finally {
@@ -202,11 +202,11 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-[#EBF4FF] flex flex-col items-center justify-start px-4 py-6 overflow-y-auto">
+
       <div className="w-full max-w-sm">
 
-        {/* ── Top bar ── */}
+        {/* Top bar */}
         <div className="flex items-start justify-between mb-5">
-          {/* Logo */}
           <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center border border-blue-100">
             <svg viewBox="0 0 40 40" className="w-9 h-9">
               <rect width="40" height="40" rx="10" fill="#EFF6FF" />
@@ -214,8 +214,6 @@ const LoginPage = () => {
               <path d="M12 14 Q20 6 28 14 Q36 22 28 30 Q20 38 12 30 Q4 22 12 14Z" fill="none" stroke="#10B981" strokeWidth="2" />
             </svg>
           </div>
-
-          {/* Secure badge */}
           <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-green-100">
             <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
               <IconShield />
@@ -227,7 +225,7 @@ const LoginPage = () => {
           </div>
         </div>
 
-        {/* ── Headline ── */}
+        {/* Headline */}
         <div className="text-center mb-4">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
             PulseMate <span className="text-blue-600">Connect</span>
@@ -235,15 +233,14 @@ const LoginPage = () => {
           <p className="text-sm text-gray-500 mt-0.5">Healthcare Platform</p>
         </div>
 
-        {/* ── Feature chips ── */}
+        {/* Feature chips */}
         <div className="flex gap-2 justify-center mb-5 flex-wrap">
           {[
-            { icon: <IconCalendar />, label: 'Book', sub: 'Appointments' },
-            { icon: <IconUsers />,   label: 'Track', sub: 'Live Queue' },
-            { icon: <IconClipboard />, label: 'Get', sub: 'Prescriptions' },
+            { icon: <IconCalendar />, label: 'Book',  sub: 'Appointments' },
+            { icon: <IconUsers />,    label: 'Track', sub: 'Live Queue' },
+            { icon: <IconClipboard />, label: 'Get',  sub: 'Prescriptions' },
           ].map((f) => (
-            <div key={f.label}
-              className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-blue-50">
+            <div key={f.label} className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-blue-50">
               <div className="text-blue-500">{f.icon}</div>
               <div>
                 <p className="text-[11px] font-bold text-gray-800 leading-none">{f.label}</p>
@@ -253,23 +250,21 @@ const LoginPage = () => {
           ))}
         </div>
 
-        {/* ── Hero illustration ── */}
+        {/* Hero illustration */}
         <div className="bg-white rounded-2xl shadow-sm border border-blue-50 px-4 py-4 mb-4">
           <QueueIllustration />
           <div className="text-center mt-3">
             <p className="font-black text-gray-900 text-base leading-tight">Skip the waiting room.</p>
-            <p className="text-blue-600 font-bold text-sm mt-0.5">
-              Book and track appointments in real time.
-            </p>
+            <p className="text-blue-600 font-bold text-sm mt-0.5">Book and track appointments in real time.</p>
           </div>
         </div>
 
-        {/* ── Form card ── */}
+        {/* Form card */}
         <div className="bg-white rounded-2xl shadow-md border border-blue-50 px-5 py-5">
 
+          {/* ── Step 1 ── */}
           {step === 1 && (
             <form onSubmit={handleSendOtp}>
-              {/* Form header */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <IconPhone />
@@ -280,11 +275,8 @@ const LoginPage = () => {
                 </div>
               </div>
 
-              {/* Phone input */}
               <div className="flex gap-2 mb-3">
-                {/* Country selector (display only) */}
                 <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 cursor-default select-none flex-shrink-0">
-                  {/* India flag emoji */}
                   <span className="text-base leading-none">🇮🇳</span>
                   <span className="text-sm font-semibold text-gray-700">+91</span>
                   <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -302,7 +294,6 @@ const LoginPage = () => {
                 />
               </div>
 
-              {/* No password note */}
               <div className="flex items-center gap-1.5 mb-4">
                 <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <IconCheck />
@@ -310,7 +301,6 @@ const LoginPage = () => {
                 <p className="text-[11px] text-green-600 font-medium">Verified by Firebase — no password needed</p>
               </div>
 
-              {/* CTA */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -329,28 +319,35 @@ const LoginPage = () => {
             </form>
           )}
 
+          {/* ── Step 2 ── */}
           {step === 2 && (
             <form onSubmit={handleVerifyOtp}>
-              {/* Sent-to banner */}
               <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
                 <div>
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide">OTP sent to</p>
                   <p className="text-sm font-bold text-blue-900">+91 {mobile}</p>
                 </div>
-                <button type="button" onClick={() => { setStep(1); setOtp(''); }}
-                  className="text-[11px] text-blue-500 hover:text-blue-700 font-semibold underline">
+                <button
+                  type="button"
+                  onClick={() => { 
+                    setStep(1); 
+                    setOtp(''); 
+                    setConfResult(null); 
+                    clearRecaptcha();
+                  }}
+                  className="text-[11px] text-blue-500 hover:text-blue-700 font-semibold underline"
+                >
                   Change
                 </button>
               </div>
 
-              {/* Dev OTP hint — removed: Firebase handles OTP directly */}
-
-              {/* OTP input */}
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">Enter 6-digit OTP</label>
               <input
+                ref={otpInputRef}
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
+                autoComplete="one-time-code"
                 autoFocus
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -380,8 +377,7 @@ const LoginPage = () => {
                 {countdown > 0 ? (
                   <p className="text-xs text-gray-400">Resend in <span className="font-bold text-gray-600">{countdown}s</span></p>
                 ) : (
-                  <button type="button" onClick={handleSendOtp}
-                    className="text-xs text-blue-600 font-semibold hover:text-blue-700">
+                  <button type="button" onClick={handleSendOtp} className="text-xs text-blue-600 font-semibold hover:text-blue-700">
                     Resend OTP
                   </button>
                 )}
@@ -391,6 +387,7 @@ const LoginPage = () => {
             </form>
           )}
 
+          {/* ── Step 3 ── */}
           {step === 3 && (
             <div className="text-center py-4">
               <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -405,7 +402,7 @@ const LoginPage = () => {
           )}
         </div>
 
-        {/* ── Trust badges ── */}
+        {/* Trust badges */}
         <div className="flex justify-center gap-5 mt-4 px-2">
           {[
             { icon: <IconShield />, label: 'Secure OTP Login' },
@@ -419,7 +416,7 @@ const LoginPage = () => {
           ))}
         </div>
 
-        {/* ── Privacy note ── */}
+        {/* Privacy note */}
         <div className="mt-4 bg-white rounded-2xl border border-blue-50 px-4 py-3 flex items-start gap-3 shadow-sm">
           <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
             <IconLock />
@@ -439,14 +436,13 @@ const LoginPage = () => {
           </div>
         </div>
 
-        {/* ── Footer links ── */}
+        {/* Footer links */}
         <p className="text-center text-[11px] text-gray-400 mt-4 leading-relaxed px-2">
           By continuing, you agree to our{' '}
           <Link to="/terms" className="text-blue-600 font-semibold hover:underline">Terms &amp; Conditions</Link>
           {' '}and{' '}
           <Link to="/privacy" className="text-blue-600 font-semibold hover:underline">Privacy Policy</Link>
         </p>
-
         <div className="flex flex-col items-center gap-1 mt-4 pb-4">
           <p className="text-xs text-gray-400">
             Staff member?{' '}

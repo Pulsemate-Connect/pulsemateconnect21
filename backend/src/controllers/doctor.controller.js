@@ -235,21 +235,61 @@ const getDoctorProfile = async (req, res, next) => {
  */
 const updateDoctorProfile = async (req, res, next) => {
   try {
-    const { specialization, experienceYears, education, consultationFee, bio, avgConsultationMins } = req.body;
+    const {
+      specialization,
+      experienceYears,
+      education,
+      consultationFee,
+      bio,
+      avgConsultationMins,
+      profileImage,
+      gender,
+      licenseNumber,
+      medicalRegistrationNumber,
+      qualification,
+      languagesKnown,
+      onlineAvailable,
+      offlineAvailable,
+    } = req.body;
+
+    const updateData = {};
+    if (specialization !== undefined) updateData.specialization = specialization;
+    if (experienceYears !== undefined) updateData.experienceYears = experienceYears;
+    if (education !== undefined) updateData.education = education;
+    if (consultationFee !== undefined) updateData.consultationFee = consultationFee;
+    if (bio !== undefined) updateData.bio = bio;
+    if (avgConsultationMins !== undefined) updateData.avgConsultationMins = avgConsultationMins;
+    if (profileImage !== undefined) updateData.profileImage = profileImage;
+    if (gender !== undefined) updateData.gender = gender;
+    if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
+    if (medicalRegistrationNumber !== undefined) updateData.medicalRegistrationNumber = medicalRegistrationNumber;
+    if (qualification !== undefined) updateData.qualification = qualification;
+    if (languagesKnown !== undefined) updateData.languagesKnown = languagesKnown;
+    if (onlineAvailable !== undefined) updateData.onlineAvailable = onlineAvailable;
+    if (offlineAvailable !== undefined) updateData.offlineAvailable = offlineAvailable;
+
+    // Check if profile is now complete
+    const currentProfile = await prisma.doctorProfile.findUnique({
+      where: { userId: req.user.id },
+    });
+
+    // Profile is complete if all required fields are filled
+    const isComplete =
+      (updateData.specialization || currentProfile.specialization) &&
+      (updateData.qualification || currentProfile.qualification) &&
+      (updateData.experienceYears !== undefined || currentProfile.experienceYears !== null) &&
+      (updateData.consultationFee !== undefined || currentProfile.consultationFee !== null);
+
+    if (isComplete && currentProfile.profileStatus === 'INCOMPLETE') {
+      updateData.profileStatus = 'COMPLETE';
+    }
 
     const profile = await prisma.doctorProfile.update({
       where: { userId: req.user.id },
-      data: {
-        ...(specialization !== undefined && { specialization }),
-        ...(experienceYears !== undefined && { experienceYears }),
-        ...(education !== undefined && { education }),
-        ...(consultationFee !== undefined && { consultationFee }),
-        ...(bio !== undefined && { bio }),
-        ...(avgConsultationMins !== undefined && { avgConsultationMins }),
-      },
+      data: updateData,
     });
 
-    return sendSuccess(res, { profile }, 'Profile updated');
+    return sendSuccess(res, { profile }, 'Profile updated successfully');
   } catch (error) {
     next(error);
   }

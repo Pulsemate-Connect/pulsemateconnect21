@@ -8,12 +8,11 @@ async function main() {
   console.log('Starting PulseMate seed...');
 
   const adminEmail = 'sahilnaik1515@gmail.com';
-  const adminPassword = 'Nkabu18$';
+  const adminPassword = 'Demo@123456';
 
   await prisma.auditLog.deleteMany();
   await prisma.fcmToken.deleteMany();
   await prisma.payment.deleteMany();
-  await prisma.prescription.deleteMany();
   await prisma.queueItem.deleteMany();
   await prisma.queue.deleteMany();
   await prisma.appointment.deleteMany();
@@ -29,7 +28,7 @@ async function main() {
   await prisma.clinic.deleteMany();
   await prisma.user.deleteMany();
 
-  const passwordHash = await bcrypt.hash('Password@123', 12);
+  const passwordHash = await bcrypt.hash('Demo@123456', 12);
   const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   const rootAdmin = await prisma.user.create({
@@ -299,10 +298,10 @@ async function main() {
 
   console.log('Seed completed successfully');
   console.log(`Root Admin: ${adminEmail} / ${adminPassword}`);
-  console.log('Super Admin: admin@pulsemate.com / Password@123');
-  console.log('Clinic Owner: owner@pulsemate.com / Password@123');
-  console.log('Doctor: pooja@pulsemate.com / Password@123');
-  console.log('Receptionist: reception@pulsemate.com / Password@123');
+  console.log('Super Admin: admin@pulsemate.com / Demo@123456');
+  console.log('Clinic Owner: owner@pulsemate.com / Demo@123456');
+  console.log('Doctor: pooja@pulsemate.com / Demo@123456');
+  console.log('Receptionist: reception@pulsemate.com / Demo@123456');
 }
 
 main()

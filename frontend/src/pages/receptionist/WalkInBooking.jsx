@@ -13,7 +13,7 @@ const WalkInBooking = () => {
   const [formData, setFormData] = useState({
     doctorId: '',
     clinicId: '',
-    patientMobile: '',
+    patientMobile: '+91 ',
     patientName: '',
     symptoms: '',
   });
@@ -23,25 +23,43 @@ const WalkInBooking = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('[WalkIn] Fetching user data...');
         const meRes = await getMe();
+        console.log('[WalkIn] getMe response:', meRes.data);
+        
         const staffClinics = meRes.data.data.user?.clinicStaff || [];
-        if (staffClinics.length === 0) return;
+        console.log('[WalkIn] staffClinics length:', staffClinics.length);
+        
+        if (staffClinics.length === 0) {
+          console.log('[WalkIn] No clinic staff entries found!');
+          return;
+        }
 
         const myClinic = staffClinics[0].clinic;
+        console.log('[WalkIn] My clinic:', myClinic.name, '- ID:', myClinic.id);
         setClinic(myClinic);
         setFormData((prev) => ({ ...prev, clinicId: myClinic.id }));
 
+        console.log('[WalkIn] Fetching staff for clinic:', myClinic.id);
         const staffRes = await getStaff(myClinic.id);
-        const doctorStaff = (staffRes.data.data.staff || []).filter((s) => s.role === 'DOCTOR');
+        console.log('[WalkIn] getStaff response:', staffRes.data);
+        
+        const allStaff = staffRes.data.data.staff || [];
+        console.log('[WalkIn] Total staff:', allStaff.length);
+        
+        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
+        console.log('[WalkIn] Doctors found:', doctorStaff.length, doctorStaff);
         setDoctors(doctorStaff);
 
         if (doctorStaff.length > 0) {
           const firstDoctorProfileId = doctorStaff[0].user?.doctorProfile?.id;
+          console.log('[WalkIn] First doctor profile ID:', firstDoctorProfileId);
           if (firstDoctorProfileId) {
             setFormData((prev) => ({ ...prev, doctorId: firstDoctorProfileId }));
           }
         }
       } catch (err) {
+        console.error('[WalkIn] Error:', err);
         toast.error('Failed to load clinic data');
       } finally {
         setIsInitLoading(false);
@@ -141,7 +159,21 @@ const WalkInBooking = () => {
                 className="input"
                 placeholder="+91 9876543210"
                 value={formData.patientMobile}
-                onChange={(e) => setFormData({ ...formData, patientMobile: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Extract only the number part after +91
+                  const numberPart = value.replace(/^\+91\s*/, '');
+                  // Allow only digits and limit to 10
+                  const digitsOnly = numberPart.replace(/\D/g, '').slice(0, 10);
+                  setFormData({ ...formData, patientMobile: '+91 ' + digitsOnly });
+                }}
+                onKeyDown={(e) => {
+                  // Prevent deleting past the +91 prefix
+                  if ((e.key === 'Backspace' || e.key === 'Delete') && e.target.selectionStart <= 4) {
+                    e.preventDefault();
+                  }
+                }}
+                maxLength={14}
                 required
               />
               <p className="text-xs text-text-muted mt-1">

@@ -181,28 +181,33 @@ model ClinicStaff {
 }
 
 model DoctorProfile {
-  id                        String          @id @default(uuid())
-  userId                    String          @unique
-  approvalStatus            ApprovalStatus  @default(PENDING)
+  id                        String               @id @default(uuid())
+  userId                    String               @unique
+  approvalStatus            ApprovalStatus       @default(PENDING)
   qualification             String?
   specialization            String?
-  experienceYears           Int?            @default(0)
+  experienceYears           Int?                 @default(0)
   education                 String?
-  consultationFee           Float?          @default(0)
-  onlineAvailable           Boolean         @default(false)
-  offlineAvailable          Boolean         @default(true)
+  consultationFee           Float?               @default(0)
+  onlineAvailable           Boolean              @default(false)
+  offlineAvailable          Boolean              @default(true)
   bio                       String?
-  avgConsultationMins       Int             @default(10)
-  medicalRegistrationNumber String?         @unique
+  avgConsultationMins       Int                  @default(10)
+  medicalRegistrationNumber String?              @unique
   certificates              Json?
   languagesKnown            String[]
-  marketplaceVisible        Boolean         @default(false)
-  createdAt                 DateTime        @default(now())
-  updatedAt                 DateTime        @updatedAt
+  marketplaceVisible        Boolean              @default(false)
+  profileStatus             DoctorProfileStatus  @default(INCOMPLETE)
+  verificationStatus        DoctorVerificationStatus @default(NOT_VERIFIED)
+  gender                    String?
+  licenseNumber             String?
+  profileImage              String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
   documentUrl               String?
   appointments              Appointment[]
-  doctorClinics             DoctorClinic[]  @relation("MarketplaceDoctor")
-  user                      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctorClinics             DoctorClinic[]       @relation("MarketplaceDoctor")
+  user                      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   prescriptions             prescriptions[]
   queues                    Queue[]
 
@@ -576,6 +581,26 @@ enum PasswordResetPurpose {
 }
 
 // ─── Notification Read persistence ───────────────────────────────────────────
+// ─── Firebase Phone Verification (clinic owner & doctor registration) ────────
+// Holds the server-side proof that a phone number was verified via Firebase
+// Phone Auth before the user account was created.  Expires after 15 minutes
+// and is marked isUsed once consumed during registration.
+model FirebasePhoneVerification {
+  id          String   @id @default(uuid())
+  mobile      String
+  firebaseUid String
+  /// CLINIC_OWNER_REGISTER | DOCTOR_REGISTER
+  purpose     String
+  isUsed      Boolean  @default(false)
+  expiresAt   DateTime
+  verifiedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([mobile, purpose])
+  @@map("firebase_phone_verifications")
+}
+
+// ─── Notification Read persistence ───────────────────────────────────────────
 model NotificationRead {
   id             String   @id @default(uuid())
   userId         String
@@ -650,4 +675,16 @@ enum CampaignStatus {
   PAUSED
   STOPPED
   FAILED
+}
+
+enum DoctorProfileStatus {
+  INCOMPLETE
+  COMPLETE
+}
+
+enum DoctorVerificationStatus {
+  NOT_VERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
 }

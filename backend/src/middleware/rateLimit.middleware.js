@@ -68,6 +68,18 @@ const firebasePhoneLoginLimiter = createLimiter({
   message: 'Too many login attempts. Please try again later.',
 });
 
+/**
+ * Rate limiter for Firebase phone verification endpoints used during
+ * clinic-owner and doctor registration.
+ * Firebase tokens are already time-limited (1 h) so bulk abuse is the
+ * only concern — 10 attempts per 15 min window is generous but safe.
+ */
+const firebasePhoneVerifyLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many phone verification attempts. Please try again later.',
+});
+
 module.exports = {
   otpSendLimiter,
   otpVerifyLimiter,
@@ -77,4 +89,5 @@ module.exports = {
   emailVerificationVerifyLimiter,
   resetPasswordLimiter,
   firebasePhoneLoginLimiter,
+  firebasePhoneVerifyLimiter,
 };

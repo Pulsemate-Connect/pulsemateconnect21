@@ -1,12 +1,12 @@
 /**
- * OtpScreen — Firebase Phone Auth OTP verify via REST API (Expo Go compatible)
+ * OtpScreen — Firebase Phone Auth OTP verification
  *
  * Receives: mobile (E.164), sessionInfo (from Firebase sendVerificationCode)
  * Flow:
  *   1. User enters 6-digit OTP
- *   2. verifyPhoneOtp(sessionInfo, code) → Firebase returns idToken
- *   3. Send idToken to backend → backend returns our JWT
- *   4. Store JWT in SecureStore → user is logged in
+ *   2. verifyPhoneOtp(sessionInfo, code) → Firebase REST API returns idToken
+ *   3. firebasePhoneLogin(idToken) → our backend verifies & returns app JWT
+ *   4. signIn(jwt, user) → user is logged in
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -15,9 +15,10 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
+import { verifyPhoneOtp, sendOtpToPhone, firebaseConfig } from '../config/firebase';
 import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -77,6 +78,7 @@ export default function OtpScreen({ route, navigation }) {
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
   const progressA    = useRef(new Animated.Value(0)).current;
+  const recaptchaVerifier = useRef(null);
 
   const r0=useRef(null); const r1=useRef(null); const r2=useRef(null);
   const r3=useRef(null); const r4=useRef(null); const r5=useRef(null);
@@ -127,10 +129,10 @@ export default function OtpScreen({ route, navigation }) {
     if (code.length < 6 || !sessionInfo) return;
     setLoading(true);
     try {
-      // Step 1: Verify OTP with Firebase REST API → get idToken
+      // Step 1: Verify OTP with Firebase REST API → get Firebase ID token
       const firebaseIdToken = await verifyPhoneOtp(sessionInfo, code);
 
-      // Step 2: Send idToken to our backend → get our app JWT
+      // Step 2: Send Firebase ID token to our backend → get app JWT
       const res = await firebasePhoneLogin(firebaseIdToken);
 
       // Step 3: Store JWT, update auth state
@@ -150,7 +152,9 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleResend = async () => {
     try {
-      const newSession = await sendOtpToPhone(mobile);
+      // Need a fresh reCAPTCHA token to resend
+      const recaptchaToken = await recaptchaVerifier.current.verify();
+      const newSession = await sendOtpToPhone(mobile, recaptchaToken);
       setSessionInfo(newSession);
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
@@ -175,6 +179,13 @@ export default function OtpScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      {/* reCAPTCHA for resend OTP */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>
@@ -268,7 +279,7 @@ export default function OtpScreen({ route, navigation }) {
           <TouchableOpacity style={[os.btn, !canVerify && os.btnDisabled]} onPress={handleVerify} disabled={!canVerify} activeOpacity={0.85}>
             {loading
               ? <ActivityIndicator color={WHITE} size="small" />
-              : <><Ionicons name="shield-checkmark" size={16} color={WHITE} /><Text style={os.btnText}>Verify &amp; Continue</Text><Ionicons name="checkmark" size={16} color={WHITE} /></>
+              : <><Ionicons name="shield-checkmark" size={16} color={WHITE} /><Text style={os.btnText}>Verify & Continue</Text><Ionicons name="checkmark" size={16} color={WHITE} /></>
             }
           </TouchableOpacity>
 

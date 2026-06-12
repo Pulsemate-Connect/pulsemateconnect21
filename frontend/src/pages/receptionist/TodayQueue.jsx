@@ -33,19 +33,37 @@ const TodayQueue = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('[TodayQueue] Fetching user data...');
         const meRes = await getMe();
+        console.log('[TodayQueue] getMe response:', meRes.data);
+        
         const staffClinics = meRes.data.data.user?.clinicStaff || [];
-        if (staffClinics.length === 0) { setIsLoading(false); return; }
+        console.log('[TodayQueue] staffClinics length:', staffClinics.length);
+        
+        if (staffClinics.length === 0) {
+          console.log('[TodayQueue] No clinic staff entries found!');
+          setIsLoading(false);
+          return;
+        }
 
         const myClinic = staffClinics[0].clinic;
+        console.log('[TodayQueue] My clinic:', myClinic.name, '- ID:', myClinic.id);
         setClinic(myClinic);
 
+        console.log('[TodayQueue] Fetching staff for clinic:', myClinic.id);
         const staffRes = await getStaff(myClinic.id);
-        const doctorStaff = (staffRes.data.data.staff || []).filter((s) => s.role === 'DOCTOR');
+        console.log('[TodayQueue] getStaff response:', staffRes.data);
+        
+        const allStaff = staffRes.data.data.staff || [];
+        console.log('[TodayQueue] Total staff:', allStaff.length);
+        
+        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
+        console.log('[TodayQueue] Doctors found:', doctorStaff.length, doctorStaff);
         setDoctors(doctorStaff);
 
         if (doctorStaff.length > 0) setSelectedDoctor(doctorStaff[0]);
       } catch (err) {
+        console.error('[TodayQueue] Error:', err);
         toast.error('Failed to load clinic data');
       } finally {
         setIsLoading(false);

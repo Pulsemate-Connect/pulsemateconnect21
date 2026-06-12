@@ -1,11 +1,11 @@
 /**
- * LoginScreen — Firebase Phone Auth with expo-firebase-recaptcha
+ * LoginScreen — Firebase Phone Authentication
  *
  * Flow:
  *   1. User enters 10-digit mobile number and taps Send OTP
- *   2. FirebaseRecaptchaVerifierModal handles reCAPTCHA silently/visibly
- *   3. sendOtpToPhone(phone, recaptchaToken) calls Firebase REST API
- *   4. Firebase sends SMS OTP → navigate to OtpScreen with sessionInfo
+ *   2. FirebaseRecaptchaVerifierModal handles reCAPTCHA silently
+ *   3. Firebase REST API sends SMS OTP
+ *   4. Navigate to OtpScreen with { mobile, sessionInfo }
  */
 import { useState, useRef } from 'react';
 import {
@@ -56,7 +56,7 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  // ref for the reCAPTCHA modal — required by expo-firebase-recaptcha
+  // Ref for the invisible reCAPTCHA modal (required by Firebase Phone Auth)
   const recaptchaVerifier = useRef(null);
 
   const handleSendOtp = async () => {
@@ -68,8 +68,7 @@ export default function LoginScreen({ navigation }) {
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
     try {
-      // FirebaseRecaptchaVerifierModal.verify() shows reCAPTCHA if needed,
-      // then returns a valid token automatically.
+      // reCAPTCHA resolves automatically (invisible mode), then Firebase sends SMS
       const recaptchaToken = await recaptchaVerifier.current.verify();
       const sessionInfo = await sendOtpToPhone(fullNumber, recaptchaToken);
       navigation.navigate('Otp', { mobile: fullNumber, sessionInfo });
@@ -86,7 +85,7 @@ export default function LoginScreen({ navigation }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* reCAPTCHA modal — invisible until needed */}
+      {/* Invisible reCAPTCHA modal — required by Firebase Phone Auth */}
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={firebaseConfig}
@@ -229,7 +228,7 @@ export default function LoginScreen({ navigation }) {
         <View style={s.privacyCard}>
           <View style={s.privacyIcon}><Ionicons name="lock-closed" size={16} color={BLUE} /></View>
           <Text style={s.privacyText}>Your number is only used for authentication and is never shared.</Text>
-          <View style={s.otpBadge}><View style={s.otpDot} /><Text style={s.otpBadgeText}>OTP Verified</Text></View>
+          <View style={s.otpBadge}><View style={s.otpDot} /><Text style={s.otpBadgeText}>Firebase OTP</Text></View>
         </View>
 
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink}>Terms</Text> and <Text style={s.termsLink}>Privacy Policy</Text></Text>

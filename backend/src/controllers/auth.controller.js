@@ -28,6 +28,7 @@ const {
   verifyEmailVerificationToken,
 } = require('../services/email-verification.service');
 const { verifyFirebaseToken } = require('../config/firebase');
+const firebasePhoneVerificationRepo = require('../repositories/firebase-phone-verification.repository');
 
 const buildFileUrl = (req, fileName) => `/uploads/clinic-owner/${fileName}`;
 
@@ -58,6 +59,7 @@ const toAuthUser = (user) => ({
   receptionistProfile: user.receptionistProfile || null,
   ownedClinics: user.ownedClinics || [],
   adminLevel: user.adminProfile?.level || null,
+  clinicStaff: user.clinicStaff || [],
 });
 
 const getSessionMetadata = (req) => ({
@@ -133,19 +135,172 @@ const patientSendOtpHandler = async (req, res, next) => {
   }
 };
 
-const clinicOwnerSendOtpHandler = async (req, res, next) => {
+/**
+ * POST /api/auth/patient/firebase-phone-login
+ *
+ * Patient login using Firebase Phone Auth (supports both web & mobile app).
+ * Frontend (web/app) performs OTP via Firebase, sends the Firebase ID token here.
+ * Backend verifies the token, extracts phone, creates/logs in patient.
+ */
+const patientFirebasePhoneLoginHandler = async (req, res, next) => {
   try {
-    const { phone } = req.body;
+    const { firebaseIdToken, name } = req.body;
 
-    const existing = await prisma.user.findUnique({
-      where: { mobile: phone },
-      select: { id: true },
+    // ── 1. Verify Firebase token ───────────────────────────────────────────
+    let decoded;
+    try {
+      decoded = await verifyFirebaseToken(firebaseIdToken);
+    } catch (firebaseError) {
+      if (firebaseError.status === 503) {
+        return sendError(res, 'Firebase Auth is not configured. Contact support.', 503);
+      }
+      return sendError(res, 'Invalid or expired Firebase token. Please try again.', 401);
+    }
+
+    // ── 2. Extract phone from trusted token (never from body) ─────────────
+    const rawPhone = decoded.phone_number;
+    if (!rawPhone) {
+      return sendError(res, 'No phone number in Firebase token. Use Phone Auth provider.', 400);
+    }
+    const mobile = normalizeMobileNumber(rawPhone);
+    if (!mobile || !/^\+[1-9]\d{9,14}$/.test(mobile)) {
+      return sendError(res, 'Invalid phone number format in Firebase token.', 400);
+    }
+
+    // ── 3. Find or create patient ─────────────────────────────────────────
+    let user = await prisma.user.findUnique({
+      where: { mobile },
+      include: baseUserInclude,
     });
 
+    let isNewUser = false;
+    if (!user) {
+      // Create new patient
+      user = await prisma.user.create({
+        data: {
+          mobile,
+          name: name || null,
+          role: 'PATIENT',
+          approvalStatus: 'VERIFIED',
+          isPhoneVerified: true,
+          firebaseUid: decoded.uid,
+          authProvider: 'FIREBASE_PHONE',
+          patientProfile: { create: {} },
+        },
+        include: baseUserInclude,
+      });
+      isNewUser = true;
+    } else if (user.role !== 'PATIENT') {
+      return sendError(res, 'This phone belongs to a staff account. Use staff login.', 403);
+    } else {
+      // Existing patient - update login time and name if needed
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isPhoneVerified: true,
+          lastLoginAt: new Date(),
+          firebaseUid: decoded.uid,
+          authProvider: 'FIREBASE_PHONE',
+          ...(name && !user.name ? { name } : {}),
+        },
+        include: baseUserInclude,
+      });
+    }
+
+    // ── 4. Issue JWT tokens ───────────────────────────────────────────────
+    const tokens = await issueAuthTokens(res, user, req);
+    
+    await createAuditLog({
+      userId: user.id,
+      action: isNewUser ? 'PATIENT_REGISTERED_FIREBASE' : 'PATIENT_LOGIN_FIREBASE',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(
+      res,
+      {
+        accessToken: tokens.accessToken,
+        user: { ...toAuthUser(user), isNewUser },
+      },
+      isNewUser ? 'Patient account created successfully' : 'Login successful'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/clinic-owner/verify-firebase-phone
+ *
+ * Verifies the clinic owner's phone number using Firebase Phone Auth.
+ * The frontend performs OTP via Firebase, then sends the Firebase ID token here.
+ * Backend verifies the token, extracts the phone number (never from request body),
+ * and creates a short-lived server-side verification record for use at registration.
+ *
+ * Replaces the old custom OTP send + verify flow for clinic owners.
+ */
+const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
+  try {
+    const { firebaseIdToken } = req.body;
+
+    // ── 1. Verify Firebase token ───────────────────────────────────────────
+    let decoded;
+    try {
+      decoded = await verifyFirebaseToken(firebaseIdToken);
+    } catch (firebaseError) {
+      if (firebaseError.status === 503) {
+        return sendError(res, 'Firebase Auth is not configured on this server. Contact support.', 503);
+      }
+      return sendError(res, 'Invalid or expired Firebase token. Please try again.', 401);
+    }
+
+    // ── 2. Extract phone from trusted token (never from body) ─────────────
+    const rawPhone = decoded.phone_number;
+    if (!rawPhone) {
+      return sendError(res, 'No phone number found in Firebase token. Use Phone Auth provider.', 400);
+    }
+    const mobile = normalizeMobileNumber(rawPhone);
+    if (!mobile || !/^\+[1-9]\d{9,14}$/.test(mobile)) {
+      return sendError(res, 'Invalid phone number format in Firebase token.', 400);
+    }
+
+    // ── 3. Ensure phone is not already registered ─────────────────────────
+    const existing = await prisma.user.findUnique({
+      where: { mobile },
+      select: { id: true },
+    });
     if (existing) {
       return sendError(res, 'A user with this phone number already exists', 409);
     }
 
+    // ── 4. Invalidate any previous pending records, create new one ────────
+    const EXPIRY_MINUTES = 15;
+    await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'CLINIC_OWNER_REGISTER');
+    await firebasePhoneVerificationRepo.create({
+      mobile,
+      firebaseUid: decoded.uid,
+      purpose: 'CLINIC_OWNER_REGISTER',
+      expiresAt: new Date(Date.now() + EXPIRY_MINUTES * 60 * 1000),
+    });
+
+    return sendSuccess(
+      res,
+      { ownerMobileVerified: true, mobile },
+      'Phone number verified successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── Backward-compat shims — old custom OTP routes kept alive during migration ─
+const clinicOwnerSendOtpHandler = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    const existing = await prisma.user.findUnique({ where: { mobile: phone }, select: { id: true } });
+    if (existing) return sendError(res, 'A user with this phone number already exists', 409);
     const result = await sendOtp(phone, 'PHONE_VERIFY');
     return sendSuccess(res, result, 'OTP sent successfully');
   } catch (error) {
@@ -156,25 +311,10 @@ const clinicOwnerSendOtpHandler = async (req, res, next) => {
 const clinicOwnerVerifyOtpHandler = async (req, res, next) => {
   try {
     const { phone, otp } = req.body;
-
-    const existing = await prisma.user.findUnique({
-      where: { mobile: phone },
-      select: { id: true },
-    });
-
-    if (existing) {
-      return sendError(res, 'A user with this phone number already exists', 409);
-    }
-
+    const existing = await prisma.user.findUnique({ where: { mobile: phone }, select: { id: true } });
+    if (existing) return sendError(res, 'A user with this phone number already exists', 409);
     await verifyOtp(phone, otp, 'PHONE_VERIFY');
-
-    return sendSuccess(
-      res,
-      {
-        ownerMobileVerified: true,
-      },
-      'Phone number verified successfully'
-    );
+    return sendSuccess(res, { ownerMobileVerified: true }, 'Phone number verified successfully');
   } catch (error) {
     next(error);
   }
@@ -372,18 +512,10 @@ const registerClinicOwnerHandler = async (req, res, next) => {
       );
     }
 
-    const verifiedPhoneRecord = await prisma.otpVerification.findFirst({
-      where: {
-        mobile: phone,
-        purpose: 'PHONE_VERIFY',
-        verifiedAt: { not: null },
-        isUsed: true,
-      },
-      orderBy: { verifiedAt: 'desc' },
-    });
+    const verifiedPhoneRecord = await firebasePhoneVerificationRepo.findLatestValid(phone, 'CLINIC_OWNER_REGISTER');
 
     if (!ownerMobileVerified || !verifiedPhoneRecord) {
-      return sendError(res, 'Owner mobile verification is required before submitting the clinic application', 400);
+      return sendError(res, 'Owner mobile verification via Firebase is required before submitting the clinic application', 400);
     }
 
     const verifiedEmailRecord = await prisma.emailVerification.findFirst({
@@ -411,6 +543,8 @@ const registerClinicOwnerHandler = async (req, res, next) => {
           passwordHash: await hashPassword(password),
           isPhoneVerified: true,
           isEmailVerified: true,
+          firebaseUid: verifiedPhoneRecord.firebaseUid,
+          authProvider: 'FIREBASE_PHONE',
         },
       });
 
@@ -501,6 +635,9 @@ const registerClinicOwnerHandler = async (req, res, next) => {
       ipAddress: req.ip,
     });
 
+    // Mark the Firebase phone verification record as consumed
+    await firebasePhoneVerificationRepo.markUsed(verifiedPhoneRecord.id);
+
     return sendSuccess(
       res,
       {
@@ -518,6 +655,67 @@ const registerClinicOwnerHandler = async (req, res, next) => {
       },
       'Registration submitted. Awaiting super admin verification.',
       201
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/doctor/verify-firebase-phone
+ *
+ * Verifies the doctor's phone number using Firebase Phone Auth.
+ * Same pattern as clinic owner — frontend handles OTP, sends ID token here.
+ * Backend verifies, extracts phone, creates a short-lived verification record.
+ */
+const doctorVerifyFirebasePhoneHandler = async (req, res, next) => {
+  try {
+    const { firebaseIdToken } = req.body;
+
+    // ── 1. Verify Firebase token ───────────────────────────────────────────
+    let decoded;
+    try {
+      decoded = await verifyFirebaseToken(firebaseIdToken);
+    } catch (firebaseError) {
+      if (firebaseError.status === 503) {
+        return sendError(res, 'Firebase Auth is not configured on this server. Contact support.', 503);
+      }
+      return sendError(res, 'Invalid or expired Firebase token. Please try again.', 401);
+    }
+
+    // ── 2. Extract phone from trusted token (never from body) ─────────────
+    const rawPhone = decoded.phone_number;
+    if (!rawPhone) {
+      return sendError(res, 'No phone number found in Firebase token. Use Phone Auth provider.', 400);
+    }
+    const mobile = normalizeMobileNumber(rawPhone);
+    if (!mobile || !/^\+[1-9]\d{9,14}$/.test(mobile)) {
+      return sendError(res, 'Invalid phone number format in Firebase token.', 400);
+    }
+
+    // ── 3. Ensure phone is not already registered ─────────────────────────
+    const existing = await prisma.user.findUnique({
+      where: { mobile },
+      select: { id: true },
+    });
+    if (existing) {
+      return sendError(res, 'A user with this phone number already exists', 409);
+    }
+
+    // ── 4. Invalidate any previous pending records, create new one ────────
+    const EXPIRY_MINUTES = 15;
+    await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'DOCTOR_REGISTER');
+    await firebasePhoneVerificationRepo.create({
+      mobile,
+      firebaseUid: decoded.uid,
+      purpose: 'DOCTOR_REGISTER',
+      expiresAt: new Date(Date.now() + EXPIRY_MINUTES * 60 * 1000),
+    });
+
+    return sendSuccess(
+      res,
+      { mobileVerified: true, mobile },
+      'Phone number verified successfully'
     );
   } catch (error) {
     next(error);
@@ -547,6 +745,12 @@ const registerDoctorHandler = async (req, res, next) => {
       return sendError(res, 'User with this phone or email already exists', 409);
     }
 
+    // ── Require Firebase phone verification ───────────────────────────────
+    const verifiedPhoneRecord = await firebasePhoneVerificationRepo.findLatestValid(phone, 'DOCTOR_REGISTER');
+    if (!verifiedPhoneRecord) {
+      return sendError(res, 'Mobile number verification via Firebase is required before registering', 400);
+    }
+
     const doctor = await prisma.user.create({
       data: {
         name,
@@ -556,6 +760,8 @@ const registerDoctorHandler = async (req, res, next) => {
         approvalStatus: 'PENDING',
         passwordHash: await hashPassword(password),
         isPhoneVerified: true,
+        firebaseUid: verifiedPhoneRecord.firebaseUid,
+        authProvider: 'FIREBASE_PHONE',
         doctorProfile: {
           create: {
             approvalStatus: 'PENDING',
@@ -582,6 +788,9 @@ const registerDoctorHandler = async (req, res, next) => {
       entityId: doctor.id,
       ipAddress: req.ip,
     });
+
+    // Mark the Firebase phone verification record as consumed
+    await firebasePhoneVerificationRepo.markUsed(verifiedPhoneRecord.id);
 
     return sendSuccess(
       res,
@@ -1116,12 +1325,14 @@ module.exports = {
   patientVerifyOtpHandler,
   clinicOwnerSendOtpHandler,
   clinicOwnerVerifyOtpHandler,
+  clinicOwnerVerifyFirebasePhoneHandler,
   clinicOwnerSendEmailOtpHandler,
   clinicOwnerVerifyEmailOtpHandler,
   clinicOwnerSendEmailVerificationHandler: clinicOwnerSendEmailOtpHandler,
   clinicOwnerVerifyEmailHandler: clinicOwnerVerifyEmailOtpHandler,
   clinicOwnerUploadDocumentHandler,
   registerClinicOwnerHandler,
+  doctorVerifyFirebasePhoneHandler,
   registerDoctorHandler,
   loginHandler,
   clinicOwnerLoginHandler: loginHandler,
@@ -1142,4 +1353,5 @@ module.exports = {
   verifyOtpHandler,
   loginPasswordHandler,
   firebasePhoneLoginHandler,
+  patientFirebasePhoneLoginHandler,
 };

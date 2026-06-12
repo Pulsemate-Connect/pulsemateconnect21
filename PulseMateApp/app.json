@@ -31,7 +31,16 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "config": {
+        "firebase": {
+          "apiKey": "AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw",
+          "authDomain": "pulsemateconnect.firebaseapp.com",
+          "projectId": "pulsemateconnect",
+          "messagingSenderId": "157620382332",
+          "appId": "1:157620382332:web:e4156f49d8616a4ee6b7f9"
+        }
+      }
     },
     "scheme": "pulsemate",
     "plugins": [
@@ -49,7 +58,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://10.124.55.205:5000/api",
+      "apiUrl": "http://192.168.31.240:5000/api",
       "apiUrlProd": "https://generic-example-shale.ngrok-free.dev/api"
     }
   }

@@ -1,7 +1,9 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/response');
 const { createAuditLog } = require('../services/audit.service');
-const { hashValue } = require('../utils/crypto');
+const { hashValue, generateTempPassword } = require('../utils/crypto');
+const { sendDoctorCredentialsEmail } = require('../services/email.service');
+const { createDoctorSchema, updateDoctorSchema } = require('../validators/doctor.validator');
 
 /**
  * POST /api/clinics - Create clinic
@@ -61,7 +63,7 @@ const getMyClinics = async (req, res, next) => {
     const clinics = await prisma.clinic.findMany({
       where: { ownerId: req.user.id },
       include: {
-        _count: { select: { clinicStaff: true, appointments: true } },
+        _count: { select: { staff: true, appointments: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -296,7 +298,8 @@ const addStaff = async (req, res, next) => {
 
     if (!user) {
       const staffRole = role === 'DOCTOR' ? 'DOCTOR' : 'RECEPTIONIST';
-      const passwordHash = password ? await hashValue(password) : null;
+      const tempPassword = password || generateTempPassword();
+      const passwordHash = await hashValue(tempPassword);
 
       user = await prisma.user.create({
         data: {
@@ -324,6 +327,16 @@ const addStaff = async (req, res, next) => {
           }),
         },
       });
+
+      // Send credentials email if doctor and email provided
+      if (role === 'DOCTOR' && email) {
+        try {
+          await sendDoctorCredentialsEmail(email, name, clinic.name, tempPassword);
+        } catch (emailError) {
+          // Log error but don't fail the request
+          console.error('Failed to send doctor credentials email:', emailError);
+        }
+      }
     } else {
       // Update role if needed
       const targetRole = role === 'DOCTOR' ? 'DOCTOR' : 'RECEPTIONIST';
@@ -657,6 +670,649 @@ const getClinicAppointments = async (req, res, next) => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCTOR MANAGEMENT (Phase 1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/clinic/doctors - Create a new doctor account
+ */
+const createDoctor = async (req, res, next) => {
+  try {
+    // Validate request body
+    const { error, value } = createDoctorSchema.validate(req.body);
+    if (error) {
+      return sendError(res, error.details[0].message, 400);
+    }
+
+    const {
+      name,
+      email,
+      mobile,
+      gender,
+      specialization,
+      qualification,
+      experienceYears,
+      consultationFee,
+      availableDays,
+      startTime,
+      endTime,
+      breakStartTime,
+      breakEndTime,
+      consultationMode,
+    } = value;
+
+    // Get clinic ownership - owner must have a verified clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: {
+        ownerId: req.user.id,
+        approvalStatus: 'VERIFIED',
+        isActive: true,
+      },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'You must have a verified clinic to add doctors', 403);
+    }
+
+    // Check for duplicate email
+    const existingEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingEmail) {
+      return sendError(res, 'Email already exists', 409);
+    }
+
+    // Check for duplicate mobile
+    const existingMobile = await prisma.user.findUnique({ where: { mobile } });
+    if (existingMobile) {
+      return sendError(res, 'Mobile number already exists', 409);
+    }
+
+    // Generate temporary password
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashValue(tempPassword);
+
+    // Create doctor in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user account
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          mobile,
+          role: 'DOCTOR',
+          approvalStatus: 'VERIFIED',
+          passwordHash,
+          authProvider: 'EMAIL_PASSWORD',
+          isActive: true,
+        },
+      });
+
+      // Create doctor profile
+      const doctorProfile = await tx.doctorProfile.create({
+        data: {
+          userId: user.id,
+          specialization,
+          qualification,
+          experienceYears,
+          consultationFee,
+          gender,
+          approvalStatus: 'VERIFIED',
+          profileStatus: 'INCOMPLETE',
+          verificationStatus: 'NOT_VERIFIED',
+          marketplaceVisible: false,
+          onlineAvailable: consultationMode === 'ONLINE' || consultationMode === 'BOTH',
+          offlineAvailable: consultationMode === 'OFFLINE' || consultationMode === 'BOTH',
+        },
+      });
+
+      // Create clinic_staff relation
+      await tx.clinicStaff.create({
+        data: {
+          clinicId: clinic.id,
+          userId: user.id,
+          role: 'DOCTOR',
+          isActive: true,
+        },
+      });
+
+      // Create clinic_doctor relation
+      await tx.doctorClinic.create({
+        data: {
+          doctorId: doctorProfile.id,
+          clinicId: clinic.id,
+          inviteStatus: 'ACCEPTED',
+          consultationFee,
+          availableDays,
+          startTime,
+          endTime,
+          isActive: true,
+          joinedAt: new Date(),
+        },
+      });
+
+      return { user, doctorProfile };
+    });
+
+    // Send credentials email
+    try {
+      await sendDoctorCredentialsEmail(email, name, clinic.name, tempPassword);
+    } catch (emailError) {
+      // Log but don't fail the request
+      console.error('Failed to send doctor credentials email:', emailError);
+    }
+
+    // Audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'DOCTOR_CREATED',
+      entityType: 'Doctor',
+      entityId: result.user.id,
+      metadata: { doctorId: result.doctorProfile.id, clinicId: clinic.id },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(
+      res,
+      {
+        doctor: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          mobile: result.user.mobile,
+          profileId: result.doctorProfile.id,
+        },
+        tempPassword, // Include in response for owner to share if email fails
+      },
+      'Doctor account created successfully. Credentials sent to email.',
+      201
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clinic/doctors - Get all doctors for the owner's clinic
+ */
+const getClinicDoctors = async (req, res, next) => {
+  try {
+    const { search, status, page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Get owner's clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'No clinic found', 404);
+    }
+
+    // Build where clause
+    const where = {
+      clinicId: clinic.id,
+      role: 'DOCTOR',
+    };
+
+    if (status) {
+      where.isActive = status === 'ACTIVE';
+    }
+
+    // Get doctors
+    const [doctors, total] = await Promise.all([
+      prisma.clinicStaff.findMany({
+        where,
+        skip: parseInt(skip),
+        take: parseInt(limit),
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              mobile: true,
+              isActive: true,
+              lastLoginAt: true,
+              createdAt: true,
+            },
+            include: {
+              doctorProfile: {
+                select: {
+                  id: true,
+                  specialization: true,
+                  qualification: true,
+                  experienceYears: true,
+                  consultationFee: true,
+                  profileStatus: true,
+                  verificationStatus: true,
+                  gender: true,
+                  profileImage: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.clinicStaff.count({ where }),
+    ]);
+
+    // Get DoctorClinic details for each doctor
+    const doctorIds = doctors
+      .map((d) => d.user.doctorProfile?.id)
+      .filter(Boolean);
+
+    const doctorClinics = await prisma.doctorClinic.findMany({
+      where: {
+        doctorId: { in: doctorIds },
+        clinicId: clinic.id,
+      },
+    });
+
+    // Map doctor clinics to doctor IDs
+    const doctorClinicMap = {};
+    doctorClinics.forEach((dc) => {
+      doctorClinicMap[dc.doctorId] = dc;
+    });
+
+    // Format response
+    const formattedDoctors = doctors.map((staff) => ({
+      id: staff.user.id,
+      name: staff.user.name,
+      email: staff.user.email,
+      mobile: staff.user.mobile,
+      isActive: staff.isActive,
+      lastLoginAt: staff.user.lastLoginAt,
+      joinedAt: staff.createdAt,
+      profile: staff.user.doctorProfile
+        ? {
+            ...staff.user.doctorProfile,
+            availableDays:
+              doctorClinicMap[staff.user.doctorProfile.id]?.availableDays || [],
+            startTime: doctorClinicMap[staff.user.doctorProfile.id]?.startTime,
+            endTime: doctorClinicMap[staff.user.doctorProfile.id]?.endTime,
+          }
+        : null,
+    }));
+
+    // Apply search filter if provided
+    let filteredDoctors = formattedDoctors;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredDoctors = formattedDoctors.filter(
+        (d) =>
+          d.name?.toLowerCase().includes(searchLower) ||
+          d.email?.toLowerCase().includes(searchLower) ||
+          d.mobile?.includes(search) ||
+          d.profile?.specialization?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return sendPaginated(res, filteredDoctors, total, page, limit);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clinic/doctors/:id - Get doctor details
+ */
+const getDoctorById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get owner's clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'No clinic found', 404);
+    }
+
+    // Find doctor
+    const doctor = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        doctorProfile: true,
+        clinicStaff: {
+          where: { clinicId: clinic.id },
+        },
+      },
+    });
+
+    if (!doctor || doctor.role !== 'DOCTOR') {
+      return sendError(res, 'Doctor not found', 404);
+    }
+
+    // Check if doctor belongs to this clinic
+    if (doctor.clinicStaff.length === 0) {
+      return sendError(res, 'Doctor does not belong to your clinic', 403);
+    }
+
+    // Get DoctorClinic details
+    const doctorClinic = await prisma.doctorClinic.findUnique({
+      where: {
+        doctorId_clinicId: {
+          doctorId: doctor.doctorProfile.id,
+          clinicId: clinic.id,
+        },
+      },
+    });
+
+    return sendSuccess(res, {
+      doctor: {
+        id: doctor.id,
+        name: doctor.name,
+        email: doctor.email,
+        mobile: doctor.mobile,
+        isActive: doctor.clinicStaff[0].isActive,
+        lastLoginAt: doctor.lastLoginAt,
+        createdAt: doctor.createdAt,
+        profile: {
+          ...doctor.doctorProfile,
+          availableDays: doctorClinic?.availableDays || [],
+          startTime: doctorClinic?.startTime,
+          endTime: doctorClinic?.endTime,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/clinic/doctors/:id - Update doctor details
+ */
+const updateDoctor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Validate request body
+    const { error, value } = updateDoctorSchema.validate(req.body);
+    if (error) {
+      return sendError(res, error.details[0].message, 400);
+    }
+
+    // Get owner's clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'No clinic found', 404);
+    }
+
+    // Find doctor
+    const doctor = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        doctorProfile: true,
+        clinicStaff: {
+          where: { clinicId: clinic.id },
+        },
+      },
+    });
+
+    if (!doctor || doctor.role !== 'DOCTOR') {
+      return sendError(res, 'Doctor not found', 404);
+    }
+
+    // Check if doctor belongs to this clinic
+    if (doctor.clinicStaff.length === 0) {
+      return sendError(res, 'Doctor does not belong to your clinic', 403);
+    }
+
+    const {
+      name,
+      mobile,
+      gender,
+      specialization,
+      qualification,
+      experienceYears,
+      consultationFee,
+      availableDays,
+      startTime,
+      endTime,
+      breakStartTime,
+      breakEndTime,
+      consultationMode,
+    } = value;
+
+    // Update in transaction
+    await prisma.$transaction(async (tx) => {
+      // Update user
+      if (name || mobile) {
+        await tx.user.update({
+          where: { id },
+          data: {
+            ...(name && { name }),
+            ...(mobile && { mobile }),
+          },
+        });
+      }
+
+      // Update doctor profile
+      if (
+        gender ||
+        specialization ||
+        qualification ||
+        experienceYears !== undefined ||
+        consultationFee !== undefined ||
+        consultationMode
+      ) {
+        await tx.doctorProfile.update({
+          where: { userId: id },
+          data: {
+            ...(gender && { gender }),
+            ...(specialization && { specialization }),
+            ...(qualification && { qualification }),
+            ...(experienceYears !== undefined && { experienceYears }),
+            ...(consultationFee !== undefined && { consultationFee }),
+            ...(consultationMode && {
+              onlineAvailable:
+                consultationMode === 'ONLINE' || consultationMode === 'BOTH',
+              offlineAvailable:
+                consultationMode === 'OFFLINE' || consultationMode === 'BOTH',
+            }),
+          },
+        });
+      }
+
+      // Update DoctorClinic
+      if (
+        availableDays ||
+        startTime ||
+        endTime ||
+        consultationFee !== undefined
+      ) {
+        await tx.doctorClinic.update({
+          where: {
+            doctorId_clinicId: {
+              doctorId: doctor.doctorProfile.id,
+              clinicId: clinic.id,
+            },
+          },
+          data: {
+            ...(availableDays && { availableDays }),
+            ...(startTime && { startTime }),
+            ...(endTime && { endTime }),
+            ...(consultationFee !== undefined && { consultationFee }),
+          },
+        });
+      }
+    });
+
+    // Audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'DOCTOR_UPDATED',
+      entityType: 'Doctor',
+      entityId: id,
+      metadata: { clinicId: clinic.id, updates: value },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, {}, 'Doctor updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/clinic/doctors/:id/status - Activate/Deactivate doctor
+ */
+const updateDoctorStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== 'boolean') {
+      return sendError(res, 'isActive must be a boolean', 400);
+    }
+
+    // Get owner's clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'No clinic found', 404);
+    }
+
+    // Find doctor
+    const staffRecord = await prisma.clinicStaff.findFirst({
+      where: {
+        userId: id,
+        clinicId: clinic.id,
+        role: 'DOCTOR',
+      },
+      include: {
+        user: {
+          include: {
+            doctorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!staffRecord) {
+      return sendError(res, 'Doctor not found in your clinic', 404);
+    }
+
+    // Update status in transaction
+    await prisma.$transaction(async (tx) => {
+      // Update clinic staff status
+      await tx.clinicStaff.update({
+        where: { id: staffRecord.id },
+        data: { isActive },
+      });
+
+      // Update doctor clinic status
+      await tx.doctorClinic.updateMany({
+        where: {
+          doctorId: staffRecord.user.doctorProfile.id,
+          clinicId: clinic.id,
+        },
+        data: {
+          isActive,
+          ...(isActive ? {} : { removedAt: new Date() }),
+        },
+      });
+    });
+
+    // Audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: isActive ? 'DOCTOR_ACTIVATED' : 'DOCTOR_DEACTIVATED',
+      entityType: 'Doctor',
+      entityId: id,
+      metadata: { clinicId: clinic.id },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(
+      res,
+      {},
+      `Doctor ${isActive ? 'activated' : 'deactivated'} successfully`
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/clinic/doctors/:id - Soft delete doctor (deactivate permanently)
+ */
+const deleteDoctor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get owner's clinic
+    const clinic = await prisma.clinic.findFirst({
+      where: { ownerId: req.user.id },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'No clinic found', 404);
+    }
+
+    // Find doctor
+    const staffRecord = await prisma.clinicStaff.findFirst({
+      where: {
+        userId: id,
+        clinicId: clinic.id,
+        role: 'DOCTOR',
+      },
+      include: {
+        user: {
+          include: {
+            doctorProfile: true,
+          },
+        },
+      },
+    });
+
+    if (!staffRecord) {
+      return sendError(res, 'Doctor not found in your clinic', 404);
+    }
+
+    // Soft delete (deactivate)
+    await prisma.$transaction(async (tx) => {
+      await tx.clinicStaff.update({
+        where: { id: staffRecord.id },
+        data: { isActive: false },
+      });
+
+      await tx.doctorClinic.updateMany({
+        where: {
+          doctorId: staffRecord.user.doctorProfile.id,
+          clinicId: clinic.id,
+        },
+        data: {
+          isActive: false,
+          removedAt: new Date(),
+        },
+      });
+    });
+
+    // Audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'DOCTOR_REMOVED',
+      entityType: 'Doctor',
+      entityId: id,
+      metadata: { clinicId: clinic.id },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, {}, 'Doctor removed successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createClinic,
   getMyClinics,
@@ -671,4 +1327,11 @@ module.exports = {
   getClinicRevenue,
   getClinicBookingMetrics,
   getClinicAppointments,
+  // Doctor Management
+  createDoctor,
+  getClinicDoctors,
+  getDoctorById,
+  updateDoctor,
+  updateDoctorStatus,
+  deleteDoctor,
 };

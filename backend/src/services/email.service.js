@@ -55,11 +55,14 @@ const sendViaResend = async ({ to, subject, text, html }) => {
   });
 
   if (!response.ok) {
-    throw new Error(`Resend request failed with status ${response.status}`);
+    const errorBody = await response.text();
+    logger.error(`Resend API error (${response.status}): ${errorBody}`);
+    throw new Error(`Resend request failed with status ${response.status}: ${errorBody}`);
   }
 
-  logger.info(`Resend email sent to ${to} with subject "${subject}"`);
-  return response.json();
+  const result = await response.json();
+  logger.info(`Resend email sent to ${to} with subject "${subject}" - ID: ${result.id}`);
+  return result;
 };
 
 const sendViaSendGrid = async ({ to, subject, text, html }) => {
@@ -459,6 +462,48 @@ const sendClinicResubmittedEmail = async (adminEmail, clinicName, ownerName) => 
   return true;
 };
 
+/**
+ * Send doctor account credentials to newly created doctor
+ */
+const sendDoctorCredentialsEmail = async (doctorEmail, doctorName, clinicName, tempPassword) => {
+  const subject = 'PulseMate Doctor Account Created';
+  const text = [
+    `Hello Dr. ${doctorName},`,
+    '',
+    `Your doctor account has been created by ${clinicName}.`,
+    '',
+    `Login Email: ${doctorEmail}`,
+    `Temporary Password: ${tempPassword}`,
+    '',
+    'Please log in and complete your profile at:',
+    `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/doctor`,
+    '',
+    'After logging in, you can update your password and complete your professional details.',
+    '',
+    'Thank you,',
+    'PulseMate Team',
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello Dr. ${doctorName},</p>
+      <p>Your doctor account has been created by <strong>${clinicName}</strong>.</p>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:20px 0">
+        <p style="margin:0 0 8px;font-weight:700;color:#1e40af">Login Credentials</p>
+        <p style="margin:4px 0"><strong>Email:</strong> ${doctorEmail}</p>
+        <p style="margin:4px 0"><strong>Temporary Password:</strong> <code style="background:#1e40af;color:#fff;padding:4px 8px;border-radius:4px;font-size:14px">${tempPassword}</code></p>
+      </div>
+      <p>Please log in and complete your profile:</p>
+      <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/doctor" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:700">Login to PulseMate</a></p>
+      <p style="color:#64748b;font-size:14px;margin-top:20px">After logging in, you can update your password and complete your professional details.</p>
+      <p style="color:#64748b;font-size:14px">Thank you,<br>PulseMate Team</p>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: doctorEmail, subject, text, html });
+  if (!sent) logEmail(subject, doctorEmail, text);
+  return true;
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendPasswordChangedEmail,
@@ -472,4 +517,5 @@ module.exports = {
   sendClinicChangesRequestedEmail,
   sendClinicSuspendedEmail,
   sendClinicResubmittedEmail,
+  sendDoctorCredentialsEmail,
 };

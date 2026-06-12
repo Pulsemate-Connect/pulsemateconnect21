@@ -423,14 +423,22 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
             />
           </div>
           <div>
-            <label className="label">Email</label>
+            <label className="label">
+              Email {staffRole === 'DOCTOR' && <span className="text-red-500">*</span>}
+            </label>
             <input
               type="email"
               className="input"
               value={addForm.email}
               onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
               placeholder="doctor@example.com"
+              required={staffRole === 'DOCTOR'}
             />
+            {staffRole === 'DOCTOR' && (
+              <p className="text-sm text-gray-500 mt-1">
+                Login credentials will be sent to this email
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Password (for staff login)</label>

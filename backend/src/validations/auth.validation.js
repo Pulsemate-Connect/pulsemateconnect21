@@ -377,6 +377,24 @@ const firebasePhoneLoginSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
 });
 
+/**
+ * POST /api/auth/clinic-owner/verify-firebase-phone
+ * Accepts the Firebase ID token obtained after the clinic owner verifies their
+ * phone number via Firebase Phone Auth on the frontend.
+ */
+const clinicOwnerFirebasePhoneVerifySchema = z.object({
+  firebaseIdToken: z.string().trim().min(10, 'Firebase ID token is required'),
+});
+
+/**
+ * POST /api/auth/doctor/verify-firebase-phone
+ * Accepts the Firebase ID token obtained after the doctor verifies their
+ * phone number via Firebase Phone Auth on the frontend.
+ */
+const doctorFirebasePhoneVerifySchema = z.object({
+  firebaseIdToken: z.string().trim().min(10, 'Firebase ID token is required'),
+});
+
 const validateRequest = (schema) => (req, res, next) => {
   const parsed = schema.safeParse(req.body);
 
@@ -431,6 +449,8 @@ module.exports = {
   adminCreateSchema,
   approvalSchema,
   firebasePhoneLoginSchema,
+  clinicOwnerFirebasePhoneVerifySchema,
+  doctorFirebasePhoneVerifySchema,
   validateRequest,
   validateQuery,
 };
