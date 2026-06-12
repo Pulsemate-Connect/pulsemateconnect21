@@ -20,10 +20,11 @@ const {
   logoutHandler,
   logoutAllHandler,
   getMeHandler,
+  firebasePhoneLoginHandler,
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
-const { otpSendLimiter, otpVerifyLimiter, loginLimiter, forgotPasswordLimiter, emailVerificationSendLimiter, emailVerificationVerifyLimiter, resetPasswordLimiter } = require('../middleware/rateLimit.middleware');
+const { otpSendLimiter, otpVerifyLimiter, loginLimiter, forgotPasswordLimiter, emailVerificationSendLimiter, emailVerificationVerifyLimiter, resetPasswordLimiter, firebasePhoneLoginLimiter } = require('../middleware/rateLimit.middleware');
 const {
   patientSendOtpSchema,
   patientVerifyOtpSchema,
@@ -40,6 +41,7 @@ const {
   verifyResetTokenSchema,
   createReceptionistSchema,
   adminCreateSchema,
+  firebasePhoneLoginSchema,
   validateRequest,
   validateQuery,
 } = require('../validations/auth.validation');
@@ -93,5 +95,16 @@ router.post(
 router.post('/send-otp', otpSendLimiter, validateRequest(patientSendOtpSchema), patientSendOtpHandler);
 router.post('/verify-otp', otpVerifyLimiter, validateRequest(patientVerifyOtpSchema), patientVerifyOtpHandler);
 router.post('/login-password', loginLimiter, validateRequest(commonLoginSchema), loginHandler);
+
+// ── Firebase Phone Auth — User/Patient login & register ───────────────────────
+// This is the primary login flow for patients on the mobile app.
+// The frontend verifies OTP via Firebase, then sends the Firebase ID token here.
+// Backend verifies the token, extracts the phone number, and issues our JWT.
+router.post(
+  '/user/firebase-phone-login',
+  firebasePhoneLoginLimiter,
+  validateRequest(firebasePhoneLoginSchema),
+  firebasePhoneLoginHandler
+);
 
 module.exports = router;

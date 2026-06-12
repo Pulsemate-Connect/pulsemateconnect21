@@ -25,6 +25,10 @@ model User {
   isPhoneVerified      Boolean               @default(false)
   freeBookingUsed      Boolean               @default(false)
   freeBookingUsedAt    DateTime?
+  /// Firebase UID from Firebase Phone Auth (patients only)
+  firebaseUid          String?               @unique
+  /// Auth provider used — e.g. FIREBASE_PHONE, EMAIL_PASSWORD (staff)
+  authProvider         String?
   createdAdmins        AdminProfile[]        @relation("AdminCreator")
   adminProfile         AdminProfile?
   appointments         Appointment[]         @relation("PatientAppointments")

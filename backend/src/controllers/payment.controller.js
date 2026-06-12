@@ -160,6 +160,9 @@ const initiatePayment = async (req, res, next) => {
     }
 
     // ── Duplicate booking guard ────────────────────────────────────────────
+    // Ignore PENDING_PAYMENT appointments older than 30 minutes — those are
+    // abandoned/failed payment sessions. Only block on active confirmed ones.
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
     const existingBooking = await prisma.appointment.findFirst({
       where: {
         patientId,
@@ -169,7 +172,12 @@ const initiatePayment = async (req, res, next) => {
           gte: new Date(new Date(appointmentDate).setHours(0, 0, 0, 0)),
           lte: new Date(new Date(appointmentDate).setHours(23, 59, 59, 999)),
         },
-        status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
+        OR: [
+          // Confirmed/active bookings — always block
+          { status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] } },
+          // Recent PENDING_PAYMENT (within 30 min) — block to prevent double-tap
+          { status: 'PENDING_PAYMENT', createdAt: { gte: thirtyMinsAgo } },
+        ],
       },
     });
     if (existingBooking) {
@@ -183,7 +191,7 @@ const initiatePayment = async (req, res, next) => {
     });
     if (!patientUser) return sendError(res, 'Patient not found', 404);
 
-    const isFree = !patientUser.freeBookingUsed;
+    const isFree = !patientUser.freeBookingUsed && !req.body._forcePaid;
 
     // ═════════════════════════════════════════════════════════════════════
     // PATH A — FREE FIRST BOOKING

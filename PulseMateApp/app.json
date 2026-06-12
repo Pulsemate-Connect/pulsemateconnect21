@@ -49,7 +49,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://generic-example-shale.ngrok-free.dev/api",
+      "apiUrl": "http://10.124.55.205:5000/api",
       "apiUrlProd": "https://generic-example-shale.ngrok-free.dev/api"
     }
   }

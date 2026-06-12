@@ -30,6 +30,10 @@ api.interceptors.request.use(async (config) => {
     const token = await SecureStore.getItemAsync('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   } catch { }
+  // Log every request URL in dev to help debug 404s
+  if (__DEV__) {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+  }
   return config;
 });
 

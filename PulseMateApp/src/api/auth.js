@@ -11,6 +11,18 @@ export const markAllNotificationsRead = () => api.patch('/notifications/read-all
 export const registerFcmToken = (token, platform = 'android') => api.post('/notifications/fcm-token', { token, platform });
 export const removeFcmToken = (token) => api.delete('/notifications/fcm-token', { data: { token } });
 
+/**
+ * Firebase Phone Auth login / register.
+ *
+ * Called AFTER the user successfully verifies their phone OTP via Firebase on the client.
+ * Sends the Firebase ID token to the backend which verifies it and returns our app JWT.
+ *
+ * @param {string} firebaseIdToken - ID token from Firebase after confirmationResult.confirm(code)
+ * @param {string} [name] - Optional: user's name (only used when creating a new account)
+ */
+export const firebasePhoneLogin = (firebaseIdToken, name) =>
+  api.post('/auth/user/firebase-phone-login', { firebaseIdToken, ...(name ? { name } : {}) });
+
 // ── Admin campaign inbox (in-app notifications sent by admin) ─────────────────
 export const getInboxNotifications = (params) => api.get('/notifications/inbox', { params });
 export const markInboxRead = (id) => api.patch(`/notifications/inbox/${id}/read`);

@@ -5,6 +5,11 @@ export const sendOtp = (phone) => api.post('/auth/patient/send-otp', { phone });
 export const verifyOtp = (phone, otp, name = undefined) =>
   api.post('/auth/patient/verify-otp', { phone, otp, name });
 
+// ── Firebase Phone Auth login (new patient login flow) ────────────────────────
+// After Firebase verifies the OTP, send the Firebase ID token to our backend.
+export const firebasePhoneLogin = (firebaseIdToken, name = undefined) =>
+  api.post('/auth/user/firebase-phone-login', { firebaseIdToken, ...(name ? { name } : {}) });
+
 export const sendClinicOwnerOtp = (phone) => api.post('/auth/clinic-owner/send-otp', { phone });
 
 export const verifyClinicOwnerOtp = (phone, otp) => api.post('/auth/clinic-owner/verify-otp', { phone, otp });

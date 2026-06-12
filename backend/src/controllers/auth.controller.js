@@ -27,6 +27,7 @@ const {
   sendEmailVerification,
   verifyEmailVerificationToken,
 } = require('../services/email-verification.service');
+const { verifyFirebaseToken } = require('../config/firebase');
 
 const buildFileUrl = (req, fileName) => `/uploads/clinic-owner/${fileName}`;
 
@@ -974,6 +975,138 @@ const lookupPincodeHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/user/firebase-phone-login
+ *
+ * Patient-only Firebase Phone Auth login / register.
+ *
+ * Flow:
+ *  1. Mobile app uses Firebase Phone Auth to send OTP and verify it.
+ *  2. After confirmation, app gets a Firebase ID token and sends it here.
+ *  3. Backend verifies the token using Firebase Admin SDK.
+ *  4. Extracts the phone_number from the decoded token (trusted source).
+ *  5. Normalizes the phone number to E.164 / +91XXXXXXXXXX format.
+ *  6. Looks up the user by mobile number.
+ *  7. If user exists → logs them in, updates lastLoginAt + firebaseUid.
+ *  8. If user does not exist → creates a new PATIENT account.
+ *  9. Returns our app JWT access token + user profile.
+ *
+ * Security notes:
+ *  - Mobile number is NEVER taken directly from the request body.
+ *    It is always extracted from the Firebase-verified token.
+ *  - firebaseUid is stored and kept in sync for audit purposes.
+ */
+const firebasePhoneLoginHandler = async (req, res, next) => {
+  try {
+    const { firebaseIdToken, name } = req.body;
+
+    // ── 1. Verify Firebase ID token ───────────────────────────────────────
+    let decoded;
+    try {
+      decoded = await verifyFirebaseToken(firebaseIdToken);
+    } catch (firebaseError) {
+      // Distinguish configuration errors from bad tokens
+      if (firebaseError.status === 503) {
+        return sendError(res, 'Firebase Auth is not configured on this server. Contact support.', 503);
+      }
+      return sendError(res, 'Invalid or expired Firebase token. Please try again.', 401);
+    }
+
+    // ── 2. Extract & validate phone number from trusted Firebase token ────
+    const rawPhone = decoded.phone_number;
+    if (!rawPhone) {
+      return sendError(res, 'No phone number found in Firebase token. Use Phone Auth provider.', 400);
+    }
+
+    // Normalize to E.164 (+91XXXXXXXXXX for Indian numbers)
+    const mobile = normalizeMobileNumber(rawPhone);
+    if (!mobile || !/^\+[1-9]\d{9,14}$/.test(mobile)) {
+      return sendError(res, 'Invalid phone number format in Firebase token.', 400);
+    }
+
+    const firebaseUid = decoded.uid;
+
+    // ── 3. Find or create patient user ─────────────────────────────────────
+    let user = await prisma.user.findUnique({
+      where: { mobile },
+      include: baseUserInclude,
+    });
+
+    let isNewUser = false;
+
+    if (!user) {
+      // ── 3a. New user — create PATIENT account ────────────────────────────
+      user = await prisma.user.create({
+        data: {
+          mobile,
+          name: name || null,
+          role: 'PATIENT',
+          approvalStatus: 'VERIFIED',
+          isPhoneVerified: true,
+          firebaseUid,
+          authProvider: 'FIREBASE_PHONE',
+          patientProfile: { create: {} },
+        },
+        include: baseUserInclude,
+      });
+      isNewUser = true;
+    } else {
+      // ── 3b. Existing user — safety checks ────────────────────────────────
+      if (user.role !== 'PATIENT') {
+        return sendError(
+          res,
+          'This phone number belongs to a staff account. Use the staff login portal.',
+          403
+        );
+      }
+
+      if (!user.isActive) {
+        return sendError(res, 'Your account has been disabled. Please contact support.', 403);
+      }
+
+      if (user.approvalStatus === 'SUSPENDED') {
+        return sendError(res, user.suspendedReason || 'Your account is suspended.', 403);
+      }
+
+      // ── 3c. Update lastLoginAt + sync firebaseUid if needed ──────────────
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isPhoneVerified: true,
+          lastLoginAt: new Date(),
+          authProvider: 'FIREBASE_PHONE',
+          ...(user.firebaseUid !== firebaseUid ? { firebaseUid } : {}),
+          ...(name && !user.name ? { name } : {}),
+        },
+        include: baseUserInclude,
+      });
+    }
+
+    // ── 4. Issue our app JWT ───────────────────────────────────────────────
+    const tokens = await issueAuthTokens(res, user, req);
+
+    await createAuditLog({
+      userId: user.id,
+      action: isNewUser ? 'PATIENT_REGISTERED_FIREBASE' : 'PATIENT_LOGIN_FIREBASE',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+      metadata: { provider: 'FIREBASE_PHONE' },
+    });
+
+    return sendSuccess(
+      res,
+      {
+        accessToken: tokens.accessToken,
+        user: { ...toAuthUser(user), isNewUser },
+      },
+      isNewUser ? 'Account created successfully' : 'Login successful'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 const sendOtpHandler = patientSendOtpHandler;
 const verifyOtpHandler = patientVerifyOtpHandler;
 const loginPasswordHandler = loginHandler;
@@ -1008,4 +1141,5 @@ module.exports = {
   sendOtpHandler,
   verifyOtpHandler,
   loginPasswordHandler,
+  firebasePhoneLoginHandler,
 };

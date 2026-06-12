@@ -367,6 +367,16 @@ const approvalSchema = z.object({
   rejectionReason: z.string().trim().min(3).max(255).optional(),
 });
 
+/**
+ * POST /api/auth/user/firebase-phone-login
+ * Accepts the Firebase ID token obtained after phone OTP verification on the client.
+ * Name is optional — captured on first login to personalise the account.
+ */
+const firebasePhoneLoginSchema = z.object({
+  firebaseIdToken: z.string().trim().min(10, 'Firebase ID token is required'),
+  name: z.string().trim().min(2).max(120).optional(),
+});
+
 const validateRequest = (schema) => (req, res, next) => {
   const parsed = schema.safeParse(req.body);
 
@@ -420,6 +430,7 @@ module.exports = {
   createReceptionistSchema,
   adminCreateSchema,
   approvalSchema,
+  firebasePhoneLoginSchema,
   validateRequest,
   validateQuery,
 };

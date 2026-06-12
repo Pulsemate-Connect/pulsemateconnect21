@@ -57,6 +57,17 @@ const resetPasswordLimiter = createLimiter({
   message: 'Too many password reset attempts. Please try again later.',
 });
 
+/**
+ * Rate limiter for POST /api/auth/user/firebase-phone-login.
+ * Stricter than the old OTP verify limiter since the Firebase token is
+ * already time-limited (1 hour), so we only need to prevent bulk abuse.
+ */
+const firebasePhoneLoginLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many login attempts. Please try again later.',
+});
+
 module.exports = {
   otpSendLimiter,
   otpVerifyLimiter,
@@ -65,4 +76,5 @@ module.exports = {
   emailVerificationSendLimiter,
   emailVerificationVerifyLimiter,
   resetPasswordLimiter,
+  firebasePhoneLoginLimiter,
 };

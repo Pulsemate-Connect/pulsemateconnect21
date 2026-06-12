@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { sendOtp, verifyOtp } from '../../api/auth.api';
+import { firebasePhoneLogin } from '../../api/auth.api';
+import { sendOtpToPhone, verifyPhoneOtp } from '../../api/firebaseAuth';
 import useAuthStore from '../../store/authStore';
 
 /* ── tiny SVG icons ─────────────────────────────────────────────────────── */
@@ -134,12 +135,13 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [devOtp, setDevOtp] = useState('');
+  const [sessionInfo, setSessionInfo] = useState(''); // Firebase sessionInfo token
 
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
   const startCountdown = () => {
-    setCountdown(30);
+    setCountdown(60);
     const timer = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) { clearInterval(timer); return 0; }
@@ -148,18 +150,28 @@ const LoginPage = () => {
     }, 1000);
   };
 
+  // Normalise to E.164 +91XXXXXXXXXX
+  const normalisePhone = (raw) => {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10) return `+91${digits}`;
+    if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+    if (raw.trim().startsWith('+')) return raw.trim();
+    return `+91${digits}`;
+  };
+
   const handleSendOtp = async (e) => {
     e?.preventDefault();
     if (!mobile.trim()) return toast.error('Enter your mobile number');
     setIsLoading(true);
     try {
-      const res = await sendOtp(mobile);
+      const phone = normalisePhone(mobile);
+      const session = await sendOtpToPhone(phone);
+      setSessionInfo(session);
       setStep(2);
       startCountdown();
-      if (res.data.data?.devOtp) setDevOtp(res.data.data.devOtp);
-      toast.success('OTP sent successfully');
+      toast.success('OTP sent via Firebase');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send OTP');
+      toast.error(err.message || 'Failed to send OTP');
     } finally {
       setIsLoading(false);
     }
@@ -168,9 +180,13 @@ const LoginPage = () => {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
+    if (!sessionInfo) return toast.error('Session expired. Please resend OTP.');
     setIsLoading(true);
     try {
-      const res = await verifyOtp(mobile, otp);
+      // Step 1: verify OTP with Firebase
+      const firebaseIdToken = await verifyPhoneOtp(sessionInfo, otp);
+      // Step 2: send Firebase ID token to our backend
+      const res = await firebasePhoneLogin(firebaseIdToken);
       const { accessToken, user } = res.data.data;
       setStep(3);
       setTimeout(() => {
@@ -178,7 +194,7 @@ const LoginPage = () => {
         navigate('/patient/home');
       }, 600);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid OTP');
+      toast.error(err.response?.data?.message || err.message || 'Invalid OTP');
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +307,7 @@ const LoginPage = () => {
                 <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <IconCheck />
                 </div>
-                <p className="text-[11px] text-green-600 font-medium">No password needed — OTP only</p>
+                <p className="text-[11px] text-green-600 font-medium">Verified by Firebase — no password needed</p>
               </div>
 
               {/* CTA */}
@@ -327,13 +343,7 @@ const LoginPage = () => {
                 </button>
               </div>
 
-              {/* Dev OTP hint */}
-              {devOtp && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
-                  <p className="text-[10px] text-amber-600 font-semibold">Dev OTP (auto-filled in dev mode)</p>
-                  <p className="text-2xl font-black text-amber-800 tracking-[0.3em] mt-0.5">{devOtp}</p>
-                </div>
-              )}
+              {/* Dev OTP hint — removed: Firebase handles OTP directly */}
 
               {/* OTP input */}
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">Enter 6-digit OTP</label>

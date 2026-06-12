@@ -209,7 +209,7 @@ export default function BookingScreen({ route, navigation }) {
   const [success,         setSuccess]         = useState(false);
   const [bookedAppt,      setBookedAppt]      = useState(null);
   const [symFocused,      setSymFocused]      = useState(false);
-  const [isFreeBooking,   setIsFreeBooking]   = useState(false); // true = first booking, no payment needed
+  const [isFreeBooking,   setIsFreeBooking]   = useState(false);
 
   // ── Dynamic slots ──────────────────────────────────────────────────────────
   const [slots,        setSlots]        = useState([]);   // [{time, label, available, booked, past}]
@@ -231,6 +231,21 @@ export default function BookingScreen({ route, navigation }) {
 
   useFocusEffect(
     useCallback(() => {
+      // ── Handle payment result returned from RazorpayScreen ────────────────
+      // RazorpayScreen cannot pass a callback function via nav params (they get
+      // serialized/dropped by React Navigation). Instead it navigates back here
+      // with paymentResult param. We read it here and show the success overlay.
+      const paymentResult = route.params?.paymentResult;
+      if (paymentResult?.success && paymentResult?.appointment) {
+        setBookedAppt(paymentResult.appointment);
+        setSuccess(true);
+        // Clear the param so it doesn't trigger again on next focus
+        navigation.setParams({ paymentResult: undefined });
+        return; // don't re-fetch profile while showing success
+      }
+
+      // ── Re-fetch fresh data every time screen comes into focus ────────────
+      // Ensures isFreeBooking is accurate after a booking is made.
       const check = async () => {
         try {
           const [profileRes, statusRes] = await Promise.all([
@@ -243,7 +258,7 @@ export default function BookingScreen({ route, navigation }) {
           const complete = !!(u?.name && pp?.gender && pp?.emergencyContact);
           setProfileComplete(complete);
 
-          // Set free booking eligibility from server
+          // Always sync free booking status from server — never rely on stale local state
           const status = statusRes?.data?.data;
           if (status) {
             setIsFreeBooking(!status.freeBookingUsed);
@@ -251,7 +266,7 @@ export default function BookingScreen({ route, navigation }) {
         } catch {}
       };
       check();
-    }, [])
+    }, [route.params?.paymentResult])
   );
 
   // ── Fetch available slots whenever date changes ────────────────────────────
@@ -320,15 +335,21 @@ export default function BookingScreen({ route, navigation }) {
       const { appointmentId, order, devMode, isFree, appointment: freeAppt } = initRes.data.data;
 
       // ── FREE BOOKING PATH (first booking — no payment needed) ──────────────
+      // Always trust the SERVER response for isFree, never the local state.
       if (isFree) {
+        // Mark free booking as used in local state so UI updates immediately
+        setIsFreeBooking(false);
         setBookedAppt(freeAppt || { queueNumber: null });
         setSuccess(true);
         return;
       }
 
-      // ── PAID BOOKING PATH ──────────────────────────────────────────────────
+      // ── PAID BOOKING PATH (₹10 platform fee) ──────────────────────────────
+      // Server returned isFree: false — charge ₹10 via Razorpay.
+      // This runs for ALL bookings after the first, regardless of local state.
+
       if (devMode || order?.id?.startsWith('order_dev_')) {
-        // Dev mode — auto-verify without real payment
+        // Dev mode (no Razorpay keys) — auto-verify without real payment
         const verifyRes = await verifyPayment({
           appointmentId,
           razorpayOrderId:   order.id,
@@ -338,7 +359,9 @@ export default function BookingScreen({ route, navigation }) {
         setBookedAppt(verifyRes.data.data.appointment);
         setSuccess(true);
       } else {
-        // Live Razorpay — open WebView payment screen
+        // Live Razorpay — open WebView payment screen.
+        // Result is returned back to this screen via navigation.navigate('Booking', { paymentResult })
+        // which is picked up by useFocusEffect above.
         setLoading(false);
         navigation.navigate('Razorpay', {
           appointmentId,
@@ -350,15 +373,12 @@ export default function BookingScreen({ route, navigation }) {
           patientName:   patient?.name || '',
           patientEmail:  patient?.email || '',
           patientMobile: patient?.mobile || '',
-          onSuccess: (confirmedAppt) => {
-            setBookedAppt(confirmedAppt);
-            setSuccess(true);
-          },
         });
         return; // loading already set false above
       }
     } catch (err) {
-      Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
+      const msg = err.response?.data?.message || 'Please try again.';
+      Alert.alert('Booking Failed', msg);
     } finally {
       setLoading(false);
     }

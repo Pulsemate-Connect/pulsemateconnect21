@@ -1,7 +1,12 @@
 /**
  * Firebase Admin SDK initializer.
- * Uses FIREBASE_SERVICE_ACCOUNT_JSON env var (single-line JSON string).
- * Falls back to console-only logging if config is missing.
+ *
+ * Uses FIREBASE_SERVICE_ACCOUNT_JSON env var (single-line minified JSON string).
+ * Falls back to console-only logging / graceful no-op when the env var is missing.
+ *
+ * Responsibilities:
+ *  1. FCM push notifications (existing)
+ *  2. Firebase Phone Auth token verification (new — for patient login)
  */
 const logger = require('./logger');
 
@@ -14,7 +19,10 @@ const initFirebase = () => {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
   if (!serviceAccountJson) {
-    logger.warn('Firebase not configured: FIREBASE_SERVICE_ACCOUNT_JSON is missing. Push notifications will be skipped.');
+    logger.warn(
+      'Firebase not configured: FIREBASE_SERVICE_ACCOUNT_JSON is missing. ' +
+      'Push notifications and Firebase Phone Auth will be unavailable.'
+    );
     isInitialized = true;
     return null;
   }
@@ -53,4 +61,27 @@ const isFirebaseReady = () => {
   return adminApp !== null;
 };
 
-module.exports = { initFirebase, getFirebaseAdmin, isFirebaseReady };
+/**
+ * Verify a Firebase ID token (e.g. from Firebase Phone Auth on the mobile app).
+ *
+ * @param {string} idToken - Firebase ID token sent from the mobile app after
+ *                           confirmationResult.confirm(code).
+ * @returns {Promise<import('firebase-admin').auth.DecodedIdToken>} decoded token payload.
+ * @throws Error if Firebase Admin is not configured or the token is invalid.
+ */
+const verifyFirebaseToken = async (idToken) => {
+  const app = getFirebaseAdmin();
+  if (!app) {
+    const err = new Error('Firebase Admin SDK is not configured on this server.');
+    err.status = 503;
+    throw err;
+  }
+
+  const admin = require('firebase-admin');
+  // checkRevoked: false — revocation check requires an extra network round-trip;
+  // fine to skip for phone auth since tokens are short-lived (1 hour).
+  const decoded = await admin.auth().verifyIdToken(idToken, false);
+  return decoded;
+};
+
+module.exports = { initFirebase, getFirebaseAdmin, isFirebaseReady, verifyFirebaseToken };
