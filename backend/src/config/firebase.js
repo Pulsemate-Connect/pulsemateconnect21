@@ -36,9 +36,23 @@ const initFirebase = () => {
       return adminApp;
     }
 
-    // Render sometimes double-escapes \n in env vars — fix it
-    const fixedJson = serviceAccountJson.replace(/\\n/g, '\n');
-    const serviceAccount = JSON.parse(fixedJson);
+    let serviceAccount;
+    try {
+      // Try direct parse first
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } catch (parseErr) {
+      // Render sometimes wraps value in extra quotes or escapes \n as \\n
+      // Try fixing escaped newlines in private key
+      const fixed = serviceAccountJson
+        .replace(/\\\\n/g, '\\n')   // \\n → \n
+        .replace(/\\n/g, '\n');     // \n  → actual newline (for non-JSON key format)
+      serviceAccount = JSON.parse(fixed);
+    }
+
+    // Ensure private_key has real newlines (not escaped)
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
 
     adminApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -49,6 +63,7 @@ const initFirebase = () => {
     return adminApp;
   } catch (error) {
     logger.error('Firebase initialization failed:', error.message);
+    logger.error('Firebase error stack:', error.stack);
     isInitialized = true;
     return null;
   }
