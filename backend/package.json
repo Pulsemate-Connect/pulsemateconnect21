@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
-    "build": "npx prisma generate",
+    "build": "node scripts/resolve-failed-migration.js && npx prisma generate && npx prisma migrate deploy",
     "postinstall": "npx prisma generate",
     "test": "jest",
     "test:coverage": "jest --coverage",
