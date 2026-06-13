@@ -179,7 +179,7 @@ async function main() {
     },
   });
 
-  // ── Clinic Staff ────────────────────────────────────────────────────────────
+  // ── Clinic Staff + DoctorClinics ───────────────────────────────────────────
   console.log('Linking staff to clinic...');
 
   const staffToAdd = [
@@ -202,6 +202,57 @@ async function main() {
       await prisma.clinicStaff.create({
         data: { clinicId: clinic.id, userId: staff.userId, role: staff.role },
       });
+    }
+  }
+
+  // ── DoctorClinics (required for marketplace visibility) ────────────────────
+  console.log('Linking doctors to clinic (doctorClinics)...');
+
+  if (poojaFull?.doctorProfile) {
+    const exists = await prisma.doctorClinic.findFirst({
+      where: { doctorId: poojaFull.doctorProfile.id, clinicId: clinic.id },
+    });
+    if (!exists) {
+      await prisma.doctorClinic.create({
+        data: {
+          doctorId: poojaFull.doctorProfile.id,
+          clinicId: clinic.id,
+          inviteStatus: 'ACCEPTED',
+          consultationFee: 600,
+          availableDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+          startTime: '09:00',
+          endTime: '18:00',
+          avgConsultationMins: 25,
+          joinedAt: new Date(),
+        },
+      });
+      console.log('  ✅ Linked: Pooja → Spine Clinic');
+    } else {
+      console.log('  ✓ Already linked: Pooja → Spine Clinic');
+    }
+  }
+
+  if (arjunFull?.doctorProfile) {
+    const exists = await prisma.doctorClinic.findFirst({
+      where: { doctorId: arjunFull.doctorProfile.id, clinicId: clinic.id },
+    });
+    if (!exists) {
+      await prisma.doctorClinic.create({
+        data: {
+          doctorId: arjunFull.doctorProfile.id,
+          clinicId: clinic.id,
+          inviteStatus: 'ACCEPTED',
+          consultationFee: 600,
+          availableDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+          startTime: '10:00',
+          endTime: '19:00',
+          avgConsultationMins: 30,
+          joinedAt: new Date(),
+        },
+      });
+      console.log('  ✅ Linked: Arjun → Spine Clinic');
+    } else {
+      console.log('  ✓ Already linked: Arjun → Spine Clinic');
     }
   }
 
