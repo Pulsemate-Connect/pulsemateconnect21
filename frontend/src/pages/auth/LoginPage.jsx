@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { firebasePhoneLogin } from '../../api/auth.api';
 import { initRecaptcha, sendOtpToPhone, verifyPhoneOtp, clearRecaptcha, forceResetRecaptcha } from '../../api/firebaseAuth';
 import useAuthStore from '../../store/authStore';
+import PulsemateLogo from '../../components/PulsemateLogo';
 
 /* ── tiny SVG icons ─────────────────────────────────────────────────────── */
 const IconCalendar = () => (
@@ -207,13 +208,7 @@ const LoginPage = () => {
 
         {/* Top bar */}
         <div className="flex items-start justify-between mb-5">
-          <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center border border-blue-100">
-            <svg viewBox="0 0 40 40" className="w-9 h-9">
-              <rect width="40" height="40" rx="10" fill="#EFF6FF" />
-              <path d="M20 8 L20 32 M8 20 L32 20" stroke="#2563EB" strokeWidth="4" strokeLinecap="round" />
-              <path d="M12 14 Q20 6 28 14 Q36 22 28 30 Q20 38 12 30 Q4 22 12 14Z" fill="none" stroke="#10B981" strokeWidth="2" />
-            </svg>
-          </div>
+          <PulsemateLogo size="md" theme="light" showTagline={false} />
           <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-2 shadow-sm border border-green-100">
             <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
               <IconShield />
@@ -228,9 +223,9 @@ const LoginPage = () => {
         {/* Headline */}
         <div className="text-center mb-4">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            PulseMate <span className="text-blue-600">Connect</span>
+            Healthcare Platform
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Healthcare Platform</p>
+          <p className="text-sm text-gray-500 mt-0.5">Book · Track · Connect</p>
         </div>
 
         {/* Feature chips */}

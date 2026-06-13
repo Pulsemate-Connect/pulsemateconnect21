@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 import { firebasePhoneLogin } from '../../api/auth.api';
 import { initRecaptcha, sendOtpToPhone, verifyPhoneOtp, clearRecaptcha, forceResetRecaptcha } from '../../api/firebaseAuth';
 import useAuthStore from '../../store/authStore';
+import PulsemateLogo from '../../components/PulsemateLogo';
 
 /* ── Spinner ──────────────────────────────────────────────────────────────── */
 const Spinner = () => (
@@ -129,18 +130,12 @@ const RegisterPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
       {/* Invisible reCAPTCHA container — MUST always be in DOM */}
-      <div id={recaptchaContainerId} style={{ position: 'absolute', bottom: 0, opacity: 0, pointerEvents: 'none' }} />      <div className="w-full max-w-sm">
+      <div id={recaptchaContainerId} style={{ position: 'absolute', bottom: 0, opacity: 0, pointerEvents: 'none' }} />
+      <div className="w-full max-w-sm">
 
         {/* Logo */}
         <div className="flex justify-center mb-6">
-          <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center border border-blue-100">
-            <svg viewBox="0 0 40 40" className="w-9 h-9">
-              <rect width="40" height="40" rx="10" fill="#EFF6FF" />
-              <path d="M20 8 L20 32 M8 20 L32 20" stroke="#2563EB" strokeWidth="4" strokeLinecap="round" />
-              <path d="M12 14 Q20 6 28 14 Q36 22 28 30 Q20 38 12 30 Q4 22 12 14Z"
-                fill="none" stroke="#10B981" strokeWidth="2" />
-            </svg>
-          </div>
+          <PulsemateLogo size="lg" theme="light" showTagline={true} />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-7">
