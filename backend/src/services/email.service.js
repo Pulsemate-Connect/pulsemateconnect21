@@ -164,7 +164,8 @@ const logEmail = (subject, email, body) => {
 };
 
 const sendPasswordResetEmail = async (userEmail, resetLink, userName) => {
-  const body = [
+  const subject = 'Reset your PulseMate password';
+  const text = [
     `Hello ${userName || 'there'},`,
     '',
     'We received a request to reset your PulseMate account password.',
@@ -176,18 +177,28 @@ const sendPasswordResetEmail = async (userEmail, resetLink, userName) => {
     '',
     'If you did not request this password reset, you can safely ignore this email.',
     '',
-    'For security, never share this link with anyone.',
-    '',
     'Thanks,',
     'PulseMate Team',
   ].join('\n');
 
-  logEmail('Reset your PulseMate password', userEmail, body);
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:500px">
+      <p>Hello ${userName || 'there'},</p>
+      <p>We received a request to reset your PulseMate account password.</p>
+      <p><a href="${resetLink}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:700">Reset Password</a></p>
+      <p style="color:#64748b;font-size:13px">This link will expire in 15 minutes.</p>
+      <p style="color:#64748b;font-size:13px">If you did not request this, you can safely ignore this email.</p>
+      <p style="color:#64748b;font-size:13px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
   return true;
 };
 
 const sendPasswordChangedEmail = async (userEmail, userName) => {
-  const body = [
+  const subject = 'Your PulseMate password was changed';
+  const text = [
     `Hello ${userName || 'there'},`,
     '',
     'Your PulseMate account password was successfully changed.',
@@ -200,12 +211,23 @@ const sendPasswordChangedEmail = async (userEmail, userName) => {
     'PulseMate Team',
   ].join('\n');
 
-  logEmail('Your PulseMate password was changed', userEmail, body);
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:500px">
+      <p>Hello ${userName || 'there'},</p>
+      <p>Your PulseMate account password was <strong>successfully changed</strong>.</p>
+      <p>If this was you, no action is needed.</p>
+      <p style="color:#dc2626">If this was not you, contact support immediately.</p>
+      <p style="color:#64748b;font-size:13px">Thanks,<br>PulseMate Team</p>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
   return true;
 };
 
 const sendSuperAdminPasswordChangedSecurityEmail = async (userEmail, userName) => {
-  const body = [
+  const subject = 'Security Alert: PulseMate Super Admin Password Changed';
+  const text = [
     `Hello ${userName || 'there'},`,
     '',
     'Your PulseMate Super Admin password was successfully changed.',
@@ -216,12 +238,22 @@ const sendSuperAdminPasswordChangedSecurityEmail = async (userEmail, userName) =
     'PulseMate Security Team',
   ].join('\n');
 
-  logEmail('Security Alert: PulseMate Super Admin Password Reset', userEmail, body);
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:500px">
+      <p>Hello ${userName || 'there'},</p>
+      <p>🔐 Your PulseMate <strong>Super Admin</strong> password was successfully changed.</p>
+      <p style="color:#dc2626;font-weight:700">If this was not you, contact the technical owner immediately.</p>
+      <p style="color:#64748b;font-size:13px">Thanks,<br>PulseMate Security Team</p>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
   return true;
 };
 
 const sendSuperAdminResetEmail = async (userEmail, resetLink, userName) => {
-  const body = [
+  const subject = 'Security Alert: PulseMate Super Admin Password Reset';
+  const text = [
     `Hello ${userName || 'there'},`,
     '',
     'A password reset was requested for your PulseMate Super Admin account.',
@@ -237,7 +269,18 @@ const sendSuperAdminResetEmail = async (userEmail, resetLink, userName) => {
     'PulseMate Security Team',
   ].join('\n');
 
-  logEmail('Security Alert: PulseMate Super Admin Password Reset', userEmail, body);
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:500px">
+      <p>Hello ${userName || 'there'},</p>
+      <p>🔐 A password reset was requested for your PulseMate <strong>Super Admin</strong> account.</p>
+      <p><a href="${resetLink}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:700">Reset Super Admin Password</a></p>
+      <p style="color:#64748b;font-size:13px">This link will expire in 10 minutes.</p>
+      <p style="color:#dc2626;font-size:13px;font-weight:700">If this was not you, contact the technical owner immediately.</p>
+      <p style="color:#64748b;font-size:13px">Thanks,<br>PulseMate Security Team</p>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: userEmail, subject, text, html });
+  if (!sent) logEmail(subject, userEmail, text);
   return true;
 };
 

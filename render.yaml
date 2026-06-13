@@ -32,9 +32,9 @@ services:
       - key: EMAIL_PROVIDER
         value: resend
       - key: RESEND_API_KEY
-        sync: false   # set manually in Render dashboard
+        value: re_2oxctpxu_BjKVw8qJpPTHFyEVMBGajtii
       - key: RESEND_FROM_EMAIL
-        value: onboarding@resend.dev
+        value: PulseMate <onboarding@resend.dev>
       - key: SMS_PROVIDER
         value: mock
       - key: OTP_PROVIDER
