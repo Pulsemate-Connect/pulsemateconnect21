@@ -1,329 +1,346 @@
-# PulseMate — Healthcare Appointment & Live Queue Platform
+# 🏥 PulseMate Connect
 
-Production-style MVP with role-based access, OTP auth, real-time queue, push notifications, admin campaigns, and full clinic workflow.
-
----
-
-## ✅ What's Built
-
-| Module | Status |
-|--------|--------|
-| OTP Auth — SMS via 2Factor / MSG91 / Twilio | ✅ Done |
-| WhatsApp OTP (alongside SMS) | ✅ Done |
-| JWT access + refresh token rotation | ✅ Done |
-| HttpOnly cookie session | ✅ Done |
-| Role-based route protection | ✅ Done |
-| Super Admin panel | ✅ Done |
-| Clinic Owner dashboard | ✅ Done |
-| Doctor dashboard + queue | ✅ Done |
-| Receptionist queue management | ✅ Done |
-| Patient booking + live queue | ✅ Done |
-| Socket.io live queue updates | ✅ Done |
-| Walk-in patient flow | ✅ Done |
-| Admin Notification Campaigns | ✅ Done |
-| Firebase push notifications (FCM) | ✅ Done |
-| In-app notification inbox (mobile) | ✅ Done |
-| Prisma schema + migrations | ✅ Done |
-| Seed data (8 users, 1 clinic) | ✅ Done |
-| Audit logging | ✅ Done |
-| Rate limiting + Helmet security | ✅ Done |
+A full-stack healthcare platform for clinic management, patient appointments, live queue tracking, and Firebase-powered OTP authentication.
 
 ---
 
-## 🚀 Quick Start — Pull & Run
+## 📁 Project Structure
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+ running locally
-
----
-
-### Step 1 — Clone & install
-
-```bash
-git clone https://github.com/Shubham27082/pulsemate.git
-cd pulsemate
-git checkout feature/otp-campaigns-whatsapp
-
-cd backend && npm install
-cd ../frontend && npm install
-cd ../PulseMateApp && npm install
+```
+pulsemateconnect1/
+├── backend/          → Node.js + Express + Prisma (PostgreSQL)
+├── frontend/         → React + Vite + TailwindCSS (Web Panel)
+├── PulseMateApp/     → React Native + Expo (Mobile App)
+├── infra/            → Nginx, Postgres, Prometheus configs
+├── scripts/          → DB backup & migration scripts
+└── docker-compose.yml
 ```
 
 ---
 
-### Step 2 — Configure environment
+## ⚡ Quick Start (Local Development)
+
+### Prerequisites
+
+| Tool | Version | Download |
+|------|---------|----------|
+| Node.js | 20+ | https://nodejs.org |
+| PostgreSQL | 15+ | https://postgresql.org |
+| Git | any | https://git-scm.com |
+| Expo Go (phone) | latest | App Store / Play Store |
+
+---
+
+### 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/Shubham27082/pulsemateconnect21.git
+cd pulsemateconnect21
+```
+
+---
+
+### 2️⃣ Setup Backend
 
 ```bash
 cd backend
-cp .env.example .env
 ```
 
-Open `backend/.env` and set at minimum:
+**Copy and configure environment:**
+```bash
+copy .env.example .env
+```
 
+Edit `.env` — minimum required for local dev:
 ```env
-DATABASE_URL="postgresql://YOUR_USER:YOUR_PASSWORD@localhost:5432/pulsemate_db"
+DATABASE_URL="postgresql://postgres:root@localhost:5432/pulsemate_db"
+JWT_ACCESS_SECRET="any-random-32-char-string-here-dev"
+JWT_REFRESH_SECRET="another-random-32-char-string-dev"
+COOKIE_SECRET="cookie-secret-dev"
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL="http://localhost:3000"
+
+# Email — use console for local dev (prints to terminal)
+EMAIL_PROVIDER=console
+
+# SMS — use mock for local dev (OTP prints to terminal)
+SMS_PROVIDER=mock
+OTP_PROVIDER=mock
 ```
 
-Everything else has safe defaults for local dev:
-- `SMS_PROVIDER=mock` — OTP prints to backend terminal, no SMS account needed
-- `EMAIL_PROVIDER=console` — emails print to terminal
-- Razorpay, Firebase — leave blank, features gracefully degrade
+**Install dependencies:**
+```bash
+npm install
+```
 
----
-
-### Step 3 — Setup database
-
-Create the database in PostgreSQL first:
+**Create the database (in PostgreSQL):**
 ```sql
 CREATE DATABASE pulsemate_db;
 ```
 
-Then run migrations and seed:
+**Run migrations & generate Prisma client:**
 ```bash
-cd backend
 npx prisma generate
 npx prisma migrate deploy
-node prisma/seed.js
 ```
 
-For future schema changes, create a new migration after editing `schema.prisma`:
+**Start the backend:**
 ```bash
-cd backend
-npx prisma migrate dev --name your_change_name
+npm start
 ```
+Backend runs at: **http://localhost:5000**
 
 ---
 
-### Step 4 — Start servers
+### 3️⃣ Setup Frontend (Web Panel)
 
-**Terminal 1 — Backend:**
-```bash
-cd backend
-npm run dev
-# Runs on http://localhost:5000
-```
-
-**Terminal 2 — Frontend:**
 ```bash
 cd frontend
-npm run dev
-# Runs on http://localhost:3000
 ```
 
-**Terminal 3 — Mobile app (optional):**
+**Copy and configure environment:**
+```bash
+copy .env.example .env
+```
+
+Edit `.env`:
+```env
+VITE_API_URL=http://localhost:5000/api
+
+# Firebase (required for patient OTP login)
+VITE_FIREBASE_API_KEY=AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw
+VITE_FIREBASE_AUTH_DOMAIN=pulsemateconnect.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=pulsemateconnect
+VITE_FIREBASE_MESSAGING_SENDER_ID=157620382332
+VITE_FIREBASE_APP_ID=1:157620382332:web:e4156f49d8616a4ee6b7f9
+
+# Razorpay (optional — for payments)
+VITE_RAZORPAY_KEY_ID=rzp_live_Sz5uowTvIY9Mwv
+```
+
+**Install and run:**
+```bash
+npm install
+npm run dev
+```
+Frontend runs at: **http://localhost:3000**
+
+---
+
+### 4️⃣ Setup Mobile App
+
 ```bash
 cd PulseMateApp
-npx expo start
-# Scan QR with Expo Go app on the same WiFi
-# Cross-network (phone on different WiFi/data): npx expo start --tunnel
 ```
 
-Open **http://localhost:3000** in your browser.
+**Install dependencies:**
+```bash
+npm install
+```
+
+**Update API URL** — open `src/api/axios.js` and make sure it points to your machine's IP:
+```js
+// Use your local machine IP, not localhost (phone can't reach localhost)
+const BASE_URL = 'http://192.168.x.x:5000/api';
+```
+
+**Start Expo:**
+```bash
+npx expo start --clear
+```
+
+- Scan QR code with **Expo Go** app on your phone
+- Or press `a` for Android emulator, `i` for iOS simulator
 
 ---
 
-## 🔑 Test Credentials
+## 🔥 Firebase Setup (Required for OTP)
 
-All staff passwords: `Password@123`
+### Web + Mobile use the same Firebase project
 
-| Role | Mobile | Email |
-|------|--------|-------|
-| Super Admin | +919000000001 | admin@pulsemate.com |
-| Clinic Owner | +919000000002 | owner@pulsemate.com |
-| Doctor 1 (Cardiologist) | +919000000003 | doctor1@pulsemate.com |
-| Doctor 2 (General) | +919000000004 | doctor2@pulsemate.com |
-| Receptionist | +919000000005 | reception@pulsemate.com |
-| Patient 1 | +919000000006 | OTP login |
-| Patient 2 | +919000000007 | OTP login |
-| Patient 3 | +919000000008 | OTP login |
+1. Go to **[console.firebase.google.com](https://console.firebase.google.com)**
+2. Select project: **`pulsemateconnect`**
+3. **Authentication** → **Sign-in method** → Enable **Phone**
+4. **Authentication** → **Settings** → **Authorized domains** → Add:
+   - `localhost`
+   - `127.0.0.1`
+   - Your Render URL (for production)
 
-> **Dev OTP:** Since `OTP_PROVIDER=console`, the OTP prints in the backend terminal AND is returned in the API response. No SMS needed for testing.
-
-> **Clinic email verification:** For local development without a verified domain, keep `EMAIL_PROVIDER=console` and use the terminal output to test the email OTP flow. For production, switch to `Resend` with a verified domain and `RESEND_API_KEY` plus `RESEND_FROM_EMAIL`.
->
-> SMTP is still available as an optional fallback, but `Resend` is the cleaner choice once you have a verified sender/domain.
+> For local testing, Firebase will send real SMS to real numbers.
+> To test without spending SMS quota, add test numbers:
+> Firebase Console → Authentication → Phone → **Test phone numbers**
 
 ---
 
-## 🗂️ Project Structure
+## 🗄️ Database Commands
 
-```
-PulseMate/
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma          # All 12 models
-│   │   ├── seed.js                # Sample data
-│   │   └── migrations/init/       # SQL migration
-│   └── src/
-│       ├── config/                # DB client, logger
-│       ├── controllers/           # auth, admin, clinic, doctor, reception, patient
-│       ├── middleware/            # authenticate, authorize, error handler
-│       ├── routes/                # All API routes
-│       ├── services/              # OTP, token, audit
-│       ├── socket/                # Socket.io events
-│       ├── utils/                 # response helpers, crypto
-│       ├── validators/            # Joi schemas
-│       └── server.js              # Express + Socket.io entry
-│
-├── frontend/
-│   └── src/
-│       ├── api/                   # Axios calls per role
-│       ├── components/ui/         # Shared UI components
-│       ├── hooks/useSocket.js     # Socket.io hook
-│       ├── layouts/               # AuthLayout, DashboardLayout
-│       ├── pages/
-│       │   ├── auth/              # Login, Register
-│       │   ├── patient/           # Dashboard, Search, Book, Queue, Profile
-│       │   ├── doctor/            # Dashboard, Appointments, Queue, Profile
-│       │   ├── receptionist/      # Dashboard, TodayQueue, WalkIn
-│       │   ├── owner/             # Dashboard, Clinic, Staff, Appointments, Queue
-│       │   └── admin/             # Dashboard, Clinics, Users
-│       ├── store/authStore.js     # Zustand auth state
-│       └── App.jsx                # All routes with role protection
-│
-├── setup-database.bat             # One-click DB setup
-├── start-backend.bat              # Start backend
-└── start-frontend.bat             # Start frontend
+```bash
+cd backend
+
+# Run all pending migrations
+npx prisma migrate deploy
+
+# Open Prisma Studio (visual DB browser)
+npx prisma studio
+
+# Reset database (⚠️ deletes all data)
+npx prisma migrate reset --force
+
+# Generate Prisma client after schema changes
+npx prisma generate
+
+# Create a new migration after editing schema.prisma
+npx prisma migrate dev --name your_migration_name
 ```
 
 ---
 
-## 🔌 API Reference
+## 🏗️ Architecture Overview
+
+```
+Patient (Web/Mobile)
+    │
+    ▼
+Firebase Phone Auth ──── SMS OTP ──► User's Phone
+    │
+    │ Firebase ID Token
+    ▼
+Backend API (Express)
+    │
+    ├── Verify Firebase Token (firebase-admin)
+    ├── Find or Create Patient in DB
+    ├── Issue JWT access + refresh tokens
+    │
+    ▼
+PostgreSQL (via Prisma ORM)
+```
+
+### Auth Flow
+
+| User Type | Login Method | Route |
+|-----------|-------------|-------|
+| Patient (Web) | Firebase Phone OTP | `POST /auth/patient/firebase-phone-login` |
+| Patient (Mobile) | Firebase Phone OTP | `POST /auth/patient/firebase-phone-login` |
+| Clinic Owner | Password | `POST /auth/login-password` |
+| Doctor | Password | `POST /auth/login-password` |
+| Receptionist | Password | `POST /auth/login-password` |
+| Super Admin | Password | `POST /auth/login-password` |
+
+---
+
+## 🌐 API Endpoints Reference
 
 ### Auth
-```
-POST /api/auth/send-otp          { mobile, purpose }
-POST /api/auth/verify-otp        { mobile, otp, purpose, name? }
-POST /api/auth/login-password    { mobile, password }
-POST /api/auth/refresh           (uses HttpOnly cookie)
-POST /api/auth/logout
-GET  /api/auth/me
-```
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/auth/patient/firebase-phone-login` | Patient login via Firebase OTP |
+| POST | `/api/auth/login-password` | Staff password login |
+| POST | `/api/auth/refresh` | Refresh access token |
+| POST | `/api/auth/logout` | Logout |
+| GET  | `/api/auth/me` | Get current user |
 
-### Patient
-```
-GET  /api/patient/doctors                    Search doctors
-GET  /api/patient/doctors/:id                Doctor profile
-POST /api/patient/appointments               Book appointment
-GET  /api/patient/appointments               My appointments
-GET  /api/patient/queue/:appointmentId       Live queue status
-PATCH /api/patient/appointments/:id/cancel   Cancel
-GET  /api/patient/profile
-PATCH /api/patient/profile
-```
+### Clinic Owner Registration
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/auth/clinic-owner/verify-firebase-phone` | Verify phone via Firebase |
+| POST | `/api/auth/clinic-owner/send-email-verification` | Send email OTP |
+| POST | `/api/auth/clinic-owner/verify-email-otp` | Verify email OTP |
+| POST | `/api/auth/clinic-owner/register` | Register clinic + owner |
 
-### Reception
-```
-GET   /api/reception/queue/:doctorId?clinicId=   Today's queue
-POST  /api/reception/walk-in                     Add walk-in
-PATCH /api/reception/queue/:queueItemId/check-in Check in patient
-PATCH /api/reception/queue/:queueId/call-next    Call next
-PATCH /api/reception/queue-item/:id/skip         Skip
-PATCH /api/reception/queue-item/:id/complete     Complete
-PATCH /api/reception/queue/:queueId/pause        Pause
-PATCH /api/reception/queue/:queueId/resume       Resume
-```
+### Appointments
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET  | `/api/appointments` | List appointments |
+| POST | `/api/appointments` | Book appointment |
+| PATCH | `/api/appointments/:id/status` | Update status |
 
-### Doctor
+### Health Check
 ```
-GET   /api/doctor/today                      Today's appointments
-GET   /api/doctor/appointments               All appointments
-PATCH /api/doctor/appointments/:id/start     Start consultation
-PATCH /api/doctor/appointments/:id/complete  Complete + notes
-PATCH /api/doctor/availability               Toggle online/offline
-GET   /api/doctor/profile
-PATCH /api/doctor/profile
-```
-
-### Clinic Owner
-```
-POST  /api/clinics                           Create clinic
-GET   /api/clinics/my                        My clinics
-GET   /api/clinics/:id
-PATCH /api/clinics/:id                       Update clinic
-POST  /api/clinics/:id/staff                 Add doctor/receptionist
-GET   /api/clinics/:id/staff
-PATCH /api/clinics/:id/staff/:staffId/status Toggle staff
-GET   /api/clinics/:id/appointments          All clinic appointments
-```
-
-### Admin
-```
-GET   /api/admin/dashboard
-GET   /api/admin/clinics
-PATCH /api/admin/clinics/:id/approve         Approve/reject
-GET   /api/admin/users
-POST  /api/admin/users                       Create staff
-PATCH /api/admin/users/:id/status            Enable/disable
+GET /health  →  { status: "ok", uptime: 123 }
 ```
 
 ---
 
-## ⚡ Socket.io Events
+## 🚀 Production Deployment (Render)
 
-Room format: `queue:{clinicId}:{doctorId}:{YYYY-MM-DD}`
+### Backend (Web Service)
+- **Root Directory:** `backend`
+- **Build Command:** `npm install && npx prisma generate && npx prisma migrate deploy`
+- **Start Command:** `node src/server.js`
 
-| Event | Direction | Trigger |
-|-------|-----------|---------|
-| `patient:joinQueueRoom` | Client→Server | Patient opens live queue |
-| `staff:joinQueueRoom` | Client→Server | Receptionist/Doctor opens queue |
-| `queue:updated` | Server→Client | Any queue change |
-| `queue:called` | Server→Client | Patient called by receptionist |
-| `queue:positionUpdated` | Server→Client | Positions recalculated |
-| `queue:paused` | Server→Client | Queue paused |
-| `queue:resumed` | Server→Client | Queue resumed |
-| `queue:completed` | Server→Client | Patient consultation done |
+### Required Environment Variables on Render
+```env
+DATABASE_URL              = <Render PostgreSQL external URL>
+NODE_ENV                  = production
+PORT                      = 5000
+JWT_ACCESS_SECRET         = <strong random string>
+JWT_REFRESH_SECRET        = <strong random string>
+COOKIE_SECRET             = <strong random string>
+FRONTEND_URL              = https://your-frontend.onrender.com
+EMAIL_PROVIDER            = resend
+RESEND_API_KEY            = <your resend key>
+RESEND_FROM_EMAIL         = onboarding@resend.dev
+SMS_PROVIDER              = mock
+FIREBASE_SERVICE_ACCOUNT_JSON = <minified JSON from Firebase service account>
+RAZORPAY_KEY_ID           = <your key>
+RAZORPAY_KEY_SECRET       = <your secret>
+```
 
----
-
-## 🔐 Security Features
-
-- Passwords hashed with bcrypt (12 rounds)
-- OTPs hashed with bcrypt, never stored plain
-- JWT access tokens (15 min expiry)
-- Refresh token rotation with reuse detection
-- HttpOnly secure cookies for refresh tokens
-- Helmet.js security headers
-- CORS restricted to frontend URL
-- Rate limiting on OTP (5/15min) and login endpoints
-- Role-based authorization middleware
-- Audit logs for all important actions
-- Input validation with Joi on all endpoints
-
----
-
-## 📱 OTP Providers
-
-Set `SMS_PROVIDER` in `backend/.env`:
-
-| Value | Description |
-|-------|-------------|
-| `mock` | Dev mode — prints OTP to terminal, no account needed (default) |
-| `2factor` | 2Factor.in — simple India SMS, sign up at https://2factor.in |
-| `msg91` | MSG91 — India production, sign up at https://msg91.com |
-| `twilio` | Twilio — international SMS, sign up at https://twilio.com |
-
-### WhatsApp OTP (optional)
-
-Set `WHATSAPP_PROVIDER` to send OTP on **both SMS and WhatsApp** simultaneously:
-
-| Value | Description |
-|-------|-------------|
-| _(blank)_ | WhatsApp disabled (default) |
-| `2factor` | 2Factor WhatsApp — uses same `SMS_API_KEY`, enable in 2factor.in dashboard |
-| `twilio` | Twilio WhatsApp — requires `TWILIO_WHATSAPP_FROM` number |
+### Frontend (Static Site)
+- **Root Directory:** `frontend`
+- **Build Command:** `npm install && npm run build`
+- **Publish Directory:** `dist`
+- **Redirect Rule:** `/* → /index.html` (Rewrite) — required for React Router
 
 ---
 
-## 🎨 Design System
+## 🧪 Testing OTP Locally
 
-| Token | Value |
-|-------|-------|
-| Primary | `#2563EB` |
-| Secondary | `#22C55E` |
-| Background | `#F9FAFB` |
-| Card | `#FFFFFF` |
-| Text | `#111827` |
-| Muted | `#6B7280` |
-| Error | `#EF4444` |
+Since `SMS_PROVIDER=mock`, OTPs print to the backend terminal:
+
+```
+──────────────────────────────────────────────────
+  📱 DEV OTP  →  +917022818878
+  Code: 123456
+──────────────────────────────────────────────────
+```
+
+For **Firebase OTP** on web/mobile, the SMS goes directly to the phone via Firebase — the backend is not involved until after the user enters the OTP.
+
+---
+
+## 👥 User Roles
+
+| Role | Access |
+|------|--------|
+| `PATIENT` | Book appointments, view queue, manage profile |
+| `RECEPTIONIST` | Manage walk-ins, update queue, view schedule |
+| `DOCTOR` | View appointments, mark complete |
+| `CLINIC_OWNER` | Full clinic management, staff, analytics |
+| `SUPER_ADMIN` | Approve clinics, manage all users |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Node.js, Express.js |
+| Database | PostgreSQL + Prisma ORM |
+| Auth | Firebase Phone Auth + JWT |
+| Frontend | React 18, Vite, TailwindCSS |
+| Mobile | React Native, Expo |
+| Email | Resend API |
+| Payments | Razorpay |
+| Push Notifications | Firebase FCM |
+| Real-time | Socket.IO |
+
+---
+
+## 📞 Support
+
+- Firebase Console: https://console.firebase.google.com
+- Render Dashboard: https://dashboard.render.com
+- Prisma Docs: https://prisma.io/docs
+- Expo Docs: https://docs.expo.dev
