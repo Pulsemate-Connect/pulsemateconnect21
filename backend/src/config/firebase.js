@@ -36,7 +36,10 @@ const initFirebase = () => {
       return adminApp;
     }
 
-    const serviceAccount = JSON.parse(serviceAccountJson);
+    // Render sometimes double-escapes \n in env vars — fix it
+    const fixedJson = serviceAccountJson.replace(/\\n/g, '\n');
+    const serviceAccount = JSON.parse(fixedJson);
+
     adminApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
