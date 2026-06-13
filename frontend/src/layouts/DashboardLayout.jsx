@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { getMyNotifications } from '../api/notification.api';
 import toast from 'react-hot-toast';
+import PulsemateLogo from '../components/PulsemateLogo';
 
 // SVG icon components
 const Icon = {
@@ -146,16 +147,9 @@ const DashboardLayout = ({ children }) => {
     <aside className="flex flex-col h-full" style={{ backgroundColor: '#1e293b' }}>
       {/* Logo */}
       <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link to="/" className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h3l3-7 4 14 3-7h5" />
-            </svg>
-          </div>
-          <div>
-            <p className="font-bold text-white text-sm leading-tight tracking-tight">PulseMate</p>
-            <p className="text-[11px] text-blue-300 font-medium">{ROLE_LABEL[user?.role]}</p>
-          </div>
+        <Link to="/" className="flex items-center">
+          <PulsemateLogo size="md" theme="dark" showTagline={false} />
+          <span className="ml-2 text-[11px] text-blue-300 font-medium">{ROLE_LABEL[user?.role]}</span>
         </Link>
       </div>
 
@@ -250,6 +244,11 @@ const DashboardLayout = ({ children }) => {
           >
             <Icon.Menu />
           </button>
+
+          {/* Mobile logo in topbar */}
+          <Link to="/" className="lg:hidden">
+            <PulsemateLogo size="sm" theme="light" />
+          </Link>
 
           {/* Breadcrumb / page label */}
           <div className="hidden sm:flex items-center gap-1.5 text-sm">

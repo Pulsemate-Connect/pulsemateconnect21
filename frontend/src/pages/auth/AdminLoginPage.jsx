@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { loginWithPassword, logout } from '../../api/auth.api';
 import useAuthStore from '../../store/authStore';
 import { ROLE_HOME } from '../../components/ProtectedRoute';
+import PulsemateLogo from '../../components/PulsemateLogo';
 
 const AdminLoginPage = () => {
   const location = useLocation();
@@ -49,9 +50,7 @@ const AdminLoginPage = () => {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
         <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <section className="hidden rounded-[2rem] border border-white/10 bg-white/5 p-10 text-white shadow-2xl shadow-black/30 backdrop-blur lg:flex lg:flex-col">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500 font-bold text-white">
-              P
-            </div>
+            <PulsemateLogo size="lg" theme="dark" showTagline={true} />
             <p className="mt-10 text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">PulseMate Internal</p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight">
               Secure access for platform administration

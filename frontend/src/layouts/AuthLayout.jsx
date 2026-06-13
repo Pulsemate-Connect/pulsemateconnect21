@@ -1,3 +1,5 @@
+import PulsemateLogo from '../components/PulsemateLogo';
+
 const AuthLayout = ({ children }) => {
   return (
     <div className="min-h-screen flex">
@@ -11,14 +13,7 @@ const AuthLayout = ({ children }) => {
 
         {/* Logo */}
         <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-6 h-6 text-primary-600" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-              </svg>
-            </div>
-            <span className="text-white font-bold text-xl tracking-tight">PulseMate</span>
-          </div>
+          <PulsemateLogo size="lg" theme="dark" showTagline={true} />
         </div>
 
         {/* Main copy */}
@@ -56,13 +51,8 @@ const AuthLayout = ({ children }) => {
       {/* Right panel — form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-16 bg-gray-50">
         {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-2 mb-10">
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-            </svg>
-          </div>
-          <span className="font-bold text-text-primary text-lg">PulseMate</span>
+        <div className="lg:hidden flex items-center mb-10">
+          <PulsemateLogo size="md" theme="light" showTagline={true} />
         </div>
 
         <div className="w-full max-w-sm mx-auto">

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PulsemateLogo from '../components/PulsemateLogo';
 
 const navItems = [
   { label: 'Features', href: '#features' },
@@ -23,18 +24,7 @@ const PortalChromeIcon = ({ name, className = 'h-5 w-5' }) => (
 );
 
 export const PortalBrandLogo = () => (
-  <div className="flex items-center gap-3">
-    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 via-cyan-300 to-blue-500 text-white shadow-[0_16px_40px_rgba(37,99,235,0.22)] sm:h-14 sm:w-14">
-      <svg viewBox="0 0 64 64" fill="none" className="h-8 w-8">
-        <path d="M31.8 53.5 11.2 33.3a11 11 0 0 1 15.6-15.5l5 4.8 5-4.8a11 11 0 0 1 15.6 15.5L31.8 53.5Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
-        <path d="M17 31h10l4-8 5 16 3-8h8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-    <div className="min-w-0">
-      <p className="truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">PulseMate</p>
-      <p className="truncate text-lg text-cyan-300">Clinic Staff Portal</p>
-    </div>
-  </div>
+  <PulsemateLogo size="lg" theme="dark" showTagline={true} />
 );
 
 export const StaffPortalHeader = ({ activeSection }) => (

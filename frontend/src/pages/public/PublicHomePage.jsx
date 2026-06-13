@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PulsemateLogo from '../../components/PulsemateLogo';
 
 const trustStats = [
   { value: '5000+', label: 'Clinics onboarded' },
@@ -60,15 +61,7 @@ const MarkIcon = ({ name, className = 'h-5 w-5' }) => (
 );
 
 const PulseMateLogo = () => (
-  <div className="flex items-center gap-3">
-    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 via-cyan-400 to-blue-600 text-white shadow-[0_16px_40px_rgba(56,189,248,0.28)]">
-      <MarkIcon name="heart" className="h-7 w-7" />
-    </div>
-    <div>
-      <p className="text-xl font-bold tracking-tight text-slate-950">PulseMate</p>
-      <p className="text-xs uppercase tracking-[0.24em] text-sky-600">Digital Care</p>
-    </div>
-  </div>
+  <PulsemateLogo size="md" theme="light" showTagline={true} />
 );
 
 const PublicHomePage = () => {
