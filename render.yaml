@@ -28,7 +28,7 @@ services:
       - key: COOKIE_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://pulsemate-frontend.onrender.com
+        value: https://www.pulsematecoonect.in
       - key: EMAIL_PROVIDER
         value: resend
       - key: RESEND_API_KEY
@@ -65,7 +65,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://pulsemate-backend.onrender.com/api
+        value: https://api.pulsematecoonect.in/api
       - key: VITE_FIREBASE_API_KEY
         value: AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw
       - key: VITE_FIREBASE_AUTH_DOMAIN
