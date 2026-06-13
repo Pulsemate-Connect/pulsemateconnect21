@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
+    "build": "npx prisma generate",
+    "postinstall": "npx prisma generate",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",

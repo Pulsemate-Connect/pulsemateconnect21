@@ -1,0 +1,89 @@
+services:
+  # ── Backend API ───────────────────────────────────────────────────────────────
+  - type: web
+    name: pulsemate-backend
+    runtime: node
+    region: singapore
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    startCommand: node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pulsemate-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRY
+        value: 15m
+      - key: JWT_REFRESH_EXPIRY
+        value: 7d
+      - key: COOKIE_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://pulsemate-frontend.onrender.com
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false   # set manually in Render dashboard
+      - key: RESEND_FROM_EMAIL
+        value: onboarding@resend.dev
+      - key: SMS_PROVIDER
+        value: mock
+      - key: OTP_PROVIDER
+        value: mock
+      - key: OTP_EXPIRY_MINUTES
+        value: 5
+      - key: OTP_MAX_ATTEMPTS
+        value: 5
+      - key: OTP_RESEND_COOLDOWN_SECONDS
+        value: 60
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false   # set manually in Render dashboard
+      - key: RAZORPAY_KEY_ID
+        sync: false   # set manually in Render dashboard
+      - key: RAZORPAY_KEY_SECRET
+        sync: false   # set manually in Render dashboard
+
+  # ── Frontend Web ──────────────────────────────────────────────────────────────
+  - type: web
+    name: pulsemate-frontend
+    runtime: static
+    region: singapore
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://pulsemate-backend.onrender.com/api
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: pulsemateconnect.firebaseapp.com
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: pulsemateconnect
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        value: "157620382332"
+      - key: VITE_FIREBASE_APP_ID
+        value: 1:157620382332:web:e4156f49d8616a4ee6b7f9
+      - key: VITE_RAZORPAY_KEY_ID
+        value: rzp_live_Sz5uowTvIY9Mwv
+
+databases:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  - name: pulsemate-db
+    region: singapore
+    databaseName: pulsemate_db
+    user: pulsemate
+    plan: free
