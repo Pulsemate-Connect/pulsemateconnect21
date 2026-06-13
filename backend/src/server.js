@@ -107,6 +107,18 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ─── Root Route ───────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    name: 'PulseMate Connect API',
+    version: '1.0.0',
+    status: 'running',
+    docs: '/health',
+    api: '/api',
+    frontend: process.env.FRONTEND_URL || 'http://localhost:3000',
+  });
+});
+
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
