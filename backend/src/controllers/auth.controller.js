@@ -30,7 +30,18 @@ const {
 const { verifyFirebaseToken } = require('../config/firebase');
 const firebasePhoneVerificationRepo = require('../repositories/firebase-phone-verification.repository');
 
-const buildFileUrl = (req, fileName) => `/uploads/clinic-owner/${fileName}`;
+const buildFileUrl = (req, file) => {
+  // When Cloudinary is active, req.file.path contains the full Cloudinary URL.
+  // When using local disk, req.file.filename is the stored filename.
+  if (file.path && /^https?:\/\//i.test(file.path)) {
+    // Cloudinary URL — return as-is
+    return file.path;
+  }
+  // Local disk storage — build absolute URL
+  const origin = process.env.BACKEND_URL ||
+    `${req.protocol}://${req.get('host')}`;
+  return `${origin}/uploads/clinic-owner/${file.filename}`;
+};
 
 const baseUserInclude = {
   adminProfile: true,
@@ -819,7 +830,7 @@ const clinicOwnerUploadDocumentHandler = async (req, res, next) => {
     return sendSuccess(
       res,
       {
-        url: buildFileUrl(req, req.file.filename),
+        url: buildFileUrl(req, req.file),
         fileName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
