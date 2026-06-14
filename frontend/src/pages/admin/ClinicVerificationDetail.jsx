@@ -14,42 +14,7 @@ import {
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
-
-// ── File URL helper ────────────────────────────────────────────────────────────
-// The backend upload handler stores FULL absolute URLs in the DB, e.g.:
-//   http://localhost:5000/uploads/clinic-owner/1780076712876-photo.jpg
-//
-// Strategy: always reduce any file URL to a same-origin relative /uploads/...
-// path so it flows through the Vite dev proxy (which now proxies /uploads →
-// http://localhost:5000). This also makes production builds portable.
-//
-// Rules:
-//  1. null / empty            → null  (show fallback)
-//  2. already relative /up…   → use as-is
-//  3. absolute http(s):// URL → strip origin, keep /uploads/... path
-//  4. anything else           → prefix /uploads/ as a best-effort
-
-const getFileUrl = (filePath) => {
-  if (!filePath) return null;
-
-  // Already a clean relative path
-  if (filePath.startsWith('/uploads/')) return filePath;
-
-  // Absolute URL — extract just the path portion
-  try {
-    const parsed = new URL(filePath);
-    // e.g. http://localhost:5000/uploads/clinic-owner/file.jpg
-    //  → /uploads/clinic-owner/file.jpg
-    if (parsed.pathname.startsWith('/uploads/')) {
-      return parsed.pathname;
-    }
-    // Some other absolute URL (e.g. S3, CDN) — return unchanged
-    return filePath;
-  } catch {
-    // Not a valid URL — treat as a bare filename under /uploads/clinic-owner/
-    return `/uploads/clinic-owner/${filePath}`;
-  }
-};
+import { getFileUrl } from '../../utils/fileUrl';
 
 // ── Image with graceful fallback ──────────────────────────────────────────────
 // Never shows a broken image icon. Falls back to a clean placeholder when:

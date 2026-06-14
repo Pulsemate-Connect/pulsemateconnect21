@@ -4,6 +4,30 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { getDoctorProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import BookAppointmentModal from './BookAppointmentModal';
+import { getFileUrl } from '../../utils/fileUrl';
+
+/* ── Clinic logo with fallback ───────────────────────────────────────────── */
+const ClinicLogo = ({ src, name }) => {
+  const [broken, setBroken] = useState(false);
+  const url = getFileUrl(src);
+
+  if (!url || broken) {
+    return (
+      <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0 text-primary-700 font-bold text-lg border border-primary-200">
+        {name?.charAt(0)?.toUpperCase() || '🏥'}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt={`${name} logo`}
+      className="w-12 h-12 rounded-xl object-contain border border-gray-200 bg-white flex-shrink-0 shadow-sm"
+      onError={() => setBroken(true)}
+    />
+  );
+};
 
 const DoctorProfile = () => {
   const { id } = useParams();
@@ -103,21 +127,25 @@ const DoctorProfile = () => {
               {doctor.doctorClinics?.map((dc) => (
                 <div key={dc.id} className="card">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-text-primary">{dc.clinic?.name}</h3>
-                      <p className="text-sm text-text-muted mt-0.5">
-                        📍 {dc.clinic?.address}, {dc.clinic?.city}
-                      </p>
-                      {dc.clinic?.phone && (
-                        <p className="text-sm text-text-muted">📞 {dc.clinic.phone}</p>
-                      )}
-                      <div className="flex flex-wrap gap-3 mt-2 text-sm text-text-muted">
-                        <span>🕐 {dc.startTime} - {dc.endTime}</span>
-                        <span>📅 {dc.availableDays?.join(', ')}</span>
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      {/* Clinic logo */}
+                      <ClinicLogo src={dc.clinic?.clinicLogoUrl} name={dc.clinic?.name} />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-text-primary">{dc.clinic?.name}</h3>
+                        <p className="text-sm text-text-muted mt-0.5">
+                          📍 {dc.clinic?.address}, {dc.clinic?.city}
+                        </p>
+                        {dc.clinic?.phone && (
+                          <p className="text-sm text-text-muted">📞 {dc.clinic.phone}</p>
+                        )}
+                        <div className="flex flex-wrap gap-3 mt-2 text-sm text-text-muted">
+                          <span>🕐 {dc.startTime} - {dc.endTime}</span>
+                          <span>📅 {dc.availableDays?.join(', ')}</span>
+                        </div>
                       </div>
                     </div>
                     {dc.clinic?.isVerified && (
-                      <span className="badge badge-success flex-shrink-0">✓ Verified</span>
+                      <span className="badge badge-success flex-shrink-0 ml-2">✓ Verified</span>
                     )}
                   </div>
 
