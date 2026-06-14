@@ -116,3 +116,6 @@ if (hasCloudinary) {
 }
 
 module.exports = { clinicOwnerUpload, hasCloudinary: !!hasCloudinary };
+
+// Log which storage is active (visible in Render logs on startup)
+console.log(`[upload] Storage: ${hasCloudinary ? '☁️  Cloudinary (persistent)' : '💾 Local disk (ephemeral — dev only)'}`);
