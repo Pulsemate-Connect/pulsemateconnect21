@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import StaffPortalLayout from '../../layouts/StaffPortalLayout';
@@ -7,10 +8,12 @@ import {
   registerClinicOwner,
   sendClinicOwnerOtp,
   verifyClinicOwnerOtp,
+  verifyClinicOwnerFirebasePhone,
   sendClinicOwnerEmailVerification,
   verifyClinicOwnerEmailOtp,
   uploadClinicOwnerDocument,
 } from '../../api/auth.api';
+import { sendOtpToPhone, verifyPhoneOtp, clearRecaptcha } from '../../api/firebaseAuth';
 
 const DRAFT_KEY = 'pulsemate-clinic-owner-registration-draft-v2';
 
@@ -338,6 +341,7 @@ const ClinicOwnerRegisterPage = () => {
     cities: [],
   });
   const [expandedBreakDays, setExpandedBreakDays] = useState({});
+  const [ownerConfirmResult, setOwnerConfirmResult] = React.useState(null);
   const specialtyOptions = useMemo(() => getSpecialtyOptions(form.clinicType), [form.clinicType]);
 
   useEffect(() => {
@@ -382,6 +386,14 @@ const ClinicOwnerRegisterPage = () => {
 
     return () => window.clearInterval(timer);
   }, [otpCooldown]);
+
+  // Clear Firebase reCAPTCHA + confirmResult when phone number changes
+  useEffect(() => {
+    if (!form.isOwnerMobileVerified) {
+      clearRecaptcha();
+      setOwnerConfirmResult(null);
+    }
+  }, [form.phone]);
 
   const passwordStrength = useMemo(() => {
     const score = [
@@ -670,34 +682,42 @@ const ClinicOwnerRegisterPage = () => {
 
     setIsSendingOtp(true);
     try {
-      const response = await sendClinicOwnerOtp(normalizedPhone);
-      const cooldownMatch = response.data?.message?.match(/(\d+)\sseconds/);
-      setOtpCooldown(cooldownMatch ? Number(cooldownMatch[1]) : 60);
-      setDevOtpHint(isDevMode ? response.data?.data?.devOtp || '' : '');
-      toast.success('OTP sent to owner mobile number');
+      // Use Firebase Phone Auth — same as patient login
+      const result = await sendOtpToPhone(normalizedPhone);
+      setOwnerConfirmResult(result);
+      setOtpCooldown(60);
+      toast.success('OTP sent to owner mobile via Firebase');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to send OTP');
+      toast.error(error.message || 'Unable to send OTP');
     } finally {
       setIsSendingOtp(false);
     }
   };
 
   const handleVerifyOwnerOtp = async () => {
-    const normalizedPhone = normalizePhone(form.phone);
     if (!form.ownerOtp.trim()) {
       toast.error('Enter the OTP sent to the owner mobile number');
+      return;
+    }
+    if (!ownerConfirmResult) {
+      toast.error('Please send OTP first');
       return;
     }
 
     setIsVerifyingOtp(true);
     try {
-      await verifyClinicOwnerOtp(normalizedPhone, form.ownerOtp.trim());
+      // Step 1: Verify OTP with Firebase → get ID token
+      const firebaseIdToken = await verifyPhoneOtp(ownerConfirmResult, form.ownerOtp.trim());
+
+      // Step 2: Send ID token to backend → creates phone verification record
+      await verifyClinicOwnerFirebasePhone(firebaseIdToken);
+
       updateField('isOwnerMobileVerified', true);
       updateField('isOwnerMobileReverifyRequired', false);
-      setDevOtpHint('');
+      setOwnerConfirmResult(null);
       toast.success('Owner mobile verified successfully');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to verify OTP');
+      toast.error(error.response?.data?.message || error.message || 'Unable to verify OTP');
     } finally {
       setIsVerifyingOtp(false);
     }
