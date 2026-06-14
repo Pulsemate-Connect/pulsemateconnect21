@@ -36,7 +36,13 @@ const server = http.createServer(app);
 // ─── Socket.io Setup ─────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'https://pulsemateconnect.in',
+      'https://www.pulsemateconnect.in',
+      'https://pulsemate-frontend.onrender.com',
+      'http://localhost:3000',
+    ],
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -53,7 +59,14 @@ app.use(helmet({
 
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
-  // Allow React Native / Expo mobile app (no origin header or null origin)
+  // Always allow both www and non-www versions of the custom domain
+  'https://pulsemateconnect.in',
+  'https://www.pulsemateconnect.in',
+  // Render default URLs
+  'https://pulsemate-frontend.onrender.com',
+  // Local development
+  'http://localhost:3000',
+  'http://localhost:5173',
 ];
 
 app.use(cors({
