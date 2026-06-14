@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import StaffPortalLayout from '../../layouts/StaffPortalLayout';
 import ClinicLocationPicker from '../../components/ui/ClinicLocationPicker';
+import { getDistricts, getCities } from '../../data/indiaLocations';
 import {
   registerClinicOwner,
   sendClinicOwnerOtp,
@@ -1420,7 +1421,7 @@ const ClinicOwnerRegisterPage = () => {
                             district: '',
                             city: '',
                           }));
-                          // Clear pincode-based suggestions so district/city become free-text inputs
+                          // Clear pincode-based suggestions so cascading dropdowns take over
                           setLocationSuggestions({ districts: [], cities: [] });
                           setPincodeLookupMessage('');
                         }}
@@ -1428,39 +1429,54 @@ const ClinicOwnerRegisterPage = () => {
                       {showValidation && validationErrors.state ? <ErrorText message={validationErrors.state} /> : null}
                     </div>
                     <div className="md:col-span-1">
-                      {locationSuggestions.districts.length ? (
-                        <SelectField
-                          label="District *"
-                          value={form.district || 'Select district'}
-                          options={['Select district', ...locationSuggestions.districts]}
-                          onChange={(value) => updateField('district', value === 'Select district' ? '' : value)}
-                        />
-                      ) : (
-                        <FloatingInput
-                          label="District *"
-                          value={form.district}
-                          onChange={(value) => updateField('district', value)}
-                          placeholder="Enter district name"
-                        />
-                      )}
+                      {(() => {
+                        // Pincode lookup takes priority; otherwise use state-based cascading
+                        const districtOptions = locationSuggestions.districts.length
+                          ? locationSuggestions.districts
+                          : getDistricts(form.state);
+                        return districtOptions.length ? (
+                          <SelectField
+                            label="District *"
+                            value={form.district || 'Select district'}
+                            options={['Select district', ...districtOptions]}
+                            onChange={(value) => {
+                              const selected = value === 'Select district' ? '' : value;
+                              setForm((current) => ({ ...current, district: selected, city: '' }));
+                            }}
+                          />
+                        ) : (
+                          <FloatingInput
+                            label="District *"
+                            value={form.district}
+                            onChange={(value) => updateField('district', value)}
+                            placeholder="Enter district name"
+                          />
+                        );
+                      })()}
                       {showValidation && validationErrors.district ? <ErrorText message={validationErrors.district} /> : null}
                     </div>
                     <div className="md:col-span-1">
-                      {locationSuggestions.cities.length ? (
-                        <SelectField
-                          label="City / Locality *"
-                          value={form.city || 'Select city'}
-                          options={['Select city', ...locationSuggestions.cities]}
-                          onChange={(value) => updateField('city', value === 'Select city' ? '' : value)}
-                        />
-                      ) : (
-                        <FloatingInput
-                          label="City / Locality *"
-                          value={form.city}
-                          onChange={(value) => updateField('city', value)}
-                          placeholder="Enter city or locality"
-                        />
-                      )}
+                      {(() => {
+                        // Pincode lookup takes priority; otherwise use state+district cascading
+                        const cityOptions = locationSuggestions.cities.length
+                          ? locationSuggestions.cities
+                          : getCities(form.state, form.district);
+                        return cityOptions.length ? (
+                          <SelectField
+                            label="City / Locality *"
+                            value={form.city || 'Select city'}
+                            options={['Select city', ...cityOptions]}
+                            onChange={(value) => updateField('city', value === 'Select city' ? '' : value)}
+                          />
+                        ) : (
+                          <FloatingInput
+                            label="City / Locality *"
+                            value={form.city}
+                            onChange={(value) => updateField('city', value)}
+                            placeholder="Enter city or locality"
+                          />
+                        );
+                      })()}
                       {showValidation && validationErrors.city ? <ErrorText message={validationErrors.city} /> : null}
                     </div>
                   </div>

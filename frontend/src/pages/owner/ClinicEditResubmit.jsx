@@ -11,6 +11,7 @@ import { getMyClinicStatus, resubmitClinic } from '../../api/clinic.api';
 import { uploadClinicOwnerDocument } from '../../api/auth.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+import { getDistricts, getCities } from '../../data/indiaLocations';
 
 // ── Static options ────────────────────────────────────────────────────────────
 const CLINIC_TYPES = [
@@ -410,19 +411,55 @@ const ClinicEditResubmit = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>City</Label>
-                  <input className="input" value={form.city} onChange={(e) => set('city', e.target.value)} />
-                </div>
-                <div>
                   <Label required>State</Label>
-                  <select className="input" value={form.state} onChange={(e) => set('state', e.target.value)}>
+                  <select
+                    className="input"
+                    value={form.state}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      set('state', selected);
+                      set('district', '');
+                      set('city', '');
+                    }}
+                  >
                     <option value="">Select state</option>
                     {INDIAN_STATES.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
                   <Label required>District</Label>
-                  <input className="input" value={form.district} onChange={(e) => set('district', e.target.value)} />
+                  {getDistricts(form.state).length ? (
+                    <select
+                      className="input"
+                      value={form.district}
+                      onChange={(e) => {
+                        set('district', e.target.value);
+                        set('city', '');
+                      }}
+                    >
+                      <option value="">Select district</option>
+                      {getDistricts(form.state).map((d) => <option key={d}>{d}</option>)}
+                    </select>
+                  ) : (
+                    <input className="input" value={form.district} placeholder="Enter district name"
+                      onChange={(e) => set('district', e.target.value)} />
+                  )}
+                </div>
+                <div>
+                  <Label required>City</Label>
+                  {getCities(form.state, form.district).length ? (
+                    <select
+                      className="input"
+                      value={form.city}
+                      onChange={(e) => set('city', e.target.value)}
+                    >
+                      <option value="">Select city</option>
+                      {getCities(form.state, form.district).map((c) => <option key={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <input className="input" value={form.city} placeholder="Enter city or locality"
+                      onChange={(e) => set('city', e.target.value)} />
+                  )}
                 </div>
                 <div>
                   <Label required>Pincode</Label>
