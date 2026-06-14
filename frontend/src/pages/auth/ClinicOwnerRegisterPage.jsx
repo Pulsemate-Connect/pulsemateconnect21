@@ -210,7 +210,14 @@ const buildOpeningHours = (weeklySchedule) =>
     .join(', ');
 
 const isStrongPassword = (value) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(value);
-const normalizePhone = (value) => value.replace(/[^\d+]/g, '').trim();
+const normalizePhone = (value) => {
+  const stripped = value.replace(/[^\d+]/g, '').trim();
+  // If user entered 10 digits without country code, add +91
+  if (/^\d{10}$/.test(stripped)) return `+91${stripped}`;
+  // If user entered 91XXXXXXXXXX (12 digits starting with 91), add +
+  if (/^91\d{10}$/.test(stripped)) return `+${stripped}`;
+  return stripped;
+};
 const renderFileName = (value) => {
   const normalizedValue = String(value || '').trim();
   if (!normalizedValue) return '';
