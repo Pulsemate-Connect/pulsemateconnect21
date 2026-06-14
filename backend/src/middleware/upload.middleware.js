@@ -50,6 +50,11 @@ if (hasCloudinary) {
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
 
+  // Startup validation — verify Cloudinary credentials work before accepting uploads
+  cloudinary.api.ping()
+    .then(() => console.log('[upload] ✅ Cloudinary credentials verified successfully'))
+    .catch((err) => console.error(`[upload] ❌ Cloudinary credential check FAILED: ${err.message}. Check CLOUDINARY_API_SECRET in Render env vars.`));
+
   const cloudinaryStorage = new CloudinaryStorage({
     cloudinary,
     params: async (_req, file) => {

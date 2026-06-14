@@ -37,6 +37,20 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Cloudinary errors (signature, auth, quota etc.)
+  if (err.message && err.message.toLowerCase().includes('invalid signature')) {
+    return res.status(500).json({
+      success: false,
+      message: 'File upload service misconfigured (Invalid Cloudinary signature). Contact support.',
+    });
+  }
+  if (err.http_code || (err.message && err.message.toLowerCase().includes('cloudinary'))) {
+    return res.status(500).json({
+      success: false,
+      message: `File upload failed: ${err.message}`,
+    });
+  }
+
   // Custom thrown errors with status
   if (err.status) {
     return res.status(err.status).json({
