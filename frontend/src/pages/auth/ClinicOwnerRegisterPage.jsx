@@ -967,15 +967,26 @@ const ClinicOwnerRegisterPage = () => {
       });
       toast.success('Clinic application submitted successfully');
     } catch (error) {
+      const message = error.response?.data?.message || '';
       const apiErrors = error.response?.data?.errors;
+
+      // Mobile verification expired — guide user back to step 0 to re-verify
+      if (message.toLowerCase().includes('mobile verification') || message.toLowerCase().includes('firebase')) {
+        updateField('isOwnerMobileVerified', false);
+        updateField('isOwnerMobileReverifyRequired', true);
+        setStep(0);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        toast.error('Your mobile verification has expired. Please re-verify your mobile number on Step 1.', { duration: 8000 });
+        return;
+      }
+
       if (Array.isArray(apiErrors) && apiErrors.length) {
-        // Show each field error clearly
         apiErrors.forEach((item) => {
           const fieldLabel = item.field ? `[${item.field}] ` : '';
           toast.error(`${fieldLabel}${item.message}`, { duration: 6000 });
         });
       } else {
-        toast.error(error.response?.data?.message || 'Unable to submit clinic application');
+        toast.error(message || 'Unable to submit clinic application');
       }
     } finally {
       setIsLoading(false);
@@ -1072,6 +1083,18 @@ const ClinicOwnerRegisterPage = () => {
                     </svg>
                   }
                 >
+                  {/* Re-verify warning — shown when mobile verification expired during long form fill */}
+                  {form.isOwnerMobileReverifyRequired && !form.isOwnerMobileVerified && (
+                    <div className="mb-5 flex items-start gap-3 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-4">
+                      <span className="mt-0.5 text-lg flex-shrink-0">⚠️</span>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">Mobile verification expired</p>
+                        <p className="mt-1 text-sm text-amber-700 leading-relaxed">
+                          Your mobile verification timed out. Please send a new OTP and verify your mobile number again before submitting.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid gap-6">
                     <div className="grid gap-5 lg:grid-cols-2">
                       <div>

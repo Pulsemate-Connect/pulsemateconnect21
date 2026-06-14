@@ -287,7 +287,7 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
     }
 
     // ── 4. Invalidate any previous pending records, create new one ────────
-    const EXPIRY_MINUTES = 15;
+    const EXPIRY_MINUTES = 120; // 2 hours — clinic registration is a multi-step form that takes time
     await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'CLINIC_OWNER_REGISTER');
     await firebasePhoneVerificationRepo.create({
       mobile,
