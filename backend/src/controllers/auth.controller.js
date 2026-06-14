@@ -334,9 +334,14 @@ const clinicOwnerSendEmailOtpHandler = async (req, res, next) => {
       return sendError(res, 'A user with this email already exists', 409);
     }
 
-    await sendEmailVerification(normalizedEmail, ownerName);
+    const result = await sendEmailVerification(normalizedEmail, ownerName);
 
-    return sendSuccess(res, {}, 'Verification code sent successfully');
+    // In development, return the OTP in the response for easy testing
+    const responseData = process.env.NODE_ENV !== 'production' && result.otp
+      ? { devOtp: result.otp }
+      : {};
+
+    return sendSuccess(res, responseData, 'Verification code sent successfully');
   } catch (error) {
     next(error);
   }

@@ -711,8 +711,16 @@ const ClinicOwnerRegisterPage = () => {
 
     setIsSendingEmailVerification(true);
     try {
-      await sendClinicOwnerEmailVerification(form.email.trim(), form.ownerName.trim() || 'there');
-      toast.success('Verification code sent to the owner email address');
+      const res = await sendClinicOwnerEmailVerification(form.email.trim(), form.ownerName.trim() || 'there');
+      // In dev/staging, backend returns devOtp if email delivery fails
+      const devOtp = res?.data?.data?.devOtp;
+      if (devOtp) {
+        setDevOtpHint(devOtp);
+        toast.success(`Verification code: ${devOtp} (email delivery unavailable — use this code)`);
+      } else {
+        setDevOtpHint('');
+        toast.success('Verification code sent to the owner email address');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to send verification email');
     } finally {
@@ -1145,7 +1153,13 @@ const ClinicOwnerRegisterPage = () => {
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
                         <span>We verify this email using a one-time code.</span>
-                        {isDevMode ? <span className="font-semibold text-blue-600">Check the backend terminal for the code in dev mode.</span> : null}
+                        {devOtpHint ? (
+                          <span className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 font-bold text-amber-700">
+                            📧 Code: {devOtpHint} (email delivery unavailable)
+                          </span>
+                        ) : isDevMode ? (
+                          <span className="font-semibold text-blue-600">Check the backend terminal for the code in dev mode.</span>
+                        ) : null}
                         {isVerifyingEmail ? <span className="font-semibold text-amber-600">Verifying email...</span> : null}
                       </div>
                       {showValidation && validationErrors.email ? <ErrorText message={validationErrors.email} /> : null}

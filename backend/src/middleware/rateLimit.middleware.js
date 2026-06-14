@@ -2,13 +2,14 @@ const rateLimit = require('express-rate-limit');
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const createLimiter = ({ windowMs, max, message }) =>
+const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
   rateLimit({
     windowMs,
     max: isDev ? 1000 : max,
     skip: () => isDev,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: keyGenerator || ((req) => req.ip),
     message: {
       success: false,
       message,
@@ -40,15 +41,18 @@ const forgotPasswordLimiter = createLimiter({
 });
 
 const emailVerificationSendLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 60 * 60 * 1000,
+  max: 20,
   message: 'Too many email verification requests. Please try again later.',
+  // Key by email body param so different users don't share the limit
+  keyGenerator: (req) => (req.body?.email || req.ip).toLowerCase(),
 });
 
 const emailVerificationVerifyLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 60 * 60 * 1000,
+  max: 30,
   message: 'Too many email verification attempts. Please try again later.',
+  keyGenerator: (req) => (req.body?.email || req.ip).toLowerCase(),
 });
 
 const resetPasswordLimiter = createLimiter({

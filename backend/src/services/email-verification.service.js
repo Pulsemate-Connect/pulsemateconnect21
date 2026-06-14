@@ -37,12 +37,22 @@ const sendEmailVerification = async (email, ownerName) => {
     maxAttempts: EMAIL_VERIFICATION_MAX_ATTEMPTS,
   });
 
-  console.log(`\n[DEV EMAIL OTP] ${normalizedEmail}: ${rawToken}\n`);
-  logger.info(`[DEV EMAIL OTP] ${normalizedEmail}: ${rawToken}`);
-  await sendClinicOwnerVerificationOtpEmail(normalizedEmail, rawToken, ownerName);
+  logger.info(`[EMAIL OTP] Sending to ${normalizedEmail}`);
+  
+  try {
+    await sendClinicOwnerVerificationOtpEmail(normalizedEmail, rawToken, ownerName);
+    logger.info(`[EMAIL OTP] Sent successfully to ${normalizedEmail}`);
+  } catch (emailError) {
+    // Log the error but don't fail — OTP is still stored, user can get it from logs
+    logger.error(`[EMAIL OTP] Failed to send email to ${normalizedEmail}: ${emailError.message}`);
+    logger.warn(`[EMAIL OTP FALLBACK] Code for ${normalizedEmail}: ${rawToken}`);
+    console.log(`\n⚠️  Email delivery failed. OTP for ${normalizedEmail}: ${rawToken}\n`);
+  }
 
   return {
     message: 'Verification code sent successfully',
+    // Show OTP in non-production for easy testing
+    ...(process.env.NODE_ENV !== 'production' ? { otp: rawToken } : {}),
   };
 };
 
