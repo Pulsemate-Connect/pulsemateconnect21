@@ -651,16 +651,14 @@ const ClinicOwnerRegisterPage = () => {
   };
 
   const handlePin = useCallback((lat, lng) => {
-    updateField('latitude', lat);
-    updateField('longitude', lng);
-    if (lat && lng && !form.googleMapsLocation) {
-      updateField('googleMapsLocation', 'Clinic location pinned on map');
-    }
-    if (!lat && !lng) {
-      // Clear pin
-      setForm((current) => ({ ...current, latitude: '', longitude: '' }));
-    }
-  }, [form.googleMapsLocation]); // eslint-disable-line react-hooks/exhaustive-deps
+    setForm((current) => {
+      const updates = { latitude: lat, longitude: lng };
+      if (lat && lng && !current.googleMapsLocation) {
+        updates.googleMapsLocation = 'Clinic location pinned on map';
+      }
+      return { ...current, ...updates };
+    });
+  }, []); // stable — uses setForm functional updater, no stale closure
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {

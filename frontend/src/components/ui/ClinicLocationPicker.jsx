@@ -34,6 +34,11 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
 
+  // Keep onPin in a ref so map event handlers always call the latest version
+  // without needing to re-initialize the map on every render.
+  const onPinRef = useRef(onPin);
+  useEffect(() => { onPinRef.current = onPin; }, [onPin]);
+
   // Load Leaflet CSS once
   useEffect(() => {
     if (!document.getElementById('leaflet-css')) {
@@ -80,7 +85,7 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
 
         marker.on('dragend', (e) => {
           const { lat, lng } = e.target.getLatLng();
-          onPin(lat.toFixed(6), lng.toFixed(6));
+          onPinRef.current(lat.toFixed(6), lng.toFixed(6));
         });
 
         markerRef.current = marker;
@@ -101,13 +106,13 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
 
           marker.on('dragend', (ev) => {
             const pos = ev.target.getLatLng();
-            onPin(pos.lat.toFixed(6), pos.lng.toFixed(6));
+            onPinRef.current(pos.lat.toFixed(6), pos.lng.toFixed(6));
           });
 
           markerRef.current = marker;
         }
 
-        onPin(lat.toFixed(6), lng.toFixed(6));
+        onPinRef.current(lat.toFixed(6), lng.toFixed(6));
       });
 
       mapRef.current = map;
@@ -141,7 +146,7 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
 
         marker.on('dragend', (e) => {
           const pos = e.target.getLatLng();
-          onPin(pos.lat.toFixed(6), pos.lng.toFixed(6));
+          onPinRef.current(pos.lat.toFixed(6), pos.lng.toFixed(6));
         });
 
         markerRef.current = marker;
@@ -149,7 +154,7 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
     }
 
     mapRef.current.setView([lat, lng], 15);
-  }, [latitude, longitude, leafletReady, onPin]);
+  }, [latitude, longitude, leafletReady]);
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -159,7 +164,7 @@ const ClinicLocationPicker = ({ latitude, longitude, onPin }) => {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        onPin(coords.latitude.toFixed(6), coords.longitude.toFixed(6));
+        onPinRef.current(coords.latitude.toFixed(6), coords.longitude.toFixed(6));
         setIsLocating(false);
       },
       () => {
