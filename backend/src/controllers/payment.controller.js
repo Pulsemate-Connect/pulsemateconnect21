@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
 const { notifyAppointmentBooked, notifyDoctorNewBooking, sendNotification } = require('../services/fcm.service');
+const logger = require('../config/logger');
 
 // ─── Fixed platform booking fee ───────────────────────────────────────────────
 // Charged from the SECOND booking onward.
@@ -367,14 +368,7 @@ const verifyPayment = async (req, res, next) => {
 
     const payment = await prisma.payment.findUnique({ where: { appointmentId } });
     if (!payment) return sendError(res, 'Payment record not found', 404);
-
-    // ── Idempotency: if already PAID, return success immediately ──────────
-    // Never downgrade SUCCESS to PENDING. Mobile redirects can trigger this twice.
-    if (payment.status === 'PAID') {
-      console.log(`[payment] verify: already PAID — idempotent return | orderId=${payment.razorpayOrderId} paymentId=${payment.razorpayPaymentId}`);
-      const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
-      return sendSuccess(res, { verified: true, appointment }, 'Payment already verified');
-    }
+    if (payment.status === 'PAID') return sendError(res, 'Payment already verified', 409);
 
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
@@ -419,19 +413,23 @@ const verifyPayment = async (req, res, next) => {
       .update(`${razorpayOrderId}|${razorpayPaymentId}`)
       .digest('hex');
 
-    console.log(`[payment] verify: orderId=${razorpayOrderId} paymentId=${razorpayPaymentId} sigMatch=${expectedSig === razorpaySignature}`);
-
     if (expectedSig !== razorpaySignature) {
+      logger.warn('[payment] verify — invalid signature', { razorpayOrderId, razorpayPaymentId });
       await prisma.payment.update({ where: { appointmentId }, data: { status: 'FAILED' } });
       await prisma.appointment.update({ where: { id: appointmentId }, data: { status: 'CANCELLED' } });
       return sendError(res, 'Payment verification failed — invalid signature', 400);
     }
 
+    logger.info('[payment] verify — signature valid, marking PAID', {
+      razorpayOrderId,
+      razorpayPaymentId,
+      appointmentId,
+    });
+
     await prisma.payment.update({
       where: { appointmentId },
       data: { status: 'PAID', razorpayPaymentId, razorpaySignature, paidAt: new Date() },
     });
-    console.log(`[payment] verify: SUCCESS | orderId=${razorpayOrderId} paymentId=${razorpayPaymentId} appointmentId=${appointmentId}`);
 
     const doctorClinic = await prisma.doctorClinic.findFirst({
       where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
@@ -529,9 +527,8 @@ const markCashPayment = async (req, res, next) => {
 /**
  * GET /api/payments/status/:orderId
  *
- * Poll endpoint — frontend calls this after redirect to check payment status.
- * Looks up payment by razorpayOrderId.
- * Used for the 60-second polling loop when payment is still PENDING after redirect.
+ * Poll payment status by Razorpay order ID.
+ * Used by frontend after redirect to check if webhook/verify already processed it.
  */
 const getPaymentStatusByOrderId = async (req, res, next) => {
   try {
@@ -540,20 +537,167 @@ const getPaymentStatusByOrderId = async (req, res, next) => {
       where: { razorpayOrderId: orderId },
       include: {
         appointment: {
-          select: { id: true, status: true, queueNumber: true },
+          select: {
+            id: true, status: true, queueNumber: true, appointmentDate: true,
+          },
         },
       },
     });
-    if (!payment) return sendError(res, 'Payment not found', 404);
-    return sendSuccess(res, {
+
+    if (!payment) return sendError(res, 'Payment not found for this order', 404);
+
+    logger.info('[payment] status-poll', {
+      razorpayOrderId: orderId,
+      razorpayPaymentId: payment.razorpayPaymentId,
       status: payment.status,
-      appointmentId: payment.appointmentId,
-      appointmentStatus: payment.appointment?.status,
-      queueNumber: payment.appointment?.queueNumber,
-      paidAt: payment.paidAt,
     });
+
+    return sendSuccess(res, { payment });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * POST /api/webhooks/razorpay   (public — no auth, raw body needed)
+ *
+ * Handles Razorpay webhook events.
+ * Verified using HMAC-SHA256 of raw body with RAZORPAY_WEBHOOK_SECRET.
+ * Idempotent — never downgrades a SUCCESS payment.
+ *
+ * Supported events:
+ *   payment.captured  → mark payment SUCCESS
+ *   order.paid        → mark payment SUCCESS
+ *   payment.failed    → mark payment FAILED (only if not already SUCCESS)
+ */
+const razorpayWebhook = async (req, res) => {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  // Verify webhook signature
+  if (webhookSecret) {
+    const receivedSig = req.headers['x-razorpay-signature'];
+    if (!receivedSig) {
+      logger.warn('[webhook] Missing x-razorpay-signature header');
+      return res.status(400).json({ success: false, message: 'Missing signature' });
+    }
+
+    const expectedSig = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(req.rawBody || JSON.stringify(req.body))
+      .digest('hex');
+
+    if (expectedSig !== receivedSig) {
+      logger.warn('[webhook] Invalid signature — possible spoofed request');
+      return res.status(400).json({ success: false, message: 'Invalid signature' });
+    }
+  } else {
+    logger.warn('[webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification (set it in production!)');
+  }
+
+  const event = req.body?.event;
+  const payload = req.body?.payload;
+
+  logger.info('[webhook] Received event', { event });
+
+  try {
+    if (event === 'payment.captured' || event === 'order.paid') {
+      const paymentEntity = event === 'payment.captured'
+        ? payload?.payment?.entity
+        : payload?.payment?.entity;
+
+      const orderId = paymentEntity?.order_id;
+      const paymentId = paymentEntity?.id;
+
+      if (!orderId) {
+        logger.warn('[webhook] No order_id in payload', { event });
+        return res.json({ success: true, message: 'ignored — no order_id' });
+      }
+
+      logger.info('[webhook] Processing payment success', { event, orderId, paymentId });
+
+      const payment = await prisma.payment.findFirst({
+        where: { razorpayOrderId: orderId },
+        include: { appointment: true },
+      });
+
+      if (!payment) {
+        logger.warn('[webhook] No payment found for orderId', { orderId });
+        return res.json({ success: true, message: 'no matching payment' });
+      }
+
+      // Idempotent — never downgrade SUCCESS
+      if (payment.status === 'PAID') {
+        logger.info('[webhook] Payment already PAID — skipping', { orderId });
+        return res.json({ success: true, message: 'already paid' });
+      }
+
+      // Update payment to PAID
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: 'PAID',
+          razorpayPaymentId: paymentId || payment.razorpayPaymentId,
+          paidAt: new Date(),
+        },
+      });
+
+      logger.info('[webhook] Payment marked PAID', { orderId, paymentId, appointmentId: payment.appointmentId });
+
+      // Confirm appointment if still pending
+      const appointment = payment.appointment;
+      if (appointment && appointment.status === 'PENDING_PAYMENT') {
+        const doctorClinic = await prisma.doctorClinic.findFirst({
+          where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
+        });
+        await assignQueueAndConfirm(appointment, doctorClinic, null);
+
+        const patientUser = await prisma.user.findUnique({
+          where: { id: appointment.patientId },
+          select: { name: true },
+        });
+        notifyStakeholders(appointment, patientUser?.name || 'A patient');
+
+        sendNotification(appointment.patientId, {
+          title: '✅ Payment Confirmed',
+          body: 'Your appointment has been confirmed.',
+          data: { type: 'APPOINTMENT_BOOKED', appointmentId: appointment.id },
+        }).catch(() => {});
+      }
+
+      return res.json({ success: true, message: 'payment.captured processed' });
+    }
+
+    if (event === 'payment.failed') {
+      const paymentEntity = payload?.payment?.entity;
+      const orderId = paymentEntity?.order_id;
+
+      logger.info('[webhook] Processing payment failed', { orderId });
+
+      if (orderId) {
+        const payment = await prisma.payment.findFirst({
+          where: { razorpayOrderId: orderId },
+        });
+
+        // Only mark FAILED if not already SUCCESS — idempotent
+        if (payment && payment.status !== 'PAID') {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: 'FAILED' },
+          });
+          logger.info('[webhook] Payment marked FAILED', { orderId });
+        }
+      }
+
+      return res.json({ success: true, message: 'payment.failed processed' });
+    }
+
+    // Unknown event — acknowledge to prevent retries
+    return res.json({ success: true, message: `event ${event} not handled` });
+
+  } catch (error) {
+    logger.error('[webhook] Error processing event', { event, error: error.message });
+    // Return 200 to prevent Razorpay from retrying — we'll handle via polling
+    return res.json({ success: false, message: 'internal error' });
   }
 };
 
@@ -684,4 +828,5 @@ module.exports = {
   getPaymentStatusByOrderId,
   getMyPayments,
   requestRefund,
+  razorpayWebhook,
 };

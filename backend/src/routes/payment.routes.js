@@ -21,19 +21,19 @@ router.post('/verify', authorize('PATIENT', 'DOCTOR'), verifyPayment);
 router.get('/my', authorize('PATIENT', 'DOCTOR'), getMyPayments);
 router.post('/refund', authorize('PATIENT', 'CLINIC_OWNER', 'SUPER_ADMIN'), requestRefund);
 
+// Poll payment status by Razorpay order ID (used after redirect)
+router.get('/status/:orderId',
+  authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
+  getPaymentStatusByOrderId
+);
+
 // Staff routes
 router.post('/cash', authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'), markCashPayment);
 
-// Shared
+// Shared — by appointmentId
 router.get('/appointment/:appointmentId',
   authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
   getPaymentStatus
-);
-
-// Poll endpoint — check payment status by Razorpay order ID (for post-redirect polling)
-router.get('/status/:orderId',
-  authorize('PATIENT', 'DOCTOR'),
-  getPaymentStatusByOrderId
 );
 
 module.exports = router;

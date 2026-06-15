@@ -4,9 +4,13 @@ import api from './axios';
 export const initiatePayment = (bookingData) =>
   api.post('/payments/initiate', bookingData);
 
-// Step 2 — verify payment + confirm appointment
+// Step 2 — verify payment + confirm appointment (called from Razorpay handler callback)
 export const verifyPayment = (data) =>
   api.post('/payments/verify', data);
+
+// Poll payment status by Razorpay order ID (used after redirect when handler may have been missed)
+export const getPaymentStatusByOrderId = (orderId) =>
+  api.get(`/payments/status/${orderId}`);
 
 // Receptionist cash payment
 export const markCashPayment = (data) =>

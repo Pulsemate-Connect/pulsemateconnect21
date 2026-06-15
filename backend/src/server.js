@@ -100,6 +100,16 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
+// Webhook routes need raw body for signature verification — must come BEFORE json()
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), (req, _res, next) => {
+  // Preserve raw body string for HMAC verification
+  if (Buffer.isBuffer(req.body)) {
+    req.rawBody = req.body.toString('utf8');
+    try { req.body = JSON.parse(req.rawBody); } catch { req.body = {}; }
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
@@ -151,9 +161,6 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/device-token', deviceTokenRoutes);
-
-// Webhooks — must be registered BEFORE the global JSON body parser catches these routes.
-// The webhook routes apply their own raw body parser internally.
 app.use('/api/webhooks', webhookRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────

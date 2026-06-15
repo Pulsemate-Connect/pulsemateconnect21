@@ -1,30 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getAppointmentDetails } from '../../api/patient.api';
-import { initiatePayment, verifyPayment, getPaymentStatus } from '../../api/payment.api';
-import api from '../../api/axios';
+import { initiatePayment, verifyPayment, getPaymentStatus, getPaymentStatusByOrderId } from '../../api/payment.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
 
-// ── Poll payment status by Razorpay order ID ──────────────────────────────────
-const getPaymentStatusByOrderId = (orderId) =>
-  api.get(`/payments/status/${orderId}`);
+// ── Payment states ────────────────────────────────────────────────────────────
+// IDLE        — normal, show pay button
+// PROCESSING  — payment attempted, polling for confirmation (don't pay again)
+// SUCCESS     — confirmed paid
+// FAILED      — payment failed
+
+const POLL_INTERVAL_MS = 3000;   // poll every 3 seconds
+const POLL_MAX_MS      = 60000;  // stop after 60 seconds
 
 const PaymentPage = () => {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
-  const [appointment, setAppointment] = useState(null);
-  const [payment, setPayment] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isPaying, setIsPaying] = useState(false);
-  // Polling state — active when payment is PENDING after redirect
-  const [isPolling, setIsPolling] = useState(false);
-  const [pollSeconds, setPollSeconds] = useState(0);
-  const pollIntervalRef = useRef(null);
-  const currentOrderIdRef = useRef(null);
 
+  const [appointment, setAppointment]     = useState(null);
+  const [payment, setPayment]             = useState(null);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [isPaying, setIsPaying]           = useState(false);
+  const [pollState, setPollState]         = useState('IDLE'); // IDLE | POLLING | SUCCESS | TIMEOUT
+  const [pollSeconds, setPollSeconds]     = useState(0);
+  const [currentOrderId, setCurrentOrderId] = useState(null);
+
+  const pollTimerRef  = useRef(null);
+  const pollStartRef  = useRef(null);
+  const pollCountRef  = useRef(0);
+
+  // ── Load appointment + payment on mount ────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
@@ -33,7 +41,13 @@ const PaymentPage = () => {
           getPaymentStatus(appointmentId),
         ]);
         setAppointment(apptRes.data.data.appointment);
-        setPayment(payRes.data.data.payment);
+        const p = payRes.data.data.payment;
+        setPayment(p);
+
+        // If payment is already PAID, show success immediately
+        if (p?.status === 'PAID') {
+          setPollState('SUCCESS');
+        }
       } catch {
         toast.error('Failed to load payment details');
         navigate('/patient/appointments');
@@ -42,85 +56,86 @@ const PaymentPage = () => {
       }
     };
     load();
+  }, [appointmentId, navigate]);
 
-    return () => stopPolling();
-  }, [appointmentId, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Polling helpers ─────────────────────────────────────────────────────────
-  const stopPolling = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+  // ── Polling logic ──────────────────────────────────────────────────────────
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
-    setIsPolling(false);
-    setPollSeconds(0);
-  };
+  }, []);
 
-  const startPolling = (orderId) => {
-    currentOrderIdRef.current = orderId;
-    setIsPolling(true);
+  const startPolling = useCallback((orderId) => {
+    stopPolling();
+    pollStartRef.current = Date.now();
+    pollCountRef.current = 0;
+    setPollState('POLLING');
     setPollSeconds(0);
-    let elapsed = 0;
-    const MAX_SECONDS = 60;
 
-    pollIntervalRef.current = setInterval(async () => {
-      elapsed += 3;
-      setPollSeconds(elapsed);
+    pollTimerRef.current = setInterval(async () => {
+      pollCountRef.current += 1;
+      const elapsed = Date.now() - pollStartRef.current;
+      setPollSeconds(Math.floor(elapsed / 1000));
+
+      if (elapsed >= POLL_MAX_MS) {
+        stopPolling();
+        setPollState('TIMEOUT');
+        return;
+      }
 
       try {
+        // Poll by order ID so we can detect webhook-processed payments too
         const res = await getPaymentStatusByOrderId(orderId);
-        const { status, appointmentId: apptId } = res.data.data;
+        const p   = res.data.data.payment;
+        setPayment(p);
 
-        if (status === 'PAID') {
+        if (p?.status === 'PAID') {
           stopPolling();
-          toast.success('✅ Payment confirmed!');
-          navigate('/patient/appointments');
-          return;
-        }
-
-        if (status === 'FAILED') {
+          setPollState('SUCCESS');
+          toast.success('Payment confirmed!');
+        } else if (p?.status === 'FAILED') {
           stopPolling();
+          setPollState('IDLE');
+          setIsPaying(false);
           toast.error('Payment failed. Please try again.');
-          // Reload page to show fresh state
-          const payRes = await getPaymentStatus(appointmentId);
-          setPayment(payRes.data.data.payment);
-          return;
         }
       } catch {
-        // Network error during poll — keep trying until timeout
+        // Network blip — keep polling
       }
+    }, POLL_INTERVAL_MS);
+  }, [stopPolling]);
 
-      if (elapsed >= MAX_SECONDS) {
-        stopPolling();
-        toast('Payment is still processing. Check back in a few minutes.', { icon: 'ℹ️', duration: 6000 });
-      }
-    }, 3000);
-  };
+  // Clean up on unmount
+  useEffect(() => () => stopPolling(), [stopPolling]);
 
-  // ── Razorpay payment handler ─────────────────────────────────────────────────
+  // ── Razorpay payment handler ───────────────────────────────────────────────
   const handleRazorpayPayment = async () => {
     setIsPaying(true);
     try {
       const orderRes = await initiatePayment({
-        doctorId: appointment.doctorId,
-        clinicId: appointment.clinicId,
+        doctorId:        appointment.doctorId,
+        clinicId:        appointment.clinicId,
         appointmentType: appointment.appointmentType,
         appointmentDate: appointment.appointmentDate,
-        slotTime: appointment.slotTime,
-        symptoms: appointment.symptoms,
+        slotTime:        appointment.slotTime,
+        symptoms:        appointment.symptoms,
       });
       const { order, key, amount, devMode, isFree } = orderRes.data.data;
 
+      // Free booking — immediately confirmed
       if (isFree) {
         toast.success('🎉 Free booking confirmed!');
         navigate('/patient/appointments');
         return;
       }
 
+      // Dev mode — skip Razorpay SDK
       if (devMode) {
+        setCurrentOrderId(order.id);
         await verifyPayment({
           appointmentId,
-          razorpayOrderId: order.id,
+          razorpayOrderId:   order.id,
           razorpayPaymentId: 'dev_pay_' + Date.now(),
           razorpaySignature: 'dev_sig',
         });
@@ -129,7 +144,7 @@ const PaymentPage = () => {
         return;
       }
 
-      // Load Razorpay SDK
+      // Load Razorpay SDK dynamically
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -140,47 +155,64 @@ const PaymentPage = () => {
         });
       }
 
+      setCurrentOrderId(order.id);
+
       const options = {
         key,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'PulseMate',
+        amount:      order.amount,
+        currency:    order.currency,
+        name:        'PulseMate',
         description: `Consultation with Dr. ${appointment?.doctor?.user?.name}`,
-        order_id: order.id,
+        order_id:    order.id,
+
         handler: async (response) => {
-          // Payment succeeded on Razorpay — call verify endpoint
+          // Razorpay calls this after successful payment on the modal
+          // Start polling IMMEDIATELY — don't wait for verify to complete
+          startPolling(order.id);
+
           try {
             await verifyPayment({
               appointmentId,
-              razorpayOrderId: response.razorpay_order_id,
+              razorpayOrderId:   response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-            toast.success('Payment successful!');
-            navigate('/patient/appointments');
+            // verifyPayment succeeded — polling will detect PAID and stop
           } catch {
-            // Verify call failed — start polling (webhook may still confirm it)
-            toast('Payment received. Confirming your booking...', { icon: '⏳', duration: 5000 });
-            setIsPaying(false);
-            startPolling(order.id);
+            // Verify call failed (network issue / server error)
+            // Keep polling — webhook may have already updated the DB
+            toast('Verifying payment... please wait.', { icon: '⏳' });
           }
         },
-        prefill: {
-          name: appointment?.patient?.name || '',
-        },
-        theme: { color: '#6366F1' },
+
+        prefill: { name: appointment?.patient?.name || '' },
+        theme:   { color: '#6366F1' },
+
         modal: {
           ondismiss: () => {
-            setIsPaying(false);
-            // If user closed modal — check if payment actually went through
-            // (possible on mobile where popup closes after deduction)
-            startPolling(order.id);
-            toast('Payment window closed. Checking payment status...', { icon: '🔍', duration: 4000 });
+            // User closed modal without paying
+            if (pollState !== 'POLLING') {
+              setIsPaying(false);
+            }
+            // If modal dismissed AFTER payment (race condition on some devices),
+            // start polling anyway — the handler may have fired
+            if (currentOrderId) {
+              startPolling(currentOrderId || order.id);
+            }
           },
         },
       };
 
       const rzp = new window.Razorpay(options);
+
+      // Handle payment failure from Razorpay
+      rzp.on('payment.failed', (response) => {
+        stopPolling();
+        setPollState('IDLE');
+        setIsPaying(false);
+        toast.error(`Payment failed: ${response.error?.description || 'Unknown error'}`);
+      });
+
       rzp.open();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to initiate payment');
@@ -199,9 +231,10 @@ const PaymentPage = () => {
   }
 
   const isFreeBooking = payment?.amount === 0 || payment?.razorpayOrderId?.startsWith('free_');
-  const isPaid = payment?.status === 'PAID';
-  const isFailed = payment?.status === 'FAILED';
-  const fee = isFreeBooking ? 0 : 10;
+  const isPaid        = payment?.status === 'PAID' || pollState === 'SUCCESS';
+  const isPolling     = pollState === 'POLLING';
+  const isTimedOut    = pollState === 'TIMEOUT';
+  const fee           = isFreeBooking ? 0 : 10;
 
   return (
     <DashboardLayout>
@@ -215,25 +248,7 @@ const PaymentPage = () => {
 
         <h1 className="text-2xl font-bold text-text-primary mb-6">Payment</h1>
 
-        {/* ── Polling banner — shown when payment is still processing ──────── */}
-        {isPolling && (
-          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <div className="w-5 h-5 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-800">Payment processing</p>
-              <p className="text-sm text-amber-700 mt-0.5 leading-relaxed">
-                Do not pay again. Your payment is being verified. We will update your booking automatically.
-              </p>
-              <p className="text-xs text-amber-500 mt-1">
-                Checking... ({pollSeconds}s / 60s)
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Appointment summary */}
+        {/* ── Appointment summary ────────────────────────────────────────── */}
         <div className="card mb-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -276,7 +291,7 @@ const PaymentPage = () => {
           </div>
         </div>
 
-        {/* Payment summary */}
+        {/* ── Payment summary ────────────────────────────────────────────── */}
         <div className={`card mb-6 ${isFreeBooking ? 'border-emerald-200 bg-emerald-50/40' : ''}`}>
           <h2 className="font-semibold text-text-primary mb-4">Payment Summary</h2>
           <div className="space-y-2 text-sm">
@@ -315,64 +330,106 @@ const PaymentPage = () => {
           )}
         </div>
 
-        {/* Payment status / action */}
-        {isFreeBooking && isPaid ? (
+        {/* ── Payment status / action ────────────────────────────────────── */}
+
+        {/* FREE BOOKING — already confirmed */}
+        {isFreeBooking && isPaid && (
           <div className="card bg-emerald-50 border-emerald-200 text-center py-6">
             <p className="text-4xl mb-3">🎉</p>
             <p className="font-semibold text-emerald-800 text-lg">First Booking Free!</p>
-            <p className="text-sm text-emerald-700 mt-1">Your appointment is confirmed at no charge.</p>
-            <p className="text-xs text-emerald-500 mt-2">Queue number assigned · No payment required</p>
+            <p className="text-sm text-emerald-700 mt-1">
+              Your appointment is confirmed at no charge.
+            </p>
           </div>
-        ) : isPaid ? (
+        )}
+
+        {/* PAID — payment complete */}
+        {!isFreeBooking && isPaid && (
           <div className="card bg-green-50 border-green-200 text-center py-6">
             <p className="text-4xl mb-3">✅</p>
             <p className="font-semibold text-green-800 text-lg">Payment Completed</p>
-            <p className="text-sm text-green-600 mt-1">
-              Paid via {payment.method} on{' '}
-              {new Date(payment.paidAt).toLocaleDateString('en-IN')}
-            </p>
-            {payment.razorpayPaymentId &&
+            {payment?.paidAt && (
+              <p className="text-sm text-green-600 mt-1">
+                Paid on {new Date(payment.paidAt).toLocaleDateString('en-IN')}
+              </p>
+            )}
+            {payment?.razorpayPaymentId &&
               !payment.razorpayPaymentId.startsWith('dev_') &&
               !payment.razorpayPaymentId.startsWith('free_') && (
               <p className="text-xs text-green-500 mt-1">
                 Transaction ID: {payment.razorpayPaymentId}
               </p>
             )}
-          </div>
-        ) : isFailed ? (
-          <div className="space-y-4">
-            <div className="card bg-red-50 border-red-200 text-center py-4">
-              <p className="text-3xl mb-2">❌</p>
-              <p className="font-semibold text-red-800">Payment Failed</p>
-              <p className="text-sm text-red-600 mt-1">Your money has not been deducted. Please try again.</p>
-            </div>
             <button
-              onClick={handleRazorpayPayment}
-              disabled={isPaying || isPolling}
-              className="btn-primary w-full py-4 text-base font-semibold"
+              onClick={() => navigate('/patient/appointments')}
+              className="mt-4 btn-primary px-6"
             >
-              {isPaying ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner size="sm" /> Processing...
-                </span>
-              ) : `💳 Retry Payment — ₹${fee}`}
+              View Appointments
             </button>
           </div>
-        ) : (
-          /* PENDING — show pay button */
+        )}
+
+        {/* POLLING — payment processing, don't pay again */}
+        {isPolling && (
+          <div className="card border-amber-200 bg-amber-50 text-center py-6 space-y-3">
+            <div className="flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
+            <p className="font-semibold text-amber-800 text-lg">Payment Processing</p>
+            <p className="text-sm text-amber-700 leading-relaxed max-w-xs mx-auto">
+              ⚠️ <strong>Do not pay again.</strong> Your payment is being confirmed.
+              We will update the status automatically.
+            </p>
+            <p className="text-xs text-amber-500">
+              Checking... ({pollSeconds}s elapsed)
+            </p>
+            {/* Animated progress bar */}
+            <div className="h-1.5 w-full bg-amber-200 rounded-full overflow-hidden mx-auto max-w-xs">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((pollSeconds / 60) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TIMEOUT — polling gave up */}
+        {isTimedOut && (
+          <div className="card border-orange-200 bg-orange-50 py-5 space-y-3">
+            <p className="font-semibold text-orange-800">⏳ Payment Status Pending</p>
+            <p className="text-sm text-orange-700 leading-relaxed">
+              We could not confirm your payment automatically.
+              If money was deducted from your account, <strong>do not pay again</strong> —
+              your appointment will be confirmed within 24 hours once we receive confirmation from Razorpay.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => startPolling(currentOrderId)}
+                className="btn-primary flex-1 py-2.5 text-sm"
+              >
+                Check Again
+              </button>
+              <button
+                onClick={() => navigate('/patient/appointments')}
+                className="btn-outline flex-1 py-2.5 text-sm"
+              >
+                My Appointments
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PENDING — show pay button (only when not polling/paid/timeout) */}
+        {!isPaid && !isPolling && !isTimedOut && (
           <div className="space-y-3">
             <button
               onClick={handleRazorpayPayment}
-              disabled={isPaying || isPolling}
+              disabled={isPaying}
               className="btn-primary w-full py-4 text-base font-semibold"
             >
               {isPaying ? (
                 <span className="flex items-center justify-center gap-2">
                   <LoadingSpinner size="sm" /> Processing...
-                </span>
-              ) : isPolling ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner size="sm" /> Verifying payment...
                 </span>
               ) : (
                 `💳 Pay ₹${fee} via Razorpay`
@@ -383,6 +440,7 @@ const PaymentPage = () => {
             </p>
           </div>
         )}
+
       </div>
     </DashboardLayout>
   );
