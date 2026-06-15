@@ -29,6 +29,7 @@ const sessionRoutes = require('./routes/session.routes');
 const availabilityRoutes = require('./routes/availability.routes');
 const deviceTokenRoutes = require('./routes/deviceToken.routes');
 const campaignRoutes = require('./routes/campaign.routes');
+const webhookRoutes = require('./routes/webhook.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -150,6 +151,10 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/device-token', deviceTokenRoutes);
+
+// Webhooks — must be registered BEFORE the global JSON body parser catches these routes.
+// The webhook routes apply their own raw body parser internally.
+app.use('/api/webhooks', webhookRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);

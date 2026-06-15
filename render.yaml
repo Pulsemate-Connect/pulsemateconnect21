@@ -59,6 +59,8 @@ services:
         sync: false   # set manually in Render dashboard
       - key: CLOUDINARY_API_SECRET
         sync: false   # set manually in Render dashboard
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false   # set manually in Render dashboard — from Razorpay Dashboard → Webhooks
 
   # ── Frontend Web ──────────────────────────────────────────────────────────────
   - type: web

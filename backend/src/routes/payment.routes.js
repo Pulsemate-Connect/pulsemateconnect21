@@ -6,6 +6,7 @@ const {
   verifyPayment,
   markCashPayment,
   getPaymentStatus,
+  getPaymentStatusByOrderId,
   getMyPayments,
   requestRefund,
   getBookingStatus,
@@ -27,6 +28,12 @@ router.post('/cash', authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'), m
 router.get('/appointment/:appointmentId',
   authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
   getPaymentStatus
+);
+
+// Poll endpoint — check payment status by Razorpay order ID (for post-redirect polling)
+router.get('/status/:orderId',
+  authorize('PATIENT', 'DOCTOR'),
+  getPaymentStatusByOrderId
 );
 
 module.exports = router;

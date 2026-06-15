@@ -367,7 +367,14 @@ const verifyPayment = async (req, res, next) => {
 
     const payment = await prisma.payment.findUnique({ where: { appointmentId } });
     if (!payment) return sendError(res, 'Payment record not found', 404);
-    if (payment.status === 'PAID') return sendError(res, 'Payment already verified', 409);
+
+    // ── Idempotency: if already PAID, return success immediately ──────────
+    // Never downgrade SUCCESS to PENDING. Mobile redirects can trigger this twice.
+    if (payment.status === 'PAID') {
+      console.log(`[payment] verify: already PAID — idempotent return | orderId=${payment.razorpayOrderId} paymentId=${payment.razorpayPaymentId}`);
+      const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+      return sendSuccess(res, { verified: true, appointment }, 'Payment already verified');
+    }
 
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
@@ -412,6 +419,8 @@ const verifyPayment = async (req, res, next) => {
       .update(`${razorpayOrderId}|${razorpayPaymentId}`)
       .digest('hex');
 
+    console.log(`[payment] verify: orderId=${razorpayOrderId} paymentId=${razorpayPaymentId} sigMatch=${expectedSig === razorpaySignature}`);
+
     if (expectedSig !== razorpaySignature) {
       await prisma.payment.update({ where: { appointmentId }, data: { status: 'FAILED' } });
       await prisma.appointment.update({ where: { id: appointmentId }, data: { status: 'CANCELLED' } });
@@ -422,6 +431,7 @@ const verifyPayment = async (req, res, next) => {
       where: { appointmentId },
       data: { status: 'PAID', razorpayPaymentId, razorpaySignature, paidAt: new Date() },
     });
+    console.log(`[payment] verify: SUCCESS | orderId=${razorpayOrderId} paymentId=${razorpayPaymentId} appointmentId=${appointmentId}`);
 
     const doctorClinic = await prisma.doctorClinic.findFirst({
       where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
@@ -511,6 +521,37 @@ const markCashPayment = async (req, res, next) => {
     }
 
     return sendSuccess(res, { payment }, 'Cash payment recorded');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/payments/status/:orderId
+ *
+ * Poll endpoint — frontend calls this after redirect to check payment status.
+ * Looks up payment by razorpayOrderId.
+ * Used for the 60-second polling loop when payment is still PENDING after redirect.
+ */
+const getPaymentStatusByOrderId = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const payment = await prisma.payment.findFirst({
+      where: { razorpayOrderId: orderId },
+      include: {
+        appointment: {
+          select: { id: true, status: true, queueNumber: true },
+        },
+      },
+    });
+    if (!payment) return sendError(res, 'Payment not found', 404);
+    return sendSuccess(res, {
+      status: payment.status,
+      appointmentId: payment.appointmentId,
+      appointmentStatus: payment.appointment?.status,
+      queueNumber: payment.appointment?.queueNumber,
+      paidAt: payment.paidAt,
+    });
   } catch (error) {
     next(error);
   }
@@ -640,6 +681,7 @@ module.exports = {
   getBookingStatus,
   markCashPayment,
   getPaymentStatus,
+  getPaymentStatusByOrderId,
   getMyPayments,
   requestRefund,
 };
