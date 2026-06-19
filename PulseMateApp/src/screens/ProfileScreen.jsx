@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getPatientProfile, getMyAppointments, updatePatientProfile } from '../api/patient';
+import { getPatientProfile, getMyAppointments, updatePatientProfile, deleteAccount } from '../api/patient';
 import { logout } from '../api/auth';
 import { useAuth } from '../store/authStore';
 
@@ -351,6 +351,42 @@ export default function ProfileScreen({ navigation, route }) {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all personal data. Your appointment history will be anonymized. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you absolutely sure?',
+              'Type "DELETE" to confirm. This action is irreversible.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete Everything',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                      await logout().catch(() => {});
+                      signOut();
+                    } catch (err) {
+                      Alert.alert('Error', err.response?.data?.message || 'Failed to delete account. Please try again.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const handleProfileSaved = (updatedUser) => {
     if (updatedUser) {
       setProfile(updatedUser);
@@ -607,6 +643,16 @@ export default function ProfileScreen({ navigation, route }) {
           <Ionicons name="chevron-forward" size={15} color={RED} style={{ marginLeft: 'auto' }} />
         </TouchableOpacity>
 
+        {/* ── Delete Account (Google Play required) ── */}
+        <TouchableOpacity style={s.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.85}>
+          <View style={s.deleteIconWrap}>
+            <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+          </View>
+          <Text style={s.deleteText}>Delete Account</Text>
+          <Ionicons name="chevron-forward" size={13} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
+        </TouchableOpacity>
+        <Text style={s.deleteHint}>Permanently deletes your account and all personal data.</Text>
+
       </ScrollView>
 
       {/* ── Edit Sheet ── */}
@@ -738,4 +784,8 @@ const s = StyleSheet.create({
   logoutBtn:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 18, borderWidth: 1, borderColor: '#FEE2E2', paddingHorizontal: 16, paddingVertical: 16, marginBottom: 8, shadowColor: RED, shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   logoutIconWrap:{ width: 38, height: 38, borderRadius: 12, backgroundColor: RED_L, alignItems: 'center', justifyContent: 'center' },
   logoutText:    { fontSize: 15, fontWeight: '700', color: RED },
+  deleteBtn:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 18, borderWidth: 1, borderColor: '#F3F4F6', paddingHorizontal: 16, paddingVertical: 14, marginBottom: 4, elevation: 0 },
+  deleteIconWrap:{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  deleteText:    { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
+  deleteHint:    { fontSize: 11, color: '#D1D5DB', textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 },
 });

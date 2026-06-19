@@ -81,7 +81,10 @@ app.use(cors({
     if (/^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/.test(origin)) return callback(null, true);
     if (/^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin)) return callback(null, true);
     if (/^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/.test(origin)) return callback(null, true);
-    return callback(null, true); // dev: allow all
+    // In development only — allow all origins for local testing
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    // In production — block unknown origins
+    return callback(new Error(`CORS: origin ${origin} not allowed`), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

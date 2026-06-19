@@ -17,6 +17,9 @@ import PendingVerificationPage from './pages/auth/PendingVerificationPage';
 import PortalLandingPage from './pages/auth/PortalLandingPage';
 import AdminLoginPage from './pages/auth/AdminLoginPage';
 import PublicHomePage from './pages/public/PublicHomePage';
+import PrivacyPolicyPage from './pages/public/PrivacyPolicyPage';
+import TermsPage from './pages/public/TermsPage';
+import DeleteAccountPage from './pages/public/DeleteAccountPage';
 
 import PatientDashboard from './pages/patient/PatientDashboard';
 import DoctorSearch from './pages/patient/DoctorSearch';
@@ -64,6 +67,9 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<PublicRoute><PublicHomePage /></PublicRoute>} />
       <Route path="/portal" element={<PublicRoute><PortalLandingPage /></PublicRoute>} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/delete-account" element={<DeleteAccountPage />} />
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/staff/login" element={<PublicRoute><StaffLoginPage /></PublicRoute>} />
       <Route path="/login/:role" element={<PublicRoute><RoleLoginPage /></PublicRoute>} />

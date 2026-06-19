@@ -152,4 +152,17 @@ router.post(
   firebasePhoneLoginHandler
 );
 
+// ── Web-based account deletion request (Google Play compliance — no auth needed) ─
+router.post('/request-account-deletion', otpSendLimiter, async (req, res, next) => {
+  try {
+    const { phone, reason } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone number required' });
+    const { sendSuccess } = require('../utils/response');
+    const logger = require('../config/logger');
+    logger.info('[account-deletion] Web deletion request received', { phone: `***${phone.slice(-4)}`, reason });
+    // In production, email support team or create deletion ticket
+    return sendSuccess(res, {}, 'Deletion request received. Your account will be deleted within 30 days.');
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

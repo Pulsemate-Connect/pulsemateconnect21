@@ -17,3 +17,5 @@ export const getBookingStatus = () => api.get('/payments/booking-status');
 export const getAvailableSlots = (doctorId, params) => api.get(`/doctor/${doctorId}/slots`, { params });
 export const getDoctorAvailability = (doctorId, params) => api.get(`/doctor/${doctorId}/availability`, { params });
 export const requestRefund = (data) => api.post('/payments/refund', data);
+// Google Play compliant account deletion
+export const deleteAccount = () => api.delete('/patient/account');

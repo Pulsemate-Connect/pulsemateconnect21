@@ -125,7 +125,13 @@ const getDoctorProfile = async (req, res, next) => {
       return sendError(res, 'Doctor not found', 404);
     }
 
-    return sendSuccess(res, { doctor });
+    // Map profileImage field to profilePhotoUrl for mobile app compatibility
+    const doctorWithPhoto = {
+      ...doctor,
+      profilePhotoUrl: doctor.profileImage || null,
+    };
+
+    return sendSuccess(res, { doctor: doctorWithPhoto });
   } catch (error) {
     next(error);
   }
@@ -765,6 +771,61 @@ const getNearby = async (req, res, next) => {
   }
 };
 
+/**
+ * DELETE /api/patient/account
+ * Google Play compliant account deletion.
+ * Anonymizes PII, cancels active appointments, revokes all tokens.
+ */
+const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Cancel all active/upcoming appointments
+      await tx.appointment.updateMany({
+        where: {
+          patientId: userId,
+          status: { in: ['BOOKED', 'PENDING_PAYMENT', 'CHECKED_IN', 'IN_QUEUE', 'CALLED'] },
+        },
+        data: { status: 'CANCELLED' },
+      });
+
+      // 2. Revoke all refresh tokens
+      await tx.refreshToken.deleteMany({ where: { userId } });
+
+      // 3. Delete FCM tokens
+      await tx.fcmToken.deleteMany({ where: { userId } });
+
+      // 4. Delete OTP verifications
+      await tx.otpVerification.deleteMany({ where: { mobile: req.user.mobile } });
+
+      // 5. Anonymize patient profile (keep for medical record integrity)
+      await tx.patientProfile.updateMany({
+        where: { userId },
+        data: { emergencyContact: null, allergies: null, existingDiseases: null, insuranceProvider: null },
+      });
+
+      // 6. Anonymize user PII — keep ID for data integrity
+      const anonymizedMobile = `+00000000000${userId.slice(-4)}`;
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          name:          `Deleted User`,
+          mobile:        anonymizedMobile,
+          email:         null,
+          isActive:      false,
+          approvalStatus:'REJECTED',
+          firebaseUid:   null,
+        },
+      });
+    });
+
+    return sendSuccess(res, {}, 'Account deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   searchDoctors,
   getDoctorProfile,
@@ -776,4 +837,5 @@ module.exports = {
   getProfile,
   updateProfile,
   getNearby,
+  deleteAccount,
 };

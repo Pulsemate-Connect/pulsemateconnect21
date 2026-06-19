@@ -12,6 +12,7 @@ const {
   getProfile,
   updateProfile,
   getNearby,
+  deleteAccount,
 } = require('../controllers/patient.controller');
 const { validate, bookAppointmentSchema } = require('../validators/appointment.validator');
 
@@ -30,5 +31,7 @@ router.get('/queue/:appointmentId', authorize('PATIENT', 'DOCTOR'), getLiveQueue
 router.patch('/appointments/:id/cancel', authorize('PATIENT', 'DOCTOR'), cancelAppointment);
 router.get('/profile', authorize('PATIENT', 'DOCTOR'), getProfile);
 router.patch('/profile', authorize('PATIENT', 'DOCTOR'), updateProfile);
+// Google Play compliant account deletion
+router.delete('/account', authorize('PATIENT', 'DOCTOR'), deleteAccount);
 
 module.exports = router;
