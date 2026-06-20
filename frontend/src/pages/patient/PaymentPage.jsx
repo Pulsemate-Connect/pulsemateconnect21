@@ -6,6 +6,7 @@ import { initiatePayment, verifyPayment, getPaymentStatus, getPaymentStatusByOrd
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
+import { fmtDoctorName } from '../../utils/doctorName';
 
 // ── Payment states ────────────────────────────────────────────────────────────
 // IDLE        — normal, show pay button
@@ -162,7 +163,7 @@ const PaymentPage = () => {
         amount:      order.amount,
         currency:    order.currency,
         name:        'PulseMate',
-        description: `Consultation with Dr. ${appointment?.doctor?.user?.name}`,
+        description: `Consultation with ${fmtDoctorName(appointment?.doctor?.user?.name)}`,
         order_id:    order.id,
 
         handler: async (response) => {

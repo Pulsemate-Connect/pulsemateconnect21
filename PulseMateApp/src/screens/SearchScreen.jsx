@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { searchDoctors } from '../api/patient';
+import { fmtDoctorName } from '../utils/doctorName';
 import { colors, shadow, radius } from '../theme';
 
 const { width: W } = Dimensions.get('window');
@@ -109,14 +110,6 @@ const fs = StyleSheet.create({
   applyBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: SKY5, borderRadius: 16, paddingVertical: 16, marginTop: 8, shadowColor: SKY5, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 8 },
   applyText:     { fontSize: 16, fontWeight: '800', color: WHITE },
 });
-
-// ── Helper: format doctor name without double "Dr." ──────────────────────────
-const fmtDoctorName = (name) => {
-  if (!name) return 'Doctor';
-  const trimmed = name.trim();
-  if (trimmed.toLowerCase().startsWith('dr.') || trimmed.toLowerCase().startsWith('dr ')) return trimmed;
-  return `Dr. ${trimmed}`;
-};
 
 // ── Doctor card ───────────────────────────────────────────────────────────────
 function DoctorCard({ doc, onViewProfile, onBook }) {

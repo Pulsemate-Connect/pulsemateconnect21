@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getPatientProfile, getMyAppointments, updatePatientProfile, deleteAccount } from '../api/patient';
 import { logout } from '../api/auth';
+import { fmtDoctorName } from '../utils/doctorName';
 import { useAuth } from '../store/authStore';
 
 const { width: W } = Dimensions.get('window');
@@ -605,7 +606,7 @@ export default function ProfileScreen({ navigation, route }) {
 
                   {/* Info */}
                   <View style={s.apptInfo}>
-                    <Text style={s.docName} numberOfLines={1}>Dr. {docName}</Text>
+                    <Text style={s.docName} numberOfLines={1}>{fmtDoctorName(docName)}</Text>
                     {spec ? <Text style={s.docSpec} numberOfLines={1}>{spec}</Text> : null}
                     {clinic ? (
                       <View style={s.clinicRow}>

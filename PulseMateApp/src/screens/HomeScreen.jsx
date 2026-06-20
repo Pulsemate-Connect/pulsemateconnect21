@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { useAuth } from '../store/authStore';
 import { getMyAppointments, getLiveQueue, getNearby, searchDoctors } from '../api/patient';
 import { getMyNotifications } from '../api/auth';
+import { fmtDoctorName } from '../utils/doctorName';
 
 const { width: W } = Dimensions.get('window');
 
@@ -99,7 +100,7 @@ function DoctorCard({ doctor, onBook }) {
         <Ionicons name="heart-outline" size={16} color={MUTED} />
       </TouchableOpacity>
       <DoctorAvatar photoUrl={photo} name={name} size={72} />
-      <Text style={s.doctorName} numberOfLines={1}>Dr. {name}</Text>
+      <Text style={s.doctorName} numberOfLines={1}>{fmtDoctorName(name)}</Text>
       <Text style={s.doctorSpec} numberOfLines={1}>{spec}</Text>
       <View style={s.ratingRow}>
         <Ionicons name="star" size={12} color="#F59E0B" />

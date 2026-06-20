@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueueSocket } from '../hooks/useQueueSocket';
+import { fmtDoctorName } from '../utils/doctorName';
 
 const { width: W } = Dimensions.get('window');
 
@@ -513,7 +514,7 @@ export default function LiveQueueScreen({ route, navigation }) {
                 }]} />
               </View>
               <View style={lq.doctorInfo}>
-                <Text style={lq.doctorName}>Dr. {doctorName}</Text>
+                <Text style={lq.doctorName}>{fmtDoctorName(doctorName)}</Text>
                 {doctorSpec && <Text style={lq.doctorSpec}>{doctorSpec}</Text>}
                 <View style={lq.doctorStatusRow}>
                   <View style={[lq.doctorStatusDot, {

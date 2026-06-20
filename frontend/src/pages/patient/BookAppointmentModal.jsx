@@ -5,6 +5,7 @@ import { getPatientProfile } from '../../api/patient.api';
 import { initiatePayment, verifyPayment, getBookingStatus } from '../../api/payment.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import ProfileSetupModal from './ProfileSetupModal';
+import { fmtDoctorName } from '../../utils/doctorName';
 
 /**
  * BookAppointmentModal — Unified free + paid booking flow
@@ -147,7 +148,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
         amount: order.amount,
         currency: order.currency,
         name: 'PulseMate',
-        description: `Consultation — Dr. ${doctorName || doctor.user?.name}`,
+        description: `Consultation — ${fmtDoctorName(doctorName || doctor.user?.name)}`,
         image: '/favicon.ico',
         order_id: order.id,
         handler: async (response) => {

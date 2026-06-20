@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getMyAppointments, cancelAppointment, getLiveQueue } from '../api/patient';
+import { fmtDoctorName } from '../utils/doctorName';
 import { colors, shadow, radius } from '../theme';
 
 const FILTERS = [
@@ -219,7 +220,7 @@ export default function AppointmentsScreen({ navigation }) {
                       </View>
 
                       <View style={s.upInfo}>
-                        <Text style={s.upName}>Dr. {appt.doctor?.user?.name}</Text>
+                        <Text style={s.upName}>{fmtDoctorName(appt.doctor?.user?.name)}</Text>
                         <Text style={[s.upSpec, { color }]}>
                           {appt.doctor?.specialization || 'General Physician'}
                         </Text>
@@ -343,7 +344,7 @@ export default function AppointmentsScreen({ navigation }) {
                         </Text>
                       </View>
                       <View style={s.pastInfo}>
-                        <Text style={s.pastName}>Dr. {appt.doctor?.user?.name}</Text>
+                        <Text style={s.pastName}>{fmtDoctorName(appt.doctor?.user?.name)}</Text>
                         <Text style={[s.pastSpec, { color }]}>
                           {appt.doctor?.specialization || 'General Physician'}
                         </Text>

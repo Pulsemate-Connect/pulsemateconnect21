@@ -10,6 +10,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getDoctorProfile } from '../api/patient';
+import { fmtDoctorName } from '../utils/doctorName';
 import { colors, shadow } from '../theme';
 
 const { width: W } = Dimensions.get('window');
@@ -35,14 +36,6 @@ const getSpec = (s) => SPEC_CFG[s] || { color: SKY5, bg: '#E0F2FE', icon: 'medic
 
 // ── Day abbreviations ─────────────────────────────────────────────────────────
 const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat', Sunday:'Sun' };
-
-// ── Helper: format doctor name without double "Dr." ──────────────────────────
-const fmtDoctorName = (name) => {
-  if (!name) return 'Doctor';
-  const t = name.trim();
-  if (t.toLowerCase().startsWith('dr.') || t.toLowerCase().startsWith('dr ')) return t;
-  return `Dr. ${t}`;
-};
 
 // ── Maps navigation helper ────────────────────────────────────────────────────
 const openMaps = (lat, lng, name) => {

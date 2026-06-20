@@ -14,6 +14,7 @@ import {
   initiatePayment, verifyPayment, getPatientProfile,
   getAvailableSlots, getBookingStatus, getClinicSessions,
 } from '../api/patient';
+import { fmtDoctorName } from '../utils/doctorName';
 
 const { width: W } = Dimensions.get('window');
 
@@ -152,7 +153,7 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
           <View style={so.detailRow}>
             <Ionicons name="person" size={13} color={BLUE} />
             <Text style={so.detailLabel}>Doctor</Text>
-            <Text style={so.detailVal}>Dr. {doctorName}</Text>
+            <Text style={so.detailVal}>{fmtDoctorName(doctorName)}</Text>
           </View>
           <View style={so.divider} />
           <View style={so.detailRow}>
@@ -443,7 +444,7 @@ export default function BookingScreen({ route, navigation }) {
             {/* Info */}
             <View style={s.doctorInfo}>
               <View style={s.doctorNameRow}>
-                <Text style={s.doctorName}>Dr. {doctorName || 'Doctor'}</Text>
+                <Text style={s.doctorName}>{fmtDoctorName(doctorName || 'Doctor')}</Text>
                 <Ionicons name="checkmark-circle" size={16} color={BLUE} style={{ marginLeft: 4 }} />
               </View>
               <Text style={s.doctorSpec}>{specialization || 'General Physician'}</Text>

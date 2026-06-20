@@ -73,7 +73,7 @@ const buildCheckoutHTML = ({
     <div class="logo">Pulse<span>Mate</span></div>
     <div class="sub">Appointment Booking Fee</div>
     <div class="amount">&#8377;${Math.round(amount / 100)}</div>
-    <div class="amount-sub">Appointment with Dr. ${(doctorName || 'Doctor').replace(/'/g, "\\'")}</div>
+    <div class="amount-sub">Appointment with ${(() => { const n = (doctorName || 'Doctor').replace(/'/g, "\\'"); const lower = n.toLowerCase(); return (lower.startsWith('dr.') || lower.startsWith('dr ')) ? n : 'Dr. ' + n; })()}</div>
     <button class="btn" id="payBtn" onclick="openRazorpay()">
       Pay &#8377;${Math.round(amount / 100)}
     </button>
