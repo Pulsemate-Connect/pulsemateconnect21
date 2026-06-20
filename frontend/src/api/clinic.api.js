@@ -35,3 +35,16 @@ export const getClinicAppointments = (clinicId, params) =>
 
 export const getClinicRevenue = (clinicId, period = 'today') =>
   api.get(`/clinics/${clinicId}/revenue`, { params: { period } });
+
+// ── Session Management ─────────────────────────────────────────────────────
+export const getClinicSessions = (clinicId) =>
+  api.get(`/clinics/${clinicId}/sessions`);
+
+export const createClinicSession = (clinicId, data) =>
+  api.post(`/clinics/${clinicId}/sessions`, data);
+
+export const updateClinicSession = (sessionId, data) =>
+  api.put(`/clinics/sessions/${sessionId}`, data);
+
+export const deleteClinicSession = (sessionId) =>
+  api.delete(`/clinics/sessions/${sessionId}`);

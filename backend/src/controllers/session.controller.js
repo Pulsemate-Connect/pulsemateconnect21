@@ -1,12 +1,21 @@
+'use strict';
+
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
-const { createAuditLog } = require('../services/audit.service');
 
+/**
+ * GET /api/sessions
+ * Returns all active sessions for the authenticated user.
+ */
 const listSessions = async (req, res, next) => {
   try {
     const sessions = await prisma.session.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
+      where: { userId: req.user.id, isRevoked: false },
+      orderBy: { lastUsedAt: 'desc' },
+      select: {
+        id: true, deviceInfo: true, ipAddress: true,
+        lastUsedAt: true, createdAt: true, expiresAt: true,
+      },
     });
     return sendSuccess(res, { sessions });
   } catch (error) {
@@ -14,6 +23,10 @@ const listSessions = async (req, res, next) => {
   }
 };
 
+/**
+ * DELETE /api/sessions/:sessionId
+ * Revokes a specific session for the authenticated user.
+ */
 const revokeSession = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
@@ -26,22 +39,10 @@ const revokeSession = async (req, res, next) => {
       where: { id: sessionId },
       data: { isRevoked: true },
     });
-
-    await createAuditLog({
-      userId: req.user.id,
-      action: 'SESSION_REVOKED',
-      entityType: 'Session',
-      entityId: sessionId,
-      ipAddress: req.ip,
-    });
-
-    return sendSuccess(res, {}, 'Session revoked successfully');
+    return sendSuccess(res, {}, 'Session revoked');
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = {
-  listSessions,
-  revokeSession,
-};
+module.exports = { listSessions, revokeSession };

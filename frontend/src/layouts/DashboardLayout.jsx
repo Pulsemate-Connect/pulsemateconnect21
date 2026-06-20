@@ -34,6 +34,7 @@ const NAV_ITEMS = {
   CLINIC_OWNER: [
     { path: '/clinic/dashboard', label: 'Dashboard', icon: Icon.Chart },
     { path: '/clinic/profile', label: 'My Clinic', icon: Icon.Hospital },
+    { path: '/clinic/sessions', label: 'Sessions', icon: Icon.Calendar },
     { path: '/clinic/doctors', label: 'Doctors', icon: Icon.User },
     { path: '/clinic/receptionists', label: 'Receptionists', icon: Icon.Users },
     { path: '/clinic/appointments', label: 'Appointments', icon: Icon.Calendar },

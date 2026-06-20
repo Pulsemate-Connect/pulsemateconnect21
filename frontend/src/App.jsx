@@ -44,6 +44,7 @@ import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ClinicProfile from './pages/owner/ClinicProfile';
 import ClinicEditResubmit from './pages/owner/ClinicEditResubmit';
 import ManageStaff from './pages/owner/ManageStaff';
+import ManageSessions from './pages/owner/ManageSessions';
 import OwnerAppointments from './pages/owner/OwnerAppointments';
 import QueueOverview from './pages/owner/QueueOverview';
 
@@ -121,6 +122,7 @@ const AppRoutes = () => {
       <Route path="/clinic/profile/:id" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicProfile /></ProtectedRoute>} />
       <Route path="/clinic/doctors" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="DOCTOR" /></ProtectedRoute>} />
       <Route path="/clinic/receptionists" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="RECEPTIONIST" /></ProtectedRoute>} />
+      <Route path="/clinic/sessions" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageSessions /></ProtectedRoute>} />
       <Route path="/clinic/appointments" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerAppointments /></ProtectedRoute>} />
       <Route path="/clinic/queue" element={<ProtectedRoute roles={['CLINIC_OWNER']}><QueueOverview /></ProtectedRoute>} />
 

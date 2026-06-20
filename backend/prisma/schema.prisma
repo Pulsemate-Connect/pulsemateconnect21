@@ -148,6 +148,7 @@ model Clinic {
   verifiedBy                         User?                   @relation("ClinicVerifiedBy", fields: [verifiedById], references: [id])
   queues                             Queue[]
   receptionistProfiles               ReceptionistProfile[]
+  sessions                           ClinicSession[]
 
   @@map("clinics")
 }
@@ -687,4 +688,20 @@ enum DoctorVerificationStatus {
   PENDING
   VERIFIED
   REJECTED
+}
+
+// ─── Clinic Sessions ──────────────────────────────────────────────────────────
+model ClinicSession {
+  id          String   @id @default(uuid())
+  clinicId    String
+  sessionName String
+  startTime   String
+  endTime     String
+  maxAppointments Int? @default(20)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_sessions")
 }
