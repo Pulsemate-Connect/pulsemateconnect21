@@ -94,17 +94,10 @@ export default function LoginScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        {/* Top bar */}
+        {/* Top bar — logo only, no badge */}
         <View style={s.topBar}>
           <View style={s.logoBox}>
             <Image source={LOGO} style={s.logoImg} resizeMode="cover" />
-          </View>
-          <View style={s.secureBadge}>
-            <View style={s.secureIcon}><Ionicons name="shield-checkmark" size={12} color={WHITE} /></View>
-            <View>
-              <Text style={s.secureTitle}>Secure Login</Text>
-              <Text style={s.secureSub}>Firebase Auth</Text>
-            </View>
           </View>
         </View>
 
@@ -126,27 +119,49 @@ export default function LoginScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Illustration card */}
+        {/* Doctor showcase card */}
         <View style={s.illustrationCard}>
-          <View style={s.doctorStrip}>
-            <Image source={LOGO} style={s.doctorPhoto} resizeMode="cover" />
-            <View style={s.doctorInfo}>
-              <View style={s.doctorBadge}>
-                <Ionicons name="medical" size={10} color={WHITE} />
-                <Text style={s.doctorBadgeText}>Verified Doctor</Text>
+          {/* 3 doctor avatars row */}
+          <View style={s.doctorsRow}>
+            {[
+              { initials: 'RK', name: 'Dr. Rahul Kumar',   spec: 'Cardiologist',  rating: '4.9', color: '#DBEAFE', tc: '#1D4ED8', avail: true  },
+              { initials: 'SP', name: 'Dr. Sneha Patil',   spec: 'Dermatologist', rating: '4.8', color: '#D1FAE5', tc: '#065F46', avail: true  },
+              { initials: 'AM', name: 'Dr. Arjun Mehta',   spec: 'Orthopedic',    rating: '4.7', color: '#EDE9FE', tc: '#6D28D9', avail: false },
+            ].map((doc, i) => (
+              <View key={i} style={s.docMiniCard}>
+                {/* Avatar */}
+                <View style={[s.docMiniAvatar, { backgroundColor: doc.color }]}>
+                  <Text style={[s.docMiniInitials, { color: doc.tc }]}>{doc.initials}</Text>
+                  {doc.avail && <View style={s.docMiniDot} />}
+                </View>
+                <Text style={s.docMiniName} numberOfLines={1}>{doc.name.split(' ').slice(0, 2).join(' ')}</Text>
+                <Text style={s.docMiniSpec} numberOfLines={1}>{doc.spec}</Text>
+                <View style={s.docMiniRating}>
+                  <Ionicons name="star" size={10} color="#F59E0B" />
+                  <Text style={s.docMiniRatingText}>{doc.rating}</Text>
+                </View>
               </View>
-              <Text style={s.doctorName}>Dr. Priya Sharma</Text>
-              <Text style={s.doctorSpec}>Cardiologist · 12 yrs exp</Text>
-              <View style={s.doctorAvail}>
-                <View style={s.availDot} />
-                <Text style={s.availText}>Available now</Text>
-              </View>
+            ))}
+          </View>
+
+          {/* Stats row */}
+          <View style={s.statsRow}>
+            <View style={s.statItem}>
+              <Text style={s.statNum}>500+</Text>
+              <Text style={s.statLabel}>Doctors</Text>
             </View>
-            <View style={s.doctorRating}>
-              <Ionicons name="star" size={12} color="#F59E0B" />
-              <Text style={s.ratingText}>4.9</Text>
+            <View style={s.statDivider} />
+            <View style={s.statItem}>
+              <Text style={s.statNum}>1.2L+</Text>
+              <Text style={s.statLabel}>Appointments</Text>
+            </View>
+            <View style={s.statDivider} />
+            <View style={s.statItem}>
+              <Text style={s.statNum}>4.9★</Text>
+              <Text style={s.statLabel}>Patient Rating</Text>
             </View>
           </View>
+
           <View style={s.dividerLine} />
           <Text style={s.heroTitle}>Skip the waiting room.</Text>
           <Text style={s.heroSub}>Book and track appointments in real time.</Text>
@@ -224,12 +239,7 @@ export default function LoginScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Privacy */}
-        <View style={s.privacyCard}>
-          <View style={s.privacyIcon}><Ionicons name="lock-closed" size={16} color={BLUE} /></View>
-          <Text style={s.privacyText}>Your number is only used for authentication and is never shared.</Text>
-          <View style={s.otpBadge}><View style={s.otpDot} /><Text style={s.otpBadgeText}>Firebase OTP</Text></View>
-        </View>
+
 
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink}>Terms</Text> and <Text style={s.termsLink}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
@@ -241,13 +251,9 @@ export default function LoginScreen({ navigation }) {
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: BG },
   scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 52 },
-  topBar:       { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 },
+  topBar:       { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-start', marginBottom: 14 },
   logoBox:      { width: 56, height: 56, backgroundColor: WHITE, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, borderWidth: 1, borderColor: '#DBEAFE' },
   logoImg:      { width: '100%', height: '100%', borderRadius: 18 },
-  secureBadge:  { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: WHITE, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2, borderWidth: 1, borderColor: '#D1FAE5' },
-  secureIcon:   { width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
-  secureTitle:  { fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
-  secureSub:    { fontSize: 9, color: GRAY, lineHeight: 11, marginTop: 1 },
   headline:     { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },
   headlineBlue: { color: BLUE },
   headlineSub:  { fontSize: 13, color: GRAY, textAlign: 'center', marginBottom: 16 },
@@ -259,18 +265,24 @@ const s = StyleSheet.create({
   dividerLine:      { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
   heroTitle:        { fontSize: 16, fontWeight: '900', color: DARK, textAlign: 'center' },
   heroSub:          { fontSize: 13, fontWeight: '700', color: BLUE, textAlign: 'center', marginTop: 2 },
-  doctorStrip:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  doctorPhoto:     { width: 56, height: 56, borderRadius: 16, borderWidth: 2, borderColor: '#BFDBFE' },
-  doctorInfo:      { flex: 1, gap: 3 },
-  doctorBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: BLUE, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start' },
-  doctorBadgeText: { fontSize: 9, fontWeight: '800', color: WHITE },
-  doctorName:      { fontSize: 14, fontWeight: '800', color: DARK },
-  doctorSpec:      { fontSize: 11, color: GRAY },
-  doctorAvail:     { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  availDot:        { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  availText:       { fontSize: 10, fontWeight: '600', color: GREEN },
-  doctorRating:    { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
-  ratingText:      { fontSize: 12, fontWeight: '800', color: '#92400E' },
+
+  // ── New doctor showcase ──────────────────────────────────────────────────────
+  doctorsRow:       { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 14 },
+  docMiniCard:      { flex: 1, alignItems: 'center', backgroundColor: '#F8FAFF', borderRadius: 14, padding: 10, borderWidth: 1, borderColor: '#E0EAFF' },
+  docMiniAvatar:    { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6, position: 'relative' },
+  docMiniInitials:  { fontSize: 16, fontWeight: '800' },
+  docMiniDot:       { position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E', borderWidth: 1.5, borderColor: WHITE },
+  docMiniName:      { fontSize: 10, fontWeight: '700', color: DARK, textAlign: 'center', marginBottom: 2 },
+  docMiniSpec:      { fontSize: 9, color: GRAY, textAlign: 'center', marginBottom: 4 },
+  docMiniRating:    { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  docMiniRatingText:{ fontSize: 10, fontWeight: '800', color: '#92400E' },
+
+  // Stats row
+  statsRow:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  statItem:         { flex: 1, alignItems: 'center' },
+  statNum:          { fontSize: 15, fontWeight: '900', color: BLUE },
+  statLabel:        { fontSize: 10, color: GRAY, fontWeight: '500', marginTop: 1 },
+  statDivider:      { width: 1, height: 28, backgroundColor: '#E5E7EB' },
   formCard:   { backgroundColor: WHITE, borderRadius: 20, padding: 20, marginBottom: 14, borderWidth: 1, borderColor: '#DBEAFE', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   formHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   formIconBox:{ width: 42, height: 42, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -294,12 +306,6 @@ const s = StyleSheet.create({
   trustRow:   { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 14 },
   trustBadge: { alignItems: 'center', gap: 4, flex: 1 },
   trustLabel: { fontSize: 10, color: GRAY, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
-  privacyCard: { backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: '#DBEAFE', padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  privacyIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
-  privacyText: { flex: 1, fontSize: 11, color: '#6B7280', lineHeight: 16 },
-  otpBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: GREEN_L, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 5, borderWidth: 1, borderColor: '#BBF7D0', alignSelf: 'flex-start', flexShrink: 0 },
-  otpDot:      { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  otpBadgeText:{ fontSize: 10, fontWeight: '800', color: '#15803D' },
   terms:     { textAlign: 'center', fontSize: 11, color: GRAY, lineHeight: 18 },
   termsLink: { color: BLUE, fontWeight: '700' },
 });
