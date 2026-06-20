@@ -9,7 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, shadow } from '../theme';
 
-const LOGO = require('../../assets/logo1.jpeg');
+const LOGO = require('../../assets/logo11.png');
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -255,7 +255,7 @@ export default function WelcomeScreen({ navigation }) {
 
         {/* Logo row */}
         <View style={ws.logoRow}>
-          <Image source={LOGO} style={ws.logoImg} resizeMode="cover" />
+          <Image source={LOGO} style={ws.logoImg} resizeMode="contain" />
           <Text style={ws.logoText}>PulseMate Connect</Text>
           <View style={ws.liveBadge}>
             <View style={ws.liveDot} />
@@ -357,7 +357,7 @@ const ws = StyleSheet.create({
 
   // Logo row
   logoRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 24, alignSelf: 'flex-start' },
-  logoImg:  { width: 30, height: 30, borderRadius: 9 },
+  logoImg:  { width: 80, height: 30, borderRadius: 6 },
   logoText: { fontSize: 15, fontWeight: '700', color: WHITE, letterSpacing: -0.3 },
   liveBadge:{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(45,212,191,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(45,212,191,0.35)' },
   liveDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: TEAL },

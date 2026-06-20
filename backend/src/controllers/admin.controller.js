@@ -523,6 +523,49 @@ const createAdminAccount = async (req, res, next) => {
   }
 };
 
+const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      return sendError(res, 'You cannot delete your own account', 400);
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      include: { adminProfile: true },
+    });
+
+    if (!targetUser) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    // Prevent deleting any admin (use deleteAdminAccount for that)
+    if (isAdminUser(targetUser)) {
+      return sendError(res, 'Use the admin delete endpoint to remove admin accounts', 400);
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'USER_DELETED',
+      entityType: 'User',
+      entityId: id,
+      metadata: {
+        deletedName: targetUser.name,
+        deletedMobile: targetUser.mobile,
+        deletedRole: targetUser.role,
+      },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, {}, 'User deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 const deleteAdminAccount = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -936,6 +979,7 @@ module.exports = {
   updateUserStatus,
   createAdminAccount,
   deleteAdminAccount,
+  deleteUser,
   resetDatabase,
   requestClinicChanges,
   suspendClinic,

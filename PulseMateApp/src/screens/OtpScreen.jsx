@@ -20,7 +20,7 @@ import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
-const LOGO = require('../../assets/logo.png');
+const LOGO = require('../../assets/logo11.png');
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -207,6 +207,7 @@ export default function OtpScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={20} color={BLUE} />
           </TouchableOpacity>
           <Image source={LOGO} style={os.logoImg} resizeMode="contain" />
+          <View style={{ flex: 1 }} />
         </View>
 
         <Text style={os.headline}>PulseMate <Text style={os.headlineBlue}>Connect</Text></Text>
@@ -298,9 +299,9 @@ const os = StyleSheet.create({
   successCircle:  { width: 96, height: 96, borderRadius: 48, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', shadowColor: GREEN, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   successTitle:   { fontSize: 28, fontWeight: '900', color: DARK },
   successSub:     { fontSize: 14, color: GRAY },
-  topBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  topBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginBottom: 14 },
   backBtn:     { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BLUE_B },
-  logoImg:     { height: 34, width: 150 },
+  logoImg:     { height: 34, width: 100 },
   secureTitle: { fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
   secureSub:   { fontSize: 9, color: GRAY, lineHeight: 11, marginTop: 1 },
   headline:    { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },

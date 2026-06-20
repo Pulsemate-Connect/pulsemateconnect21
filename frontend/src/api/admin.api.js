@@ -55,5 +55,8 @@ export const createAdminUser = (data) =>
 export const deleteAdminUser = (id) =>
   api.delete(`/admin/admins/${id}`);
 
+export const deleteUser = (id) =>
+  api.delete(`/admin/users/${id}`);
+
 export const resetDatabase = () =>
   api.post('/admin/reset-database');

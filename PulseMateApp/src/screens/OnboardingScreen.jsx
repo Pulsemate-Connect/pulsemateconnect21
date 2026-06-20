@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const LOGO = require('../../assets/logo1.jpeg');
+const LOGO = require('../../assets/logo11.png');
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -370,7 +370,7 @@ export default function OnboardingScreen({ navigation }) {
       {/* ── Top: logo + skip ── */}
       <View style={[ob.topBar, { paddingTop: insets.top + 12 }]}>
         <View style={ob.logoRow}>
-          <Image source={LOGO} style={ob.logoImg} resizeMode="cover" />
+          <Image source={LOGO} style={ob.logoImg} resizeMode="contain" />
           <Text style={ob.logoText}>PulseMate Connect</Text>
         </View>
         <TouchableOpacity style={ob.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
@@ -472,7 +472,7 @@ const ob = StyleSheet.create({
 
   topBar:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginBottom: 8 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoImg: { width: 28, height: 28, borderRadius: 8 },
+  logoImg: { width: 70, height: 26, borderRadius: 4 },
   logoText:{ fontSize: 14, fontWeight: '700', color: WHITE, letterSpacing: -0.2 },
   skipBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 6 },
   skipText:{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },

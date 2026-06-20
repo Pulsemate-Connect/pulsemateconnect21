@@ -56,12 +56,66 @@ const showToast = (msg) => {
   }
 };
 
+// ── Symptom tags ──────────────────────────────────────────────────────────────
+const SYMPTOM_TAGS = ['Fever','Headache','Back Pain','Cough','Fatigue','Chest Pain','Stomach Ache','Dizziness'];
+
+// ── Mock saved family members ─────────────────────────────────────────────────
+const SAVED_FAMILY = [
+  { id: 'f1', name: 'Priya Sharma',  relation: 'Spouse',  initials: 'PS', color: '#DBEAFE', textColor: '#1D4ED8' },
+  { id: 'f2', name: 'Raj Sharma',    relation: 'Father',  initials: 'RS', color: '#D1FAE5', textColor: '#065F46' },
+  { id: 'f3', name: 'Meera Sharma',  relation: 'Mother',  initials: 'MS', color: '#EDE9FE', textColor: '#5B21B6' },
+];
+
+// ── Progress stepper ──────────────────────────────────────────────────────────
+function ProgressStepper({ step }) {
+  const steps = ['For Whom','Visit','Date','Session','Notes'];
+  return (
+    <View style={ps.row}>
+      {steps.map((label, i) => {
+        const done   = step > i + 1;
+        const active = step === i + 1;
+        return (
+          <View key={label} style={ps.item}>
+            <View style={[ps.dot, done ? ps.dotDone : active ? ps.dotActive : ps.dotOff]}>
+              {done
+                ? <Ionicons name="checkmark" size={9} color={WHITE} />
+                : <Text style={[ps.num, active ? ps.numActive : ps.numOff]}>{i + 1}</Text>}
+            </View>
+            <Text style={[ps.label, done ? ps.labelDone : active ? ps.labelActive : ps.labelOff]} numberOfLines={1}>
+              {label}
+            </Text>
+            {i < steps.length - 1 && <View style={[ps.line, done ? ps.lineDone : ps.lineOff]} />}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+const ps = StyleSheet.create({
+  row:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: BORDER },
+  item:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dot:       { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  dotActive: { backgroundColor: BLUE },
+  dotDone:   { backgroundColor: GREEN_DOT },
+  dotOff:    { backgroundColor: '#E5E7EB' },
+  num:       { fontSize: 9, fontWeight: '800' },
+  numActive: { color: WHITE },
+  numOff:    { color: MUTED },
+  label:     { fontSize: 9, fontWeight: '600', maxWidth: 38 },
+  labelActive:{ color: BLUE },
+  labelDone: { color: GREEN_DOT },
+  labelOff:  { color: MUTED },
+  line:      { width: 14, height: 1.5, borderRadius: 1 },
+  lineDone:  { backgroundColor: GREEN_DOT },
+  lineOff:   { backgroundColor: '#E5E7EB' },
+});
+
 // ── "For Whom" options ────────────────────────────────────────────────────────
 const FOR_WHOM_OPTIONS = [
-  { key: 'myself',  label: 'Myself' },
-  { key: 'family',  label: 'Family Member' },
-  { key: 'friend',  label: 'Friend' },
-  { key: 'others',  label: 'Others' },
+  { key: 'myself',  label: 'Myself',        icon: 'person-outline'       },
+  { key: 'family',  label: 'Family Member', icon: 'people-outline'       },
+  { key: 'friend',  label: 'Friend',        icon: 'person-add-outline'   },
+  { key: 'others',  label: 'Others',        icon: 'ellipsis-horizontal-circle-outline' },
 ];
 
 // ── Success Overlay ───────────────────────────────────────────────────────────
@@ -149,12 +203,33 @@ export default function BookingScreen({ route, navigation }) {
 
   // ── UI State ────────────────────────────────────────────────────────────────
   const [forWhom,       setForWhom]       = useState('myself');
-  const [visitType,     setVisitType]     = useState('OFFLINE'); // OFFLINE | ONLINE
+  const [visitType,     setVisitType]     = useState('OFFLINE');
   const [date,          setDate]          = useState('');
-  const [session,       setSession]       = useState(''); // 'morning' | 'evening'
+  const [session,       setSession]       = useState('');
   const [slot,          setSlot]          = useState('');
   const [notes,         setNotes]         = useState('');
   const [notesFocused,  setNotesFocused]  = useState(false);
+  const [showFeeBreakdown, setShowFeeBreakdown] = useState(false);
+  const [selectedFamily,   setSelectedFamily]   = useState(null); // id of selected saved member
+
+  // Family member state
+  const [familyName,        setFamilyName]        = useState('');
+  const [familyRelationship,setFamilyRelationship] = useState('');
+  const [familyMobile,      setFamilyMobile]      = useState('');
+  const [saveFamilyMember,  setSaveFamilyMember]  = useState(true);
+
+  // Pulsing dot animation
+  const pulseA = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(pulseA, { toValue: 1.8, duration: 800, useNativeDriver: true }),
+      Animated.timing(pulseA, { toValue: 1,   duration: 800, useNativeDriver: true }),
+    ])).start();
+  }, []);
+
+  // Derive stepper step
+  const stepperStep = !date ? (forWhom && visitType ? 3 : visitType ? 2 : 1)
+    : !session ? 4 : notes.length > 0 ? 5 : 4;
 
   // ── Data / async state ──────────────────────────────────────────────────────
   const [loading,         setLoading]         = useState(false);
@@ -335,6 +410,9 @@ export default function BookingScreen({ route, navigation }) {
         </View>
       </SafeAreaView>
 
+      {/* ── Progress Stepper ── */}
+      <ProgressStepper step={stepperStep} />
+
       {/* ── Scrollable body ── */}
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 110 }]}
@@ -371,12 +449,38 @@ export default function BookingScreen({ route, navigation }) {
           </View>
           {/* Fee + Availability row */}
           <View style={s.feeRow}>
-            <Text style={s.feeText}>₹{consultFee} Consultation Fee</Text>
+            <TouchableOpacity style={s.feeTouchRow} onPress={() => setShowFeeBreakdown(v => !v)} activeOpacity={0.8}>
+              <Text style={s.feeText}>₹{consultFee} Consultation Fee</Text>
+              <Ionicons name={showFeeBreakdown ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
             <View style={s.availableRow}>
-              <View style={s.greenDot} />
+              <View style={s.pulseWrap}>
+                <Animated.View style={[s.pulseDotRing, { transform: [{ scale: pulseA }] }]} />
+                <View style={s.greenDot} />
+              </View>
               <Text style={s.availableText}>Available Today</Text>
             </View>
           </View>
+          {showFeeBreakdown && (
+            <View style={s.feeBreakdown}>
+              {[
+                { label: 'Consultation Fee', amount: consultFee },
+                { label: 'Platform Fee',     amount: 0          },
+                { label: 'GST (18%)',        amount: 0          },
+              ].map((row, i) => (
+                <View key={row.label} style={[s.feeBreakRow, i < 2 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                  <Text style={s.feeBreakLabel}>{row.label}</Text>
+                  <Text style={[s.feeBreakAmount, row.amount === 0 && { color: GREEN }]}>
+                    {row.amount === 0 ? 'FREE' : `₹${row.amount}`}
+                  </Text>
+                </View>
+              ))}
+              <View style={s.feeTotalRow}>
+                <Text style={s.feeTotalLabel}>Total Payable</Text>
+                <Text style={s.feeTotalAmount}>₹{consultFee}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* ── Section 1: For Whom ── */}
@@ -390,7 +494,7 @@ export default function BookingScreen({ route, navigation }) {
                   key={opt.key}
                   style={[s.chip, active && s.chipActive]}
                   onPress={() => {
-                    if (opt.key !== 'myself') {
+                    if (opt.key !== 'myself' && opt.key !== 'family') {
                       showToast('Coming soon');
                       return;
                     }
@@ -398,14 +502,143 @@ export default function BookingScreen({ route, navigation }) {
                   }}
                   activeOpacity={0.8}
                 >
-                  {active && (
-                    <Ionicons name="checkmark-circle" size={14} color={BLUE} style={{ marginRight: 5 }} />
-                  )}
+                  <Ionicons name={opt.icon} size={14} color={active ? BLUE : MUTED} style={{ marginRight: 5 }} />
                   <Text style={[s.chipText, active && s.chipTextActive]}>{opt.label}</Text>
+                  {active && (
+                    <Ionicons name="checkmark-circle" size={14} color={BLUE} style={{ marginLeft: 4 }} />
+                  )}
                 </TouchableOpacity>
               );
             })}
           </View>
+
+          {/* Family Member sub-form */}
+          {forWhom === 'family' && (
+            <View style={s.familyForm}>
+              {/* Saved family members quick-select */}
+              <Text style={s.familySubLabel}>Select Family Member *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                {/* Self option */}
+                <TouchableOpacity
+                  style={[s.savedMemberChip, selectedFamily === 'self' && s.savedMemberChipActive]}
+                  onPress={() => setSelectedFamily('self')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[s.savedMemberAvatar, { backgroundColor: GREEN_L }]}>
+                    <Text style={[s.savedMemberInitials, { color: GREEN }]}>
+                      {patient?.name ? patient.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'ME'}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={s.savedMemberName}>{patient?.name || 'You'}</Text>
+                    <Text style={s.savedMemberRelation}>Self</Text>
+                  </View>
+                  {selectedFamily === 'self' && <Ionicons name="checkmark-circle" size={14} color={BLUE} />}
+                </TouchableOpacity>
+                {/* Saved members */}
+                {SAVED_FAMILY.map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[s.savedMemberChip, selectedFamily === m.id && s.savedMemberChipActive]}
+                    onPress={() => setSelectedFamily(m.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[s.savedMemberAvatar, { backgroundColor: m.color }]}>
+                      <Text style={[s.savedMemberInitials, { color: m.textColor }]}>{m.initials}</Text>
+                    </View>
+                    <View>
+                      <Text style={s.savedMemberName}>{m.name}</Text>
+                      <Text style={s.savedMemberRelation}>{m.relation}</Text>
+                    </View>
+                    {selectedFamily === m.id && <Ionicons name="checkmark-circle" size={14} color={BLUE} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View style={s.orRow}>
+                <View style={s.orLine} /><Text style={s.orText}>OR</Text><View style={s.orLine} />
+              </View>
+
+              <Text style={s.familySubLabel}>Add New Family Member</Text>
+
+              {/* Full Name + Relationship */}
+              <View style={s.familyFieldRow}>
+                <View style={[s.familyField, { flex: 1 }]}>
+                  <Text style={s.familyFieldLabel}>Full Name</Text>
+                  <TextInput
+                    style={s.familyInput}
+                    value={familyName}
+                    onChangeText={setFamilyName}
+                    placeholder="Enter full name"
+                    placeholderTextColor={MUTED}
+                  />
+                </View>
+                <View style={[s.familyField, { flex: 1 }]}>
+                  <Text style={s.familyFieldLabel}>Relationship *</Text>
+                  <View style={s.familyPickerBox}>
+                    <TextInput
+                      style={[s.familyInput, { flex: 1 }]}
+                      value={familyRelationship}
+                      onChangeText={setFamilyRelationship}
+                      placeholder="e.g. Father, Mother"
+                      placeholderTextColor={MUTED}
+                    />
+                    <Ionicons name="chevron-down" size={14} color={MUTED} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Mobile Number */}
+              <View style={s.familyField}>
+                <Text style={s.familyFieldLabel}>Mobile Number *</Text>
+                <View style={s.mobileInputRow}>
+                  <View style={s.mobileFlag}>
+                    <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+                    <Text style={s.mobileDialCode}>+91</Text>
+                  </View>
+                  <TextInput
+                    style={[s.familyInput, { flex: 1, borderWidth: 0, padding: 0 }]}
+                    value={familyMobile}
+                    onChangeText={(t) => setFamilyMobile(t.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="Enter mobile number"
+                    placeholderTextColor={MUTED}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+
+              {/* Save checkbox */}
+              <TouchableOpacity
+                style={s.checkboxRow}
+                onPress={() => setSaveFamilyMember(v => !v)}
+                activeOpacity={0.8}
+              >
+                <View style={[s.checkbox, saveFamilyMember && s.checkboxActive]}>
+                  {saveFamilyMember && <Ionicons name="checkmark" size={11} color={WHITE} />}
+                </View>
+                <Text style={s.checkboxLabel}>Save this person for future bookings</Text>
+              </TouchableOpacity>
+
+              {/* Cancel / Add & Select */}
+              <View style={s.familyBtnRow}>
+                <TouchableOpacity
+                  style={s.familyCancelBtn}
+                  onPress={() => setForWhom('myself')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.familyCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.familyAddBtn}
+                  onPress={() => { if (familyName.trim()) showToast(`${familyName} added`); }}
+                  activeOpacity={0.88}
+                >
+                  <Text style={s.familyAddText}>Add & Select</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* ── Section 2: Visit Type ── */}
@@ -413,8 +646,8 @@ export default function BookingScreen({ route, navigation }) {
           <Text style={s.sectionTitle}>2. Select Visit Type</Text>
           <View style={s.visitTypeRow}>
             {[
-              { key: 'OFFLINE', icon: 'business', label: 'Clinic Visit' },
-              { key: 'ONLINE',  icon: 'videocam',  label: 'Video Consultation' },
+              { key: 'OFFLINE', icon: 'business', label: 'Clinic Visit',        sub: 'Visit at clinic'  },
+              { key: 'ONLINE',  icon: 'videocam',  label: 'Video Consultation', sub: 'Consult online'   },
             ].map((vt) => {
               const active = visitType === vt.key;
               return (
@@ -431,6 +664,7 @@ export default function BookingScreen({ route, navigation }) {
                   )}
                   <Ionicons name={vt.icon} size={28} color={active ? BLUE : MUTED} />
                   <Text style={[s.visitLabel, active && s.visitLabelActive]}>{vt.label}</Text>
+                  <Text style={[s.visitSub, active && s.visitSubActive]}>{vt.sub}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -529,6 +763,27 @@ export default function BookingScreen({ route, navigation }) {
               {slots.length === 0 && (
                 <Text style={s.noSlotsText}>No slots configured for this day. Try a different date.</Text>
               )}
+              {/* Slot time grid — shown after a session is selected */}
+              {session && slots.length > 0 && (
+                <View style={s.slotGrid}>
+                  <Text style={s.slotGridTitle}>Available Time Slots</Text>
+                  <View style={s.slotGridRow}>
+                    {(session === 'morning' ? morningSlots : eveningSlots).map((sl) => {
+                      const active = slot === sl.time;
+                      return (
+                        <TouchableOpacity
+                          key={sl.time}
+                          style={[s.slotChip, active && s.slotChipActive]}
+                          onPress={() => setSlot(sl.time)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.slotChipText, active && s.slotChipTextActive]}>{fmt12(sl.time)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
               <View style={s.queueInfo}>
                 <Ionicons name="information-circle-outline" size={14} color={MUTED} />
                 <Text style={s.queueInfoText}>Exact queue number will be assigned on the appointment day.</Text>
@@ -556,6 +811,31 @@ export default function BookingScreen({ route, navigation }) {
             />
           </View>
           <Text style={s.charCount}>{notes.length}/200</Text>
+          {/* Symptom quick-tags */}
+          <Text style={s.symptomTagsLabel}>Quick add symptoms:</Text>
+          <View style={s.symptomTagsRow}>
+            {SYMPTOM_TAGS.map((tag) => {
+              const active = notes.includes(tag);
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  style={[s.symptomTag, active && s.symptomTagActive]}
+                  onPress={() => {
+                    if (active) {
+                      setNotes(n => n.replace(tag, '').replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',').trim());
+                    } else {
+                      const sep = notes.trim().length > 0 ? ', ' : '';
+                      if ((notes + sep + tag).length <= 200) setNotes(n => (n.trim() ? n.trim() + ', ' : '') + tag);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  {active && <Ionicons name="checkmark" size={10} color={BLUE} style={{ marginRight: 3 }} />}
+                  <Text style={[s.symptomTagText, active && s.symptomTagTextActive]}>{tag}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* ── Free booking banner ── */}
@@ -658,7 +938,6 @@ const s = StyleSheet.create({
   },
   feeText:     { fontSize: 14, fontWeight: '700', color: SLATE },
   availableRow:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
-  greenDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN_DOT },
   availableText:{ fontSize: 13, fontWeight: '600', color: GREEN },
 
   // Section
@@ -699,6 +978,73 @@ const s = StyleSheet.create({
   },
   visitLabel:  { fontSize: 13, fontWeight: '600', color: SLATE_6, textAlign: 'center' },
   visitLabelActive:{ color: BLUE, fontWeight: '700' },
+  visitSub:    { fontSize: 11, color: MUTED, textAlign: 'center' },
+  visitSubActive:{ color: BLUE },
+
+  // Family form
+  familyForm:      { marginTop: 14, gap: 12 },
+  familySubLabel:  { fontSize: 13, fontWeight: '700', color: SLATE, marginBottom: 4 },
+  familyMemberRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderColor: BORDER, borderRadius: 12,
+    padding: 12, backgroundColor: BG,
+  },
+  familyAvatar:    {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: GREEN_L, alignItems: 'center', justifyContent: 'center',
+  },
+  familyAvatarText:{ fontSize: 13, fontWeight: '800', color: GREEN },
+  familyMemberName:{ fontSize: 14, fontWeight: '700', color: SLATE },
+  familyMemberMeta:{ fontSize: 12, color: MUTED, marginTop: 1 },
+  orRow:           { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orLine:          { flex: 1, height: 1, backgroundColor: BORDER },
+  orText:          { fontSize: 12, fontWeight: '600', color: MUTED },
+  familyFieldRow:  { flexDirection: 'row', gap: 10 },
+  familyField:     { gap: 5 },
+  familyFieldLabel:{ fontSize: 12, fontWeight: '600', color: SLATE_6 },
+  familyInput:     {
+    borderWidth: 1, borderColor: BORDER, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 13, color: SLATE, backgroundColor: WHITE,
+  },
+  familyPickerBox: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderColor: BORDER, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: WHITE,
+  },
+  mobileInputRow:  {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderColor: BORDER, borderRadius: 10,
+    backgroundColor: WHITE, overflow: 'hidden',
+  },
+  mobileFlag:      {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderRightWidth: 1, borderRightColor: BORDER,
+  },
+  mobileDialCode:  { fontSize: 13, fontWeight: '700', color: SLATE },
+  checkboxRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  checkbox:        {
+    width: 18, height: 18, borderRadius: 4,
+    borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxActive:  { backgroundColor: BLUE, borderColor: BLUE },
+  checkboxLabel:   { fontSize: 12, color: SLATE_6, flex: 1 },
+  familyBtnRow:    { flexDirection: 'row', gap: 10, marginTop: 4 },
+  familyCancelBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: 10,
+    borderWidth: 1.5, borderColor: BORDER,
+    alignItems: 'center', backgroundColor: WHITE,
+  },
+  familyCancelText:{ fontSize: 14, fontWeight: '600', color: SLATE_6 },
+  familyAddBtn:    {
+    flex: 1.6, paddingVertical: 13, borderRadius: 10,
+    backgroundColor: BLUE, alignItems: 'center',
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+  },
+  familyAddText:   { fontSize: 14, fontWeight: '700', color: WHITE },
 
   // Date Strip
   dateStrip:   { gap: 10, paddingRight: 4 },
@@ -782,4 +1128,44 @@ const s = StyleSheet.create({
   confirmBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
   confirmBtnText:    { fontSize: 16, fontWeight: '700', color: WHITE },
   noCharge:          { fontSize: 12, color: MUTED, marginTop: 6 },
+
+  // Pulsing dot
+  pulseWrap:   { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
+  pulseDotRing:{ position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: GREEN_DOT, opacity: 0.3 },
+  greenDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN_DOT },
+
+  // Fee breakdown
+  feeTouchRow:   { flexDirection: 'row', alignItems: 'center' },
+  feeBreakdown:  { marginTop: 12, borderRadius: 10, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  feeBreakRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 9, backgroundColor: BG },
+  feeBreakLabel: { fontSize: 12, color: SLATE_6 },
+  feeBreakAmount:{ fontSize: 12, fontWeight: '700', color: SLATE },
+  feeTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: BLUE_L },
+  feeTotalLabel: { fontSize: 13, fontWeight: '700', color: BLUE },
+  feeTotalAmount:{ fontSize: 13, fontWeight: '800', color: BLUE },
+
+  // Saved family member chips
+  savedMemberChip:      { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: BG },
+  savedMemberChipActive:{ borderColor: BLUE, backgroundColor: BLUE_L },
+  savedMemberAvatar:    { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  savedMemberInitials:  { fontSize: 11, fontWeight: '800' },
+  savedMemberName:      { fontSize: 12, fontWeight: '700', color: SLATE },
+  savedMemberRelation:  { fontSize: 10, color: MUTED, marginTop: 1 },
+
+  // Slot time grid
+  slotGrid:      { marginTop: 10 },
+  slotGridTitle: { fontSize: 12, fontWeight: '700', color: SLATE_6, marginBottom: 8 },
+  slotGridRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slotChip:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, backgroundColor: BG },
+  slotChipActive:{ borderColor: BLUE, backgroundColor: BLUE_L },
+  slotChipText:  { fontSize: 12, fontWeight: '600', color: SLATE_6 },
+  slotChipTextActive: { color: BLUE, fontWeight: '700' },
+
+  // Symptom tags
+  symptomTagsLabel:{ fontSize: 12, fontWeight: '600', color: SLATE_6, marginTop: 10, marginBottom: 6 },
+  symptomTagsRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  symptomTag:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
+  symptomTagActive:{ borderColor: BLUE, backgroundColor: BLUE_L },
+  symptomTagText:  { fontSize: 11, fontWeight: '500', color: SLATE_6 },
+  symptomTagTextActive: { color: BLUE, fontWeight: '700' },
 });

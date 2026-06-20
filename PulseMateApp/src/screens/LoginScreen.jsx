@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { firebaseConfig, sendOtpToPhone } from '../config/firebase';
 
-const LOGO = require('../../assets/logo1.jpeg');
+const LOGO = require('../../assets/logo11.png');
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -97,7 +97,7 @@ export default function LoginScreen({ navigation }) {
         {/* Top bar — logo only, no badge */}
         <View style={s.topBar}>
           <View style={s.logoBox}>
-            <Image source={LOGO} style={s.logoImg} resizeMode="cover" />
+            <Image source={LOGO} style={s.logoImg} resizeMode="contain" />
           </View>
         </View>
 
@@ -188,8 +188,8 @@ const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: BG },
   scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 52 },
   topBar:       { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-start', marginBottom: 14 },
-  logoBox:      { width: 56, height: 56, backgroundColor: WHITE, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, borderWidth: 1, borderColor: '#DBEAFE' },
-  logoImg:      { width: '100%', height: '100%', borderRadius: 18 },
+  logoBox:      { height: 56, width: 120, backgroundColor: WHITE, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  logoImg:      { width: '100%', height: '100%' },
   headline:     { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },
   headlineBlue: { color: BLUE },
   headlineSub:  { fontSize: 13, color: GRAY, textAlign: 'center', marginBottom: 16 },

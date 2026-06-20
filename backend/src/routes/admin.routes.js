@@ -11,6 +11,7 @@ const {
   updateUserStatus,
   createAdminAccount,
   deleteAdminAccount,
+  deleteUser,
   resetDatabase,
   requestClinicChanges,
   suspendClinic,
@@ -33,6 +34,7 @@ router.delete('/admins/:id', requireAdminLevel('ROOT'), deleteAdminAccount);
 router.get('/pending-clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingClinics);
 router.get('/pending-doctors', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingDoctors);
 router.patch('/users/:id/status', requireAdminLevel('ROOT', 'SUPER_ADMIN'), updateUserStatus);
+router.delete('/users/:id', requireAdminLevel('ROOT', 'SUPER_ADMIN'), deleteUser);
 router.post('/reset-database', requireAdminLevel('ROOT'), resetDatabase);
 
 // ── Clinic management ──────────────────────────────────────────────────────

@@ -332,6 +332,11 @@ const RegisterPage = () => {
           {/* ── Step 2: OTP input ─────────────────────────────────────────── */}
           {step === 2 && (
             <form onSubmit={handleVerifyOtp}>
+              {/* Logo on OTP step */}
+              <div className="flex justify-center mb-4">
+                <PulsemateLogo size="lg" theme="light" showTagline={false} />
+              </div>
+
               <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
                 <div>
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide">OTP sent to</p>
@@ -398,6 +403,9 @@ const RegisterPage = () => {
           {/* ── Step 3: success ───────────────────────────────────────────── */}
           {step === 3 && (
             <div className="text-center py-4">
+              <div className="flex justify-center mb-4">
+                <PulsemateLogo size="lg" theme="light" showTagline={false} />
+              </div>
               <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <svg className="w-7 h-7 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <polyline points="20 6 9 17 4 12" />
