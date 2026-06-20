@@ -1,45 +1,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  BookingScreen — PulseMate Connect  |  Appointment Booking
+//  BookingScreen — PulseMate Connect  |  Appointment Booking (Redesign)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Animated,
-  Easing, Dimensions, StatusBar, Platform,
+  Dimensions, StatusBar, ToastAndroid, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { initiatePayment, verifyPayment, getPatientProfile, getAvailableSlots, getBookingStatus } from '../api/patient';
+import {
+  initiatePayment, verifyPayment, getPatientProfile,
+  getAvailableSlots, getBookingStatus,
+} from '../api/patient';
 
 const { width: W } = Dimensions.get('window');
 
-// ── Brand tokens ──────────────────────────────────────────────────────────────
-const PRIMARY   = '#0EA5E9';   // Sky-500
-const PRIMARY_D = '#0284C7';   // Sky-600
-const PRIMARY_L = '#E0F2FE';   // Sky-100
-const TEAL      = '#2DD4BF';
-const PURPLE    = '#8B5CF6';
-const PURPLE_L  = '#EDE9FE';
-const GREEN     = '#10B981';
-const GREEN_L   = '#D1FAE5';
-const AMBER     = '#F59E0B';
-const AMBER_L   = '#FEF3C7';
-const RED       = '#EF4444';
-const WHITE     = '#FFFFFF';
-const SLATE     = '#0F172A';
-const SLATE_6   = '#475569';
-const MUTED     = '#94A3B8';
-const BG        = '#F0F7FF';
-const CARD      = '#FFFFFF';
-const BORDER    = '#E2E8F0';
-
-// ── Symptom quick-picks ───────────────────────────────────────────────────────
-const SYMPTOM_CHIPS = [
-  'Fever', 'Headache', 'Cough', 'Back Pain',
-  'Fatigue', 'Chest Pain', 'Nausea', 'Skin Issue',
-  'Joint Pain', 'Dizziness',
-];
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const BLUE       = '#2563EB';
+const BLUE_L     = '#EFF6FF';
+const BLUE_D     = '#1D4ED8';
+const GREEN      = '#16A34A';
+const GREEN_L    = '#DCFCE7';
+const GREEN_DOT  = '#22C55E';
+const WHITE      = '#FFFFFF';
+const SLATE      = '#0F172A';
+const SLATE_6    = '#475569';
+const MUTED      = '#94A3B8';
+const BORDER     = '#E2E8F0';
+const BG         = '#F8FAFC';
+const CARD       = '#FFFFFF';
+const RED        = '#EF4444';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt12 = (t) => {
@@ -56,48 +48,23 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// ── Step indicator ────────────────────────────────────────────────────────────
-function StepDots({ current, total }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <View
-          key={i}
-          style={{
-            height: 4,
-            width: i === current ? 20 : 6,
-            borderRadius: 3,
-            backgroundColor: i <= current ? TEAL : 'rgba(255,255,255,0.35)',
-          }}
-        />
-      ))}
-    </View>
-  );
-}
+const showToast = (msg) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  } else {
+    Alert.alert('', msg);
+  }
+};
 
-// ── Section wrapper ───────────────────────────────────────────────────────────
-function Section({ icon, title, badge, optional, children }) {
-  return (
-    <View style={bs.section}>
-      <View style={bs.sectionHeader}>
-        <View style={bs.sectionIconWrap}>
-          <Ionicons name={icon} size={15} color={PRIMARY} />
-        </View>
-        <Text style={bs.sectionTitle}>{title}</Text>
-        {badge ? (
-          <View style={bs.sectionBadge}>
-            <Text style={bs.sectionBadgeText}>{badge}</Text>
-          </View>
-        ) : optional ? (
-          <Text style={bs.sectionOptional}>Optional</Text>
-        ) : null}
-      </View>
-      {children}
-    </View>
-  );
-}
+// ── "For Whom" options ────────────────────────────────────────────────────────
+const FOR_WHOM_OPTIONS = [
+  { key: 'myself',  label: 'Myself' },
+  { key: 'family',  label: 'Family Member' },
+  { key: 'friend',  label: 'Friend' },
+  { key: 'others',  label: 'Others' },
+];
 
-// ── Success overlay ───────────────────────────────────────────────────────────
+// ── Success Overlay ───────────────────────────────────────────────────────────
 function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, isFree }) {
   const scaleA = useRef(new Animated.Value(0)).current;
   const fadeA  = useRef(new Animated.Value(0)).current;
@@ -120,35 +87,22 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
   return (
     <Animated.View style={[so.overlay, { opacity: fadeA }]}>
       <Animated.View style={[so.card, { transform: [{ scale: scaleA }] }]}>
-        {/* Confetti-like top decoration */}
-        <View style={so.topDeco}>
-          <View style={[so.decoCircle, { backgroundColor: PRIMARY_L, top: -20, left: 20, width: 60, height: 60 }]} />
-          <View style={[so.decoCircle, { backgroundColor: GREEN_L, top: 10, right: 10, width: 40, height: 40 }]} />
-          <View style={[so.decoCircle, { backgroundColor: PURPLE_L, top: -10, right: 60, width: 30, height: 30 }]} />
-        </View>
-
         <Animated.View style={[so.checkCircle, { transform: [{ scale: checkA }] }]}>
-          <View style={[so.checkInner, isFree && { backgroundColor: '#10B981' }]}>
+          <View style={[so.checkInner, isFree && { backgroundColor: GREEN }]}>
             <Ionicons name={isFree ? 'gift' : 'checkmark'} size={36} color={WHITE} />
           </View>
         </Animated.View>
-
         <Text style={so.title}>{isFree ? '🎉 First Booking Free!' : 'Booking Confirmed!'}</Text>
         <Text style={so.sub}>{isFree ? 'Your appointment is confirmed at no charge.' : 'Your appointment has been successfully booked.'}</Text>
-
         <View style={so.detailBox}>
           <View style={so.detailRow}>
-            <View style={[so.detailIcon, { backgroundColor: PRIMARY_L }]}>
-              <Ionicons name="person" size={13} color={PRIMARY} />
-            </View>
+            <Ionicons name="person" size={13} color={BLUE} />
             <Text style={so.detailLabel}>Doctor</Text>
             <Text style={so.detailVal}>Dr. {doctorName}</Text>
           </View>
           <View style={so.divider} />
           <View style={so.detailRow}>
-            <View style={[so.detailIcon, { backgroundColor: GREEN_L }]}>
-              <Ionicons name="calendar" size={13} color={GREEN} />
-            </View>
+            <Ionicons name="calendar" size={13} color={GREEN} />
             <Text style={so.detailLabel}>Date</Text>
             <Text style={so.detailVal}>{fmtDate(date)}{slot ? ` · ${fmt12(slot)}` : ''}</Text>
           </View>
@@ -156,16 +110,13 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
             <>
               <View style={so.divider} />
               <View style={so.detailRow}>
-                <View style={[so.detailIcon, { backgroundColor: PURPLE_L }]}>
-                  <Ionicons name="people" size={13} color={PURPLE} />
-                </View>
+                <Ionicons name="people" size={13} color={BLUE} />
                 <Text style={so.detailLabel}>Queue Token</Text>
-                <Text style={[so.detailVal, { color: PURPLE, fontWeight: '800' }]}>#{queueNumber}</Text>
+                <Text style={[so.detailVal, { color: BLUE, fontWeight: '800' }]}>#{queueNumber}</Text>
               </View>
             </>
           )}
         </View>
-
         <TouchableOpacity style={so.btn} onPress={onView} activeOpacity={0.88}>
           <Text style={so.btnText}>View My Appointments</Text>
           <Ionicons name="arrow-forward" size={16} color={WHITE} />
@@ -176,21 +127,18 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
 }
 
 const so = StyleSheet.create({
-  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,132,199,0.93)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card:       { backgroundColor: WHITE, borderRadius: 28, padding: 28, alignItems: 'center', width: '100%', overflow: 'hidden' },
-  topDeco:    { position: 'absolute', top: 0, left: 0, right: 0, height: 80 },
-  decoCircle: { position: 'absolute', borderRadius: 999, opacity: 0.7 },
-  checkCircle:{ width: 90, height: 90, borderRadius: 45, backgroundColor: GREEN_L, alignItems: 'center', justifyContent: 'center', marginBottom: 18, marginTop: 8 },
-  checkInner: { width: 72, height: 72, borderRadius: 36, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', shadowColor: GREEN, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 10 },
-  title:      { fontSize: 24, fontWeight: '800', color: SLATE, letterSpacing: -0.5, marginBottom: 6 },
+  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.75)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  card:       { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', width: '100%' },
+  checkCircle:{ width: 88, height: 88, borderRadius: 44, backgroundColor: GREEN_L, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  checkInner: { width: 70, height: 70, borderRadius: 35, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
+  title:      { fontSize: 22, fontWeight: '800', color: SLATE, marginBottom: 6, textAlign: 'center' },
   sub:        { fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 20, lineHeight: 19 },
-  detailBox:  { width: '100%', backgroundColor: BG, borderRadius: 16, padding: 4, marginBottom: 22 },
+  detailBox:  { width: '100%', backgroundColor: BG, borderRadius: 14, padding: 4, marginBottom: 20 },
   detailRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
-  detailIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   detailLabel:{ fontSize: 12, color: MUTED, flex: 1 },
   detailVal:  { fontSize: 13, fontWeight: '700', color: SLATE },
   divider:    { height: 1, backgroundColor: BORDER, marginHorizontal: 12 },
-  btn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: PRIMARY, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 15, width: '100%', justifyContent: 'center', shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 7 },
+  btn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 15, width: '100%', justifyContent: 'center' },
   btnText:    { fontSize: 15, fontWeight: '800', color: WHITE },
 });
 
@@ -199,53 +147,50 @@ export default function BookingScreen({ route, navigation }) {
   const { doctorId, clinicId, doctorName, clinicName, fee, specialization } = route.params || {};
   const insets = useSafeAreaInsets();
 
-  const [type,            setType]            = useState('OFFLINE');
-  const [date,            setDate]            = useState('');
-  const [slot,            setSlot]            = useState('');
-  const [symptoms,        setSymptoms]        = useState('');
+  // ── UI State ────────────────────────────────────────────────────────────────
+  const [forWhom,       setForWhom]       = useState('myself');
+  const [visitType,     setVisitType]     = useState('OFFLINE'); // OFFLINE | ONLINE
+  const [date,          setDate]          = useState('');
+  const [session,       setSession]       = useState(''); // 'morning' | 'evening'
+  const [slot,          setSlot]          = useState('');
+  const [notes,         setNotes]         = useState('');
+  const [notesFocused,  setNotesFocused]  = useState(false);
+
+  // ── Data / async state ──────────────────────────────────────────────────────
   const [loading,         setLoading]         = useState(false);
   const [patient,         setPatient]         = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
   const [success,         setSuccess]         = useState(false);
   const [bookedAppt,      setBookedAppt]      = useState(null);
-  const [symFocused,      setSymFocused]      = useState(false);
   const [isFreeBooking,   setIsFreeBooking]   = useState(false);
+  const [slots,           setSlots]           = useState([]);
+  const [slotsLoading,    setSlotsLoading]    = useState(false);
+  const [slotsSource,     setSlotsSource]     = useState('none');
 
-  // ── Dynamic slots ──────────────────────────────────────────────────────────
-  const [slots,        setSlots]        = useState([]);   // [{time, label, available, booked, past}]
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [slotsSource,  setSlotsSource]  = useState('none'); // 'doctorAvailability'|'doctorClinic'|'none'|'fallback'
-
-  // Generate next 14 days
+  // ── Build date strip (next 14 days) ─────────────────────────────────────────
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     return {
-      key:     d.toISOString().split('T')[0],
-      weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }),
-      day:     d.getDate(),
-      month:   d.toLocaleDateString('en-IN', { month: 'short' }),
-      isToday: i === 0,
+      key:        d.toISOString().split('T')[0],
+      weekday:    d.toLocaleDateString('en-IN', { weekday: 'short' }),
+      day:        d.getDate(),
+      month:      d.toLocaleDateString('en-IN', { month: 'short' }),
+      isToday:    i === 0,
+      isTomorrow: i === 1,
     };
   });
 
+  // ── Focus effect: handle payment return + profile fetch ──────────────────────
   useFocusEffect(
     useCallback(() => {
-      // ── Handle payment result returned from RazorpayScreen ────────────────
-      // RazorpayScreen cannot pass a callback function via nav params (they get
-      // serialized/dropped by React Navigation). Instead it navigates back here
-      // with paymentResult param. We read it here and show the success overlay.
       const paymentResult = route.params?.paymentResult;
       if (paymentResult?.success && paymentResult?.appointment) {
         setBookedAppt(paymentResult.appointment);
         setSuccess(true);
-        // Clear the param so it doesn't trigger again on next focus
         navigation.setParams({ paymentResult: undefined });
-        return; // don't re-fetch profile while showing success
+        return;
       }
-
-      // ── Re-fetch fresh data every time screen comes into focus ────────────
-      // Ensures isFreeBooking is accurate after a booking is made.
       const check = async () => {
         try {
           const [profileRes, statusRes] = await Promise.all([
@@ -255,31 +200,26 @@ export default function BookingScreen({ route, navigation }) {
           const u = profileRes.data.data.user;
           setPatient(u);
           const pp = u?.patientProfile;
-          const complete = !!(u?.name && pp?.gender && pp?.emergencyContact);
-          setProfileComplete(complete);
-
-          // Always sync free booking status from server — never rely on stale local state
+          setProfileComplete(!!(u?.name && pp?.gender && pp?.emergencyContact));
           const status = statusRes?.data?.data;
-          if (status) {
-            setIsFreeBooking(!status.freeBookingUsed);
-          }
+          if (status) setIsFreeBooking(!status.freeBookingUsed);
         } catch {}
       };
       check();
     }, [route.params?.paymentResult])
   );
 
-  // ── Fetch available slots whenever date changes ────────────────────────────
+  // ── Fetch slots when date changes ────────────────────────────────────────────
   useEffect(() => {
     if (!date || !doctorId || !clinicId) return;
     setSlotsLoading(true);
-    setSlot('');  // reset selected slot when date changes
+    setSlot('');
+    setSession('');
     setSlots([]);
     getAvailableSlots(doctorId, { clinicId, date })
       .then((r) => {
         const data = r.data.data;
         setSlotsSource(data.source || 'none');
-        // Only show real slots from the backend — no hardcoded fallback
         if (Array.isArray(data.slots) && data.slots.length > 0) {
           setSlots(data.slots);
         } else {
@@ -287,69 +227,65 @@ export default function BookingScreen({ route, navigation }) {
           setSlotsSource('none');
         }
       })
-      .catch(() => {
-        // Network error — show empty state, never fake slots
-        setSlots([]);
-        setSlotsSource('none');
-      })
+      .catch(() => { setSlots([]); setSlotsSource('none'); })
       .finally(() => setSlotsLoading(false));
   }, [date, doctorId, clinicId]);
 
-  const addSymptomChip = (chip) => {
-    const current = symptoms.trim();
-    if (current.includes(chip)) {
-      setSymptoms(current.replace(new RegExp(`,?\\s*${chip}`, 'g'), '').replace(/^,\s*/, '').trim());
+  // ── Slot session helpers ─────────────────────────────────────────────────────
+  // Morning: before 14:00  |  Evening: 16:00+
+  const morningSlots = slots.filter(s => {
+    const h = parseInt(s.time?.split(':')[0] ?? '0', 10);
+    return h < 14 && s.available;
+  });
+  const eveningSlots = slots.filter(s => {
+    const h = parseInt(s.time?.split(':')[0] ?? '0', 10);
+    return h >= 16 && s.available;
+  });
+
+  const handleSessionSelect = (sess) => {
+    setSession(sess);
+    if (sess === 'morning' && morningSlots.length > 0) {
+      setSlot(morningSlots[0].time);
+    } else if (sess === 'evening' && eveningSlots.length > 0) {
+      setSlot(eveningSlots[0].time);
     } else {
-      setSymptoms(current ? `${current}, ${chip}` : chip);
+      setSlot('');
     }
   };
 
+  // ── Booking handler ───────────────────────────────────────────────────────────
   const handleBook = async () => {
-    // ── Profile gate: name, gender, emergency contact are required ──
     if (!profileComplete) {
       Alert.alert(
         'Complete Your Profile First',
-        'Please add your name, gender, and emergency contact number before booking an appointment.',
+        'Please add your name, gender, and emergency contact before booking.',
         [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Update Profile',
-            onPress: () => navigation.navigate('ProfileWizard', { returnTo: 'Booking' }),
-          },
+          { text: 'Update Profile', onPress: () => navigation.navigate('ProfileWizard', { returnTo: 'Booking' }) },
         ]
       );
       return;
     }
-
     if (!date) { Alert.alert('Select Date', 'Please pick an appointment date.'); return; }
     setLoading(true);
     try {
       const initRes = await initiatePayment({
         doctorId, clinicId,
-        appointmentType: type,
+        appointmentType: visitType,
         appointmentDate: date,
-        slotTime:  slot     || undefined,
-        symptoms:  symptoms.trim() || undefined,
+        slotTime:        slot     || undefined,
+        symptoms:        notes.trim() || undefined,
       });
-
       const { appointmentId, order, devMode, isFree, appointment: freeAppt } = initRes.data.data;
 
-      // ── FREE BOOKING PATH (first booking — no payment needed) ──────────────
-      // Always trust the SERVER response for isFree, never the local state.
       if (isFree) {
-        // Mark free booking as used in local state so UI updates immediately
         setIsFreeBooking(false);
         setBookedAppt(freeAppt || { queueNumber: null });
         setSuccess(true);
         return;
       }
 
-      // ── PAID BOOKING PATH (₹10 platform fee) ──────────────────────────────
-      // Server returned isFree: false — charge ₹10 via Razorpay.
-      // This runs for ALL bookings after the first, regardless of local state.
-
       if (devMode || order?.id?.startsWith('order_dev_')) {
-        // Dev mode (no Razorpay keys) — auto-verify without real payment
         const verifyRes = await verifyPayment({
           appointmentId,
           razorpayOrderId:   order.id,
@@ -359,14 +295,11 @@ export default function BookingScreen({ route, navigation }) {
         setBookedAppt(verifyRes.data.data.appointment);
         setSuccess(true);
       } else {
-        // Live Razorpay — open WebView payment screen.
-        // Result is returned back to this screen via navigation.navigate('Booking', { paymentResult })
-        // which is picked up by useFocusEffect above.
         setLoading(false);
         navigation.navigate('Razorpay', {
           appointmentId,
           orderId:       order.id,
-          orderAmount:   order.amount,    // in paise
+          orderAmount:   order.amount,
           orderCurrency: order.currency || 'INR',
           keyId:         order.key || initRes.data.data.key,
           doctorName:    doctorName || 'Doctor',
@@ -374,517 +307,286 @@ export default function BookingScreen({ route, navigation }) {
           patientEmail:  patient?.email || '',
           patientMobile: patient?.mobile || '',
         });
-        return; // loading already set false above
+        return;
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Please try again.';
-      Alert.alert('Booking Failed', msg);
+      Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const canBook    = !!date && !loading && profileComplete;
   const consultFee = fee || 0;
-  const p          = patient?.patientProfile;
-  const patientAge = p?.dob
-    ? Math.floor((new Date() - new Date(p.dob)) / (365.25 * 24 * 60 * 60 * 1000))
-    : p?.age;
+  const initials   = (doctorName || 'D').charAt(0).toUpperCase();
 
-  // Determine current step for progress dots
-  const step = !date ? 0 : !slot ? 1 : !symptoms ? 2 : 3;
-
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <View style={bs.root}>
-      <StatusBar barStyle="light-content" backgroundColor={PRIMARY_D} translucent />
+    <View style={s.root}>
+      <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
 
-      {/* ── Gradient Header Band ── */}
-      <View style={[bs.headerBand, { paddingTop: insets.top + 10 }]}>
-        <View style={bs.blobTL} />
-        <View style={bs.blobBR} />
-        <View style={bs.blobMid} />
-
-        {/* Nav row */}
-        <View style={bs.navRow}>
-          <TouchableOpacity style={bs.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
+      {/* ── Header ── */}
+      <SafeAreaView edges={['top']} style={s.headerSafe}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={20} color={SLATE} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={bs.navTitle}>Book Appointment</Text>
-            <Text style={bs.navSub}>Fill in the details below</Text>
-          </View>
-          <View style={bs.secureBadge}>
-            <Ionicons name="lock-closed" size={10} color={TEAL} />
-            <Text style={bs.secureText}>Razorpay</Text>
-          </View>
+          <Text style={s.headerTitle}>Book Appointment</Text>
+          <View style={{ width: 38 }} />
         </View>
+      </SafeAreaView>
 
-        {/* Doctor info card */}
-        <View style={bs.docCard}>
-          <View style={bs.docAvatarWrap}>
-            <Text style={bs.docAvatarText}>{doctorName?.charAt(0)?.toUpperCase() || 'D'}</Text>
-            <View style={bs.docOnlineDot} />
-          </View>
-          <View style={bs.docInfo}>
-            <Text style={bs.docName}>Dr. {doctorName || 'Doctor'}</Text>
-            <Text style={bs.docSpec}>{specialization || 'General Physician'}</Text>
-            <View style={bs.docClinicRow}>
-              <Ionicons name="business-outline" size={11} color="rgba(255,255,255,0.65)" />
-              <Text style={bs.docClinic}>{clinicName || 'Clinic'}</Text>
-            </View>
-          </View>
-          <View style={bs.docFeeBox}>
-            <Text style={bs.docFeeLabel}>Consult Fee</Text>
-            <Text style={bs.docFeeVal}>₹{consultFee}</Text>
-            <View style={bs.docFeeNote}>
-              <Ionicons name="business" size={9} color="rgba(255,255,255,0.55)" />
-              <Text style={bs.docFeeNoteText}>at clinic</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Progress dots removed — single page form */}
-      </View>
-
-      {/* ── Scrollable form ── */}
+      {/* ── Scrollable body ── */}
       <ScrollView
-        contentContainerStyle={[bs.scroll, { paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 110 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── 1. Appointment Type ── */}
-        <Section icon="options-outline" title="Appointment Type">
-          <View style={bs.typeRow}>
-            {[
-              { key: 'OFFLINE', icon: 'business',  label: 'In-Clinic',   sub: 'Visit the clinic',   color: PRIMARY, bg: PRIMARY_L },
-              { key: 'ONLINE',  icon: 'videocam',  label: 'Online',      sub: 'Video consultation', color: PURPLE,  bg: PURPLE_L  },
-            ].map((t) => {
-              const active = type === t.key;
+        {/* ── Doctor Card ── */}
+        <View style={s.doctorCard}>
+          <View style={s.doctorRow}>
+            {/* Avatar */}
+            <View style={s.avatarCircle}>
+              <Text style={s.avatarText}>{initials}</Text>
+            </View>
+            {/* Info */}
+            <View style={s.doctorInfo}>
+              <View style={s.doctorNameRow}>
+                <Text style={s.doctorName}>Dr. {doctorName || 'Doctor'}</Text>
+                <Ionicons name="checkmark-circle" size={16} color={BLUE} style={{ marginLeft: 4 }} />
+              </View>
+              <Text style={s.doctorSpec}>{specialization || 'General Physician'}</Text>
+              <Text style={s.doctorClinic}>{clinicName || 'Clinic'}</Text>
+            </View>
+            {/* Distance badge */}
+            <View style={s.distanceBadge}>
+              <Ionicons name="location-outline" size={11} color={BLUE} />
+              <Text style={s.distanceText}>Nearby</Text>
+            </View>
+          </View>
+          {/* Rating row */}
+          <View style={s.doctorMeta}>
+            <Ionicons name="star" size={13} color="#F59E0B" />
+            <Text style={s.ratingText}>4.8</Text>
+            <Text style={s.reviewsText}>(240 reviews)</Text>
+          </View>
+          {/* Fee + Availability row */}
+          <View style={s.feeRow}>
+            <Text style={s.feeText}>₹{consultFee} Consultation Fee</Text>
+            <View style={s.availableRow}>
+              <View style={s.greenDot} />
+              <Text style={s.availableText}>Available Today</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Section 1: For Whom ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>1. For Whom You Are Booking?</Text>
+          <View style={s.chipRow}>
+            {FOR_WHOM_OPTIONS.map((opt) => {
+              const active = forWhom === opt.key;
               return (
                 <TouchableOpacity
-                  key={t.key}
-                  style={[bs.typeCard, active && { borderColor: t.color, backgroundColor: t.bg }]}
-                  onPress={() => setType(t.key)}
-                  activeOpacity={0.85}
+                  key={opt.key}
+                  style={[s.chip, active && s.chipActive]}
+                  onPress={() => {
+                    if (opt.key !== 'myself') {
+                      showToast('Coming soon');
+                      return;
+                    }
+                    setForWhom(opt.key);
+                  }}
+                  activeOpacity={0.8}
                 >
-                  <View style={[bs.typeIconWrap, { backgroundColor: active ? t.color : '#F1F5F9' }]}>
-                    <Ionicons name={t.icon} size={22} color={active ? WHITE : MUTED} />
-                  </View>
-                  <Text style={[bs.typeLabel, active && { color: t.color }]}>{t.label}</Text>
-                  <Text style={bs.typeSub}>{t.sub}</Text>
                   {active && (
-                    <View style={[bs.typeCheck, { backgroundColor: t.color }]}>
-                      <Ionicons name="checkmark" size={10} color={WHITE} />
-                    </View>
+                    <Ionicons name="checkmark-circle" size={14} color={BLUE} style={{ marginRight: 5 }} />
                   )}
+                  <Text style={[s.chipText, active && s.chipTextActive]}>{opt.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-        </Section>
+        </View>
 
-        {/* ── 2. Date Picker ── */}
-        <Section
-          icon="calendar-outline"
-          title="Select Date"
-          badge={date ? fmtDate(date) : null}
-        >
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={bs.dateRow}>
+        {/* ── Section 2: Visit Type ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>2. Select Visit Type</Text>
+          <View style={s.visitTypeRow}>
+            {[
+              { key: 'OFFLINE', icon: 'business', label: 'Clinic Visit' },
+              { key: 'ONLINE',  icon: 'videocam',  label: 'Video Consultation' },
+            ].map((vt) => {
+              const active = visitType === vt.key;
+              return (
+                <TouchableOpacity
+                  key={vt.key}
+                  style={[s.visitCard, active && s.visitCardActive]}
+                  onPress={() => setVisitType(vt.key)}
+                  activeOpacity={0.85}
+                >
+                  {active && (
+                    <View style={s.visitCheck}>
+                      <Ionicons name="checkmark" size={10} color={WHITE} />
+                    </View>
+                  )}
+                  <Ionicons name={vt.icon} size={28} color={active ? BLUE : MUTED} />
+                  <Text style={[s.visitLabel, active && s.visitLabelActive]}>{vt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ── Section 3: Select Date ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>3. Select Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateStrip}>
             {days.map((d) => {
               const active = date === d.key;
+              let dayLabel = d.weekday;
+              if (d.isToday)    dayLabel = 'Today';
+              if (d.isTomorrow) dayLabel = 'Tomorrow';
               return (
                 <TouchableOpacity
                   key={d.key}
-                  style={[
-                    bs.dateCard,
-                    active && bs.dateCardActive,
-                    d.isToday && !active && bs.dateCardToday,
-                  ]}
+                  style={[s.dateCell, active && s.dateCellActive]}
                   onPress={() => setDate(d.key)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[bs.dateWeekday, active && bs.dateTextActive, d.isToday && !active && { color: PRIMARY }]}>
-                    {d.isToday ? 'Today' : d.weekday}
-                  </Text>
-                  <Text style={[bs.dateDay, active && bs.dateTextActive]}>{d.day}</Text>
-                  <Text style={[bs.dateMonth, active && bs.dateTextActive]}>{d.month}</Text>
-                  {d.isToday && !active && <View style={bs.todayDot} />}
+                  <Text style={[s.dateDayName, active && s.dateTextActive]}>{dayLabel}</Text>
+                  <Text style={[s.dateNum, active && s.dateTextActive]}>{d.day}</Text>
+                  <Text style={[s.dateMonth, active && s.dateTextActive]}>{d.month}</Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-        </Section>
-
-        {/* ── 3. Time Slot ── */}
-        {date && (
-          <Section icon="time-outline" title="Select Time" badge={slot ? fmt12(slot) : null}>
-            {slotsLoading ? (
-              <View style={{ alignItems: 'center', paddingVertical: 16, gap: 8 }}>
-                <ActivityIndicator color={PRIMARY} />
-                <Text style={{ color: MUTED, fontSize: 12 }}>Checking availability...</Text>
-              </View>
-            ) : slots.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
-                <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="calendar-outline" size={26} color={MUTED} />
-                </View>
-                <Text style={{ color: SLATE, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
-                  {slotsSource === 'none'
-                    ? 'Not Available'
-                    : 'No Slots Available'}
-                </Text>
-                <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', lineHeight: 18, maxWidth: 260 }}>
-                  {slotsSource === 'none'
-                    ? 'The doctor has not configured their schedule for this day. Try a different date.'
-                    : 'All slots for this day are fully booked. Please choose another date.'}
-                </Text>
-              </View>
-            ) : (
-              (() => {
-                const morning   = slots.filter(s => { const h = parseInt(s.time); return h < 12; });
-                const afternoon = slots.filter(s => { const h = parseInt(s.time); return h >= 12 && h < 17; });
-                const evening   = slots.filter(s => { const h = parseInt(s.time); return h >= 17; });
-                const groups = [
-                  { label: '🌅 Morning',   items: morning   },
-                  { label: '☀️ Afternoon', items: afternoon },
-                  { label: '🌆 Evening',   items: evening   },
-                ].filter(g => g.items.length > 0);
-
-                return (
-                  <View style={{ gap: 14 }}>
-                    {groups.map(group => (
-                      <View key={group.label}>
-                        <Text style={bs.slotGroupLabel}>{group.label}</Text>
-                        <View style={bs.slotRow}>
-                          {group.items.map(s => {
-                            const isSelected = slot === s.time;
-                            const disabled   = !s.available;
-                            return (
-                              <TouchableOpacity
-                                key={s.time}
-                                style={[
-                                  bs.slotChip,
-                                  isSelected && bs.slotChipActive,
-                                  disabled   && bs.slotChipDisabled,
-                                ]}
-                                onPress={() => !disabled && setSlot(isSelected ? '' : s.time)}
-                                disabled={disabled}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={[
-                                  bs.slotChipText,
-                                  isSelected && bs.slotChipTextActive,
-                                  disabled   && { color: MUTED },
-                                ]}>
-                                  {fmt12(s.time)}
-                                </Text>
-                                {s.booked && (
-                                  <Text style={bs.slotBooked}>Booked</Text>
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                );
-              })()
-            )}
-          </Section>
-        )}
-
-        {/* ── 4. Symptoms ── */}
-        <Section icon="medical-outline" title="Symptoms / Reason" optional>
-          <View style={bs.symChipRow}>
-            {SYMPTOM_CHIPS.map((c) => {
-              const active = symptoms.includes(c);
-              return (
-                <TouchableOpacity
-                  key={c}
-                  style={[bs.symChip, active && bs.symChipActive]}
-                  onPress={() => addSymptomChip(c)}
-                  activeOpacity={0.8}
-                >
-                  {active && <Ionicons name="checkmark-circle" size={12} color={PRIMARY} style={{ marginRight: 3 }} />}
-                  <Text style={[bs.symChipText, active && bs.symChipTextActive]}>{c}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={[bs.symInputWrap, symFocused && bs.symInputFocused]}>
-            <Ionicons name="create-outline" size={16} color={symFocused ? PRIMARY : MUTED} style={{ marginTop: 2 }} />
-            <TextInput
-              style={bs.symInput}
-              value={symptoms}
-              onChangeText={setSymptoms}
-              placeholder="Describe your symptoms or reason for visit..."
-              placeholderTextColor={MUTED}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              onFocus={() => setSymFocused(true)}
-              onBlur={() => setSymFocused(false)}
-              maxLength={500}
-            />
-          </View>
-          <Text style={bs.charCount}>{symptoms.length}/500</Text>
-        </Section>
-
-        {/* ── 5. Patient Summary ── */}
-        {patient && (
-          <Section icon="person-outline" title="Patient Details">
-            {/* ── Incomplete profile warning ── */}
-            {!profileComplete && (
-              <TouchableOpacity
-                style={bs.profileWarning}
-                onPress={() => navigation.navigate('ProfileWizard', { returnTo: 'Booking' })}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="warning-outline" size={18} color={AMBER} />
-                <View style={{ flex: 1 }}>
-                  <Text style={bs.profileWarningTitle}>Profile incomplete</Text>
-                  <Text style={bs.profileWarningText}>
-                    Name, gender and emergency contact are required before booking. Tap to complete your profile.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={AMBER} />
-              </TouchableOpacity>
-            )}
-            {profileComplete && (
-              <View style={bs.autoFillBanner}>
-                <Ionicons name="checkmark-circle" size={14} color={GREEN} />
-                <Text style={bs.autoFillBannerText}>Auto-filled from your profile</Text>
-              </View>
-            )}
-            <View style={bs.patientCard}>
-              <View style={bs.patientAvatarWrap}>
-                <Text style={bs.patientAvatarText}>{patient.name?.charAt(0)?.toUpperCase() || 'P'}</Text>
-              </View>
-              <View style={bs.patientInfo}>
-                <Text style={bs.patientName}>{patient.name || '—'}</Text>
-                <View style={bs.patientMetaRow}>
-                  {p?.gender && (
-                    <View style={bs.patientTag}>
-                      <Text style={bs.patientTagText}>{p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</Text>
-                    </View>
-                  )}
-                  {patientAge && (
-                    <View style={bs.patientTag}>
-                      <Text style={bs.patientTagText}>{patientAge} yrs</Text>
-                    </View>
-                  )}
-                  {p?.bloodGroup && (
-                    <View style={[bs.patientTag, { backgroundColor: '#FEE2E2' }]}>
-                      <Text style={[bs.patientTagText, { color: RED }]}>{p.bloodGroup}</Text>
-                    </View>
-                  )}
-                </View>
-                {p?.city && (
-                  <View style={bs.patientLocRow}>
-                    <Ionicons name="location-outline" size={11} color={MUTED} />
-                    <Text style={bs.patientLocText}>{p.city}</Text>
-                  </View>
-                )}
-              </View>
-              {(patient.isPhoneVerified || patient.isEmailVerified) ? (
-                <View style={bs.patientVerifiedBadge}>
-                  <Ionicons name="shield-checkmark" size={22} color={GREEN} />
-                  <Text style={bs.patientVerifiedText}>Verified</Text>
-                </View>
-              ) : (
-                <View style={[bs.patientVerifiedBadge, { alignItems: 'center' }]}>
-                  <Ionicons name="shield-outline" size={22} color={AMBER} />
-                  <Text style={[bs.patientVerifiedText, { color: AMBER, fontSize: 8 }]}>Pending</Text>
-                </View>
-              )}
-            </View>
-            {p?.emergencyContact && (
-              <View style={bs.emergencyRow}>
-                <Ionicons name="call-outline" size={13} color={MUTED} />
-                <Text style={bs.emergencyText}>Emergency: {p.emergencyContact}</Text>
-              </View>
-            )}
-          </Section>
-        )}
-
-        {/* ── 4. Payment Summary ── */}
-        <Section icon="card-outline" title="Payment Summary">
-          {/* ── First Booking Free banner ── */}
-          {isFreeBooking && (
-            <View style={{
-              flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-              backgroundColor: '#D1FAE5', borderRadius: 12,
-              padding: 12, marginBottom: 14,
-              borderWidth: 1, borderColor: '#6EE7B7',
-            }}>
-              <Text style={{ fontSize: 20 }}>🎉</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>
-                  First Booking Free!
-                </Text>
-                <Text style={{ fontSize: 11, color: '#047857', marginTop: 2, lineHeight: 16 }}>
-                  Your first appointment on PulseMate is completely free.
-                  No payment required — queue assigned instantly.
-                </Text>
-              </View>
-            </View>
-          )}
-          {/* Inline secure badge */}
-          <View style={bs.secureInline}>
-            <Ionicons name="lock-closed" size={12} color={TEAL} />
-            <Text style={bs.secureInlineText}>Secured by Razorpay · 256-bit SSL</Text>
-          </View>
-
-          {/* Line items */}
-          <View style={bs.payLines}>
-            <View style={bs.payLine}>
-              <View style={bs.payLineLeft}>
-                <Ionicons name="phone-portrait-outline" size={14} color={MUTED} />
-                <Text style={bs.payLineLabel}>Platform Booking Fee</Text>
-              </View>
-              {isFreeBooking ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 12, color: MUTED, textDecorationLine: 'line-through' }}>₹10</Text>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: GREEN }}>FREE</Text>
-                </View>
-              ) : (
-                <Text style={bs.payLineVal}>₹10</Text>
-              )}
-            </View>
-
-            <View style={bs.payLineDivider} />
-
-            <View style={bs.payLine}>
-              <View style={bs.payLineLeft}>
-                <Ionicons name="medical-outline" size={14} color={MUTED} />
-                <Text style={bs.payLineLabel}>Consultation Fee</Text>
-              </View>
-              <View style={bs.payAtClinicBadge}>
-                <Ionicons name="business-outline" size={10} color={AMBER} />
-                <Text style={bs.payAtClinicText}>₹{consultFee} · Pay at clinic</Text>
-              </View>
-            </View>
-
-            <View style={bs.payLineDivider} />
-
-            <View style={bs.payLine}>
-              <View style={bs.payLineLeft}>
-                <Ionicons name={type === 'OFFLINE' ? 'business-outline' : 'videocam-outline'} size={14} color={MUTED} />
-                <Text style={bs.payLineLabel}>Appointment Type</Text>
-              </View>
-              <Text style={bs.payLineVal}>{type === 'OFFLINE' ? 'In-Clinic' : 'Online'}</Text>
-            </View>
-
-            {date && (
-              <>
-                <View style={bs.payLineDivider} />
-                <View style={bs.payLine}>
-                  <View style={bs.payLineLeft}>
-                    <Ionicons name="calendar-outline" size={14} color={MUTED} />
-                    <Text style={bs.payLineLabel}>Date & Time</Text>
-                  </View>
-                  <Text style={bs.payLineVal}>{fmtDate(date)}{slot ? ` · ${fmt12(slot)}` : ''}</Text>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Total row */}
-          <View style={[bs.payTotal, isFreeBooking && { borderColor: GREEN + '40', backgroundColor: GREEN_L }]}>
-            <View style={bs.payTotalLeft}>
-              <Text style={bs.payTotalLabel}>{isFreeBooking ? '🎉 First Booking Free!' : 'Total to Pay Now'}</Text>
-              <Text style={bs.payTotalSub}>
-                {isFreeBooking
-                  ? 'Platform fee waived for your first booking'
-                  : 'Consultation fee paid separately at clinic'}
-              </Text>
-            </View>
-            <View style={bs.payTotalRight}>
-              <Text style={[bs.payTotalVal, isFreeBooking && { color: GREEN }]}>
-                {isFreeBooking ? '₹0' : '₹10'}
-              </Text>
-            </View>
-          </View>
-        </Section>
-
-        {/* ── Info note ── */}
-        <View style={bs.infoNote}>
-          <View style={bs.infoNoteIcon}>
-            <Ionicons name="information-circle" size={16} color={PRIMARY} />
-          </View>
-          <Text style={bs.infoNoteText}>
-            A ₹10 platform fee secures your slot. The consultation fee of ₹{consultFee} is paid directly at the clinic.
-          </Text>
         </View>
-      </ScrollView>
 
-      {/* ── Sticky bottom CTA ── */}
-      <View style={[bs.stickyBar, { paddingBottom: insets.bottom + 10 }]}>
-        <View style={bs.stickyLeft}>
-          {profileComplete ? (
-            <>
-              <Text style={bs.stickyLabel}>Pay Now</Text>
-              <View style={bs.stickyAmountRow}>
-                {isFreeBooking ? (
-                  <>
-                    <Text style={{ fontSize: 12, color: MUTED, textDecorationLine: 'line-through', marginRight: 4 }}>₹10</Text>
-                    <Text style={[bs.stickyAmount, { color: GREEN }]}>₹0</Text>
-                    <Text style={bs.stickyAmountNote}> · Free</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={bs.stickyAmount}>₹10</Text>
-                    <Text style={bs.stickyAmountNote}> platform fee</Text>
-                  </>
-                )}
-              </View>
-            </>
+        {/* ── Section 4: Select Session ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>4. Select Session</Text>
+          {!date ? (
+            <Text style={s.selectDateHint}>Please select a date first</Text>
+          ) : slotsLoading ? (
+            <View style={s.loadingRow}>
+              <ActivityIndicator color={BLUE} />
+              <Text style={s.loadingText}>Checking availability...</Text>
+            </View>
           ) : (
             <>
-              <View style={bs.stickyWarningRow}>
-                <Ionicons name="warning" size={14} color={AMBER} />
-                <Text style={bs.stickyWarningText}>Profile required</Text>
+              <View style={s.sessionRow}>
+                {/* Morning Session */}
+                {(() => {
+                  const active = session === 'morning';
+                  const hasSlots = morningSlots.length > 0;
+                  return (
+                    <TouchableOpacity
+                      style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
+                      onPress={() => hasSlots && handleSessionSelect('morning')}
+                      activeOpacity={hasSlots ? 0.85 : 1}
+                    >
+                      {active && (
+                        <View style={s.sessionCheck}>
+                          <Ionicons name="checkmark" size={10} color={WHITE} />
+                        </View>
+                      )}
+                      <Ionicons name="sunny" size={28} color={active ? BLUE : (hasSlots ? '#F59E0B' : MUTED)} />
+                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Morning Session</Text>
+                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>8:00 AM – 2:00 PM</Text>
+                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
+                      {hasSlots && slot && session === 'morning' && (
+                        <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })()}
+                {/* Evening Session */}
+                {(() => {
+                  const active = session === 'evening';
+                  const hasSlots = eveningSlots.length > 0;
+                  return (
+                    <TouchableOpacity
+                      style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
+                      onPress={() => hasSlots && handleSessionSelect('evening')}
+                      activeOpacity={hasSlots ? 0.85 : 1}
+                    >
+                      {active && (
+                        <View style={s.sessionCheck}>
+                          <Ionicons name="checkmark" size={10} color={WHITE} />
+                        </View>
+                      )}
+                      <Ionicons name="moon" size={28} color={active ? BLUE : (hasSlots ? '#6366F1' : MUTED)} />
+                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Evening Session</Text>
+                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>4:00 PM – 9:00 PM</Text>
+                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
+                      {hasSlots && slot && session === 'evening' && (
+                        <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
-              <Text style={bs.stickyWarningHint}>Add name, gender & emergency contact</Text>
+              {slots.length === 0 && (
+                <Text style={s.noSlotsText}>No slots configured for this day. Try a different date.</Text>
+              )}
+              <View style={s.queueInfo}>
+                <Ionicons name="information-circle-outline" size={14} color={MUTED} />
+                <Text style={s.queueInfoText}>Exact queue number will be assigned on the appointment day.</Text>
+              </View>
             </>
           )}
         </View>
+
+        {/* ── Section 5: Appointment Notes ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>5. Appointment Notes <Text style={s.optional}>(Optional)</Text></Text>
+          <View style={[s.notesWrap, notesFocused && s.notesFocused]}>
+            <TextInput
+              style={s.notesInput}
+              value={notes}
+              onChangeText={(t) => t.length <= 200 && setNotes(t)}
+              placeholder="Add any symptoms or notes for the doctor..."
+              placeholderTextColor={MUTED}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              onFocus={() => setNotesFocused(true)}
+              onBlur={() => setNotesFocused(false)}
+              maxLength={200}
+            />
+          </View>
+          <Text style={s.charCount}>{notes.length}/200</Text>
+        </View>
+
+        {/* ── Free booking banner ── */}
+        {isFreeBooking && (
+          <View style={s.freeBanner}>
+            <Text style={s.freeBannerEmoji}>🎉</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.freeBannerTitle}>First Booking Free!</Text>
+              <Text style={s.freeBannerSub}>Your first appointment on PulseMate is completely free. No payment required.</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Sticky Bottom Bar ── */}
+      <View style={[s.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
-          style={[
-            bs.payBtn,
-            !profileComplete && bs.payBtnProfile,
-            (!date || loading) && profileComplete && bs.payBtnDisabled,
-            isFreeBooking && profileComplete && { backgroundColor: GREEN, shadowColor: GREEN },
-          ]}
-          onPress={profileComplete ? handleBook : () => navigation.navigate('ProfileWizard', { returnTo: 'Booking' })}
+          style={[s.confirmBtn, (loading || !date) && s.confirmBtnDisabled]}
+          onPress={handleBook}
           disabled={loading}
           activeOpacity={0.88}
         >
           {loading ? (
             <ActivityIndicator color={WHITE} size="small" />
-          ) : profileComplete ? (
-            isFreeBooking ? (
-              <>
-                <Ionicons name="checkmark-circle" size={18} color={WHITE} />
-                <Text style={bs.payBtnText}>Confirm Free Booking</Text>
-                <Ionicons name="arrow-forward" size={16} color={WHITE} />
-              </>
-            ) : (
-              <>
-                <Ionicons name="card" size={18} color={WHITE} />
-                <Text style={bs.payBtnText}>Proceed to Pay</Text>
-                <Ionicons name="arrow-forward" size={16} color={WHITE} />
-              </>
-            )
           ) : (
-            <>
-              <Ionicons name="person-circle-outline" size={18} color={WHITE} />
-              <Text style={bs.payBtnText}>Complete Profile</Text>
-              <Ionicons name="arrow-forward" size={16} color={WHITE} />
-            </>
+            <Text style={s.confirmBtnText}>
+              {isFreeBooking ? 'Confirm Free Booking' : 'Confirm Appointment'}
+            </Text>
           )}
         </TouchableOpacity>
+        <Text style={s.noCharge}>You won't be charged now</Text>
       </View>
 
       {/* ── Success overlay ── */}
@@ -901,315 +603,183 @@ export default function BookingScreen({ route, navigation }) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const bs = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+// ── Styles ─────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root:        { flex: 1, backgroundColor: BG },
 
-  // ── Header band ──────────────────────────────────────────────────────────────
-  headerBand: {
-    backgroundColor: PRIMARY_D,
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-    overflow: 'hidden',
+  // Header
+  headerSafe:  { backgroundColor: WHITE },
+  header:      {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: BORDER,
+    backgroundColor: WHITE,
   },
-  blobTL: {
-    position: 'absolute', top: -60, left: -60,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  blobBR: {
-    position: 'absolute', bottom: -40, right: -40,
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  blobMid: {
-    position: 'absolute', top: 40, right: 80,
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(45,212,191,0.12)',
-  },
-
-  // Nav row
-  navRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  backBtn:    {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
-  },
-  navTitle:   { fontSize: 18, fontWeight: '800', color: WHITE, letterSpacing: -0.3 },
-  navSub:     { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 1 },
-  secureBadge:{
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(45,212,191,0.18)', borderRadius: 8,
-    paddingHorizontal: 9, paddingVertical: 5,
-    borderWidth: 1, borderColor: 'rgba(45,212,191,0.35)',
-  },
-  secureText: { fontSize: 10, fontWeight: '700', color: TEAL },
-
-  // Doctor card
-  docCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 18,
-    padding: 14, marginBottom: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
-  },
-  docAvatarWrap: {
-    width: 50, height: 50, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  docAvatarText: { fontSize: 22, fontWeight: '900', color: WHITE },
-  docOnlineDot: {
-    position: 'absolute', bottom: 2, right: 2,
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: TEAL, borderWidth: 2, borderColor: PRIMARY_D,
-  },
-  docInfo:    { flex: 1 },
-  docName:    { fontSize: 15, fontWeight: '800', color: WHITE, letterSpacing: -0.2 },
-  docSpec:    { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
-  docClinicRow:{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  docClinic:  { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
-  docFeeBox:  { alignItems: 'flex-end', gap: 2 },
-  docFeeLabel:{ fontSize: 9, color: 'rgba(255,255,255,0.6)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  docFeeVal:  { fontSize: 20, fontWeight: '900', color: WHITE, letterSpacing: -0.5 },
-  docFeeNote: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  docFeeNoteText: { fontSize: 9, color: 'rgba(255,255,255,0.55)' },
-
-  // Progress
-  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressText:{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
-
-  // Scroll
-  scroll: { padding: 14, gap: 12 },
-
-  // Section
-  section: {
-    backgroundColor: CARD, borderRadius: 20, padding: 16,
-    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
-  },
-  sectionHeader:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  sectionIconWrap: {
-    width: 30, height: 30, borderRadius: 9,
-    backgroundColor: PRIMARY_L, alignItems: 'center', justifyContent: 'center',
-  },
-  sectionTitle:    { fontSize: 15, fontWeight: '800', color: SLATE, flex: 1, letterSpacing: -0.2 },
-  sectionOptional: { fontSize: 11, color: MUTED, fontWeight: '600' },
-  sectionBadge:    {
-    backgroundColor: PRIMARY_L, borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  sectionBadgeText:{ fontSize: 11, fontWeight: '700', color: PRIMARY_D },
-
-  // ── Appointment type ──────────────────────────────────────────────────────────
-  typeRow:     { flexDirection: 'row', gap: 12 },
-  typeCard:    {
-    flex: 1, alignItems: 'center', padding: 16,
-    borderRadius: 16, borderWidth: 2, borderColor: BORDER,
-    backgroundColor: CARD, gap: 6, position: 'relative',
-  },
-  typeIconWrap:{ width: 48, height: 48, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  typeLabel:   { fontSize: 14, fontWeight: '700', color: SLATE },
-  typeSub:     { fontSize: 11, color: MUTED, textAlign: 'center' },
-  typeCheck:   {
-    position: 'absolute', top: 8, right: 8,
-    width: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  // ── Date picker ───────────────────────────────────────────────────────────────
-  dateRow:       { gap: 10, paddingRight: 4 },
-  dateCard:      {
-    width: 64, borderRadius: 16, backgroundColor: '#F8FAFC',
-    alignItems: 'center', paddingVertical: 12,
-    borderWidth: 1.5, borderColor: BORDER, gap: 2,
-  },
-  dateCardActive:{
-    backgroundColor: PRIMARY, borderColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
-  },
-  dateCardToday: { borderColor: PRIMARY, borderWidth: 2 },
-  dateWeekday:   { fontSize: 10, color: MUTED, fontWeight: '700', textTransform: 'uppercase' },
-  dateDay:       { fontSize: 22, fontWeight: '900', color: SLATE },
-  dateMonth:     { fontSize: 10, color: MUTED, fontWeight: '600' },
-  dateTextActive:{ color: WHITE },
-  todayDot:      { width: 5, height: 5, borderRadius: 3, backgroundColor: PRIMARY, marginTop: 2 },
-
-  // ── Slot groups ───────────────────────────────────────────────────────────────
-  slotGroup:       { marginBottom: 12 },
-  slotGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  slotGroupLabel:  { fontSize: 11, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
-  slotRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slotChip:        {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 13, paddingVertical: 8,
-    borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#F8FAFC',
-  },
-  slotChipActive:  {
-    borderColor: PRIMARY, backgroundColor: PRIMARY_L,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18, shadowRadius: 4, elevation: 2,
-  },
-  slotChipDisabled:{ opacity: 0.4 },
-  slotChipText:    { fontSize: 12, fontWeight: '600', color: SLATE_6 },
-  slotChipTextActive: { color: PRIMARY_D, fontWeight: '800' },
-  slotBooked:      { fontSize: 9, color: RED, fontWeight: '700', marginLeft: 4 },
-  slotText:        { fontSize: 12, fontWeight: '600', color: SLATE_6 },
-  slotTextActive:  { color: PRIMARY_D, fontWeight: '800' },
-
-  // ── Symptoms ──────────────────────────────────────────────────────────────────
-  symChipRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  symChip:          {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#F8FAFC',
-  },
-  symChipActive:    { borderColor: PRIMARY, backgroundColor: PRIMARY_L },
-  symChipText:      { fontSize: 12, fontWeight: '600', color: SLATE_6 },
-  symChipTextActive:{ color: PRIMARY_D, fontWeight: '700' },
-  symInputWrap:     {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    borderWidth: 1.5, borderColor: BORDER, borderRadius: 14,
-    padding: 14, backgroundColor: '#F8FAFC',
-  },
-  symInputFocused:  {
-    borderColor: PRIMARY, backgroundColor: WHITE,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15, shadowRadius: 6, elevation: 2,
-  },
-  symInput:         { flex: 1, fontSize: 14, color: SLATE, minHeight: 72 },
-  charCount:        { fontSize: 11, color: MUTED, textAlign: 'right', marginTop: 4 },
-
-  // ── Patient card ──────────────────────────────────────────────────────────────
-  autoFillBanner:   {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: GREEN_L, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 7, marginBottom: 12,
-  },
-  autoFillBannerText:{ fontSize: 12, fontWeight: '700', color: '#065F46' },
-  profileWarning: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: AMBER_L, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14,
-    borderWidth: 1, borderColor: '#FDE68A',
-  },
-  profileWarningTitle: { fontSize: 13, fontWeight: '800', color: '#92400E', marginBottom: 2 },
-  profileWarningText:  { fontSize: 11, color: '#92400E', lineHeight: 16 },
-  patientCard:      {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#F8FAFC', borderRadius: 16, padding: 14, marginBottom: 8,
+  backBtn:     {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: BORDER,
   },
-  patientAvatarWrap:{
-    width: 50, height: 50, borderRadius: 16,
-    backgroundColor: PRIMARY_L, alignItems: 'center', justifyContent: 'center',
-  },
-  patientAvatarText:{ fontSize: 20, fontWeight: '800', color: PRIMARY },
-  patientInfo:      { flex: 1 },
-  patientName:      { fontSize: 14, fontWeight: '800', color: SLATE, marginBottom: 6 },
-  patientMetaRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 5 },
-  patientTag:       { backgroundColor: PRIMARY_L, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 },
-  patientTagText:   { fontSize: 11, fontWeight: '700', color: PRIMARY_D },
-  patientLocRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  patientLocText:   { fontSize: 11, color: MUTED },
-  patientVerifiedBadge:{ alignItems: 'center', gap: 2 },
-  patientVerifiedText: { fontSize: 9, fontWeight: '700', color: GREEN },
-  emergencyRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
-  emergencyText:    { fontSize: 12, color: MUTED },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: SLATE, letterSpacing: -0.3 },
 
-  secureInline: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: 10,
-  },
-  secureInlineText: { fontSize: 11, color: MUTED, fontWeight: '600' },
+  // Scroll
+  scroll: { padding: 16, gap: 14 },
 
-  // ── Payment summary ───────────────────────────────────────────────────────────
-  rzpBar:       {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: PURPLE_L, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14,
-    borderWidth: 1, borderColor: '#DDD6FE',
+  // Doctor Card
+  doctorCard:  {
+    backgroundColor: CARD, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
-  rzpLeft:      { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rzpIconWrap:  {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center',
+  doctorRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
+  avatarCircle:{
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center',
   },
-  rzpTitle:     { fontSize: 12, fontWeight: '800', color: PURPLE },
-  rzpSub:       { fontSize: 10, color: MUTED, marginTop: 1 },
-  rzpMethods:   { flexDirection: 'row', gap: 5 },
-  rzpMethod:    {
-    backgroundColor: WHITE, borderRadius: 6,
-    paddingHorizontal: 7, paddingVertical: 3,
-    borderWidth: 1, borderColor: '#DDD6FE',
-  },
-  rzpMethodText:{ fontSize: 9, fontWeight: '700', color: PURPLE },
-
-  payLines:     { gap: 0, marginBottom: 14 },
-  payLine:      {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 11,
-  },
-  payLineLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  payLineLabel: { fontSize: 13, color: SLATE_6 },
-  payLineVal:   { fontSize: 13, fontWeight: '700', color: SLATE },
-  payLineDivider:{ height: 1, backgroundColor: '#F1F5F9' },
-  payAtClinicBadge:{
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FEF3C7', borderRadius: 8,
+  avatarText:  { fontSize: 22, fontWeight: '800', color: BLUE },
+  doctorInfo:  { flex: 1 },
+  doctorNameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  doctorName:  { fontSize: 16, fontWeight: '700', color: SLATE },
+  doctorSpec:  { fontSize: 13, color: SLATE_6, marginBottom: 2 },
+  doctorClinic:{ fontSize: 12, color: MUTED },
+  distanceBadge:{
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: BLUE_L, borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 4,
   },
-  payAtClinicText:{ fontSize: 11, fontWeight: '700', color: '#92400E' },
-
-  payTotal:     {
+  distanceText:{ fontSize: 11, fontWeight: '600', color: BLUE },
+  doctorMeta:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  ratingText:  { fontSize: 13, fontWeight: '700', color: SLATE },
+  reviewsText: { fontSize: 12, color: MUTED },
+  feeRow:      {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: BG, borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 14,
-    borderWidth: 1.5, borderColor: PRIMARY_L,
+    paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER,
   },
-  payTotalLeft: { flex: 1 },
-  payTotalLabel:{ fontSize: 14, fontWeight: '800', color: SLATE },
-  payTotalSub:  { fontSize: 11, color: MUTED, marginTop: 2 },
-  payTotalRight:{ alignItems: 'flex-end' },
-  payTotalVal:  { fontSize: 26, fontWeight: '900', color: PRIMARY_D, letterSpacing: -0.5 },
+  feeText:     { fontSize: 14, fontWeight: '700', color: SLATE },
+  availableRow:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
+  greenDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN_DOT },
+  availableText:{ fontSize: 13, fontWeight: '600', color: GREEN },
 
-  // ── Info note ─────────────────────────────────────────────────────────────────
-  infoNote:     {
+  // Section
+  section:     {
+    backgroundColor: CARD, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+  },
+  sectionTitle:{ fontSize: 15, fontWeight: '700', color: SLATE, marginBottom: 14 },
+  optional:    { fontSize: 13, fontWeight: '400', color: MUTED },
+
+  // For Whom chips
+  chipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chip:        {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 20, borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: BG,
+  },
+  chipActive:  { borderColor: BLUE, backgroundColor: BLUE_L },
+  chipText:    { fontSize: 13, fontWeight: '500', color: SLATE_6 },
+  chipTextActive:{ color: BLUE, fontWeight: '700' },
+
+  // Visit Type
+  visitTypeRow:{ flexDirection: 'row', gap: 12 },
+  visitCard:   {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 20, borderRadius: 12,
+    borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: BG, gap: 8, position: 'relative',
+  },
+  visitCardActive:{ borderColor: BLUE, backgroundColor: BLUE_L },
+  visitCheck:  {
+    position: 'absolute', top: 8, right: 8,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center',
+  },
+  visitLabel:  { fontSize: 13, fontWeight: '600', color: SLATE_6, textAlign: 'center' },
+  visitLabelActive:{ color: BLUE, fontWeight: '700' },
+
+  // Date Strip
+  dateStrip:   { gap: 10, paddingRight: 4 },
+  dateCell:    {
+    width: 62, borderRadius: 14, backgroundColor: BG,
+    alignItems: 'center', paddingVertical: 11,
+    borderWidth: 1.5, borderColor: BORDER, gap: 2,
+  },
+  dateCellActive:{
+    backgroundColor: BLUE, borderColor: BLUE,
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+  },
+  dateDayName: { fontSize: 10, color: MUTED, fontWeight: '700', textTransform: 'uppercase' },
+  dateNum:     { fontSize: 22, fontWeight: '800', color: SLATE },
+  dateMonth:   { fontSize: 10, color: MUTED, fontWeight: '600' },
+  dateTextActive:{ color: WHITE },
+
+  // Session
+  sessionRow:        { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  sessionCard:       {
+    flex: 1, alignItems: 'center', paddingVertical: 20,
+    borderRadius: 12, borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: BG, gap: 6, position: 'relative',
+  },
+  sessionCardActive: { borderColor: BLUE, backgroundColor: BLUE_L },
+  sessionCardDisabled:{ opacity: 0.45 },
+  sessionCheck:      {
+    position: 'absolute', top: 8, right: 8,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center',
+  },
+  sessionLabel:      { fontSize: 13, fontWeight: '600', color: SLATE_6, textAlign: 'center' },
+  sessionLabelActive:{ color: BLUE, fontWeight: '700' },
+  sessionTime:       { fontSize: 11, color: MUTED, textAlign: 'center' },
+  sessionTimeActive: { color: BLUE },
+  sessionNA:         { fontSize: 10, color: RED, fontWeight: '600' },
+  sessionSlotHint:   { fontSize: 10, color: BLUE, fontWeight: '600' },
+  selectDateHint:    { fontSize: 13, color: MUTED, textAlign: 'center', paddingVertical: 16 },
+  loadingRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },
+  loadingText:       { fontSize: 13, color: MUTED },
+  noSlotsText:       { fontSize: 12, color: MUTED, textAlign: 'center', marginBottom: 8 },
+  queueInfo:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  queueInfoText:     { fontSize: 11, color: MUTED, flex: 1, lineHeight: 16 },
+
+  // Notes
+  notesWrap:   {
+    borderWidth: 1.5, borderColor: BORDER,
+    borderRadius: 12, padding: 12, backgroundColor: BG,
+  },
+  notesFocused:{ borderColor: BLUE, backgroundColor: WHITE },
+  notesInput:  { fontSize: 14, color: SLATE, minHeight: 88, lineHeight: 21 },
+  charCount:   { fontSize: 11, color: MUTED, textAlign: 'right', marginTop: 4 },
+
+  // Free banner
+  freeBanner:  {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: PRIMARY_L, borderRadius: 14,
-    padding: 14, borderWidth: 1, borderColor: '#BAE6FD',
+    backgroundColor: GREEN_L, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#86EFAC',
   },
-  infoNoteIcon: { marginTop: 1 },
-  infoNoteText: { flex: 1, fontSize: 12, color: PRIMARY_D, lineHeight: 18, fontWeight: '500' },
+  freeBannerEmoji:{ fontSize: 20 },
+  freeBannerTitle:{ fontSize: 14, fontWeight: '700', color: '#14532D', marginBottom: 3 },
+  freeBannerSub:  { fontSize: 12, color: '#166534', lineHeight: 17 },
 
-  // ── Sticky bottom bar ─────────────────────────────────────────────────────────
-  stickyBar:    {
+  // Sticky bar
+  stickyBar:   {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: WHITE,
-    paddingHorizontal: 20, paddingTop: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: WHITE, paddingHorizontal: 16, paddingTop: 14,
     borderTopWidth: 1, borderTopColor: BORDER,
-    shadowColor: '#0F172A', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08, shadowRadius: 12, elevation: 12,
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08, shadowRadius: 10, elevation: 12,
+    alignItems: 'center',
   },
-  stickyLeft:   { flex: 1 },
-  stickyLabel:  { fontSize: 11, color: MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  stickyAmountRow:{ flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  stickyAmount: { fontSize: 26, fontWeight: '900', color: SLATE, letterSpacing: -0.5 },
-  stickyAmountNote:{ fontSize: 12, color: MUTED, fontWeight: '500' },
-
-  payBtn:       {
-    flex: 1.6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: PRIMARY, borderRadius: 16,
-    paddingVertical: 16,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 14, elevation: 8,
+  confirmBtn:  {
+    width: '100%', backgroundColor: BLUE,
+    borderRadius: 14, paddingVertical: 16,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 7,
   },
-  payBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
-  payBtnProfile: { backgroundColor: AMBER, shadowColor: AMBER, shadowOpacity: 0.4, elevation: 8 },
-  payBtnText:   { fontSize: 15, fontWeight: '800', color: WHITE, letterSpacing: -0.2 },
-  stickyWarningRow:  { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
-  stickyWarningText: { fontSize: 12, fontWeight: '800', color: AMBER },
-  stickyWarningHint: { fontSize: 10, color: MUTED, fontWeight: '500' },
+  confirmBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
+  confirmBtnText:    { fontSize: 16, fontWeight: '700', color: WHITE },
+  noCharge:          { fontSize: 12, color: MUTED, marginTop: 6 },
 });
