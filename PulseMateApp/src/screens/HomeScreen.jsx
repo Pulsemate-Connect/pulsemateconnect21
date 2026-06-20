@@ -372,7 +372,7 @@ export default function HomeScreen({ navigation }) {
                 <DoctorCard
                   key={doc.id}
                   doctor={doc}
-                  onBook={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { id: doc.id } })}
+                  onBook={() => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { doctorId: doc.id } })}
                 />
               ))}
             </ScrollView>

@@ -209,7 +209,8 @@ function ReviewCard({ review }) {
 
 // ── Main DoctorDetailScreen ───────────────────────────────────────────────────
 export default function DoctorDetailScreen({ route, navigation }) {
-  const { doctorId } = route.params;
+  const { doctorId, id } = route.params ?? {};
+  const resolvedId = doctorId || id;
   const insets = useSafeAreaInsets();
   const [doctor,  setDoctor]  = useState(null);
   const [loading, setLoading] = useState(true);
@@ -222,9 +223,10 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const heartA   = useRef(new Animated.Value(1)).current;
 
   const fetchDoctor = () => {
+    if (!resolvedId) { setError('Invalid doctor ID'); setLoading(false); return; }
     setLoading(true);
     setError(null);
-    getDoctorProfile(doctorId)
+    getDoctorProfile(resolvedId)
       .then((r) => {
         setDoctor(r.data.data.doctor);
         Animated.timing(enterA, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
@@ -236,7 +238,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchDoctor(); }, [doctorId]);
+  useEffect(() => { fetchDoctor(); }, [resolvedId]);
 
   const handleSave = () => {
     setSaved((v) => !v);
