@@ -12,13 +12,15 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert, Animated, Easing, StatusBar,
+  ActivityIndicator, Alert, Animated, Easing, StatusBar, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyPhoneOtp, sendOtpToPhone, firebaseConfig } from '../config/firebase';
 import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+
+const LOGO = require('../../assets/logo.png');
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -204,11 +206,7 @@ export default function OtpScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={os.backBtn} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={20} color={BLUE} />
           </TouchableOpacity>
-          <View style={os.logoBox}><Ionicons name="pulse" size={22} color={BLUE} /></View>
-          <View style={os.secureBadge}>
-            <View style={os.secureIcon}><Ionicons name="shield-checkmark" size={12} color={WHITE} /></View>
-            <View><Text style={os.secureTitle}>Firebase Auth</Text><Text style={os.secureSub}>End-to-end secure</Text></View>
-          </View>
+          <Image source={LOGO} style={os.logoImg} resizeMode="contain" />
         </View>
 
         <Text style={os.headline}>PulseMate <Text style={os.headlineBlue}>Connect</Text></Text>
@@ -286,27 +284,6 @@ export default function OtpScreen({ route, navigation }) {
           <StepRow current={2} />
         </View>
 
-        {/* Trust */}
-        <View style={os.trustRow}>
-          {[
-            { icon: 'shield-outline',      label: 'Firebase\nVerified' },
-            { icon: 'lock-closed-outline', label: 'No Password\nRequired' },
-            { icon: 'people-outline',      label: 'Trusted by\nClinics' },
-          ].map((b) => (
-            <View key={b.label} style={os.trustBadge}>
-              <Ionicons name={b.icon} size={16} color={BLUE} />
-              <Text style={os.trustLabel}>{b.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Privacy */}
-        <View style={os.privacyCard}>
-          <View style={os.privacyIcon}><Ionicons name="lock-closed" size={16} color={BLUE} /></View>
-          <Text style={os.privacyText}>OTP is verified securely by Firebase. Never share your OTP with anyone.</Text>
-          <View style={os.otpBadge}><View style={os.otpDot} /><Text style={os.otpBadgeText}>Firebase Verified</Text></View>
-        </View>
-
         <Text style={os.terms}>By continuing, you agree to our <Text style={os.termsLink}>Terms</Text> and <Text style={os.termsLink}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -323,9 +300,7 @@ const os = StyleSheet.create({
   successSub:     { fontSize: 14, color: GRAY },
   topBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   backBtn:     { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BLUE_B },
-  logoBox:     { width: 56, height: 56, backgroundColor: WHITE, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3, borderWidth: 1, borderColor: '#DBEAFE' },
-  secureBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: WHITE, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2, borderWidth: 1, borderColor: '#D1FAE5' },
-  secureIcon:  { width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
+  logoImg:     { height: 34, width: 150 },
   secureTitle: { fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
   secureSub:   { fontSize: 9, color: GRAY, lineHeight: 11, marginTop: 1 },
   headline:    { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },
