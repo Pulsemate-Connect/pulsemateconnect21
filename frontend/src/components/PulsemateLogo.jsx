@@ -21,7 +21,7 @@ const PulsemateLogo = ({ size = 'md', theme = 'dark', showTagline = false, class
   return (
     <div className={`flex flex-col items-start ${className}`}>
       <img
-        src="/logo.png"
+        src="/logo11.png"
         alt="PulseMate"
         className={`${s.img} w-auto object-contain`}
         draggable={false}
