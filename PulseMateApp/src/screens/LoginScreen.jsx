@@ -177,22 +177,6 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Trust */}
-        <View style={s.trustRow}>
-          {[
-            { icon: 'shield-outline',      label: 'Firebase\nVerified' },
-            { icon: 'lock-closed-outline', label: 'No Password\nRequired' },
-            { icon: 'people-outline',      label: 'Trusted by\nClinics' },
-          ].map((b) => (
-            <View key={b.label} style={s.trustBadge}>
-              <Ionicons name={b.icon} size={16} color={BLUE} />
-              <Text style={s.trustLabel}>{b.label}</Text>
-            </View>
-          ))}
-        </View>
-
-
-
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink}>Terms</Text> and <Text style={s.termsLink}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
