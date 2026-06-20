@@ -82,10 +82,24 @@ const DoctorProfile = () => {
         {/* Doctor Header */}
         <div className="card mb-6">
           <div className="flex items-start gap-6">
-            <div className="w-20 h-20 bg-primary-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <span className="text-primary-700 font-bold text-3xl">
-                {doctor.user?.name?.charAt(0) || 'D'}
-              </span>
+            {/* Avatar / Photo */}
+            <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 border border-gray-200 shadow-sm bg-primary-50">
+              {doctor.profileImage || doctor.profilePhotoUrl ? (
+                <img
+                  src={doctor.profileImage || doctor.profilePhotoUrl}
+                  alt={doctor.user?.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                />
+              ) : null}
+              <div
+                className="w-full h-full bg-primary-100 flex items-center justify-center"
+                style={{ display: (doctor.profileImage || doctor.profilePhotoUrl) ? 'none' : 'flex' }}
+              >
+                <span className="text-primary-700 font-bold text-3xl">
+                  {doctor.user?.name?.charAt(0) || 'D'}
+                </span>
+              </div>
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-text-primary">{doctor.user?.name}</h1>

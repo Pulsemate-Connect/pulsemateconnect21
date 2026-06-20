@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Animated, Easing, Dimensions, StatusBar,
-  Linking, Platform, Alert,
+  Linking, Platform, Alert, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,14 @@ const getSpec = (s) => SPEC_CFG[s] || { color: SKY5, bg: '#E0F2FE', icon: 'medic
 
 // ── Day abbreviations ─────────────────────────────────────────────────────────
 const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat', Sunday:'Sun' };
+
+// ── Helper: format doctor name without double "Dr." ──────────────────────────
+const fmtDoctorName = (name) => {
+  if (!name) return 'Doctor';
+  const t = name.trim();
+  if (t.toLowerCase().startsWith('dr.') || t.toLowerCase().startsWith('dr ')) return t;
+  return `Dr. ${t}`;
+};
 
 // ── Maps navigation helper ────────────────────────────────────────────────────
 const openMaps = (lat, lng, name) => {
@@ -205,6 +213,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [doctor,  setDoctor]  = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
   const [saved,   setSaved]   = useState(false);
   const [tab,     setTab]     = useState('about'); // 'about' | 'clinics' | 'reviews'
 
@@ -212,15 +221,22 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const enterA   = useRef(new Animated.Value(0)).current;
   const heartA   = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
+  const fetchDoctor = () => {
+    setLoading(true);
+    setError(null);
     getDoctorProfile(doctorId)
       .then((r) => {
         setDoctor(r.data.data.doctor);
         Animated.timing(enterA, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
       })
-      .catch(() => {})
+      .catch((err) => {
+        const msg = err.response?.data?.message || err.message || 'Failed to load doctor profile';
+        setError(msg);
+      })
       .finally(() => setLoading(false));
-  }, [doctorId]);
+  };
+
+  useEffect(() => { fetchDoctor(); }, [doctorId]);
 
   const handleSave = () => {
     setSaved((v) => !v);
@@ -238,13 +254,27 @@ export default function DoctorDetailScreen({ route, navigation }) {
     </View>
   );
 
-  if (!doctor) return (
+  if (error || !doctor) return (
     <View style={dd.loadWrap}>
-      <Ionicons name="alert-circle-outline" size={48} color={MUTED} />
-      <Text style={dd.loadText}>Doctor not found</Text>
-      <TouchableOpacity style={dd.retryBtn} onPress={() => navigation.goBack()}>
-        <Text style={dd.retryText}>Go Back</Text>
-      </TouchableOpacity>
+      <View style={dd.errorIconWrap}>
+        <Ionicons name={error ? 'wifi-outline' : 'alert-circle-outline'} size={44} color={MUTED} />
+      </View>
+      <Text style={dd.errorTitle}>{error ? 'Could not load profile' : 'Doctor not found'}</Text>
+      <Text style={dd.errorSub}>
+        {error || 'This doctor profile is no longer available.'}
+      </Text>
+      <View style={dd.errorBtnRow}>
+        {error && (
+          <TouchableOpacity style={dd.retryBtn} onPress={fetchDoctor} activeOpacity={0.88}>
+            <Ionicons name="refresh-outline" size={16} color={WHITE} />
+            <Text style={dd.retryText}>Try Again</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={dd.backBtn2} onPress={() => navigation.goBack()} activeOpacity={0.88}>
+          <Ionicons name="arrow-back" size={16} color={SKY5} />
+          <Text style={dd.backBtn2Text}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -252,6 +282,8 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const cfg     = getSpec(spec);
   const accent  = cfg.color;
   const initial = doctor.user?.name?.charAt(0)?.toUpperCase() || 'D';
+  const photoUrl = doctor.profilePhotoUrl || doctor.profileImage || null;
+  const displayName = fmtDoctorName(doctor.user?.name);
   const langs   = doctor.languagesKnown?.join(', ') || 'English';
   const qual    = doctor.qualification || 'MBBS';
   const exp     = doctor.experienceYears || 0;
@@ -277,7 +309,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
         <TouchableOpacity style={dd.floatBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={20} color={WHITE} />
         </TouchableOpacity>
-        <Text style={dd.floatTitle} numberOfLines={1}>Dr. {doctor.user?.name}</Text>
+        <Text style={dd.floatTitle} numberOfLines={1}>{displayName}</Text>
         <Animated.View style={{ transform: [{ scale: heartA }] }}>
           <TouchableOpacity style={dd.floatHeart} onPress={handleSave} activeOpacity={0.8}>
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={20} color={saved ? '#FB7185' : WHITE} />
@@ -298,16 +330,20 @@ export default function DoctorDetailScreen({ route, navigation }) {
           <View style={dd.heroContent}>
             {/* Avatar */}
             <View style={dd.avatarRing}>
-              <View style={[dd.avatar, { backgroundColor: cfg.bg }]}>
-                <Text style={[dd.avatarInitial, { color: accent }]}>{initial}</Text>
-              </View>
+              {photoUrl ? (
+                <Image source={{ uri: photoUrl }} style={dd.avatarPhoto} resizeMode="cover" />
+              ) : (
+                <View style={[dd.avatar, { backgroundColor: cfg.bg }]}>
+                  <Text style={[dd.avatarInitial, { color: accent }]}>{initial}</Text>
+                </View>
+              )}
               <View style={dd.onlineDot} />
             </View>
 
             {/* Name + spec */}
             <View style={dd.heroText}>
               <View style={dd.heroNameRow}>
-                <Text style={dd.heroName}>Dr. {doctor.user?.name}</Text>
+                <Text style={dd.heroName}>{displayName}</Text>
                 <Ionicons name="checkmark-circle" size={18} color={TEAL} />
               </View>
               <View style={[dd.specBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
@@ -486,10 +522,16 @@ const dd = StyleSheet.create({
   root:    { flex: 1, backgroundColor: BG },
 
   // Loading / error
-  loadWrap:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: BG },
-  loadText:  { fontSize: 15, color: MUTED, fontWeight: '600' },
-  retryBtn:  { backgroundColor: SKY5, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
-  retryText: { fontSize: 14, fontWeight: '700', color: WHITE },
+  loadWrap:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: BG, padding: 32 },
+  loadText:     { fontSize: 15, color: MUTED, fontWeight: '600' },
+  errorIconWrap:{ width: 88, height: 88, borderRadius: 24, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  errorTitle:   { fontSize: 18, fontWeight: '800', color: SLATE, textAlign: 'center' },
+  errorSub:     { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 20, maxWidth: 280 },
+  errorBtnRow:  { flexDirection: 'row', gap: 12, marginTop: 8 },
+  retryBtn:     { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: SKY5, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 13, shadowColor: SKY5, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  retryText:    { fontSize: 14, fontWeight: '700', color: WHITE },
+  backBtn2:     { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 13, borderWidth: 1.5, borderColor: SKY5, backgroundColor: WHITE },
+  backBtn2Text: { fontSize: 14, fontWeight: '700', color: SKY5 },
 
   // Static header
   staticHeader: {
@@ -515,6 +557,7 @@ const dd = StyleSheet.create({
   heroContent: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 20, paddingBottom: 20, gap: 16 },
   avatarRing:  { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   avatar:      { width: 82, height: 82, borderRadius: 41, alignItems: 'center', justifyContent: 'center' },
+  avatarPhoto: { width: 82, height: 82, borderRadius: 41 },
   avatarInitial: { fontSize: 34, fontWeight: '800' },
   onlineDot:   { position: 'absolute', bottom: 3, right: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: '#10B981', borderWidth: 2.5, borderColor: WHITE },
 

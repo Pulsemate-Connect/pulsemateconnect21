@@ -114,6 +114,7 @@ const getDoctorProfile = async (req, res, next) => {
                 openingTime: true, closingTime: true,
                 isVerified: true, approvalStatus: true,
                 clinicLogoUrl: true,
+                latitude: true, longitude: true,
               },
             },
           },

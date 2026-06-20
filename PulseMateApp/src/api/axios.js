@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
 // ── API URL resolution ─────────────────────────────────────────────────────
 const isDev = __DEV__;
 export const BASE_URL = isDev
-  ? (Constants.expoConfig?.extra?.apiUrl ?? 'https://api.pulsemateconnect.in/api')
+  ? (Constants.expoConfig?.extra?.apiUrlDev ?? 'http://192.168.31.240:5000/api')
   : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://api.pulsemateconnect.in/api');
 
 const api = axios.create({

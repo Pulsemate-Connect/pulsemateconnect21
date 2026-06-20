@@ -143,10 +143,23 @@ const DoctorCard = ({ doctor }) => {
   return (
     <Link to={`/patient/doctors/${doctor.id}`} className="card-hover block">
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
-          <span className="text-primary-700 font-bold text-xl">
-            {doctor.user?.name?.charAt(0) || 'D'}
-          </span>
+        <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100 bg-primary-50">
+          {doctor.profileImage || doctor.profilePhotoUrl ? (
+            <img
+              src={doctor.profileImage || doctor.profilePhotoUrl}
+              alt={doctor.user?.name}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex'; }}
+            />
+          ) : null}
+          <div
+            className="w-full h-full bg-primary-100 flex items-center justify-center"
+            style={{ display: (doctor.profileImage || doctor.profilePhotoUrl) ? 'none' : 'flex' }}
+          >
+            <span className="text-primary-700 font-bold text-xl">
+              {doctor.user?.name?.charAt(0) || 'D'}
+            </span>
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-text-primary truncate">{doctor.user?.name}</h3>

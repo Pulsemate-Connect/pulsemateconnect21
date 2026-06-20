@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView,
-  Dimensions, StatusBar, Modal, Animated,
+  Dimensions, StatusBar, Modal, Animated, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -110,6 +110,14 @@ const fs = StyleSheet.create({
   applyText:     { fontSize: 16, fontWeight: '800', color: WHITE },
 });
 
+// ── Helper: format doctor name without double "Dr." ──────────────────────────
+const fmtDoctorName = (name) => {
+  if (!name) return 'Doctor';
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase().startsWith('dr.') || trimmed.toLowerCase().startsWith('dr ')) return trimmed;
+  return `Dr. ${trimmed}`;
+};
+
 // ── Doctor card ───────────────────────────────────────────────────────────────
 function DoctorCard({ doc, onViewProfile, onBook }) {
 
@@ -118,7 +126,9 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
   const accent = cfg.color;
   const accentBg = cfg.bg;
   const clinic = doc.doctorClinics?.[0]?.clinic;
+  const displayName = fmtDoctorName(doc.user?.name);
   const initial = doc.user?.name?.charAt(0)?.toUpperCase() || 'D';
+  const photoUrl = doc.profileImage || doc.profilePhotoUrl || null;
   const fee    = doc.consultationFee ? `₹${doc.consultationFee}` : 'Free';
   const langs  = doc.languagesKnown?.slice(0, 3).join(', ') || 'English';
   const qual   = doc.qualification || 'MBBS';
@@ -135,9 +145,17 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
         {/* ── Left: avatar column ── */}
         <View style={dc.avatarCol}>
           <View style={[dc.avatarRing, { borderColor: accent + '40' }]}>
-            <View style={[dc.avatar, { backgroundColor: accentBg }]}>
-              <Text style={[dc.avatarInitial, { color: accent }]}>{initial}</Text>
-            </View>
+            {photoUrl ? (
+              <Image
+                source={{ uri: photoUrl }}
+                style={dc.avatarPhoto}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[dc.avatar, { backgroundColor: accentBg }]}>
+                <Text style={[dc.avatarInitial, { color: accent }]}>{initial}</Text>
+              </View>
+            )}
             {/* Online indicator */}
             <View style={dc.onlineDot} />
           </View>
@@ -152,7 +170,7 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
         <View style={dc.infoCol}>
           {/* Name + heart */}
           <View style={dc.nameRow}>
-            <Text style={dc.name} numberOfLines={1}>Dr. {doc.user?.name}</Text>
+            <Text style={dc.name} numberOfLines={1}>{displayName}</Text>
             <TouchableOpacity style={dc.heartBtn} activeOpacity={0.7}>
               <Ionicons name="heart-outline" size={18} color={MUTED} />
             </TouchableOpacity>
@@ -204,10 +222,10 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
           <Text style={dc.statVal}>{isOnline && isOffline ? 'Both' : isOnline ? 'Online' : 'Clinic'}</Text>
         </View>
         <View style={dc.statSep} />
-        {/* Fee */}
+        {/* Qualification */}
         <View style={dc.statItem}>
-          <Text style={[dc.feeVal, { color: accent }]}>{fee}</Text>
-          <Text style={dc.statLabel}>Consult</Text>
+          <Ionicons name="school-outline" size={13} color={MUTED} />
+          <Text style={dc.statVal} numberOfLines={1}>{qual}</Text>
         </View>
         <View style={dc.statSep} />
         {/* Experience */}
@@ -469,6 +487,7 @@ const dc = StyleSheet.create({
   avatarCol:     { alignItems: 'center', gap: 6 },
   avatarRing:    { width: 76, height: 76, borderRadius: 38, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
   avatar:        { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
+  avatarPhoto:   { width: 68, height: 68, borderRadius: 34 },
   avatarInitial: { fontSize: 28, fontWeight: '800' },
   onlineDot:     { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#10B981', borderWidth: 2.5, borderColor: WHITE },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
