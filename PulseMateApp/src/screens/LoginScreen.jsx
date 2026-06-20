@@ -119,54 +119,6 @@ export default function LoginScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Doctor showcase card */}
-        <View style={s.illustrationCard}>
-          {/* 3 doctor avatars row */}
-          <View style={s.doctorsRow}>
-            {[
-              { initials: 'RK', name: 'Dr. Rahul Kumar',   spec: 'Cardiologist',  rating: '4.9', color: '#DBEAFE', tc: '#1D4ED8', avail: true  },
-              { initials: 'SP', name: 'Dr. Sneha Patil',   spec: 'Dermatologist', rating: '4.8', color: '#D1FAE5', tc: '#065F46', avail: true  },
-              { initials: 'AM', name: 'Dr. Arjun Mehta',   spec: 'Orthopedic',    rating: '4.7', color: '#EDE9FE', tc: '#6D28D9', avail: false },
-            ].map((doc, i) => (
-              <View key={i} style={s.docMiniCard}>
-                {/* Avatar */}
-                <View style={[s.docMiniAvatar, { backgroundColor: doc.color }]}>
-                  <Text style={[s.docMiniInitials, { color: doc.tc }]}>{doc.initials}</Text>
-                  {doc.avail && <View style={s.docMiniDot} />}
-                </View>
-                <Text style={s.docMiniName} numberOfLines={1}>{doc.name.split(' ').slice(0, 2).join(' ')}</Text>
-                <Text style={s.docMiniSpec} numberOfLines={1}>{doc.spec}</Text>
-                <View style={s.docMiniRating}>
-                  <Ionicons name="star" size={10} color="#F59E0B" />
-                  <Text style={s.docMiniRatingText}>{doc.rating}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* Stats row */}
-          <View style={s.statsRow}>
-            <View style={s.statItem}>
-              <Text style={s.statNum}>500+</Text>
-              <Text style={s.statLabel}>Doctors</Text>
-            </View>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              <Text style={s.statNum}>1.2L+</Text>
-              <Text style={s.statLabel}>Appointments</Text>
-            </View>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              <Text style={s.statNum}>4.9★</Text>
-              <Text style={s.statLabel}>Patient Rating</Text>
-            </View>
-          </View>
-
-          <View style={s.dividerLine} />
-          <Text style={s.heroTitle}>Skip the waiting room.</Text>
-          <Text style={s.heroSub}>Book and track appointments in real time.</Text>
-        </View>
-
         {/* Form card */}
         <View style={s.formCard}>
           <View style={s.formHeader}>
