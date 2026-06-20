@@ -251,9 +251,16 @@ export default function HomeScreen({ navigation }) {
       >
         {/* ── Header ── */}
         <View style={s.header}>
-          {/* Logo replaces avatar + hello text */}
-          <Image source={LOGO} style={s.headerLogo} resizeMode="contain" />
-          {/* Only notification bell — search removed */}
+          <View style={s.headerLeft}>
+            <View style={s.avatarCircle}>
+              <Text style={s.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            </View>
+            <View>
+              <Text style={s.helloText}>Hello,</Text>
+              <Text style={s.userName}>{firstName}</Text>
+            </View>
+          </View>
+          {/* Notification bell only — search removed */}
           <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.8}>
             <Ionicons name="notifications-outline" size={20} color={SLATE} />
             {unreadCount > 0 && (
