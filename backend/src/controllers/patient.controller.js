@@ -669,7 +669,6 @@ const getNearby = async (req, res, next) => {
       const clinics = await prisma.clinic.findMany({
         where: {
           approvalStatus: 'VERIFIED',
-          isVerified: true,
           isActive: true,
           latitude: { not: null },
           longitude: { not: null },
@@ -711,7 +710,6 @@ const getNearby = async (req, res, next) => {
           isActive: true,
           clinic: {
             approvalStatus: 'VERIFIED',
-            isVerified: true,
             latitude: { not: null },
             longitude: { not: null },
           },
@@ -810,12 +808,12 @@ const deleteAccount = async (req, res, next) => {
       await tx.user.update({
         where: { id: userId },
         data: {
-          name:          `Deleted User`,
-          mobile:        anonymizedMobile,
-          email:         null,
-          isActive:      false,
-          approvalStatus:'REJECTED',
-          firebaseUid:   null,
+          name: `Deleted User`,
+          mobile: anonymizedMobile,
+          email: null,
+          isActive: false,
+          approvalStatus: 'REJECTED',
+          firebaseUid: null,
         },
       });
     });
