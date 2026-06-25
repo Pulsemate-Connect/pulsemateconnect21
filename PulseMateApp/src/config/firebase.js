@@ -31,19 +31,33 @@ export const sendOtpToPhone = async (phoneNumber) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumber,
-          // recaptchaToken not required when using REST API directly
+          // safetyNetToken / recaptchaToken not sent — Firebase allows REST API
+          // calls when the Android app's SHA-256 fingerprint is registered in
+          // the Firebase project. Register fingerprints at:
+          // Firebase Console → Project Settings → Your apps → Add fingerprint
+          // Fingerprints needed:
+          //   Debug:      46:00:0C:3E:1A:D5:79:6F:FF:1E:61:FC:EC:ED:8E:61:21:FF:15:A7
+          //   Production: Get from Play Console → Setup → App integrity → App signing
         }),
       }
     );
 
     const data = await response.json();
 
+    if (__DEV__) {
+      console.log('[Firebase OTP] Response status:', response.status);
+      console.log('[Firebase OTP] Response data:', JSON.stringify(data));
+    }
+
     if (!response.ok) {
-      throw new Error(friendlyError(data.error?.message || 'Failed to send OTP'));
+      const errMsg = data.error?.message || 'Failed to send OTP';
+      console.error('[Firebase OTP] Error:', errMsg);
+      throw new Error(friendlyError(errMsg));
     }
 
     return data.sessionInfo;
   } catch (error) {
+    if (__DEV__) console.error('[Firebase OTP] sendOtpToPhone failed:', error.message);
     throw new Error(error.message || 'Failed to send OTP. Please try again.');
   }
 };
@@ -89,7 +103,14 @@ const friendlyError = (message) => {
     'INVALID_CODE': 'Invalid OTP. Please check the code and try again.',
     'SESSION_EXPIRED': 'OTP expired. Please request a new code.',
     'MISSING_CODE': 'Please enter the OTP code.',
-    'CAPTCHA_CHECK_FAILED': 'reCAPTCHA failed. Please try again.',
+    'CAPTCHA_CHECK_FAILED': 'Verification failed. Please try again.',
+    // This error means the app SHA-256 fingerprint is not registered in Firebase.
+    // Fix: Firebase Console → Project Settings → Your Android app → Add fingerprint
+    'MISSING_CLIENT_IDENTIFIER': 'App verification failed. Please contact support or try again later.',
+    'MISSING_APP_CREDENTIAL': 'App verification failed. Please contact support.',
+    'INVALID_APP_CREDENTIAL': 'App credential is invalid. Please reinstall the app.',
+    'MISSING_OR_INVALID_NONCE': 'Verification session expired. Please try again.',
+    'BILLING_NOT_ENABLED': 'SMS service unavailable. Please contact support.',
   };
 
   for (const [key, value] of Object.entries(errorMap)) {
