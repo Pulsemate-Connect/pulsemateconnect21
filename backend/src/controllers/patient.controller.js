@@ -691,14 +691,22 @@ const getNearby = async (req, res, next) => {
         },
       });
 
-      const nearbyClinics = clinics
-        .map((c) => {
-          const distKm = haversineKm(userLat, userLng, c.latitude, c.longitude);
-          return { ...c, distanceKm: Math.round(distKm * 10) / 10 };
-        })
-        .filter((c) => c.distanceKm <= radiusKm)
-        .sort((a, b) => a.distanceKm - b.distanceKm)
-        .slice(0, maxResults);
+      // Progressive radius expansion: try requested radius, then 2x, then unlimited
+      const expandedRadii = [radiusKm, radiusKm * 2, 99999];
+      let nearbyClinics = [];
+
+      for (const r of expandedRadii) {
+        nearbyClinics = clinics
+          .map((c) => {
+            const distKm = haversineKm(userLat, userLng, c.latitude, c.longitude);
+            return { ...c, distanceKm: Math.round(distKm * 10) / 10 };
+          })
+          .filter((c) => c.distanceKm <= r)
+          .sort((a, b) => a.distanceKm - b.distanceKm)
+          .slice(0, maxResults);
+
+        if (nearbyClinics.length > 0) break; // found results — stop expanding
+      }
 
       result.clinics = nearbyClinics;
     }
