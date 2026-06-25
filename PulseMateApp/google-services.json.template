@@ -7,15 +7,15 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "REPLACE_WITH_ANDROID_APP_ID",
+        "mobilesdk_app_id": "1:157620382332:android:a13dffbc9a712ac2e6b7f9",
         "android_client_info": {
-          "package_name": "com.pulsemate.app"
+          "package_name": "in.pulsemateconnect.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw"
+          "current_key": "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc"
         }
       ],
       "services": {

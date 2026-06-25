@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pulsemate.app"
+      "bundleIdentifier": "in.pulsemateconnect.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#2563EB"
       },
-      "package": "com.pulsemate.app",
+      "package": "in.pulsemateconnect.app",
       "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",

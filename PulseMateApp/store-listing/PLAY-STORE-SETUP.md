@@ -1,5 +1,5 @@
 # Play Store Setup — Step by Step
-## PulseMate Connect (com.pulsemate.app)
+## PulseMate Connect (in.pulsemateconnect.app)
 
 Complete these steps in order before triggering an EAS production build.
 
@@ -10,7 +10,7 @@ Complete these steps in order before triggering an EAS production build.
 1. Go to https://console.firebase.google.com → Select **pulsemateconnect** project
 2. Project Settings (gear icon) → **Your apps** → **Add app** → Android
 3. Fill in:
-   - Android package name: `com.pulsemate.app`
+   - Android package name: `in.pulsemateconnect.app`
    - App nickname: `PulseMate Android`
    - SHA-1: (get from Step 2 below)
 4. Click **Register app**
@@ -49,9 +49,9 @@ npx eas init           # creates project on expo.dev, updates app.json projectId
 ## STEP 4 — Restrict Firebase API Key
 
 1. Go to https://console.cloud.google.com
-2. APIs & Services → Credentials → Find the key `AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw`
+2. APIs & Services → Credentials → Find the key `AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc`
 3. Edit → Application restrictions → **Android apps**
-4. Add: Package name `com.pulsemate.app` + SHA-1 from Step 2
+4. Add: Package name `in.pulsemateconnect.app` + SHA-1 from Step 2
 5. Save
 
 ---
@@ -70,7 +70,7 @@ This creates a signed AAB ready for Play Store upload.
 ## STEP 6 — Create Play Console Listing
 
 1. Go to https://play.google.com/console
-2. Create app → Android → `com.pulsemate.app`
+2. Create app → Android → `in.pulsemateconnect.app`
 3. Fill in:
    - **App name**: PulseMate Connect
    - **Short description**: Copy from `store-listing/short-description.txt`
@@ -98,7 +98,7 @@ This creates a signed AAB ready for Play Store upload.
 - [ ] `firebase.js` updated with Android App ID
 - [ ] SHA-1 added to Firebase Console
 - [ ] EAS project ID set in `app.json` (run `eas init`)
-- [ ] Firebase API key restricted to `com.pulsemate.app`
+- [ ] Firebase API key restricted to `in.pulsemateconnect.app`
 - [ ] Production AAB built with `eas build`
 - [ ] Feature graphic (1024×500 px) created
 - [ ] Minimum 2 screenshots captured

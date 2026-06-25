@@ -5,24 +5,21 @@
  * Works with expo-firebase-recaptcha for reCAPTCHA handling.
  *
  * ── Setup checklist (before production build) ─────────────────────────────
- * 1. Go to https://console.firebase.google.com → pulsemateconnect project
- * 2. Project Settings → Your apps → Add app → Android
- *    Package name: com.pulsemate.app
- * 3. Add SHA-1 from release keystore:  eas credentials --platform android
- * 4. Download google-services.json → place in PulseMateApp/ root
- * 5. Copy the Android App ID (1:157620382332:android:XXXXXXXX)
- * 6. Replace REPLACE_WITH_ANDROID_APP_ID below with the actual Android App ID
- * 7. Restrict the API key in Google Cloud Console to package com.pulsemate.app
+ * ✅ 1. Android app registered in Firebase Console (package: in.pulsemateconnect.app)
+ * ✅ 2. Android App ID configured below
+ * ✅ 3. API key configured below
+ * ⚠️  4. Add SHA-1 from release keystore:  npx eas credentials --platform android
+ * ⚠️  5. Download google-services.json → place in PulseMateApp/ root
+ * ⚠️  6. Restrict the API key in Google Cloud Console to package in.pulsemateconnect.app
  */
 
 export const firebaseConfig = {
-  apiKey:            'AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw',
+  apiKey:            'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc',
   authDomain:        'pulsemateconnect.firebaseapp.com',
   projectId:         'pulsemateconnect',
   messagingSenderId: '157620382332',
-  // ⚠️  Replace with Android App ID after registering com.pulsemate.app in Firebase Console
-  // Web App ID works for Expo Go testing only — use Android App ID for production builds
-  appId:             '1:157620382332:web:e4156f49d8616a4ee6b7f9',
+  // Android App ID from Firebase Console (package: in.pulsemateconnect.app)
+  appId:             '1:157620382332:android:a13dffbc9a712ac2e6b7f9',
 };
 
 const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';

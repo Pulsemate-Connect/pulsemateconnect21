@@ -1,5 +1,5 @@
 # Data Safety Form — Google Play Console
-## PulseMate Connect (com.pulsemate.app)
+## PulseMate Connect (in.pulsemateconnect.app)
 
 Paste these answers in Play Console → App Content → Data Safety.
 
