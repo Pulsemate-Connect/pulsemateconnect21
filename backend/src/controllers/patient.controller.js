@@ -682,19 +682,19 @@ const getNearby = async (req, res, next) => {
         },
       });
 
-      // Map distances
+      // Calculate distance for every clinic using Haversine (lat/lng only, no city matching)
       const withDist = clinics.map((c) => ({
         ...c,
         distanceKm: Math.round(haversineKm(userLat, userLng, c.latitude, c.longitude) * 10) / 10,
-      }));
+      })).sort((a, b) => a.distanceKm - b.distanceKm);
 
-      // Progressive radius: 50 → 150 → 500 → unlimited
+      // Progressive radius expansion — purely coordinate based
+      // 50km → 100km → 250km → no limit (show all, sorted by distance)
       let nearbyClinics = [];
-      for (const r of [radiusKm, 150, 500, 99999]) {
-        nearbyClinics = withDist
-          .filter((c) => c.distanceKm <= r)
-          .sort((a, b) => a.distanceKm - b.distanceKm)
-          .slice(0, maxResults);
+      for (const r of [radiusKm, 100, 250, Infinity]) {
+        nearbyClinics = r === Infinity
+          ? withDist.slice(0, maxResults)
+          : withDist.filter((c) => c.distanceKm <= r).slice(0, maxResults);
         if (nearbyClinics.length > 0) break;
       }
 
@@ -740,11 +740,10 @@ const getNearby = async (req, res, next) => {
         },
       });
 
-      // Deduplicate doctors, keep closest clinic
+      // Deduplicate doctors, keep closest clinic — coordinate based only
       const doctorMap = new Map();
       for (const dc of doctorClinics) {
         const distKm = haversineKm(userLat, userLng, dc.clinic.latitude, dc.clinic.longitude);
-        if (distKm > radiusKm) continue;
         const existing = doctorMap.get(dc.doctor.id);
         if (!existing || distKm < existing.distanceKm) {
           doctorMap.set(dc.doctor.id, {
@@ -756,9 +755,17 @@ const getNearby = async (req, res, next) => {
         }
       }
 
-      result.doctors = Array.from(doctorMap.values())
-        .sort((a, b) => a.distanceKm - b.distanceKm)
-        .slice(0, maxResults);
+      // Progressive radius for doctors too
+      const allDoctors = Array.from(doctorMap.values()).sort((a, b) => a.distanceKm - b.distanceKm);
+      let nearbyDoctors = [];
+      for (const r of [radiusKm, 100, 250, Infinity]) {
+        nearbyDoctors = r === Infinity
+          ? allDoctors.slice(0, maxResults)
+          : allDoctors.filter((d) => d.distanceKm <= r).slice(0, maxResults);
+        if (nearbyDoctors.length > 0) break;
+      }
+
+      result.doctors = nearbyDoctors;
     }
 
     return sendSuccess(res, result, 'Nearby results fetched successfully');
