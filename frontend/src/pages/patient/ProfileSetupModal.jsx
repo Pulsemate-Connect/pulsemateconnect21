@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { updatePatientProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import useAuthStore from '../../store/authStore';
 import toast from 'react-hot-toast';
-
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+import {
+  BLOOD_GROUPS, GENDER_OPTIONS, POPULAR_CITIES,
+  capitaliseName, calcAge,
+  validateName, validateGender, validateDob,
+  validateCity, validateEmergencyContact, normalisePhone,
+  isStepValid, validateStep,
+} from '../../utils/profileValidation';
 
 const ALL_STEPS = [
   { id: 1, field: 'name',             title: 'Your Name',         icon: '👤', required: true  },
@@ -18,9 +23,10 @@ const ALL_STEPS = [
 const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
   const { user, updateUser } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [stepError, setStepError] = useState(''); // inline error for current step
+  const userPhone = user?.mobile || existingUser?.mobile || '';
 
-  // Pre-fill from existing user data (name from registration, profile fields if any)
-  const existingName = existingUser?.name || user?.name || '';
+  const existingName    = existingUser?.name || user?.name || '';
   const existingProfile = existingUser?.patientProfile || {};
 
   const [form, setForm] = useState({
@@ -28,7 +34,8 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
     gender:           existingProfile.gender || '',
     dob:              existingProfile.dob ? existingProfile.dob.split('T')[0] : '',
     city:             existingProfile.city || '',
-    emergencyContact: existingProfile.emergencyContact || '',
+    emergencyContact: existingProfile.emergencyContact
+                        ? normalisePhone(existingProfile.emergencyContact) : '',
     bloodGroup:       existingProfile.bloodGroup || '',
     allergies:        existingProfile.allergies || '',
     existingDiseases: existingProfile.existingDiseases || '',
@@ -50,48 +57,54 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
   const currentStep = steps[stepIndex];
   const totalSteps  = steps.length;
 
-  const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+  const set = (field, value) => {
+    setForm((f) => ({ ...f, [field]: value }));
+    setStepError(''); // clear error on any change
+  };
 
   const canProceed = () => {
     if (!currentStep) return true;
-    switch (currentStep.field) {
-      case 'name':             return form.name.trim().length >= 2;
-      case 'gender':           return !!form.gender;
-      case 'dob':              return !!form.dob;
-      case 'city':             return form.city.trim().length >= 2;
-      case 'emergencyContact': return form.emergencyContact.trim().length >= 10;
-      case 'medical':          return true;
-      default:                 return true;
-    }
+    return isStepValid(currentStep.field, form, userPhone);
   };
 
   const handleNext = () => {
+    // Validate before advancing
+    const err = validateStep(currentStep.field, form, userPhone);
+    if (err) { setStepError(err); return; }
+    setStepError('');
     if (stepIndex < totalSteps - 1) setStepIndex((i) => i + 1);
   };
 
   const handleBack = () => {
+    setStepError('');
     if (stepIndex > 0) setStepIndex((i) => i - 1);
   };
 
   const handleSave = async () => {
+    if (isSaving) return; // double-submit guard
+    // Final validation of current step
+    const err = validateStep(currentStep?.field, form, userPhone);
+    if (err) { setStepError(err); return; }
     setIsSaving(true);
     try {
-      const res = await updatePatientProfile({
-        name:              form.name.trim() || existingName,
-        gender:            form.gender     || undefined,
-        dob:               form.dob        || undefined,
-        city:              form.city.trim()|| undefined,
-        emergencyContact:  form.emergencyContact.trim() || undefined,
-        bloodGroup:        form.bloodGroup || undefined,
-        allergies:         form.allergies.trim()         || undefined,
-        existingDiseases:  form.existingDiseases.trim()  || undefined,
+      const payload = {
+        name:              form.name.trim()       || existingName,
+        gender:            form.gender            || undefined,
+        dob:               form.dob               || undefined,
+        city:              form.city.trim()        || undefined,
+        emergencyContact:  normalisePhone(form.emergencyContact).length === 10
+                             ? `+91${normalisePhone(form.emergencyContact)}` : undefined,
+        bloodGroup:        form.bloodGroup         || undefined,
+        allergies:         form.allergies.trim()   || undefined,
+        existingDiseases:  form.existingDiseases.trim() || undefined,
         insuranceProvider: form.insuranceProvider.trim() || undefined,
-      });
+      };
+      const res = await updatePatientProfile(payload);
       updateUser({ name: form.name.trim() || existingName });
       toast.success('Profile saved! You can now book.');
       onComplete(res.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save profile');
+      toast.error(err.response?.data?.message || 'Failed to save profile. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -151,7 +164,7 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
         <div className="px-6 py-6 min-h-[220px] flex flex-col justify-between">
           <div>
             {currentStep.field === 'name' && (
-              <StepName value={form.name} onChange={(v) => set('name', v)} />
+              <StepName value={form.name} onChange={(v) => set('name', capitaliseName(v))} />
             )}
             {currentStep.field === 'gender' && (
               <StepGender value={form.gender} onChange={(v) => set('gender', v)} />
@@ -163,7 +176,7 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
               <StepCity value={form.city} onChange={(v) => set('city', v)} />
             )}
             {currentStep.field === 'emergencyContact' && (
-              <StepEmergency value={form.emergencyContact} onChange={(v) => set('emergencyContact', v)} />
+              <StepEmergency value={form.emergencyContact} onChange={(v) => set('emergencyContact', v)} userPhone={userPhone} />
             )}
             {currentStep.field === 'medical' && (
               <StepMedical
@@ -173,6 +186,12 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
                 insuranceProvider={form.insuranceProvider}
                 onChange={set}
               />
+            )}
+            {/* Inline step error */}
+            {stepError && (
+              <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                <span>⚠️</span> {stepError}
+              </p>
             )}
           </div>
 
@@ -197,7 +216,7 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors"
+                className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
                 {isSaving ? (
                   <span className="flex items-center justify-center gap-2">
@@ -223,25 +242,25 @@ const ProfileSetupModal = ({ onComplete, onSkip, existingUser }) => {
 
 // ─── Step Components ──────────────────────────────────────────────────────────
 
-const StepName = ({ value, onChange }) => (
-  <div>
-    <p className="text-text-muted text-sm mb-4">
-      What should we call you? This appears on your appointment slip.
-    </p>
-    <input
-      autoFocus
-      type="text"
-      className="input text-lg py-3"
-      placeholder="e.g. Rahul Kumar"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      maxLength={60}
-    />
-    {value.trim().length > 0 && value.trim().length < 2 && (
-      <p className="text-xs text-error mt-1">Name must be at least 2 characters</p>
-    )}
-  </div>
-);
+const StepName = ({ value, onChange }) => {
+  const err = value.trim().length > 0 ? validateName(value) : null;
+  return (
+    <div>
+      <p className="text-text-muted text-sm mb-4">What should we call you? This appears on your appointment slip.</p>
+      <input
+        autoFocus
+        type="text"
+        className={`input text-lg py-3 ${err ? 'border-red-400' : ''}`}
+        placeholder="e.g. Rahul Kumar Sharma"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={60}
+      />
+      {err && <p className="text-xs text-red-500 mt-1">⚠️ {err}</p>}
+      <p className="text-xs text-text-muted mt-1 text-right">{value.trim().length}/60</p>
+    </div>
+  );
+};
 
 const StepGender = ({ value, onChange }) => (
   <div>
@@ -275,64 +294,108 @@ const StepGender = ({ value, onChange }) => (
 const StepDob = ({ value, onChange }) => {
   const maxDate = new Date().toISOString().split('T')[0];
   const minDate = '1900-01-01';
+  const age = calcAge(value);
+  const err = value ? validateDob(value) : null;
   return (
     <div>
-      <p className="text-text-muted text-sm mb-4">
-        Used to calculate your age for medical records.
-      </p>
+      <p className="text-text-muted text-sm mb-4">Used to calculate your age for medical records.</p>
       <input
         type="date"
-        className="input text-base py-3"
+        className={`input text-base py-3 ${err ? 'border-red-400' : ''}`}
         value={value}
         max={maxDate}
         min={minDate}
         onChange={(e) => onChange(e.target.value)}
       />
-      {value && (
-        <p className="text-sm text-secondary-600 mt-2">
-          Age: {Math.floor((new Date() - new Date(value)) / (365.25 * 24 * 60 * 60 * 1000))} years
-        </p>
+      {err && <p className="text-xs text-red-500 mt-1">⚠️ {err}</p>}
+      {!err && age !== null && (
+        <p className="text-sm text-emerald-600 mt-2 font-medium">Age: {age} years old</p>
       )}
     </div>
   );
 };
 
-const StepCity = ({ value, onChange }) => (
-  <div>
-    <p className="text-text-muted text-sm mb-4">
-      Helps us show nearby clinics and doctors.
-    </p>
-    <input
-      autoFocus
-      type="text"
-      className="input text-lg py-3"
-      placeholder="e.g. Bangalore"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      maxLength={60}
-    />
-  </div>
-);
+const StepCity = ({ value, onChange }) => {
+  const [query, setQuery] = useState(value || '');
+  const [showDrop, setShowDrop] = useState(false);
+  const ref = useRef(null);
 
-const StepEmergency = ({ value, onChange }) => (
-  <div>
-    <p className="text-text-muted text-sm mb-4">
-      A contact we can reach in case of emergency during your visit.
-    </p>
-    <input
-      autoFocus
-      type="tel"
-      className="input text-lg py-3"
-      placeholder="+91 9876543210"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      maxLength={15}
-    />
-    <p className="text-xs text-text-muted mt-2">
-      Enter a family member or friend's number
-    </p>
-  </div>
-);
+  useEffect(() => { setQuery(value || ''); }, [value]);
+
+  const filtered = query.trim().length >= 1
+    ? POPULAR_CITIES.filter((c) => c.toLowerCase().includes(query.toLowerCase()))
+    : POPULAR_CITIES.slice(0, 12);
+
+  const select = (city) => { onChange(city); setQuery(city); setShowDrop(false); };
+  const err = value.trim().length > 0 ? validateCity(value) : null;
+
+  return (
+    <div>
+      <p className="text-text-muted text-sm mb-4">Helps us show nearby clinics and doctors.</p>
+      <div className="relative" ref={ref}>
+        <input
+          autoFocus
+          type="text"
+          className={`input text-lg py-3 w-full ${err ? 'border-red-400' : ''}`}
+          placeholder="Search city…"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setShowDrop(true); }}
+          onFocus={() => setShowDrop(true)}
+          onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+          maxLength={60}
+        />
+        {showDrop && filtered.length > 0 && (
+          <ul className="absolute z-50 w-full bg-white border border-border rounded-xl shadow-lg max-h-48 overflow-y-auto mt-1">
+            {filtered.map((c) => (
+              <li key={c}
+                className="px-4 py-2.5 cursor-pointer hover:bg-primary-50 text-sm font-medium text-text-primary flex items-center gap-2"
+                onMouseDown={() => select(c)}>
+                <span className="text-primary-500">📍</span> {c}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {err && <p className="text-xs text-red-500 mt-1">⚠️ {err}</p>}
+      <div className="flex flex-wrap gap-2 mt-3">
+        {POPULAR_CITIES.slice(0, 8).map((c) => (
+          <button key={c} type="button"
+            className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+              value === c ? 'bg-primary-600 border-primary-600 text-white' : 'border-border text-text-muted hover:border-gray-300'
+            }`}
+            onClick={() => select(c)}>
+            {c}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const StepEmergency = ({ value, onChange, userPhone }) => {
+  const digits = normalisePhone(value);
+  const err = digits.length > 0 ? validateEmergencyContact(digits, userPhone) : null;
+  return (
+    <div>
+      <p className="text-text-muted text-sm mb-4">A contact we can reach in case of emergency during your visit.</p>
+      <div className={`flex items-center border-2 rounded-xl overflow-hidden ${err ? 'border-red-400' : 'border-border'}`}>
+        <span className="px-3 py-3 bg-gray-50 border-r border-border text-sm font-semibold text-gray-600 select-none">🇮🇳 +91</span>
+        <input
+          autoFocus
+          type="tel"
+          className="flex-1 px-3 py-3 text-lg outline-none"
+          placeholder="9876543210"
+          value={digits}
+          onChange={(e) => onChange(normalisePhone(e.target.value))}
+          maxLength={10}
+        />
+        {!err && digits.length === 10 && <span className="pr-3 text-green-500 text-lg">✓</span>}
+      </div>
+      <p className="text-xs text-text-muted mt-1">{digits.length}/10 digits</p>
+      {err && <p className="text-xs text-red-500 mt-1">⚠️ {err}</p>}
+    </div>
+  );
+};
 
 const StepMedical = ({ bloodGroup, allergies, existingDiseases, insuranceProvider, onChange }) => (
   <div className="space-y-4">

@@ -24,6 +24,23 @@ const api = axios.create({
 let _globalSignOut = null;
 export const setGlobalSignOut = (fn) => { _globalSignOut = fn; };
 
+// Routes that must NOT trigger a token refresh attempt
+const shouldSkipRefresh = (url = '') =>
+  [
+    '/auth/login',
+    '/auth/login-password',
+    '/auth/patient/firebase-phone-login',
+    '/auth/patient/send-otp',
+    '/auth/patient/verify-otp',
+    '/auth/refresh',
+    '/user-auth/send-otp',
+    '/user-auth/verify-otp',
+    '/device-token/deactivate',
+  ].some((path) => url.includes(path));
+
+// Shared refresh promise — prevents multiple concurrent refresh calls
+let refreshPromise = null;
+
 // Attach token to every request
 api.interceptors.request.use(async (config) => {
   try {
@@ -36,17 +53,54 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// ── 401: clear token + trigger sign-out → navigates to Login automatically ─
+// ── 401: attempt silent token refresh, then retry once ─────────────────────
+// Mirrors the web axios interceptor behaviour so mobile sessions last as long
+// as the refresh token is valid (7 days) instead of expiring after 15 minutes.
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401) {
+    const originalRequest = error.config || {};
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !shouldSkipRefresh(originalRequest.url)
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        // Use a shared promise so concurrent 401s only refresh once
+        const storedRefreshToken = await SecureStore.getItemAsync('refreshToken').catch(() => null);
+        refreshPromise ??= axios.post(
+          `${BASE_URL}/auth/refresh`,
+          storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
+          { withCredentials: false } // mobile uses SecureStore, not cookies
+        );
+        const refreshRes = await refreshPromise;
+        refreshPromise = null;
+
+        const newAccessToken = refreshRes.data?.data?.accessToken;
+        const newRefreshToken = refreshRes.data?.data?.refreshToken;
+        if (newAccessToken) {
+          await SecureStore.setItemAsync('accessToken', newAccessToken);
+          if (newRefreshToken) {
+            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+          }
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        }
+      } catch {
+        refreshPromise = null;
+      }
+
+      // Refresh failed — sign out
       await SecureStore.deleteItemAsync('accessToken');
-      // Call global sign-out which clears auth state → AuthNavigator shows Login
       if (_globalSignOut) {
         try { _globalSignOut(); } catch { }
       }
     }
+
     return Promise.reject(error);
   }
 );

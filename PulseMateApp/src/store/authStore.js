@@ -17,6 +17,7 @@ export const AuthProvider = ({ children }) => {
       try { await onSignOutRef.current(); } catch { }
     }
     await SecureStore.deleteItemAsync('accessToken');
+    await SecureStore.deleteItemAsync('refreshToken');
     setToken(null);
     setUser(null);
   }, []);
@@ -44,8 +45,11 @@ export const AuthProvider = ({ children }) => {
     restore();
   }, []);
 
-  const signIn = async (accessToken, userData) => {
+  const signIn = async (accessToken, userData, refreshToken) => {
     await SecureStore.setItemAsync('accessToken', accessToken);
+    if (refreshToken) {
+      await SecureStore.setItemAsync('refreshToken', refreshToken);
+    }
     setToken(accessToken);
     setUser(userData);
   };

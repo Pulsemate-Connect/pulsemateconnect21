@@ -123,6 +123,7 @@ function EditSheet({ visible, profile, onClose, onSaved }) {
     if (form.emergencyContact && form.emergencyContact.length !== 10) {
       Alert.alert('Invalid contact', 'Enter a 10-digit number'); return;
     }
+    if (saving) return;
     setSaving(true);
     try {
       const res = await updatePatientProfile({
@@ -148,17 +149,24 @@ function EditSheet({ visible, profile, onClose, onSaved }) {
 
   if (!visible) return null;
 
+  // Safe bottom: respect home indicator / gesture bar, minimum 16px
+  const safeBottom = Math.max(insets.bottom, 16);
+
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onClose}>
+      {/* Dim backdrop — tap outside to close */}
       <TouchableOpacity style={es.backdrop} activeOpacity={1} onPress={onClose} />
+
       <Animated.View style={[es.sheet, { transform: [{ translateY: slideA }] }]}>
-        {/* Handle */}
+        {/* Drag handle */}
         <View style={es.handle} />
 
         {/* Header */}
         <View style={es.header}>
           <View style={es.headerLeft}>
-            <View style={es.headerIcon}><Ionicons name="create-outline" size={18} color={BLUE} /></View>
+            <View style={es.headerIcon}>
+              <Ionicons name="create-outline" size={18} color={BLUE} />
+            </View>
             <Text style={es.headerTitle}>Edit Profile</Text>
           </View>
           <TouchableOpacity style={es.closeBtn} onPress={onClose}>
@@ -166,8 +174,32 @@ function EditSheet({ visible, profile, onClose, onSaved }) {
           </TouchableOpacity>
         </View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, overflow: 'hidden' }}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={es.body} keyboardShouldPersistTaps="handled">
+        {/*
+          KeyboardAvoidingView:
+          - iOS: 'padding' mode shifts the whole sheet up above the keyboard.
+          - Android: 'height' mode shrinks the available area so ScrollView
+            stays scrollable and the sticky button rides above the keyboard.
+          flex:1 is critical — lets the inner ScrollView + footer fill the
+          remaining sheet height without overflowing.
+        */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+          {/*
+            ScrollView must be flex:1 so it fills available space and
+            does NOT push the sticky footer off-screen.
+            contentContainerStyle paddingBottom gives clearance so the last
+            field is never hidden under the sticky save footer.
+          */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={es.body}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
             {/* Name */}
             <Text style={es.label}>Full Name <Text style={es.req}>*</Text></Text>
             <View style={es.inputRow}>
@@ -249,14 +281,32 @@ function EditSheet({ visible, profile, onClose, onSaved }) {
               placeholder="e.g. Diabetes, Hypertension..." placeholderTextColor={MUTED}
               multiline numberOfLines={2} textAlignVertical="top" />
 
+            {/* Bottom spacer — ensures last field scrolls fully clear of sticky footer */}
+            <View style={{ height: 16 }} />
           </ScrollView>
 
-          {/* ── Save Button — pinned at bottom inside KAV ── */}
-          <View style={[es.saveFooter, { paddingBottom: insets.bottom + 80 }]}>
-            <TouchableOpacity style={[es.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+          {/*
+            Sticky Save Footer — lives OUTSIDE the ScrollView but INSIDE KAV.
+            This means:
+            1. It stays pinned at the bottom of the visible sheet area.
+            2. When the keyboard opens, KAV shrinks the container so the footer
+               rides up just above the keyboard automatically.
+            3. It never overlaps the bottom nav bar because we add safeBottom.
+          */}
+          <View style={[es.saveFooter, { paddingBottom: safeBottom + 8 }]}>
+            <TouchableOpacity
+              style={[es.saveBtn, saving && es.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.88}
+            >
               {saving
                 ? <ActivityIndicator color={WHITE} size="small" />
-                : <><Ionicons name="checkmark-circle" size={18} color={WHITE} /><Text style={es.saveBtnText}>Save Changes</Text></>}
+                : <>
+                    <Ionicons name="checkmark-circle" size={20} color={WHITE} />
+                    <Text style={es.saveBtnText}>Save Changes</Text>
+                  </>
+              }
             </TouchableOpacity>
           </View>
 
@@ -268,15 +318,33 @@ function EditSheet({ visible, profile, onClose, onSaved }) {
 
 const es = StyleSheet.create({
   backdrop:       { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)' },
-  sheet:          { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 28, borderTopRightRadius: 28, height: '92%', shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.14, shadowRadius: 20, elevation: 24 },
+  // Sheet takes 92% height — enough room for all fields on any phone
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    height: '92%',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.14, shadowRadius: 20, elevation: 24,
+    // flex column so KAV children stack correctly
+    flexDirection: 'column',
+  },
   handle:         { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
   header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
   headerLeft:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon:     { width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center' },
   headerTitle:    { fontSize: 17, fontWeight: '800', color: DARK },
   closeBtn:       { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-  body:           { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 24 },
-  label:          { fontSize: 13, fontWeight: '700', color: DARK, marginBottom: 8, marginTop: 14 },
+
+  // ScrollView content — 20px section gap, 16px label-to-input gap
+  // paddingBottom gives clearance so last field scrolls above sticky footer
+  body: {
+    paddingHorizontal: 22,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+
+  label:          { fontSize: 13, fontWeight: '700', color: DARK, marginBottom: 8, marginTop: 20 },
   req:            { color: RED },
   opt:            { fontSize: 11, fontWeight: '400', color: MUTED },
   inputRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: BORDER, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: '#F8FAFC' },
@@ -296,9 +364,36 @@ const es = StyleSheet.create({
   bloodChipActive:{ backgroundColor: RED_L, borderColor: '#FCA5A5' },
   bloodChipText:  { fontSize: 13, fontWeight: '600', color: DARK },
   textArea:       { borderWidth: 1.5, borderColor: BORDER, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: DARK, backgroundColor: '#F8FAFC', minHeight: 72, textAlignVertical: 'top' },
-  saveBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 16, paddingVertical: 16, shadowColor: BLUE, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 7 },
-  saveBtnText:    { fontSize: 15, fontWeight: '800', color: WHITE },
-  saveFooter:     { paddingHorizontal: 22, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: WHITE },
+
+  // Sticky footer — sits outside ScrollView, inside KAV
+  // paddingBottom is set dynamically: safeBottom + 8 so it clears the
+  // home indicator on gesture-nav phones and the bottom nav bar.
+  saveFooter: {
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    backgroundColor: WHITE,
+  },
+
+  // Full-width, 56px tall, 16px radius as specified
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: BLUE,
+    borderRadius: 16,
+    height: 56,
+    width: '100%',
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.30,
+    shadowRadius: 12,
+    elevation: 7,
+  },
+  saveBtnDisabled: { opacity: 0.55, shadowOpacity: 0 },
+  saveBtnText:    { fontSize: 16, fontWeight: '800', color: WHITE, letterSpacing: 0.2 },
 });
 
 // ── Profile Screen ────────────────────────────────────────────────────────────

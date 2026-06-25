@@ -163,6 +163,10 @@ export default function BookingScreen({ route, navigation }) {
   const [success,         setSuccess]         = useState(false);
   const [bookedAppt,      setBookedAppt]      = useState(null);
   const [isFreeBooking,   setIsFreeBooking]   = useState(false);
+  // Separate flag to track whether the CONFIRMED booking was free — used by
+  // SuccessOverlay. We must not mutate isFreeBooking before setSuccess(true)
+  // because SuccessOverlay reads isFree={isFreeBooking} synchronously.
+  const [confirmedIsFree, setConfirmedIsFree] = useState(false);
   const [slots,           setSlots]           = useState([]);
   const [slotsLoading,    setSlotsLoading]    = useState(false);
   const [slotsSource,     setSlotsSource]     = useState('none');
@@ -186,6 +190,7 @@ export default function BookingScreen({ route, navigation }) {
     useCallback(() => {
       const paymentResult = route.params?.paymentResult;
       if (paymentResult?.success && paymentResult?.appointment) {
+        setConfirmedIsFree(false); // paid flow — never free
         setBookedAppt(paymentResult.appointment);
         setSuccess(true);
         navigation.setParams({ paymentResult: undefined });
@@ -202,7 +207,20 @@ export default function BookingScreen({ route, navigation }) {
           const pp = u?.patientProfile;
           setProfileComplete(!!(u?.name && pp?.gender && pp?.emergencyContact));
           const status = statusRes?.data?.data;
-          if (status) setIsFreeBooking(!status.freeBookingUsed);
+          if (status) {
+            if (__DEV__) {
+              console.log('[Booking] booking-status response', {
+                userId: u?.id,
+                freeBookingUsed: status.freeBookingUsed,
+                bookingFee: status.bookingFee,
+                isFreeBooking: !status.freeBookingUsed,
+              });
+            }
+            setIsFreeBooking(!status.freeBookingUsed);
+          } else {
+            // If the call failed, default to free (safer — matches web behaviour)
+            setIsFreeBooking(true);
+          }
         } catch {}
       };
       check();
@@ -269,6 +287,16 @@ export default function BookingScreen({ route, navigation }) {
     if (!date) { Alert.alert('Select Date', 'Please pick an appointment date.'); return; }
     setLoading(true);
     try {
+      if (__DEV__) {
+        console.log('[Booking] Initiating payment', {
+          userId: patient?.id,
+          doctorId,
+          clinicId,
+          date,
+          isFreeBookingExpected: isFreeBooking,
+        });
+      }
+
       const initRes = await initiatePayment({
         doctorId, clinicId,
         appointmentType: visitType,
@@ -278,8 +306,22 @@ export default function BookingScreen({ route, navigation }) {
       });
       const { appointmentId, order, devMode, isFree, appointment: freeAppt } = initRes.data.data;
 
+      if (__DEV__) {
+        console.log('[Booking] /payments/initiate response', {
+          isFree,
+          appointmentId,
+          devMode,
+          orderId: order?.id,
+          amount: initRes.data.data.amount,
+        });
+      }
+
       if (isFree) {
-        setIsFreeBooking(false);
+        // Fix: capture the free state in a separate flag BEFORE clearing isFreeBooking.
+        // SuccessOverlay reads isFree={confirmedIsFree}, not isFreeBooking, so
+        // setting isFreeBooking=false here won't affect the overlay display.
+        setConfirmedIsFree(true);
+        setIsFreeBooking(false); // mark consumed so banner disappears on re-entry
         setBookedAppt(freeAppt || { queueNumber: null });
         setSuccess(true);
         return;
@@ -292,6 +334,7 @@ export default function BookingScreen({ route, navigation }) {
           razorpayPaymentId: `pay_dev_${Date.now()}`,
           razorpaySignature: 'dev_sig',
         });
+        setConfirmedIsFree(false);
         setBookedAppt(verifyRes.data.data.appointment);
         setSuccess(true);
       } else {
@@ -310,6 +353,9 @@ export default function BookingScreen({ route, navigation }) {
         return;
       }
     } catch (err) {
+      if (__DEV__) {
+        console.error('[Booking] Error', err.response?.data || err.message);
+      }
       Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
     } finally {
       setLoading(false);
@@ -558,6 +604,37 @@ export default function BookingScreen({ route, navigation }) {
           <Text style={s.charCount}>{notes.length}/200</Text>
         </View>
 
+        {/* ── Payment Summary Card ── */}
+        <View style={[s.section, isFreeBooking && s.sectionFree]}>
+          <Text style={s.sectionTitle}>6. Payment Summary</Text>
+          <View style={s.payRow}>
+            <Text style={s.payLabel}>Platform Booking Fee</Text>
+            {isFreeBooking ? (
+              <View style={s.payFreeRight}>
+                <Text style={s.payStrike}>₹10</Text>
+                <Text style={s.payFree}>FREE</Text>
+              </View>
+            ) : (
+              <Text style={s.payAmount}>₹10</Text>
+            )}
+          </View>
+          <View style={s.payDivider} />
+          <View style={s.payRow}>
+            <Text style={s.payLabel}>Consultation Fee</Text>
+            <Text style={s.payAtClinic}>Pay at clinic — ₹{consultFee}</Text>
+          </View>
+          <View style={s.payDivider} />
+          <View style={s.payRow}>
+            <Text style={[s.payLabel, { fontWeight: '700', color: SLATE }]}>Pay Now</Text>
+            <Text style={[s.payAmount, isFreeBooking && { color: GREEN }]}>
+              {isFreeBooking ? '₹0' : '₹10'}
+            </Text>
+          </View>
+          {isFreeBooking && (
+            <Text style={s.payFreeNote}>🎁 First booking benefit applied automatically</Text>
+          )}
+        </View>
+
         {/* ── Free booking banner ── */}
         {isFreeBooking && (
           <View style={s.freeBanner}>
@@ -573,7 +650,7 @@ export default function BookingScreen({ route, navigation }) {
       {/* ── Sticky Bottom Bar ── */}
       <View style={[s.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
-          style={[s.confirmBtn, (loading || !date) && s.confirmBtnDisabled]}
+          style={[s.confirmBtn, (loading || !date) && s.confirmBtnDisabled, isFreeBooking && s.confirmBtnFree]}
           onPress={handleBook}
           disabled={loading}
           activeOpacity={0.88}
@@ -582,11 +659,13 @@ export default function BookingScreen({ route, navigation }) {
             <ActivityIndicator color={WHITE} size="small" />
           ) : (
             <Text style={s.confirmBtnText}>
-              {isFreeBooking ? 'Confirm Free Booking' : 'Confirm Appointment'}
+              {isFreeBooking ? '🎉 Confirm Free Booking' : '💳 Pay ₹10 & Confirm'}
             </Text>
           )}
         </TouchableOpacity>
-        <Text style={s.noCharge}>You won't be charged now</Text>
+        <Text style={s.noCharge}>
+          {isFreeBooking ? 'No payment required — first booking is free' : 'Platform booking fee: ₹10 via Razorpay'}
+        </Text>
       </View>
 
       {/* ── Success overlay ── */}
@@ -596,7 +675,7 @@ export default function BookingScreen({ route, navigation }) {
         date={date}
         slot={slot}
         queueNumber={bookedAppt?.queueNumber}
-        isFree={isFreeBooking}
+        isFree={confirmedIsFree}
         onView={() => navigation.navigate('AppointmentsTab')}
       />
     </View>
@@ -763,6 +842,18 @@ const s = StyleSheet.create({
   freeBannerTitle:{ fontSize: 14, fontWeight: '700', color: '#14532D', marginBottom: 3 },
   freeBannerSub:  { fontSize: 12, color: '#166534', lineHeight: 17 },
 
+  // Payment summary
+  sectionFree:   { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' },
+  payRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  payLabel:      { fontSize: 13, color: SLATE_6 },
+  payAmount:     { fontSize: 14, fontWeight: '700', color: SLATE },
+  payFreeRight:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  payStrike:     { fontSize: 12, color: MUTED, textDecorationLine: 'line-through' },
+  payFree:       { fontSize: 14, fontWeight: '800', color: GREEN },
+  payAtClinic:   { fontSize: 12, color: MUTED, fontStyle: 'italic' },
+  payDivider:    { height: 1, backgroundColor: BORDER, marginVertical: 2 },
+  payFreeNote:   { fontSize: 12, color: GREEN, marginTop: 8, fontWeight: '600' },
+
   // Sticky bar
   stickyBar:   {
     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -778,6 +869,10 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 7,
+  },
+  confirmBtnFree: {
+    backgroundColor: GREEN,
+    shadowColor: GREEN,
   },
   confirmBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
   confirmBtnText:    { fontSize: 16, fontWeight: '700', color: WHITE },

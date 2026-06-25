@@ -20,7 +20,7 @@ import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
-const LOGO = require('../../assets/logo.png');
+const LOGO = require('../../assets/logo1.jpeg');
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -140,7 +140,11 @@ export default function OtpScreen({ route, navigation }) {
       // Step 3: Store JWT, update auth state
       setStatus('success');
       Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
-      setTimeout(() => signIn(res.data.data.accessToken, res.data.data.user), 1600);
+      setTimeout(() => signIn(
+        res.data.data.accessToken,
+        res.data.data.user,
+        res.data.data.refreshToken,   // persist refresh token for silent re-auth
+      ), 1600);
 
     } catch (err) {
       setStatus('error');
@@ -201,16 +205,23 @@ export default function OtpScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={os.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        {/* Top bar */}
+        {/* Top bar — back button */}
         <View style={os.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={os.backBtn} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={20} color={BLUE} />
           </TouchableOpacity>
-          <Image source={LOGO} style={os.logoImg} resizeMode="contain" />
+          {/* Spacer to keep back button left-aligned */}
+          <View style={{ flex: 1 }} />
         </View>
 
-        <Text style={os.headline}>PulseMate <Text style={os.headlineBlue}>Connect</Text></Text>
-        <Text style={os.headlineSub}>Healthcare Platform</Text>
+        {/* ── Centered logo block — matches Home screen logo1.jpeg ── */}
+        <View style={os.logoBlock}>
+          <View style={os.logoBox}>
+            <Image source={LOGO} style={os.logoImg} resizeMode="cover" />
+          </View>
+          <Text style={os.headline}>PulseMate <Text style={os.headlineBlue}>Connect</Text></Text>
+          <Text style={os.headlineSub}>Healthcare Platform</Text>
+        </View>
 
         <View style={os.chips}>
           {[
@@ -298,11 +309,28 @@ const os = StyleSheet.create({
   successCircle:  { width: 96, height: 96, borderRadius: 48, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', shadowColor: GREEN, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   successTitle:   { fontSize: 28, fontWeight: '900', color: DARK },
   successSub:     { fontSize: 14, color: GRAY },
-  topBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  topBar:      { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   backBtn:     { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BLUE_B },
-  logoImg:     { height: 34, width: 150 },
-  secureTitle: { fontSize: 11, fontWeight: '800', color: DARK, lineHeight: 13 },
-  secureSub:   { fontSize: 9, color: GRAY, lineHeight: 11, marginTop: 1 },
+
+  // Centered logo block — same asset (logo1.jpeg) and shape as HomeHeader
+  logoBlock:   { alignItems: 'center', marginBottom: 18 },
+  logoBox: {
+    width: 76,
+    height: 76,
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    marginBottom: 14,
+  },
+  logoImg:     { width: '100%', height: '100%' },
+
   headline:    { fontSize: 26, fontWeight: '900', color: DARK, textAlign: 'center', letterSpacing: -0.5, marginBottom: 2 },
   headlineBlue:{ color: BLUE },
   headlineSub: { fontSize: 13, color: GRAY, textAlign: 'center', marginBottom: 16 },
