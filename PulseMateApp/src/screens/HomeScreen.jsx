@@ -55,32 +55,24 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   // ── Called by HomeHeader when GPS coords are ready ────────────────────────
-  // Strategy: try 50km first → expand to 150km → expand to 500km (all India)
   const handleLocationFetched = useCallback(async (coords) => {
     setNearbyLoading(true);
-    const radii = [50, 150, 500];
-    let found = [];
-
-    for (const radius of radii) {
-      try {
-        const res = await getNearby({
-          lat:    coords.latitude,
-          lng:    coords.longitude,
-          radius,
-          type:   'clinics',
-          limit:  10,
-        });
-        console.log(`[NEARBY r=${radius}]`, JSON.stringify(res?.data));
-        found = res?.data?.data?.clinics || [];
-        if (found.length > 0) break; // found some → stop expanding
-      } catch (e) {
-        console.log(`[NEARBY ERROR r=${radius}]`, e?.response?.data || e?.message);
-        break;
-      }
+    try {
+      const res = await getNearby({
+        lat:    coords.latitude,
+        lng:    coords.longitude,
+        radius: 50,
+        type:   'clinics',
+        limit:  10,
+      });
+      console.log('[NEARBY]', JSON.stringify(res?.data));
+      setNearbyClinics(res?.data?.data?.clinics || []);
+    } catch (e) {
+      console.log('[NEARBY ERROR]', e?.response?.data || e?.message);
+      setNearbyClinics([]);
+    } finally {
+      setNearbyLoading(false);
     }
-
-    setNearbyClinics(found);
-    setNearbyLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

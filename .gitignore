@@ -38,6 +38,10 @@ coverage/
 # ── Uploaded user files (use S3 in production) ────────────────────────────────
 backend/uploads/
 
+# ── Firebase / Google credentials — NEVER commit ─────────────────────────────
+PulseMateApp/google-services.json
+PulseMateApp/GoogleService-Info.plist
+
 # ── Expo local cache ──────────────────────────────────────────────────────────
 PulseMateApp/.expo/
 PulseMateApp/.claude/
