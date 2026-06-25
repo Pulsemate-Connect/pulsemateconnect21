@@ -674,38 +674,28 @@ const getNearby = async (req, res, next) => {
           longitude: { not: null },
         },
         select: {
-          id: true,
-          name: true,
-          address: true,
-          city: true,
-          district: true,
-          latitude: true,
-          longitude: true,
-          phone: true,
-          openingHours: true,
-          specialties: true,
-          clinicType: true,
-          clinicLogoUrl: true,
+          id: true, name: true, address: true, city: true, district: true,
+          latitude: true, longitude: true, phone: true, openingHours: true,
+          specialties: true, clinicType: true, clinicLogoUrl: true,
           consultationModes: true,
           _count: { select: { appointments: true } },
         },
       });
 
-      // Progressive radius expansion: try requested radius, then 2x, then unlimited
-      const expandedRadii = [radiusKm, radiusKm * 2, 99999];
-      let nearbyClinics = [];
+      // Map distances
+      const withDist = clinics.map((c) => ({
+        ...c,
+        distanceKm: Math.round(haversineKm(userLat, userLng, c.latitude, c.longitude) * 10) / 10,
+      }));
 
-      for (const r of expandedRadii) {
-        nearbyClinics = clinics
-          .map((c) => {
-            const distKm = haversineKm(userLat, userLng, c.latitude, c.longitude);
-            return { ...c, distanceKm: Math.round(distKm * 10) / 10 };
-          })
+      // Progressive radius: 50 → 150 → 500 → unlimited
+      let nearbyClinics = [];
+      for (const r of [radiusKm, 150, 500, 99999]) {
+        nearbyClinics = withDist
           .filter((c) => c.distanceKm <= r)
           .sort((a, b) => a.distanceKm - b.distanceKm)
           .slice(0, maxResults);
-
-        if (nearbyClinics.length > 0) break; // found results — stop expanding
+        if (nearbyClinics.length > 0) break;
       }
 
       result.clinics = nearbyClinics;
