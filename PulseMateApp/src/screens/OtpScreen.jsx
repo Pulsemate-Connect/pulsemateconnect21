@@ -15,8 +15,7 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
-import { firebasePhoneLogin } from '../api/auth';
+import { verifyOtp, sendOtp, firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
 
 const LOGO = require('../../assets/logo11.png');
@@ -66,7 +65,7 @@ const sr = StyleSheet.create({
 });
 
 export default function OtpScreen({ route, navigation }) {
-  const { mobile, sessionInfo: initialSession } = route.params;
+  const { mobile } = route.params;
   const { signIn } = useAuth();
 
   const [digits,      setDigits]      = useState(['', '', '', '', '', '']);
@@ -74,7 +73,6 @@ export default function OtpScreen({ route, navigation }) {
   const [status,      setStatus]      = useState('idle');
   const [cooldown,    setCooldown]    = useState(60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
-  const [sessionInfo, setSessionInfo] = useState(initialSession);
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
@@ -126,16 +124,13 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleVerify = async () => {
     const code = digits.join('');
-    if (code.length < 6 || !sessionInfo) return;
+    if (code.length < 6) return;
     setLoading(true);
     try {
-      // Step 1: Verify OTP with Firebase REST API → get Firebase ID token
-      const firebaseIdToken = await verifyPhoneOtp(sessionInfo, code);
+      // Use backend OTP verification — no Firebase needed
+      const res = await verifyOtp(mobile, code, 'LOGIN');
 
-      // Step 2: Send Firebase ID token to our backend → get app JWT
-      const res = await firebasePhoneLogin(firebaseIdToken);
-
-      // Step 3: Store JWT, update auth state
+      // Store JWT, update auth state
       setStatus('success');
       Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
       setTimeout(() => signIn(res.data.data.accessToken, res.data.data.user), 1600);
@@ -143,19 +138,17 @@ export default function OtpScreen({ route, navigation }) {
     } catch (err) {
       setStatus('error');
       triggerShake();
-      // Map Firebase error codes to friendly messages
       let msg = err.response?.data?.message || err.message || 'Verification failed. Please try again.';
-      if (msg.includes('CODE_EXPIRED') || msg.includes('code-expired') || msg.includes('invalid-verification-code')) {
-        msg = 'OTP has expired or is incorrect. Please tap Resend OTP to get a new code.';
-        // Reset digits so user can enter fresh code after resend
-        setDigits(['', '', '', '', '', '']);
-        setCooldown(0); // allow immediate resend
-      } else if (msg.includes('too-many-requests') || msg.includes('TOO_MANY_ATTEMPTS_TRY_LATER')) {
-        msg = 'Too many attempts. Please wait a few minutes before trying again.';
-      } else if (msg.includes('session-expired') || msg.includes('SESSION_EXPIRED')) {
-        msg = 'Session expired. Please go back and request a new OTP.';
+      if (msg.includes('expired') || msg.includes('not found')) {
+        msg = 'OTP has expired. Please tap Resend OTP to get a new code.';
         setDigits(['', '', '', '', '', '']);
         setCooldown(0);
+      } else if (msg.includes('attempts')) {
+        msg = 'Too many wrong attempts. Please request a new OTP.';
+        setDigits(['', '', '', '', '', '']);
+        setCooldown(0);
+      } else if (msg.includes('Invalid OTP')) {
+        // keep digits so user can correct
       }
       Alert.alert('Verification Failed', msg);
     } finally {
@@ -165,14 +158,14 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleResend = async () => {
     try {
-      const newSession = await sendOtpToPhone(mobile);
-      setSessionInfo(newSession);
+      await sendOtp(mobile, 'LOGIN');
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
       startCooldown(60);
       setTimeout(() => refs[0].current?.focus(), 100);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to resend OTP.');
+      const msg = err.response?.data?.message || err.message || 'Failed to resend OTP.';
+      Alert.alert('Error', msg);
     }
   };
 
@@ -185,7 +178,7 @@ export default function OtpScreen({ route, navigation }) {
     return [os.box];
   };
 
-  const canVerify = digits.join('').length === 6 && !loading && !!sessionInfo;
+  const canVerify = digits.join('').length === 6 && !loading;
 
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

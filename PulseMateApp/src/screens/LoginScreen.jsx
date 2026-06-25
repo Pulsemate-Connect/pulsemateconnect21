@@ -13,7 +13,7 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { sendOtpToPhone } from '../config/firebase';
+import { sendOtp } from '../api/auth';
 import Constants from 'expo-constants';
 
 const LOGO = require('../../assets/logo11.png');
@@ -74,12 +74,13 @@ export default function LoginScreen({ navigation }) {
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
     try {
-      // Firebase REST API — no reCAPTCHA ref needed
-      const sessionInfo = await sendOtpToPhone(fullNumber);
+      // Use backend OTP — no Firebase app verification needed
+      await sendOtp(fullNumber, 'LOGIN');
       setSendCooldown(30);
-      navigation.navigate('Otp', { mobile: fullNumber, sessionInfo });
+      navigation.navigate('Otp', { mobile: fullNumber });
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+      const msg = err.response?.data?.message || err.message || 'Failed to send OTP. Please try again.';
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }

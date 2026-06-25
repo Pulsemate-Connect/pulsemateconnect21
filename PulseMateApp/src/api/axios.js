@@ -2,11 +2,14 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
-// ── API URL resolution — always uses production URL in builds ─────────────
-// Dev IP is NEVER bundled into production. Use eas.json build env vars.
-export const BASE_URL =
-  Constants.expoConfig?.extra?.apiUrl ??
-  'https://api.pulsemateconnect.in/api';
+// ── API URL resolution ────────────────────────────────────────────────────
+// In dev (Expo Go), use local backend. In production builds, use prod URL.
+const LOCAL_API = 'http://192.168.31.240:5000/api';
+const PROD_API  = 'https://api.pulsemateconnect.in/api';
+
+export const BASE_URL = __DEV__
+  ? (Constants.expoConfig?.extra?.apiUrl ?? LOCAL_API)
+  : (Constants.expoConfig?.extra?.apiUrl ?? PROD_API);
 
 const api = axios.create({
   baseURL: BASE_URL,
