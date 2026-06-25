@@ -512,13 +512,12 @@ export default function ProfileWizardScreen({ route, navigation }) {
       // After success: return to booking flow if caller requested it, else go to ProfileTab
       setTimeout(() => {
         if (returnTo === 'Booking') {
-          // Pop back to wherever the Booking screen lives in the stack
           navigation.goBack();
+        } else if (returnTo) {
+          // Navigate to specified screen safely
+          try { navigation.navigate(returnTo); } catch { navigation.navigate('HomeTab'); }
         } else {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'ProfileTab' }],
-          });
+          navigation.reset({ index: 0, routes: [{ name: 'ProfileTab' }] });
         }
       }, 2400);
     } catch (err) {

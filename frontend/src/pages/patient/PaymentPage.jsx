@@ -307,12 +307,6 @@ const PaymentPage = () => {
                 <span className="font-semibold text-gray-900">₹10</span>
               )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-text-muted">Consultation Fee</span>
-              <span className="text-gray-400 italic text-xs">
-                Pay at clinic — ₹{appointment?.doctor?.consultationFee || 0}
-              </span>
-            </div>
             <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
               <span>Pay Now</span>
               <span className={isFreeBooking ? 'text-emerald-700' : 'text-primary-600'}>
@@ -320,13 +314,9 @@ const PaymentPage = () => {
               </span>
             </div>
           </div>
-          {isFreeBooking ? (
+          {isFreeBooking && (
             <p className="text-xs text-emerald-600 mt-3 font-medium">
               🎁 First booking benefit — platform fee waived
-            </p>
-          ) : (
-            <p className="text-xs text-gray-400 mt-3">
-              Consultation fee is paid directly at the clinic after your visit.
             </p>
           )}
         </div>

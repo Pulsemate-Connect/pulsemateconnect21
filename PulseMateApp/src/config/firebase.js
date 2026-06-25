@@ -1,8 +1,7 @@
 /**
- * Firebase Phone Auth for React Native (Expo Go compatible)
+ * Firebase Phone Auth for React Native (Expo + EAS Build compatible)
  * 
- * Uses Firebase REST API instead of Firebase SDK for Expo Go compatibility.
- * Works with expo-firebase-recaptcha for reCAPTCHA handling.
+ * Uses Firebase REST API directly — no native SDK or reCAPTCHA widget needed.
  */
 
 // ── Firebase config (same project as web app) ─────────────────────────────────
@@ -18,12 +17,12 @@ const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';
 
 /**
  * Send OTP via Firebase Phone Auth REST API
- * 
+ * No reCAPTCHA token needed — Firebase REST API handles verification server-side.
+ *
  * @param {string} phoneNumber - E.164 format e.g. "+917022818878"
- * @param {string} recaptchaToken - Token from FirebaseRecaptchaVerifierModal
  * @returns {Promise<string>} sessionInfo - Pass to verifyPhoneOtp
  */
-export const sendOtpToPhone = async (phoneNumber, recaptchaToken) => {
+export const sendOtpToPhone = async (phoneNumber) => {
   try {
     const response = await fetch(
       `${FIREBASE_AUTH_API}/accounts:sendVerificationCode?key=${firebaseConfig.apiKey}`,
@@ -32,7 +31,7 @@ export const sendOtpToPhone = async (phoneNumber, recaptchaToken) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumber,
-          recaptchaToken,
+          // recaptchaToken not required when using REST API directly
         }),
       }
     );

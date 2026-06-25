@@ -293,9 +293,18 @@ const il = StyleSheet.create({
 });
 
 // ── Main OnboardingScreen ─────────────────────────────────────────────────────
-export default function OnboardingScreen({ navigation }) {
+export default function OnboardingScreen({ navigation, onComplete }) {
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState(0);
+
+  // Support both prop-based completion (from AuthNavigator) and navigation fallback
+  const goLogin = async () => {
+    if (onComplete) {
+      await onComplete();
+    } else {
+      navigation.replace('Login');
+    }
+  };
 
   const fadeA  = useRef(new Animated.Value(1)).current;
   const slideA = useRef(new Animated.Value(0)).current;
@@ -331,11 +340,11 @@ export default function OnboardingScreen({ navigation }) {
     if (current < SLIDES.length - 1) {
       goTo(current + 1);
     } else {
-      navigation.replace('Login');
+      goLogin();
     }
   };
 
-  const handleSkip = () => navigation.replace('Login');
+  const handleSkip = () => goLogin();
 
   const floatY = floatA.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
 

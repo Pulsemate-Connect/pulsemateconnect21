@@ -36,7 +36,7 @@ const SPECS = [
 
 const CITIES = ['All Cities', 'Bangalore', 'Mumbai', 'Delhi', 'Chennai', 'Hyderabad', 'Pune', 'Kolkata'];
 const AVAIL  = ['Any', 'Available Today', 'Online Only', 'In-Clinic Only'];
-const SORT   = ['Relevance', 'Experience', 'Fee: Low to High', 'Fee: High to Low', 'Rating'];
+const SORT   = ['Relevance', 'Experience', 'Rating'];
 
 // ── Filter bottom sheet ───────────────────────────────────────────────────────
 function FilterSheet({ visible, onClose, city, setCity, avail, setAvail, sort, setSort, onApply }) {
@@ -122,7 +122,6 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
   const displayName = fmtDoctorName(doc.user?.name);
   const initial = doc.user?.name?.charAt(0)?.toUpperCase() || 'D';
   const photoUrl = doc.profileImage || doc.profilePhotoUrl || null;
-  const fee    = doc.consultationFee ? `₹${doc.consultationFee}` : 'Free';
   const langs  = doc.languagesKnown?.slice(0, 3).join(', ') || 'English';
   const qual   = doc.qualification || 'MBBS';
   const exp    = doc.experienceYears || 0;
@@ -231,10 +230,22 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
       {/* ── Actions ── */}
       <View style={dc.footer}>
         <View style={dc.btnRow}>
-          <TouchableOpacity style={dc.profileBtn} onPress={onViewProfile} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={dc.profileBtn}
+            onPress={onViewProfile}
+            activeOpacity={0.8}
+            accessibilityLabel={`View profile of ${displayName}`}
+            accessibilityRole="button"
+          >
             <Text style={[dc.profileBtnText, { color: accent }]}>Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[dc.bookBtn, { backgroundColor: accent, shadowColor: accent }]} onPress={onBook} activeOpacity={0.88}>
+          <TouchableOpacity
+            style={[dc.bookBtn, { backgroundColor: accent, shadowColor: accent }]}
+            onPress={onBook}
+            activeOpacity={0.88}
+            accessibilityLabel={`Book appointment with ${displayName}, ${spec}`}
+            accessibilityRole="button"
+          >
             <Ionicons name="calendar" size={14} color={WHITE} />
             <Text style={dc.bookBtnText}>Book Now</Text>
           </TouchableOpacity>
@@ -285,8 +296,7 @@ export default function SearchScreen({ navigation }) {
       // Client-side sort
       const s = overrides.sort ?? sort;
       if (s === 'Experience')          data = [...data].sort((a, b) => (b.experienceYears || 0) - (a.experienceYears || 0));
-      if (s === 'Fee: Low to High')    data = [...data].sort((a, b) => (a.consultationFee || 0) - (b.consultationFee || 0));
-      if (s === 'Fee: High to Low')    data = [...data].sort((a, b) => (b.consultationFee || 0) - (a.consultationFee || 0));
+      if (s === 'Rating')              data = [...data].sort((a, b) => (b.rating || 0) - (a.rating || 0));
       setDoctors(data);
     } catch { setDoctors([]); }
     finally { setLoading(false); }
@@ -303,7 +313,13 @@ export default function SearchScreen({ navigation }) {
 
       {/* ── Header ── */}
       <View style={ss.header}>
-        <TouchableOpacity style={ss.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={ss.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
           <Ionicons name="arrow-back" size={20} color={SLATE} />
         </TouchableOpacity>
         <View>
@@ -343,11 +359,7 @@ export default function SearchScreen({ navigation }) {
           <TouchableOpacity onPress={() => { setQuery(''); doSearch({ query: '' }); }} activeOpacity={0.7}>
             <Ionicons name="close-circle" size={18} color={MUTED} />
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={ss.micBtn} activeOpacity={0.7}>
-            <Ionicons name="mic-outline" size={16} color={SKY6} />
-          </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
       {/* ── Active filter chips ── */}

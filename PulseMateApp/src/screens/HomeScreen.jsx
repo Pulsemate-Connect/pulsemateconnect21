@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  HomeScreen — PulseMate Connect  |  Premium Healthcare Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Dimensions, StatusBar, FlatList,
+  RefreshControl, ActivityIndicator, Dimensions, StatusBar,
+  Animated, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,7 +93,6 @@ function DoctorAvatar({ photoUrl, name, size = 70 }) {
 function DoctorCard({ doctor, onBook }) {
   const name  = doctor.user?.name || 'Doctor';
   const spec  = doctor.specialization || 'General Physician';
-  const fee   = doctor.consultationFee ? `₹${doctor.consultationFee}` : '₹500';
   const photo = doctor.profilePhotoUrl || doctor.photoUrl || null;
   return (
     <View style={s.doctorCard}>
@@ -103,10 +103,9 @@ function DoctorCard({ doctor, onBook }) {
       <Text style={s.doctorName} numberOfLines={1}>{fmtDoctorName(name)}</Text>
       <Text style={s.doctorSpec} numberOfLines={1}>{spec}</Text>
       <View style={s.ratingRow}>
-        <Ionicons name="star" size={12} color="#F59E0B" />
-        <Text style={s.ratingText}>4.8</Text>
+        <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+        <Text style={s.ratingText}>Verified</Text>
       </View>
-      <Text style={s.doctorFee}>{fee} Consultation</Text>
       <TouchableOpacity style={s.bookBtn} onPress={onBook} activeOpacity={0.85}>
         <Text style={s.bookBtnText}>Book</Text>
       </TouchableOpacity>
@@ -116,7 +115,25 @@ function DoctorCard({ doctor, onBook }) {
 
 // ── Clinic card ───────────────────────────────────────────────────────────────
 function ClinicCard({ clinic, onBook }) {
-  const isOpen = true; // TODO: real open/close logic
+  // Derive open/closed from clinic hours if available, otherwise don't show badge
+  const checkIsOpen = () => {
+    if (!clinic.openingHours) return null; // unknown — don't show badge
+    try {
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const currentMins = hour * 60 + minute;
+      // openingHours format expected: "09:00-18:00"
+      const [open, close] = clinic.openingHours.split('-');
+      if (!open || !close) return null;
+      const [oh, om] = open.split(':').map(Number);
+      const [ch, cm] = close.split(':').map(Number);
+      const openMins  = oh * 60 + om;
+      const closeMins = ch * 60 + cm;
+      return currentMins >= openMins && currentMins < closeMins;
+    } catch { return null; }
+  };
+  const isOpen = checkIsOpen();
   return (
     <View style={s.clinicCard}>
       {/* Clinic image / placeholder */}
@@ -128,8 +145,10 @@ function ClinicCard({ clinic, onBook }) {
             <Ionicons name="business" size={36} color="#93C5FD" />
           </View>
         )}
-        {isOpen && (
-          <View style={s.openBadge}><Text style={s.openBadgeText}>Open Now</Text></View>
+        {isOpen !== null && (
+          <View style={[s.openBadge, { backgroundColor: isOpen ? '#22C55E' : '#EF4444' }]}>
+            <Text style={s.openBadgeText}>{isOpen ? 'Open Now' : 'Closed'}</Text>
+          </View>
         )}
       </View>
       {/* Info */}
@@ -194,6 +213,7 @@ export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
   const [loading,       setLoading]       = useState(true);
   const [refreshing,    setRefreshing]    = useState(false);
+  const [loadError,     setLoadError]     = useState(false);
   const [unreadCount,   setUnreadCount]   = useState(0);
   const [nearbyClinics, setNearbyClinics] = useState([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -201,7 +221,30 @@ export default function HomeScreen({ navigation }) {
   const [topDoctors,    setTopDoctors]    = useState([]);
   const [tipIdx,        setTipIdx]        = useState(0);
 
+  // ── Animation refs ─────────────────────────────────────────────────────────
+  const heartbeatA = useRef(new Animated.Value(1)).current;
+  const fadeInA    = useRef(new Animated.Value(0)).current;
+
+  // Heartbeat animation on logo
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartbeatA, { toValue: 1.12, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(heartbeatA, { toValue: 1,    duration: 140, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
+        Animated.timing(heartbeatA, { toValue: 1.06, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(heartbeatA, { toValue: 1,    duration: 120, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
+        Animated.delay(1400),
+      ])
+    ).start();
+  }, [heartbeatA]);
+
+  // Fade-in on page load
+  useEffect(() => {
+    Animated.timing(fadeInA, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [fadeInA]);
+
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const [notifRes, doctorsRes] = await Promise.allSettled([
         getMyNotifications(),
@@ -209,7 +252,12 @@ export default function HomeScreen({ navigation }) {
       ]);
       if (notifRes.status === 'fulfilled') setUnreadCount(notifRes.value.data.data?.unreadCount || 0);
       if (doctorsRes.status === 'fulfilled') setTopDoctors(doctorsRes.value.data.data || []);
-    } catch {}
+      if (notifRes.status === 'rejected' && doctorsRes.status === 'rejected') {
+        // Check if it's a network error
+        const err = doctorsRes.reason;
+        setLoadError(err?.friendlyMessage || 'Could not load. Tap to retry.');
+      }
+    } catch (err) { setLoadError(err?.friendlyMessage || 'Could not load. Tap to retry.'); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -262,7 +310,13 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
           {/* Notification bell only — search removed */}
-          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+            accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+            accessibilityRole="button"
+          >
             <Ionicons name="notifications-outline" size={20} color={SLATE} />
             {unreadCount > 0 && (
               <View style={s.notifDot}>
@@ -272,29 +326,68 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/* ── Network error banner ── */}
+        {loadError && (
+          <TouchableOpacity
+            style={s.errorBanner}
+            onPress={() => { setLoading(true); load(); }}
+            accessibilityLabel="Could not load data. Tap to retry."
+            accessibilityRole="button"
+          >
+            <Ionicons name="wifi-outline" size={16} color="#92400E" />
+            <Text style={s.errorBannerText}>{typeof loadError === 'string' ? loadError : 'Could not load. Tap to retry.'}</Text>
+            <Ionicons name="refresh-outline" size={16} color="#92400E" />
+          </TouchableOpacity>
+        )}
+
         {/* ── Hero Banner ── */}
-        <View style={s.heroBanner}>
+        <Animated.View style={[s.heroBanner, { opacity: fadeInA }]}>
+          {/* Decorative blobs */}
           <View style={s.heroBlobTL} />
           <View style={s.heroBlobBR} />
-          <View style={s.heroLeft}>
+          <View style={s.heroBlobMR} />
+
+          {/* ── Brand identity at top center ── */}
+          <View style={s.heroBrand}>
+            {/* Logo icon with heartbeat */}
+            <Animated.View style={[s.heroLogoWrap, { transform: [{ scale: heartbeatA }] }]}>
+              <Image source={LOGO} style={s.heroLogoImg} resizeMode="contain" />
+            </Animated.View>
+
+            {/* Brand name */}
+            <View style={s.heroBrandTextWrap}>
+              <Text style={s.heroBrandName}>
+                <Text style={s.heroBrandPulse}>Pulse</Text>
+                <Text style={s.heroBrandMate}>Mate</Text>
+                <Text style={s.heroBrandConnect}> Connect</Text>
+              </Text>
+              <Text style={s.heroBrandTagline}>Smart Healthcare, Simplified</Text>
+            </View>
+          </View>
+
+          {/* ── Divider ── */}
+          <View style={s.heroDivider} />
+
+          {/* ── Headline + CTA ── */}
+          <View style={s.heroContent}>
             <Text style={s.heroTitle}>Smart Healthcare.</Text>
             <Text style={s.heroTitleBlue}>Less Waiting.</Text>
-            <Text style={s.heroSub}>Book appointments, track live{'\n'}queues and visit your doctor.</Text>
-            <TouchableOpacity style={s.heroBtn} onPress={() => navigation.navigate('Search')} activeOpacity={0.88}>
+            <Text style={s.heroSub}>
+              Book appointments, track live{'\n'}queues and visit your doctor.
+            </Text>
+            <TouchableOpacity
+              style={s.heroBtn}
+              onPress={() => navigation.navigate('Search')}
+              activeOpacity={0.88}
+              accessibilityLabel="Get Started - Search for doctors"
+              accessibilityRole="button"
+            >
+              <Ionicons name="calendar-outline" size={15} color={WHITE} />
               <Text style={s.heroBtnText}>Get Started</Text>
               <Ionicons name="arrow-forward" size={14} color={WHITE} />
             </TouchableOpacity>
           </View>
-          <View style={s.heroRight}>
-            <View style={s.heroPhone}>
-              <View style={s.heroPhoneInner}>
-                <Ionicons name="pulse" size={28} color={PRIMARY} />
-                <Text style={s.heroPhoneBrand}>PulseMate</Text>
-                <Text style={s.heroPhoneTagline}>Connect</Text>
-              </View>
-            </View>
-          </View>
-        </View>
+        </Animated.View>
 
         {/* ── Search bar ── */}
         <TouchableOpacity style={s.searchBar} onPress={() => navigation.navigate('Search')} activeOpacity={0.85}>
@@ -353,7 +446,11 @@ export default function HomeScreen({ navigation }) {
           )}
           {locationStatus === 'granted' && !nearbyLoading && nearbyClinics.length > 0 && (
             nearbyClinics.map((c) => (
-              <ClinicCard key={c.id} clinic={c} onBook={() => navigation.navigate('DoctorsTab')} />
+              <ClinicCard
+                key={c.id}
+                clinic={c}
+                onBook={() => navigation.navigate('DoctorsTab', { screen: 'SearchMain', params: { clinicId: c.id, clinicName: c.name } })}
+              />
             ))
           )}
         </View>
@@ -429,25 +526,79 @@ const s = StyleSheet.create({
   notifDot: { position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: WHITE, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notifDotText: { fontSize: 8, color: '#fff', fontWeight: '800', lineHeight: 10 },
 
-  // Hero banner
-  heroBanner: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#EFF6FF', borderRadius: 20, padding: 20, flexDirection: 'row', overflow: 'hidden', minHeight: 150 },
-  heroBlobTL: { position: 'absolute', top: -30, left: -30, width: 100, height: 100, borderRadius: 50, backgroundColor: '#BFDBFE' },
-  heroBlobBR: { position: 'absolute', bottom: -20, right: 80, width: 80, height: 80, borderRadius: 40, backgroundColor: '#BAE6FD' },
-  heroLeft: { flex: 1, justifyContent: 'center' },
-  heroTitle: { fontSize: 20, fontWeight: '900', color: SLATE, letterSpacing: -0.5 },
-  heroTitleBlue: { fontSize: 20, fontWeight: '900', color: PRIMARY, letterSpacing: -0.5, marginBottom: 8 },
-  heroSub: { fontSize: 12, color: '#64748B', lineHeight: 18, marginBottom: 14 },
-  heroBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: PRIMARY, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, alignSelf: 'flex-start', shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  heroBtnText: { fontSize: 13, fontWeight: '700', color: WHITE },
-  heroRight: { width: 100, alignItems: 'center', justifyContent: 'center' },
-  heroPhone: { width: 80, height: 110, backgroundColor: WHITE, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 6, borderWidth: 2, borderColor: '#DBEAFE' },
-  heroPhoneInner: { alignItems: 'center', gap: 4 },
-  heroPhoneBrand: { fontSize: 11, fontWeight: '900', color: PRIMARY },
-  heroPhoneTagline: { fontSize: 9, color: MUTED, fontWeight: '600' },
+  // Hero banner — compact centered layout (~260–290px tall)
+  heroBanner: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 18,
+    overflow: 'hidden',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  // Decorative blobs — smaller, less dominant
+  heroBlobTL: { position: 'absolute', top: -25, left: -25, width: 80, height: 80, borderRadius: 40, backgroundColor: '#BFDBFE', opacity: 0.35 },
+  heroBlobBR: { position: 'absolute', bottom: -20, right: -20, width: 65, height: 65, borderRadius: 33, backgroundColor: '#BAE6FD', opacity: 0.35 },
+  heroBlobMR: { position: 'absolute', top: 10, right: -12, width: 44, height: 44, borderRadius: 22, backgroundColor: '#E0F2FE', opacity: 0.5 },
+
+  // Brand identity — row layout to save vertical space
+  heroBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  heroLogoWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 15,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#DBEAFE',
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 7,
+    elevation: 3,
+  },
+  heroLogoImg: { width: 34, height: 34 },
+  heroBrandTextWrap: { alignItems: 'flex-start', gap: 1 },
+  heroBrandName: { fontSize: 17, letterSpacing: -0.2 },
+  heroBrandPulse: { fontWeight: '900', color: PRIMARY },
+  heroBrandMate:  { fontWeight: '900', color: SLATE },
+  heroBrandConnect: { fontWeight: '600', color: SKY5 },
+  heroBrandTagline: { fontSize: 11, color: MUTED, fontWeight: '500', letterSpacing: 0.1 },
+
+  // Divider — thinner, shorter gap
+  heroDivider: { width: '50%', height: 1, backgroundColor: '#E2E8F0', marginBottom: 12 },
+
+  // Headline + CTA — tighter spacing
+  heroContent: { alignItems: 'center', width: '100%' },
+  heroTitle: { fontSize: 22, fontWeight: '900', color: SLATE, letterSpacing: -0.5, textAlign: 'center' },
+  heroTitleBlue: { fontSize: 22, fontWeight: '900', color: PRIMARY, letterSpacing: -0.5, marginBottom: 6, textAlign: 'center' },
+  heroSub: { fontSize: 12, color: '#64748B', lineHeight: 18, marginBottom: 14, textAlign: 'center' },
+  heroBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: PRIMARY, borderRadius: 14,
+    paddingHorizontal: 22, paddingVertical: 11,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28, shadowRadius: 10, elevation: 5,
+  },
+  heroBtnText: { fontSize: 13, fontWeight: '800', color: WHITE, letterSpacing: 0.1 },
 
   // Search
   searchBar: { marginHorizontal: 16, marginBottom: 20, backgroundColor: WHITE, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
   searchText: { fontSize: 14, color: MUTED, flex: 1 },
+
+  // Error banner
+  errorBanner: { marginHorizontal: 16, marginBottom: 10, backgroundColor: '#FEF3C7', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#FDE68A' },
+  errorBannerText: { flex: 1, fontSize: 13, color: '#92400E', fontWeight: '600' },
 
   // Section
   section: { paddingHorizontal: 16, marginBottom: 24 },
@@ -497,7 +648,6 @@ Object.assign(s, StyleSheet.create({
   doctorSpec: { fontSize: 11, color: MUTED, textAlign: 'center', marginTop: 2 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   ratingText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-  doctorFee: { fontSize: 11, color: MUTED, marginTop: 4, textAlign: 'center' },
   bookBtn: { marginTop: 10, backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 8, width: '100%', alignItems: 'center' },
   bookBtnText: { fontSize: 13, fontWeight: '700', color: PRIMARY },
 

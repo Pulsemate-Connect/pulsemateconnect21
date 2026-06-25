@@ -22,13 +22,18 @@ export default function AppointmentDetailScreen({ route, navigation }) {
   const { id } = route.params;
   const [appt, setAppt]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadAppointment = () => {
+    setLoadError(false);
+    setLoading(true);
     getAppointmentDetail(id)
       .then((r) => setAppt(r.data.data.appointment))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  useEffect(() => { loadAppointment(); }, [id]);
 
   const handleCancel = () => {
     Alert.alert('Cancel Appointment', 'Are you sure you want to cancel?', [
@@ -69,6 +74,29 @@ export default function AppointmentDetailScreen({ route, navigation }) {
   if (loading) return (
     <SafeAreaView style={s.safe}>
       <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 60 }} />
+    </SafeAreaView>
+  );
+
+  if (loadError) return (
+    <SafeAreaView style={s.safe}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+      </TouchableOpacity>
+      <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 }}>
+        <Ionicons name="wifi-outline" size={48} color={colors.textMuted} />
+        <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 16, textAlign: 'center' }}>
+          Could not load appointment
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 8, textAlign: 'center', lineHeight: 20 }}>
+          Check your internet connection and try again.
+        </Text>
+        <TouchableOpacity
+          onPress={loadAppointment}
+          style={{ marginTop: 20, backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 13 }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 

@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, Animated,
+  ScrollView, ActivityIndicator, Alert, Animated, Modal,
   Dimensions, StatusBar, ToastAndroid, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,13 +60,6 @@ const showToast = (msg) => {
 // ── Symptom tags ──────────────────────────────────────────────────────────────
 const SYMPTOM_TAGS = ['Fever','Headache','Back Pain','Cough','Fatigue','Chest Pain','Stomach Ache','Dizziness'];
 
-// ── Mock saved family members ─────────────────────────────────────────────────
-const SAVED_FAMILY = [
-  { id: 'f1', name: 'Priya Sharma',  relation: 'Spouse',  initials: 'PS', color: '#DBEAFE', textColor: '#1D4ED8' },
-  { id: 'f2', name: 'Raj Sharma',    relation: 'Father',  initials: 'RS', color: '#D1FAE5', textColor: '#065F46' },
-  { id: 'f3', name: 'Meera Sharma',  relation: 'Mother',  initials: 'MS', color: '#EDE9FE', textColor: '#5B21B6' },
-];
-
 // ── Progress stepper ──────────────────────────────────────────────────────────
 function ProgressStepper({ step }) {
   const steps = ['For Whom','Visit','Date','Session','Notes'];
@@ -120,6 +113,7 @@ const FOR_WHOM_OPTIONS = [
 ];
 
 // ── Success Overlay ───────────────────────────────────────────────────────────
+// ── Success Overlay — uses Modal for reliable z-index above tab bar ────────────
 function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, isFree }) {
   const scaleA = useRef(new Animated.Value(0)).current;
   const fadeA  = useRef(new Animated.Value(0)).current;
@@ -127,6 +121,9 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
 
   useEffect(() => {
     if (visible) {
+      scaleA.setValue(0);
+      fadeA.setValue(0);
+      checkA.setValue(0);
       Animated.sequence([
         Animated.parallel([
           Animated.spring(scaleA, { toValue: 1, friction: 5, tension: 70, useNativeDriver: true }),
@@ -137,52 +134,65 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
     }
   }, [visible]);
 
-  if (!visible) return null;
-
   return (
-    <Animated.View style={[so.overlay, { opacity: fadeA }]}>
-      <Animated.View style={[so.card, { transform: [{ scale: scaleA }] }]}>
-        <Animated.View style={[so.checkCircle, { transform: [{ scale: checkA }] }]}>
-          <View style={[so.checkInner, isFree && { backgroundColor: GREEN }]}>
-            <Ionicons name={isFree ? 'gift' : 'checkmark'} size={36} color={WHITE} />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={() => {}}
+      accessibilityViewIsModal
+    >
+      <Animated.View style={[so.overlay, { opacity: fadeA }]}>
+        <Animated.View style={[so.card, { transform: [{ scale: scaleA }] }]}>
+          <Animated.View style={[so.checkCircle, { transform: [{ scale: checkA }] }]}>
+            <View style={[so.checkInner, isFree && { backgroundColor: GREEN }]}>
+              <Ionicons name={isFree ? 'gift' : 'checkmark'} size={36} color={WHITE} />
+            </View>
+          </Animated.View>
+          <Text style={so.title}>{isFree ? '🎉 First Booking Free!' : 'Booking Confirmed!'}</Text>
+          <Text style={so.sub}>{isFree ? 'Your appointment is confirmed at no charge.' : 'Your appointment has been successfully booked.'}</Text>
+          <View style={so.detailBox}>
+            <View style={so.detailRow}>
+              <Ionicons name="person" size={13} color={BLUE} />
+              <Text style={so.detailLabel}>Doctor</Text>
+              <Text style={so.detailVal}>{fmtDoctorName(doctorName)}</Text>
+            </View>
+            <View style={so.divider} />
+            <View style={so.detailRow}>
+              <Ionicons name="calendar" size={13} color={GREEN} />
+              <Text style={so.detailLabel}>Date</Text>
+              <Text style={so.detailVal}>{fmtDate(date)}{slot ? ` · ${fmt12(slot)}` : ''}</Text>
+            </View>
+            {queueNumber && (
+              <>
+                <View style={so.divider} />
+                <View style={so.detailRow}>
+                  <Ionicons name="people" size={13} color={BLUE} />
+                  <Text style={so.detailLabel}>Queue Token</Text>
+                  <Text style={[so.detailVal, { color: BLUE, fontWeight: '800' }]}>#{queueNumber}</Text>
+                </View>
+              </>
+            )}
           </View>
+          <TouchableOpacity
+            style={so.btn}
+            onPress={onView}
+            activeOpacity={0.88}
+            accessibilityLabel="View my appointments"
+            accessibilityRole="button"
+          >
+            <Text style={so.btnText}>View My Appointments</Text>
+            <Ionicons name="arrow-forward" size={16} color={WHITE} />
+          </TouchableOpacity>
         </Animated.View>
-        <Text style={so.title}>{isFree ? '🎉 First Booking Free!' : 'Booking Confirmed!'}</Text>
-        <Text style={so.sub}>{isFree ? 'Your appointment is confirmed at no charge.' : 'Your appointment has been successfully booked.'}</Text>
-        <View style={so.detailBox}>
-          <View style={so.detailRow}>
-            <Ionicons name="person" size={13} color={BLUE} />
-            <Text style={so.detailLabel}>Doctor</Text>
-            <Text style={so.detailVal}>{fmtDoctorName(doctorName)}</Text>
-          </View>
-          <View style={so.divider} />
-          <View style={so.detailRow}>
-            <Ionicons name="calendar" size={13} color={GREEN} />
-            <Text style={so.detailLabel}>Date</Text>
-            <Text style={so.detailVal}>{fmtDate(date)}{slot ? ` · ${fmt12(slot)}` : ''}</Text>
-          </View>
-          {queueNumber && (
-            <>
-              <View style={so.divider} />
-              <View style={so.detailRow}>
-                <Ionicons name="people" size={13} color={BLUE} />
-                <Text style={so.detailLabel}>Queue Token</Text>
-                <Text style={[so.detailVal, { color: BLUE, fontWeight: '800' }]}>#{queueNumber}</Text>
-              </View>
-            </>
-          )}
-        </View>
-        <TouchableOpacity style={so.btn} onPress={onView} activeOpacity={0.88}>
-          <Text style={so.btnText}>View My Appointments</Text>
-          <Ionicons name="arrow-forward" size={16} color={WHITE} />
-        </TouchableOpacity>
       </Animated.View>
-    </Animated.View>
+    </Modal>
   );
 }
 
 const so = StyleSheet.create({
-  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.75)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  overlay:    { flex: 1, backgroundColor: 'rgba(15,23,42,0.75)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   card:       { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', width: '100%' },
   checkCircle:{ width: 88, height: 88, borderRadius: 44, backgroundColor: GREEN_L, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   checkInner: { width: 70, height: 70, borderRadius: 35, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
@@ -210,7 +220,6 @@ export default function BookingScreen({ route, navigation }) {
   const [slot,          setSlot]          = useState('');
   const [notes,         setNotes]         = useState('');
   const [notesFocused,  setNotesFocused]  = useState(false);
-  const [showFeeBreakdown, setShowFeeBreakdown] = useState(false);
   const [selectedFamily,   setSelectedFamily]   = useState(null); // id of selected saved member
 
   // Family member state
@@ -357,6 +366,14 @@ export default function BookingScreen({ route, navigation }) {
       return;
     }
     if (!date) { Alert.alert('Select Date', 'Please pick an appointment date.'); return; }
+    // Validate date is today or future
+    const selectedDate = new Date(date);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (selectedDate < today) {
+      Alert.alert('Invalid Date', 'Please select today or a future date.');
+      return;
+    }
+    if (!session) { Alert.alert('Select Session', 'Please select a morning, afternoon, or evening session.'); return; }
     setLoading(true);
     try {
       const initRes = await initiatePayment({
@@ -408,8 +425,6 @@ export default function BookingScreen({ route, navigation }) {
 
   const consultFee = fee || 0;
   const initials   = (doctorName || 'D').charAt(0).toUpperCase();
-
-  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
@@ -417,7 +432,13 @@ export default function BookingScreen({ route, navigation }) {
       {/* ── Header ── */}
       <SafeAreaView edges={['top']} style={s.headerSafe}>
         <View style={s.header}>
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.backBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
             <Ionicons name="arrow-back" size={20} color={SLATE} />
           </TouchableOpacity>
           <Text style={s.headerTitle}>Book Appointment</Text>
@@ -430,7 +451,7 @@ export default function BookingScreen({ route, navigation }) {
 
       {/* ── Scrollable body ── */}
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 110 }]}
+        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 140 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -462,12 +483,8 @@ export default function BookingScreen({ route, navigation }) {
             <Text style={s.ratingText}>4.8</Text>
             <Text style={s.reviewsText}>(240 reviews)</Text>
           </View>
-          {/* Fee + Availability row */}
+          {/* Availability row */}
           <View style={s.feeRow}>
-            <TouchableOpacity style={s.feeTouchRow} onPress={() => setShowFeeBreakdown(v => !v)} activeOpacity={0.8}>
-              <Text style={s.feeText}>₹{consultFee} Consultation Fee</Text>
-              <Ionicons name={showFeeBreakdown ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED} style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
             <View style={s.availableRow}>
               <View style={s.pulseWrap}>
                 <Animated.View style={[s.pulseDotRing, { transform: [{ scale: pulseA }] }]} />
@@ -476,26 +493,6 @@ export default function BookingScreen({ route, navigation }) {
               <Text style={s.availableText}>Available Today</Text>
             </View>
           </View>
-          {showFeeBreakdown && (
-            <View style={s.feeBreakdown}>
-              {[
-                { label: 'Consultation Fee', amount: consultFee },
-                { label: 'Platform Fee',     amount: 0          },
-                { label: 'GST (18%)',        amount: 0          },
-              ].map((row, i) => (
-                <View key={row.label} style={[s.feeBreakRow, i < 2 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                  <Text style={s.feeBreakLabel}>{row.label}</Text>
-                  <Text style={[s.feeBreakAmount, row.amount === 0 && { color: GREEN }]}>
-                    {row.amount === 0 ? 'FREE' : `₹${row.amount}`}
-                  </Text>
-                </View>
-              ))}
-              <View style={s.feeTotalRow}>
-                <Text style={s.feeTotalLabel}>Total Payable</Text>
-                <Text style={s.feeTotalAmount}>₹{consultFee}</Text>
-              </View>
-            </View>
-          )}
         </View>
 
         {/* ── Section 1: For Whom ── */}
@@ -538,6 +535,8 @@ export default function BookingScreen({ route, navigation }) {
                   style={[s.savedMemberChip, selectedFamily === 'self' && s.savedMemberChipActive]}
                   onPress={() => setSelectedFamily('self')}
                   activeOpacity={0.8}
+                  accessibilityLabel="Book for myself"
+                  accessibilityRole="button"
                 >
                   <View style={[s.savedMemberAvatar, { backgroundColor: GREEN_L }]}>
                     <Text style={[s.savedMemberInitials, { color: GREEN }]}>
@@ -550,24 +549,6 @@ export default function BookingScreen({ route, navigation }) {
                   </View>
                   {selectedFamily === 'self' && <Ionicons name="checkmark-circle" size={14} color={BLUE} />}
                 </TouchableOpacity>
-                {/* Saved members */}
-                {SAVED_FAMILY.map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[s.savedMemberChip, selectedFamily === m.id && s.savedMemberChipActive]}
-                    onPress={() => setSelectedFamily(m.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[s.savedMemberAvatar, { backgroundColor: m.color }]}>
-                      <Text style={[s.savedMemberInitials, { color: m.textColor }]}>{m.initials}</Text>
-                    </View>
-                    <View>
-                      <Text style={s.savedMemberName}>{m.name}</Text>
-                      <Text style={s.savedMemberRelation}>{m.relation}</Text>
-                    </View>
-                    {selectedFamily === m.id && <Ionicons name="checkmark-circle" size={14} color={BLUE} />}
-                  </TouchableOpacity>
-                ))}
               </ScrollView>
 
               <View style={s.orRow}>
@@ -715,7 +696,10 @@ export default function BookingScreen({ route, navigation }) {
         <View style={s.section}>
           <Text style={s.sectionTitle}>4. Select Session</Text>
           {!date ? (
-            <Text style={s.selectDateHint}>Please select a date first</Text>
+            <View style={s.selectDateHintWrap}>
+              <Ionicons name="calendar-outline" size={22} color={MUTED} />
+              <Text style={s.selectDateHint}>Please select a date first to see available sessions</Text>
+            </View>
           ) : (slotsLoading || sessionsLoading) ? (
             <View style={s.loadingRow}>
               <ActivityIndicator color={BLUE} />
@@ -726,50 +710,80 @@ export default function BookingScreen({ route, navigation }) {
             <>
               <View style={s.sessionRow}>
                 {clinicSessions.map((sess) => {
-                  const active = session === sess.id;
-                  const sessSlots = getSlotsForSession(sess);
-                  const availableSlots = sessSlots.filter(sl => sl.available);
-                  const hasSlots = availableSlots.length > 0;
-                  const name = sess.sessionName.toLowerCase();
-                  const icon = name.includes('morning') ? 'sunny'
-                    : name.includes('evening') ? 'moon'
-                    : name.includes('afternoon') ? 'partly-sunny' : 'time-outline';
-                  const iconColor = active ? BLUE
-                    : name.includes('morning') ? '#F59E0B'
-                    : name.includes('evening') ? '#6366F1' : '#10B981';
+                  const active  = session === sess.id;
+                  const name    = sess.sessionName.toLowerCase();
+                  const icon    = name.includes('morning')   ? 'sunny-outline'
+                    : name.includes('afternoon') ? 'partly-sunny-outline'
+                    : name.includes('evening')   ? 'moon-outline' : 'time-outline';
+                  const iconColor = active ? WHITE
+                    : name.includes('morning')   ? '#F59E0B'
+                    : name.includes('afternoon') ? '#10B981'
+                    : name.includes('evening')   ? '#6366F1' : BLUE;
                   return (
-                    <TouchableOpacity key={sess.id}
-                      style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
-                      onPress={() => hasSlots && handleSessionSelect(sess.id)}
-                      activeOpacity={hasSlots ? 0.85 : 1}
+                    <TouchableOpacity
+                      key={sess.id}
+                      style={[s.sessionCard, active && s.sessionCardActive]}
+                      onPress={() => handleSessionSelect(sess.id)}
+                      activeOpacity={0.85}
                     >
-                      {active && <View style={s.sessionCheck}><Ionicons name="checkmark" size={10} color={WHITE} /></View>}
-                      <Ionicons name={icon} size={28} color={active ? BLUE : (hasSlots ? iconColor : MUTED)} />
+                      {active && (
+                        <View style={s.sessionCheck}>
+                          <Ionicons name="checkmark" size={10} color={WHITE} />
+                        </View>
+                      )}
+                      <View style={[s.sessionIconWrap, active && s.sessionIconWrapActive, { borderColor: iconColor + '30' }]}>
+                        <Ionicons name={icon} size={24} color={iconColor} />
+                      </View>
                       <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>{sess.sessionName}</Text>
-                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>{fmt12(sess.startTime)} – {fmt12(sess.endTime)}</Text>
-                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
-                      {hasSlots && slot && active && <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>}
+                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>
+                        {fmt12(sess.startTime)} – {fmt12(sess.endTime)}
+                      </Text>
+                      <View style={[s.sessionAvailBadge, active && s.sessionAvailBadgeActive]}>
+                        <View style={[s.sessionAvailDot, active && { backgroundColor: WHITE }]} />
+                        <Text style={[s.sessionAvailText, active && s.sessionAvailTextActive]}>
+                          ✓ Available
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
               </View>
+              {/* Slot time picker — only when slots are returned from API */}
               {session && (() => {
-                const sel = clinicSessions.find(cs => cs.id === session);
+                const sel       = clinicSessions.find(cs => cs.id === session);
                 const sessSlots = sel ? getSlotsForSession(sel) : [];
-                if (!sessSlots.length) return null;
+                if (!sessSlots.length) {
+                  return (
+                    <View style={s.noSlotsEmpty}>
+                      <Ionicons name="time-outline" size={24} color={MUTED} />
+                      <Text style={s.noSlotsEmptyTitle}>No specific slots configured</Text>
+                      <Text style={s.noSlotsEmptySub}>
+                        You can still book — your queue position will be assigned on the appointment day.
+                      </Text>
+                    </View>
+                  );
+                }
                 return (
                   <View style={s.slotGrid}>
-                    <Text style={s.slotGridTitle}>Available Time Slots</Text>
+                    <Text style={s.slotGridTitle}>Pick a time slot (optional)</Text>
                     <View style={s.slotGridRow}>
                       {sessSlots.map((sl) => {
-                        const active = slot === sl.time;
+                        const slotActive = slot === sl.time;
                         return (
-                          <TouchableOpacity key={sl.time}
-                            style={[s.slotChip, active && s.slotChipActive, !sl.available && { opacity: 0.4 }]}
-                            onPress={() => sl.available && setSlot(sl.time)}
+                          <TouchableOpacity
+                            key={sl.time}
+                            style={[s.slotChip, slotActive && s.slotChipActive, !sl.available && s.slotChipBooked]}
+                            onPress={() => sl.available && setSlot(slotActive ? '' : sl.time)}
                             activeOpacity={sl.available ? 0.8 : 1}
+                            accessibilityLabel={`Time slot ${fmt12(sl.time)}${!sl.available ? ', fully booked' : ''}`}
+                            accessibilityRole="button"
                           >
-                            <Text style={[s.slotChipText, active && s.slotChipTextActive]}>{fmt12(sl.time)}</Text>
+                            <Text style={[s.slotChipText, slotActive && s.slotChipTextActive]}>
+                              {fmt12(sl.time)}
+                            </Text>
+                            {!sl.available && (
+                              <Text style={s.slotBookedText}>Booked</Text>
+                            )}
                           </TouchableOpacity>
                         );
                       })}
@@ -777,42 +791,45 @@ export default function BookingScreen({ route, navigation }) {
                   </View>
                 );
               })()}
-              {slots.length === 0 && <Text style={s.noSlotsText}>No slots available for this day. Try a different date.</Text>}
             </>
           ) : (
-            // ── Fallback: no clinic sessions configured ──
+            // ── Fallback sessions: no clinic sessions configured — show standard time windows ──
             <>
               <View style={s.sessionRow}>
-                {(() => {
-                  const active = session === 'morning';
-                  const hasSlots = morningSlots.length > 0;
+                {[
+                  { key: 'morning',   label: 'Morning Session',   icon: 'sunny-outline',        iconColor: '#F59E0B', time: '8:00 AM – 12:00 PM' },
+                  { key: 'afternoon', label: 'Afternoon Session', icon: 'partly-sunny-outline', iconColor: '#10B981', time: '12:00 PM – 4:00 PM'  },
+                  { key: 'evening',   label: 'Evening Session',   icon: 'moon-outline',         iconColor: '#6366F1', time: '4:00 PM – 9:00 PM'   },
+                ].map((sess) => {
+                  const active = session === sess.key;
                   return (
-                    <TouchableOpacity style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
-                      onPress={() => hasSlots && handleSessionSelect('morning')} activeOpacity={hasSlots ? 0.85 : 1}>
-                      {active && <View style={s.sessionCheck}><Ionicons name="checkmark" size={10} color={WHITE} /></View>}
-                      <Ionicons name="sunny" size={28} color={active ? BLUE : (hasSlots ? '#F59E0B' : MUTED)} />
-                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Morning Session</Text>
-                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>8:00 AM – 2:00 PM</Text>
-                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
+                    <TouchableOpacity
+                      key={sess.key}
+                      style={[s.sessionCard, active && s.sessionCardActive]}
+                      onPress={() => handleSessionSelect(sess.key)}
+                      activeOpacity={0.85}
+                      accessibilityLabel={`${sess.label}, ${sess.time}, available`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                    >
+                      {active && (
+                        <View style={s.sessionCheck}>
+                          <Ionicons name="checkmark" size={10} color={WHITE} />
+                        </View>
+                      )}
+                      <View style={[s.sessionIconWrap, active && s.sessionIconWrapActive]}>
+                        <Ionicons name={sess.icon} size={24} color={active ? WHITE : sess.iconColor} />
+                      </View>
+                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>{sess.label}</Text>
+                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>{sess.time}</Text>
+                      <View style={[s.sessionAvailBadge, active && s.sessionAvailBadgeActive]}>
+                        <View style={[s.sessionAvailDot, active && { backgroundColor: WHITE }]} />
+                        <Text style={[s.sessionAvailText, active && s.sessionAvailTextActive]}>✓ Available</Text>
+                      </View>
                     </TouchableOpacity>
                   );
-                })()}
-                {(() => {
-                  const active = session === 'evening';
-                  const hasSlots = eveningSlots.length > 0;
-                  return (
-                    <TouchableOpacity style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
-                      onPress={() => hasSlots && handleSessionSelect('evening')} activeOpacity={hasSlots ? 0.85 : 1}>
-                      {active && <View style={s.sessionCheck}><Ionicons name="checkmark" size={10} color={WHITE} /></View>}
-                      <Ionicons name="moon" size={28} color={active ? BLUE : (hasSlots ? '#6366F1' : MUTED)} />
-                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Evening Session</Text>
-                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>4:00 PM – 9:00 PM</Text>
-                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
-                    </TouchableOpacity>
-                  );
-                })()}
+                })}
               </View>
-              {slots.length === 0 && <Text style={s.noSlotsText}>No sessions available for this day. Please select another date.</Text>}
             </>
           )}
           <View style={s.queueInfo}>
@@ -880,22 +897,37 @@ export default function BookingScreen({ route, navigation }) {
       </ScrollView>
 
       {/* ── Sticky Bottom Bar ── */}
-      <View style={[s.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[s.stickyBar, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity
-          style={[s.confirmBtn, (loading || !date) && s.confirmBtnDisabled]}
+          style={[
+            s.confirmBtn,
+            (!date || !session || loading) && s.confirmBtnDisabled,
+          ]}
           onPress={handleBook}
-          disabled={loading}
+          disabled={loading || !date || !session}
           activeOpacity={0.88}
+          accessibilityLabel={
+            !date ? 'Select a date first' :
+            !session ? 'Select a session first' :
+            isFreeBooking ? 'Confirm free booking' : 'Confirm appointment'
+          }
+          accessibilityRole="button"
         >
           {loading ? (
             <ActivityIndicator color={WHITE} size="small" />
+          ) : !date ? (
+            <Text style={s.confirmBtnText}>Select a Date</Text>
+          ) : !session ? (
+            <Text style={s.confirmBtnText}>Select a Session</Text>
           ) : (
             <Text style={s.confirmBtnText}>
-              {isFreeBooking ? 'Confirm Free Booking' : 'Confirm Appointment'}
+              {isFreeBooking ? '🎉 Confirm Free Booking' : 'Confirm Appointment'}
             </Text>
           )}
         </TouchableOpacity>
-        <Text style={s.noCharge}>You won't be charged now</Text>
+        {isFreeBooking && date && session && (
+          <Text style={s.noCharge}>🎁 No payment required — first booking benefit</Text>
+        )}
       </View>
 
       {/* ── Success overlay ── */}
@@ -965,7 +997,6 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER,
   },
-  feeText:     { fontSize: 14, fontWeight: '700', color: SLATE },
   availableRow:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
   availableText:{ fontSize: 13, fontWeight: '600', color: GREEN },
 
@@ -1092,32 +1123,63 @@ const s = StyleSheet.create({
   dateMonth:   { fontSize: 10, color: MUTED, fontWeight: '600' },
   dateTextActive:{ color: WHITE },
 
-  // Session
-  sessionRow:        { flexDirection: 'row', gap: 12, marginBottom: 10 },
-  sessionCard:       {
-    flex: 1, alignItems: 'center', paddingVertical: 20,
-    borderRadius: 12, borderWidth: 1.5, borderColor: BORDER,
-    backgroundColor: BG, gap: 6, position: 'relative',
+  // Session — equal-width 3-column using percentage widths (M5 fix)
+  sessionRow:          { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  sessionCard:         {
+    width: '31.5%', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4,
+    borderRadius: 16, borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: WHITE, gap: 6, position: 'relative',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  sessionCardActive: { borderColor: BLUE, backgroundColor: BLUE_L },
-  sessionCardDisabled:{ opacity: 0.45 },
-  sessionCheck:      {
+  sessionCardActive:   {
+    borderColor: BLUE, backgroundColor: BLUE,
+    shadowColor: BLUE, shadowOpacity: 0.3, elevation: 5,
+  },
+  sessionIconWrap:     {
+    width: 42, height: 42, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: BG, borderWidth: 1, borderColor: BORDER,
+  },
+  sessionIconWrapActive: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  sessionCheck:        {
     position: 'absolute', top: 8, right: 8,
     width: 20, height: 20, borderRadius: 10,
-    backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center',
   },
-  sessionLabel:      { fontSize: 13, fontWeight: '600', color: SLATE_6, textAlign: 'center' },
-  sessionLabelActive:{ color: BLUE, fontWeight: '700' },
-  sessionTime:       { fontSize: 11, color: MUTED, textAlign: 'center' },
-  sessionTimeActive: { color: BLUE },
-  sessionNA:         { fontSize: 10, color: RED, fontWeight: '600' },
-  sessionSlotHint:   { fontSize: 10, color: BLUE, fontWeight: '600' },
-  selectDateHint:    { fontSize: 13, color: MUTED, textAlign: 'center', paddingVertical: 16 },
-  loadingRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },
-  loadingText:       { fontSize: 13, color: MUTED },
-  noSlotsText:       { fontSize: 12, color: MUTED, textAlign: 'center', marginBottom: 8 },
-  queueInfo:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  queueInfoText:     { fontSize: 11, color: MUTED, flex: 1, lineHeight: 16 },
+  sessionLabel:        { fontSize: 12, fontWeight: '700', color: SLATE_6, textAlign: 'center' },
+  sessionLabelActive:  { color: WHITE, fontWeight: '800' },
+  sessionTime:         { fontSize: 10, color: MUTED, textAlign: 'center', lineHeight: 15 },
+  sessionTimeActive:   { color: 'rgba(255,255,255,0.85)' },
+  // Available badge
+  sessionAvailBadge:   {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#DCFCE7', borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  sessionAvailBadgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  sessionAvailDot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
+  sessionAvailText:    { fontSize: 10, fontWeight: '700', color: GREEN },
+  sessionAvailTextActive: { color: WHITE },
+  // Slot booked badge
+  slotChipBooked:      { opacity: 0.4 },
+  slotBookedText:      { fontSize: 9, color: RED, fontWeight: '600', textAlign: 'center' },
+
+  // Empty slot state (M8)
+  noSlotsEmpty:        { alignItems: 'center', gap: 6, paddingVertical: 18, paddingHorizontal: 16, backgroundColor: BG, borderRadius: 12, marginTop: 4 },
+  noSlotsEmptyTitle:   { fontSize: 13, fontWeight: '700', color: SLATE_6, textAlign: 'center' },
+  noSlotsEmptySub:     { fontSize: 12, color: MUTED, textAlign: 'center', lineHeight: 18 },
+
+  // Select date hint
+  selectDateHintWrap:  { alignItems: 'center', gap: 8, paddingVertical: 20 },
+  selectDateHint:      { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 20 },
+  loadingRow:          { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 20, justifyContent: 'center' },
+  loadingText:         { fontSize: 13, color: MUTED },
+  queueInfo:           { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 10, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10 },
+  queueInfoText:       { fontSize: 11, color: MUTED, flex: 1, lineHeight: 16 },
 
   // Notes
   notesWrap:   {
@@ -1138,40 +1200,33 @@ const s = StyleSheet.create({
   freeBannerTitle:{ fontSize: 14, fontWeight: '700', color: '#14532D', marginBottom: 3 },
   freeBannerSub:  { fontSize: 12, color: '#166534', lineHeight: 17 },
 
-  // Sticky bar
+  // Sticky bar — sits above tab bar with proper spacing
   stickyBar:   {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: WHITE, paddingHorizontal: 16, paddingTop: 14,
+    backgroundColor: WHITE,
+    paddingHorizontal: 16, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: BORDER,
-    shadowColor: '#0F172A', shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08, shadowRadius: 10, elevation: 12,
-    alignItems: 'center',
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.10, shadowRadius: 12, elevation: 14,
   },
   confirmBtn:  {
-    width: '100%', backgroundColor: BLUE,
-    borderRadius: 14, paddingVertical: 16,
+    width: '100%', borderRadius: 16, paddingVertical: 17,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 10, elevation: 7,
+    backgroundColor: BLUE,
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.38, shadowRadius: 12, elevation: 8,
   },
-  confirmBtnDisabled:{ backgroundColor: MUTED, shadowOpacity: 0 },
-  confirmBtnText:    { fontSize: 16, fontWeight: '700', color: WHITE },
-  noCharge:          { fontSize: 12, color: MUTED, marginTop: 6 },
+  confirmBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+    shadowOpacity: 0, elevation: 0,
+  },
+  confirmBtnText: { fontSize: 16, fontWeight: '800', color: WHITE, letterSpacing: 0.1 },
+  noCharge:       { fontSize: 12, color: GREEN, marginTop: 6, textAlign: 'center', fontWeight: '600' },
 
   // Pulsing dot
   pulseWrap:   { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   pulseDotRing:{ position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: GREEN_DOT, opacity: 0.3 },
   greenDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN_DOT },
-
-  // Fee breakdown
-  feeTouchRow:   { flexDirection: 'row', alignItems: 'center' },
-  feeBreakdown:  { marginTop: 12, borderRadius: 10, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
-  feeBreakRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 9, backgroundColor: BG },
-  feeBreakLabel: { fontSize: 12, color: SLATE_6 },
-  feeBreakAmount:{ fontSize: 12, fontWeight: '700', color: SLATE },
-  feeTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: BLUE_L },
-  feeTotalLabel: { fontSize: 13, fontWeight: '700', color: BLUE },
-  feeTotalAmount:{ fontSize: 13, fontWeight: '800', color: BLUE },
 
   // Saved family member chips
   savedMemberChip:      { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: BG },

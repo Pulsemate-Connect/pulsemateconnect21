@@ -2,11 +2,11 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
-// ── API URL resolution ─────────────────────────────────────────────────────
-const isDev = __DEV__;
-export const BASE_URL = isDev
-  ? (Constants.expoConfig?.extra?.apiUrlDev ?? 'http://192.168.31.240:5000/api')
-  : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://api.pulsemateconnect.in/api');
+// ── API URL resolution — always uses production URL in builds ─────────────
+// Dev IP is NEVER bundled into production. Use eas.json build env vars.
+export const BASE_URL =
+  Constants.expoConfig?.extra?.apiUrl ??
+  'https://api.pulsemateconnect.in/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -42,10 +42,15 @@ api.interceptors.response.use(
   async (error) => {
     if (error.response?.status === 401) {
       await SecureStore.deleteItemAsync('accessToken');
-      // Call global sign-out which clears auth state → AuthNavigator shows Login
       if (_globalSignOut) {
         try { _globalSignOut(); } catch { }
       }
+    }
+    // Map network errors to user-friendly messages
+    if (!error.response && error.code === 'ECONNABORTED') {
+      error.friendlyMessage = 'Request timed out. Please check your internet connection.';
+    } else if (!error.response && (error.message?.includes('Network Error') || error.message?.includes('network'))) {
+      error.friendlyMessage = 'No internet connection. Please check your network and try again.';
     }
     return Promise.reject(error);
   }

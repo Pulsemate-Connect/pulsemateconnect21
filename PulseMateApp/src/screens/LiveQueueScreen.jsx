@@ -248,6 +248,7 @@ export default function LiveQueueScreen({ route, navigation }) {
 
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Animations
   const flashA    = useRef(new Animated.Value(0)).current;
@@ -268,13 +269,19 @@ export default function LiveQueueScreen({ route, navigation }) {
   const handleData = useCallback((payload) => {
     setData(payload);
     setLoading(false);
+    setLoadError(false);
     triggerFlash();
   }, [triggerFlash]);
+
+  const handleError = useCallback(() => {
+    setLoading(false);
+    if (!data) setLoadError(true); // only show error screen if no data loaded yet
+  }, [data]);
 
   const { socketState, lastUpdated, manualRefresh } = useQueueSocket(
     appointmentId,
     handleData,
-    () => setLoading(false),
+    handleError,
   );
 
   // ── Derived from data ──────────────────────────────────────────────────────
@@ -314,6 +321,36 @@ export default function LiveQueueScreen({ route, navigation }) {
         <View style={lq.loadingBody}>
           <ActivityIndicator color={SKY5} size="large" />
           <Text style={lq.loadingText}>Connecting to live queue...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Error state ─────────────────────────────────────────────────────────────
+  if (loadError && !data) {
+    return (
+      <View style={lq.loadingRoot}>
+        <StatusBar barStyle="light-content" backgroundColor={SKY7} />
+        <View style={[lq.loadingHeader, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity style={lq.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={WHITE} />
+          </TouchableOpacity>
+          <Text style={lq.loadingTitle}>Live Queue</Text>
+        </View>
+        <View style={lq.loadingBody}>
+          <Ionicons name="wifi-outline" size={52} color="rgba(255,255,255,0.6)" />
+          <Text style={lq.loadingText}>Could not connect to queue</Text>
+          <Text style={[lq.loadingText, { fontSize: 12, marginTop: -8, opacity: 0.7 }]}>
+            Check your internet connection and try again
+          </Text>
+          <TouchableOpacity
+            onPress={() => { setLoadError(false); setLoading(true); manualRefresh(); }}
+            style={{ marginTop: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh" size={16} color={WHITE} />
+            <Text style={{ color: WHITE, fontWeight: '700', fontSize: 14 }}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

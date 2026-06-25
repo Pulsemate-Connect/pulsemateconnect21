@@ -15,10 +15,9 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifyPhoneOtp, sendOtpToPhone, firebaseConfig } from '../config/firebase';
+import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
 import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 const LOGO = require('../../assets/logo11.png');
 
@@ -80,7 +79,6 @@ export default function OtpScreen({ route, navigation }) {
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
   const progressA    = useRef(new Animated.Value(0)).current;
-  const recaptchaVerifier = useRef(null);
 
   const r0=useRef(null); const r1=useRef(null); const r2=useRef(null);
   const r3=useRef(null); const r4=useRef(null); const r5=useRef(null);
@@ -145,7 +143,20 @@ export default function OtpScreen({ route, navigation }) {
     } catch (err) {
       setStatus('error');
       triggerShake();
-      const msg = err.response?.data?.message || err.message || 'Verification failed. Please try again.';
+      // Map Firebase error codes to friendly messages
+      let msg = err.response?.data?.message || err.message || 'Verification failed. Please try again.';
+      if (msg.includes('CODE_EXPIRED') || msg.includes('code-expired') || msg.includes('invalid-verification-code')) {
+        msg = 'OTP has expired or is incorrect. Please tap Resend OTP to get a new code.';
+        // Reset digits so user can enter fresh code after resend
+        setDigits(['', '', '', '', '', '']);
+        setCooldown(0); // allow immediate resend
+      } else if (msg.includes('too-many-requests') || msg.includes('TOO_MANY_ATTEMPTS_TRY_LATER')) {
+        msg = 'Too many attempts. Please wait a few minutes before trying again.';
+      } else if (msg.includes('session-expired') || msg.includes('SESSION_EXPIRED')) {
+        msg = 'Session expired. Please go back and request a new OTP.';
+        setDigits(['', '', '', '', '', '']);
+        setCooldown(0);
+      }
       Alert.alert('Verification Failed', msg);
     } finally {
       setLoading(false);
@@ -154,9 +165,7 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleResend = async () => {
     try {
-      // Need a fresh reCAPTCHA token to resend
-      const recaptchaToken = await recaptchaVerifier.current.verify();
-      const newSession = await sendOtpToPhone(mobile, recaptchaToken);
+      const newSession = await sendOtpToPhone(mobile);
       setSessionInfo(newSession);
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
@@ -181,13 +190,6 @@ export default function OtpScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* reCAPTCHA for resend OTP */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>

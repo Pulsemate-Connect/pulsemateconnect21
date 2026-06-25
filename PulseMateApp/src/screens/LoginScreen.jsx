@@ -3,21 +3,22 @@
  *
  * Flow:
  *   1. User enters 10-digit mobile number and taps Send OTP
- *   2. FirebaseRecaptchaVerifierModal handles reCAPTCHA silently
- *   3. Firebase REST API sends SMS OTP
- *   4. Navigate to OtpScreen with { mobile, sessionInfo }
+ *   2. Firebase REST API sends SMS OTP directly
+ *   3. Navigate to OtpScreen with { mobile, sessionInfo }
  */
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert, StatusBar, Image,
+  ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { firebaseConfig, sendOtpToPhone } from '../config/firebase';
+import { sendOtpToPhone } from '../config/firebase';
+import Constants from 'expo-constants';
 
 const LOGO = require('../../assets/logo11.png');
+const PRIVACY_URL = Constants.expoConfig?.extra?.privacyPolicyUrl ?? 'https://pulsemateconnect.in/privacy-policy';
+const TERMS_URL   = Constants.expoConfig?.extra?.termsUrl ?? 'https://pulsemateconnect.in/terms';
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -55,9 +56,14 @@ export default function LoginScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [sendCooldown, setSendCooldown] = useState(0); // seconds remaining
 
-  // Ref for the invisible reCAPTCHA modal (required by Firebase Phone Auth)
-  const recaptchaVerifier = useRef(null);
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (sendCooldown <= 0) return;
+    const t = setInterval(() => setSendCooldown((c) => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; }), 1000);
+    return () => clearInterval(t);
+  }, [sendCooldown]);
 
   const handleSendOtp = async () => {
     const trimmed = mobile.trim();
@@ -68,9 +74,9 @@ export default function LoginScreen({ navigation }) {
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
     try {
-      // reCAPTCHA resolves automatically (invisible mode), then Firebase sends SMS
-      const recaptchaToken = await recaptchaVerifier.current.verify();
-      const sessionInfo = await sendOtpToPhone(fullNumber, recaptchaToken);
+      // Firebase REST API — no reCAPTCHA ref needed
+      const sessionInfo = await sendOtpToPhone(fullNumber);
+      setSendCooldown(30);
       navigation.navigate('Otp', { mobile: fullNumber, sessionInfo });
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
@@ -79,18 +85,11 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const canSend = mobile.trim().length >= 10 && !loading;
+  const canSend = mobile.trim().length >= 10 && !loading && sendCooldown === 0;
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* Invisible reCAPTCHA modal — required by Firebase Phone Auth */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
@@ -161,11 +160,16 @@ export default function LoginScreen({ navigation }) {
             onPress={handleSendOtp}
             disabled={!canSend}
             activeOpacity={0.85}
+            accessibilityLabel="Send OTP to verify your mobile number"
+            accessibilityRole="button"
           >
-            {loading
-              ? <ActivityIndicator color={WHITE} size="small" />
-              : <><Ionicons name="send" size={16} color={WHITE} /><Text style={s.btnText}>Send OTP</Text></>
-            }
+            {loading ? (
+              <ActivityIndicator color={WHITE} size="small" />
+            ) : sendCooldown > 0 ? (
+              <Text style={s.btnText}>Resend in {sendCooldown}s</Text>
+            ) : (
+              <><Ionicons name="send" size={16} color={WHITE} /><Text style={s.btnText}>Send OTP</Text></>
+            )}
           </TouchableOpacity>
 
           <View style={s.steps}>
@@ -177,7 +181,12 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
 
-        <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink}>Terms</Text> and <Text style={s.termsLink}>Privacy Policy</Text></Text>
+        <Text style={s.terms}>
+          By continuing, you agree to our{' '}
+          <Text style={s.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text>
+          {' '}and{' '}
+          <Text style={s.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text>
+        </Text>
         <View style={{ height: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
