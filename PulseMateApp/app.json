@@ -69,8 +69,9 @@
       "apiUrl": "https://api.pulsemateconnect.in/api",
       "apiUrlProd": "https://api.pulsemateconnect.in/api",
       "eas": {
-        "projectId": "REPLACE_WITH_REAL_EAS_PROJECT_ID"
+        "projectId": "dc7f9afd-2b0f-4eb0-88f8-7ac7865edbd3"
       }
-    }
+    },
+    "owner": "shubhamskkk"
   }
 }

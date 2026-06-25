@@ -41,6 +41,10 @@ GoogleService-Info.plist
 # Google Play service account key — never commit
 google-play-key.json
 
+# Keystore credentials — NEVER commit (contains passwords and fingerprints)
+KEYSTORE-CREDENTIALS.md
+@shubhamskkk__pulsemate-app.jks
+
 # typescript
 *.tsbuildinfo
 
