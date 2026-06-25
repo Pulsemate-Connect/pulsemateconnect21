@@ -44,10 +44,9 @@ export default function HomeScreen({ navigation }) {
   const loadData = useCallback(async () => {
     try {
       const res = await searchDoctors({ limit: 6, page: 1 });
-      console.log('[DOCTORS]', JSON.stringify(res?.data));
       setTopDoctors(res?.data?.data || []);
     } catch (e) {
-      console.log('[DOCTORS ERROR]', e?.response?.data || e?.message);
+      // silent — empty state shown instead
     } finally {
       setDoctorsLoading(false);
       setRefreshing(false);
@@ -65,10 +64,8 @@ export default function HomeScreen({ navigation }) {
         type:   'clinics',
         limit:  10,
       });
-      console.log('[NEARBY]', JSON.stringify(res?.data));
       setNearbyClinics(res?.data?.data?.clinics || []);
     } catch (e) {
-      console.log('[NEARBY ERROR]', e?.response?.data || e?.message);
       setNearbyClinics([]);
     } finally {
       setNearbyLoading(false);

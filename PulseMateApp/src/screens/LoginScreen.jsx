@@ -11,11 +11,14 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert, StatusBar, Image,
+  ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { firebaseConfig, sendOtpToPhone } from '../config/firebase';
+
+const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
+const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -193,7 +196,7 @@ export default function LoginScreen({ navigation }) {
 
 
 
-        <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink}>Terms</Text> and <Text style={s.termsLink}>Privacy Policy</Text></Text>
+        <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text> and <Text style={s.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>

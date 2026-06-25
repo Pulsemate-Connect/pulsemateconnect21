@@ -4,10 +4,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, Animated,
-  Easing, Dimensions, StatusBar, ScrollView,
+  Easing, Dimensions, StatusBar, ScrollView, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, shadow } from '../theme';
+
+const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
+const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -334,9 +337,9 @@ export default function WelcomeScreen({ navigation }) {
         {/* Terms */}
         <Text style={ws.terms}>
           By continuing you agree to our{' '}
-          <Text style={[ws.termsLink, { color: current.accent }]}>Terms of Service</Text>
+          <Text style={[ws.termsLink, { color: current.accent }]} onPress={() => Linking.openURL(TERMS_URL)}>Terms of Service</Text>
           {' '}and{' '}
-          <Text style={[ws.termsLink, { color: current.accent }]}>Privacy Policy</Text>
+          <Text style={[ws.termsLink, { color: current.accent }]} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text>
         </Text>
       </Animated.View>
     </View>

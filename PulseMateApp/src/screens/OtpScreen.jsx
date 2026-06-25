@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert, Animated, Easing, StatusBar, Image,
+  ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyPhoneOtp, sendOtpToPhone, firebaseConfig } from '../config/firebase';
@@ -21,6 +21,9 @@ import { useAuth } from '../store/authStore';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 const LOGO = require('../../assets/logo1.jpeg');
+
+const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
+const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
 
 const BG     = '#E8F4FF';
 const BLUE   = '#2563EB';
@@ -295,7 +298,7 @@ export default function OtpScreen({ route, navigation }) {
           <StepRow current={2} />
         </View>
 
-        <Text style={os.terms}>By continuing, you agree to our <Text style={os.termsLink}>Terms</Text> and <Text style={os.termsLink}>Privacy Policy</Text></Text>
+        <Text style={os.terms}>By continuing, you agree to our <Text style={os.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text> and <Text style={os.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
