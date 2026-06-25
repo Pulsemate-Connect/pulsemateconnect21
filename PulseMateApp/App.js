@@ -13,6 +13,7 @@ import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
+import MedicalDisclaimerModal from './src/components/MedicalDisclaimerModal';
 
 const { width: W, height: H } = Dimensions.get('window');
 const LOGO = require('./assets/logo1.jpeg');
@@ -294,6 +295,8 @@ export default function App() {
             ),
           }}
         />
+        {/* Medical disclaimer — shown once on first launch (Play Store requirement) */}
+        <MedicalDisclaimerModal />
       </AuthProvider>
     </SafeAreaProvider>
   );

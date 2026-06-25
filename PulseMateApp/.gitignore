@@ -38,6 +38,9 @@ yarn-error.*
 google-services.json
 GoogleService-Info.plist
 
+# Google Play service account key — never commit
+google-play-key.json
+
 # typescript
 *.tsbuildinfo
 

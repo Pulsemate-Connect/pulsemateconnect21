@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "157620382332",
+    "project_id": "pulsemateconnect",
+    "storage_bucket": "pulsemateconnect.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "REPLACE_WITH_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "com.pulsemate.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
