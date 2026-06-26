@@ -3,19 +3,17 @@
  *
  * Flow:
  *   1. User enters 10-digit mobile number and taps Send OTP
- *   2. FirebaseRecaptchaVerifierModal handles reCAPTCHA silently
- *   3. Firebase REST API sends SMS OTP
- *   4. Navigate to OtpScreen with { mobile, sessionInfo }
+ *   2. Firebase REST API sends SMS OTP (no reCAPTCHA needed for production)
+ *   3. Navigate to OtpScreen with { mobile, sessionInfo }
  */
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { firebaseConfig, sendOtpToPhone } from '../config/firebase';
+import { sendOtpToPhone } from '../config/firebase';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -59,9 +57,6 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  // Ref for the invisible reCAPTCHA modal (required by Firebase Phone Auth)
-  const recaptchaVerifier = useRef(null);
-
   const handleSendOtp = async () => {
     const trimmed = mobile.trim();
     if (trimmed.length < 10) {
@@ -71,9 +66,7 @@ export default function LoginScreen({ navigation }) {
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
     try {
-      // reCAPTCHA resolves automatically (invisible mode), then Firebase sends SMS
-      const recaptchaToken = await recaptchaVerifier.current.verify();
-      const sessionInfo = await sendOtpToPhone(fullNumber, recaptchaToken);
+      const sessionInfo = await sendOtpToPhone(fullNumber);
       navigation.navigate('Otp', { mobile: fullNumber, sessionInfo });
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
@@ -87,13 +80,6 @@ export default function LoginScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* Invisible reCAPTCHA modal — required by Firebase Phone Auth */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 

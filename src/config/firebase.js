@@ -1,16 +1,17 @@
 /**
- * Firebase Phone Auth for React Native (Expo Go compatible)
+ * Firebase Phone Auth for React Native (Production build)
  *
- * Uses Firebase REST API instead of Firebase SDK for Expo Go compatibility.
- * Works with expo-firebase-recaptcha for reCAPTCHA handling.
+ * Uses Firebase REST API directly — no Firebase SDK or reCAPTCHA package needed.
+ * For production Android builds, Firebase verifies the app using:
+ *   - google-services.json (app registration)
+ *   - SHA-1 fingerprint (keystore signature)
  *
- * ── Setup checklist (before production build) ─────────────────────────────
+ * ── Setup complete ─────────────────────────────────────────────────────────
  * ✅ 1. Android app registered in Firebase Console (package: in.pulsemateconnect.app)
  * ✅ 2. Android App ID configured below
  * ✅ 3. API key configured below
- * ⚠️  4. Add SHA-1 from release keystore:  npx eas credentials --platform android
- * ⚠️  5. Download google-services.json → place in PulseMateApp/ root
- * ⚠️  6. Restrict the API key in Google Cloud Console to package in.pulsemateconnect.app
+ * ✅ 4. SHA-1 fingerprint added to Firebase Console
+ * ✅ 5. google-services.json at repository root
  */
 
 export const firebaseConfig = {
@@ -27,16 +28,15 @@ const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';
 /**
  * Send OTP via Firebase Phone Auth REST API
  * @param {string} phoneNumber  E.164 format e.g. "+917022818878"
- * @param {string} recaptchaToken  Token from FirebaseRecaptchaVerifierModal
  * @returns {Promise<string>} sessionInfo
  */
-export const sendOtpToPhone = async (phoneNumber, recaptchaToken) => {
+export const sendOtpToPhone = async (phoneNumber) => {
   const response = await fetch(
     `${FIREBASE_AUTH_API}/accounts:sendVerificationCode?key=${firebaseConfig.apiKey}`,
     {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phoneNumber, recaptchaToken }),
+      body:    JSON.stringify({ phoneNumber }),
     }
   );
   const data = await response.json();
