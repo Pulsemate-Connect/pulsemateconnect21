@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PulseMate",
+    "name": "PulseMate Connect",
     "slug": "pulsemate-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "in.pulsemateconnect.app"
+      "bundleIdentifier": "in.pulsemateconnect.patient"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#2563EB"
       },
-      "package": "in.pulsemateconnect.app",
+      "package": "in.pulsemateconnect.patient",
       "versionCode": 4,
       "targetSdkVersion": 34,
       "googleServicesFile": "./google-services.json",
