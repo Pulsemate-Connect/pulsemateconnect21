@@ -43,12 +43,12 @@ export const HEALTH_TIPS = [
  * @param {function} onNext    — called when arrow button is pressed
  * @param {function} onViewAll — View all handler
  */
-export default function HealthTipSection({ tipIndex = 0, onNext, onViewAll }) {
+export default function HealthTipSection({ tipIndex = 0, onNext }) {
   const tip = HEALTH_TIPS[tipIndex % HEALTH_TIPS.length];
 
   return (
     <View style={s.section}>
-      <SectionHeader title="Health Tip" onViewAll={onViewAll} />
+      <SectionHeader title="Health Tip" />
 
       <View style={s.card}>
         {/* Decorative background circle */}
