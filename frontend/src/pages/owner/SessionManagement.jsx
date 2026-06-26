@@ -55,8 +55,12 @@ export default function SessionManagement() {
     if (!selectedClinic) return;
     try {
       setLoading(true);
-      const res = await api.get(`/clinics/${selectedClinic}/sessions`);
-      setSessions(res.data.data.sessions || []);
+      // Use authenticated endpoint to fetch sessions for clinic owner
+      const res = await api.get(`/clinic/my-sessions`);
+      // Filter sessions for the selected clinic
+      const allSessions = res.data.data.sessions || [];
+      const clinicSessions = allSessions.filter(s => s.clinicId === selectedClinic);
+      setSessions(clinicSessions);
     } catch (error) {
       toast.error('Failed to fetch sessions');
       console.error(error);
