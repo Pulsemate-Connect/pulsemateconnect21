@@ -264,7 +264,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const langs   = doctor.languagesKnown?.join(', ') || 'English';
   const qual    = doctor.qualification || 'MBBS';
   const exp     = doctor.experienceYears || 0;
-  const fee     = doctor.consultationFee > 0 ? `₹${doctor.consultationFee}` : null;
   const avgMins = doctor.avgConsultationMins || 10;
   const firstClinic = doctor.doctorClinics?.[0];
 
@@ -278,7 +277,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
     clinicId:       dc?.clinic?.id || firstClinic?.clinic?.id,
     doctorName:     doctorName,
     clinicName:     dc?.clinic?.name || firstClinic?.clinic?.name,
-    fee:            dc?.consultationFee || doctor.consultationFee,
     specialization: doctor.specialization,
   });
 
@@ -589,9 +587,6 @@ const dd = StyleSheet.create({
   clinicName:     { fontSize: 15, fontWeight: '800', color: SLATE, marginBottom: 4 },
   clinicLocRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
   clinicLoc:      { fontSize: 12, color: MUTED, flex: 1 },
-  clinicFeeBadge: { alignItems: 'center', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
-  clinicFeeText:  { fontSize: 16, fontWeight: '800' },
-  clinicFeeLabel: { fontSize: 9, color: MUTED, fontWeight: '600' },
   clinicMeta:     { gap: 6 },
   clinicMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   clinicMetaText: { fontSize: 12, color: '#475569' },
