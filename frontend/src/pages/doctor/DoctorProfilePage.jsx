@@ -153,7 +153,6 @@ const DoctorProfilePage = () => {
                     <p className="text-xs text-text-muted">{dc.clinic?.city}</p>
                   </div>
                   <div className="text-right text-xs text-text-muted">
-                    <p>₹{dc.consultationFee}</p>
                     <p>{dc.startTime} – {dc.endTime}</p>
                   </div>
                 </div>
@@ -184,8 +183,7 @@ const DoctorProfilePage = () => {
                         {[invite.clinic?.city, invite.clinic?.state].filter(Boolean).join(', ') || 'Location unavailable'}
                       </p>
                       <p className="text-sm text-text-muted">
-                        Fee: ₹{invite.consultationFee ?? 0}
-                        {invite.startTime && invite.endTime ? ` · ${invite.startTime} - ${invite.endTime}` : ''}
+                        {invite.startTime && invite.endTime ? `${invite.startTime} - ${invite.endTime}` : ''}
                       </p>
                       {invite.availableDays?.length ? (
                         <p className="text-xs text-text-muted mt-1">Days: {invite.availableDays.join(', ')}</p>
@@ -327,7 +325,6 @@ const DoctorProfilePage = () => {
               {[
                 { label: 'Specialization', value: profile?.specialization || '—' },
                 { label: 'Experience', value: profile?.experienceYears ? `${profile.experienceYears} years` : '—' },
-                { label: 'Consultation Fee', value: profile?.consultationFee ? `₹${profile.consultationFee}` : '—' },
                 { label: 'Avg. Consultation', value: profile?.avgConsultationMins ? `${profile.avgConsultationMins} min` : '—' },
                 { label: 'Education', value: profile?.education || '—' },
                 { label: 'Bio', value: profile?.bio || '—' },

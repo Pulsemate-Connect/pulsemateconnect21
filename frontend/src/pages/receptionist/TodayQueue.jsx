@@ -345,12 +345,11 @@ const TodayQueue = () => {
               </div>
               {payModal.consultationFee && (
                 <p className="text-xs text-text-muted mt-1">
-                  Consultation fee: ₹{payModal.consultationFee}
                   <button
-                    className="ml-2 text-primary-600 underline"
+                    className="text-primary-600 underline"
                     onClick={() => setPayAmount(String(payModal.consultationFee))}
                   >
-                    Use this
+                    Use suggested amount
                   </button>
                 </p>
               )}
