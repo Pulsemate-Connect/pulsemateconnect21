@@ -30,6 +30,7 @@ const {
 } = require('../controllers/clinic.controller');
 const { createReceptionistHandler } = require('../controllers/auth.controller');
 const { validate, createClinicSchema, updateClinicSchema, addStaffSchema } = require('../validators/clinic.validator');
+const { getMyClinicSessions, createSession, updateSession, deleteSession } = require('../controllers/clinicSession.controller');
 
 router.use(authenticate);
 
@@ -56,5 +57,11 @@ router.patch('/:id/staff/:staffId/status', authorize('CLINIC_OWNER', 'SUPER_ADMI
 router.get('/:id/revenue', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getClinicRevenue);
 router.get('/:id/booking-metrics', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getClinicBookingMetrics);
 router.get('/:id/appointments', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST'), getClinicAppointments);
+
+// ── Clinic Session Management Routes ──────────────────────────────────────────
+router.get('/my-sessions', authorize('CLINIC_OWNER'), getMyClinicSessions);
+router.post('/:clinicId/sessions', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), createSession);
+router.put('/sessions/:sessionId', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), updateSession);
+router.delete('/sessions/:sessionId', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), deleteSession);
 
 module.exports = router;

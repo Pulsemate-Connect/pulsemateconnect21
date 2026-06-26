@@ -46,6 +46,7 @@ import ClinicEditResubmit from './pages/owner/ClinicEditResubmit';
 import ManageStaff from './pages/owner/ManageStaff';
 import OwnerAppointments from './pages/owner/OwnerAppointments';
 import QueueOverview from './pages/owner/QueueOverview';
+import SessionManagement from './pages/owner/SessionManagement';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
@@ -123,6 +124,7 @@ const AppRoutes = () => {
       <Route path="/clinic/receptionists" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="RECEPTIONIST" /></ProtectedRoute>} />
       <Route path="/clinic/appointments" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerAppointments /></ProtectedRoute>} />
       <Route path="/clinic/queue" element={<ProtectedRoute roles={['CLINIC_OWNER']}><QueueOverview /></ProtectedRoute>} />
+      <Route path="/clinic/sessions" element={<ProtectedRoute roles={['CLINIC_OWNER']}><SessionManagement /></ProtectedRoute>} />
 
       <Route path="/admin" element={<PublicRoute><AdminLoginPage /></PublicRoute>} />
       <Route path="/admin/dashboard" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><AdminDashboard /></ProtectedRoute>} />

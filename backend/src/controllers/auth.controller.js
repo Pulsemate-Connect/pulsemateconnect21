@@ -233,6 +233,10 @@ const patientFirebasePhoneLoginHandler = async (req, res, next) => {
       res,
       {
         accessToken: tokens.accessToken,
+        // Include refreshToken in body so mobile clients (React Native / Expo)
+        // can store it in SecureStore for silent token rotation.
+        // Web clients ignore this and rely on the httpOnly cookie set above.
+        refreshToken: tokens.refreshToken,
         user: { ...toAuthUser(user), isNewUser },
       },
       isNewUser ? 'Patient account created successfully' : 'Login successful'
@@ -1015,14 +1019,25 @@ const verifyResetTokenHandler = async (req, res, next) => {
 
 const refreshTokenHandler = async (req, res, next) => {
   try {
-    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    // Web clients send the refresh token via httpOnly cookie.
+    // Mobile clients (React Native / Expo) cannot use httpOnly cookies, so
+    // they send the refresh token in the request body as { refreshToken: '...' }.
+    const rawRefreshToken =
+      req.cookies?.[REFRESH_COOKIE_NAME] ||
+      req.body?.refreshToken ||
+      null;
+
     if (!rawRefreshToken) return sendError(res, 'Refresh token not found', 401);
 
     const refreshed = await rotateRefreshToken(rawRefreshToken, null, getSessionMetadata(req));
+
+    // Set cookie for web clients (no-op on mobile — cookies are not persisted)
     setRefreshTokenCookie(res, refreshed.refreshToken, 7 * 24 * 60 * 60 * 1000);
 
     return sendSuccess(res, {
       accessToken: refreshed.accessToken,
+      // Also return the new refresh token in the body so mobile can store it
+      refreshToken: refreshed.refreshToken,
       user: toAuthUser(refreshed.user),
     }, 'Token refreshed');
   } catch (error) {
@@ -1323,6 +1338,10 @@ const firebasePhoneLoginHandler = async (req, res, next) => {
       res,
       {
         accessToken: tokens.accessToken,
+        // Include refreshToken in body so mobile clients (React Native / Expo)
+        // can store it in SecureStore for silent token rotation.
+        // Web clients ignore this and rely on the httpOnly cookie set above.
+        refreshToken: tokens.refreshToken,
         user: { ...toAuthUser(user), isNewUser },
       },
       isNewUser ? 'Account created successfully' : 'Login successful'
