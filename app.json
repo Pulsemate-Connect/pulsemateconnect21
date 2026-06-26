@@ -25,6 +25,7 @@
       },
       "package": "in.pulsemateconnect.app",
       "versionCode": 2,
+      "targetSdkVersion": 34,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
