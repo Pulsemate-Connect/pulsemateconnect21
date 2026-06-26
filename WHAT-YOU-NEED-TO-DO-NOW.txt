@@ -1,0 +1,119 @@
+================================================================================
+✅ PACKAGE NAME CHANGED - ACTION REQUIRED
+================================================================================
+
+CHANGES MADE:
+-------------
+✅ App name: "PulseMate" → "PulseMate Connect"
+✅ Package: "in.pulsemateconnect.app" → "in.pulsemateconnect.patient"
+✅ Code committed to git
+
+================================================================================
+
+⚠️ YOU MUST DO THESE 3 THINGS BEFORE BUILDING:
+================================================================================
+
+1️⃣  UPDATE FIREBASE (CRITICAL!)
+   ----------------------------
+   a. Go to: https://console.firebase.google.com/
+   b. Select project: "pulsemateconnect"
+   c. Click gear icon ⚙️ → Project settings
+   d. Scroll to "Your apps" section
+   e. Click "Add app" → Select Android
+   f. Package name: in.pulsemateconnect.patient
+   g. App nickname: PulseMate Connect (Patient)
+   h. Click "Register app"
+   i. DOWNLOAD the NEW google-services.json
+   j. REPLACE google-services.json in project root
+
+   Without this step, push notifications and Firebase won't work!
+
+2️⃣  CREATE NEW APP IN PLAY CONSOLE
+   --------------------------------
+   ⚠️ Google doesn't allow changing package names!
+   You MUST create a completely NEW app.
+
+   a. Go to: https://play.google.com/console
+   b. Click "Create app" button
+   c. App name: PulseMate Connect
+   d. Language: English (United States)
+   e. App type: App
+   f. Free or paid: Free
+   g. Click "Create app"
+
+   Complete all required sections:
+   - App content (ads, access, etc.)
+   - Content rating (Medical category)
+   - Target audience (18+)
+   - Data safety
+   - Privacy policy: https://pulsemateconnect.in/privacy-policy
+   - Store listing (title, description, icon, screenshots)
+
+3️⃣  REBUILD THE APP
+   -----------------
+   After completing steps 1 & 2 above, tell me and I'll run:
+   
+   eas build --platform android --profile production --clear-cache
+
+   This will create a NEW AAB with package: in.pulsemateconnect.patient
+
+================================================================================
+
+📱 PLAY STORE ASSETS NEEDED:
+================================================================================
+
+For the NEW Play Console app, you need:
+
+✅ App icon (512x512) - Already have: assets/icon.png
+❌ Feature graphic (1024x500) - Need to create
+❌ Screenshots (1080x1920, minimum 2) - Need to take
+
+Screenshots to capture:
+1. Home screen (Find doctors)
+2. Doctor search results
+3. Doctor profile
+4. Booking screen with sessions
+5. Appointments list
+6. Profile screen
+
+================================================================================
+
+🔍 WHAT THIS MEANS:
+================================================================================
+
+OLD APP (in.pulsemateconnect.app):
+- If it exists in Play Console, it stays separate
+- Users won't auto-update to new package
+- You can delete/unpublish it if you want
+
+NEW APP (in.pulsemateconnect.patient):
+- Completely fresh start in Play Console
+- New listing, new reviews, new everything
+- This is the one users will download
+
+Both apps are separate and independent.
+
+================================================================================
+
+📋 QUICK SUMMARY:
+================================================================================
+
+Status:
+✅ Code changed (package name updated)
+⏳ Firebase needs updating (Step 1 above)
+⏳ Play Console app needs creating (Step 2 above)  
+⏳ New AAB needs building (Step 3 above)
+
+Next Actions:
+1. Update Firebase with new package
+2. Create NEW Play Console app
+3. Tell me when done, and I'll rebuild the AAB
+4. Upload new AAB to NEW Play Console app
+
+================================================================================
+
+READ FULL DETAILS: PACKAGE-NAME-CHANGE-GUIDE.md
+
+After you complete Steps 1 & 2, let me know and I'll rebuild! 🚀
+
+================================================================================
