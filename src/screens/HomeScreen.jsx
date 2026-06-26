@@ -89,7 +89,7 @@ export default function HomeScreen({ navigation }) {
   const goBooking    = (doctor) =>
     navigation.navigate('DoctorsTab', {
       screen: 'DoctorDetail',
-      params: { id: doctor?.id },
+      params: { doctorId: doctor?.id },
     });
   const goClinicBook = () => navigation.navigate('DoctorsTab');
 

@@ -218,7 +218,9 @@ export default function DoctorDetailScreen({ route, navigation }) {
         setDoctor(r.data.data.doctor);
         Animated.timing(enterA, { toValue: 1, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('[DoctorDetail] fetch error:', err?.response?.data || err?.message);
+      })
       .finally(() => setLoading(false));
   }, [doctorId]);
 
@@ -242,7 +244,19 @@ export default function DoctorDetailScreen({ route, navigation }) {
     <View style={dd.loadWrap}>
       <Ionicons name="alert-circle-outline" size={48} color={MUTED} />
       <Text style={dd.loadText}>Doctor not found</Text>
-      <TouchableOpacity style={dd.retryBtn} onPress={() => navigation.goBack()}>
+      <Text style={{ fontSize: 12, color: MUTED, textAlign: 'center', paddingHorizontal: 32 }}>
+        {doctorId ? `ID: ${doctorId}` : 'No doctor ID provided'}
+      </Text>
+      <TouchableOpacity style={dd.retryBtn} onPress={() => {
+        setLoading(true);
+        getDoctorProfile(doctorId)
+          .then((r) => setDoctor(r.data.data.doctor))
+          .catch((err) => console.warn('[DoctorDetail] retry error:', err?.response?.data || err?.message))
+          .finally(() => setLoading(false));
+      }}>
+        <Text style={dd.retryText}>Retry</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[dd.retryBtn, { backgroundColor: MUTED, marginTop: 8 }]} onPress={() => navigation.goBack()}>
         <Text style={dd.retryText}>Go Back</Text>
       </TouchableOpacity>
     </View>
