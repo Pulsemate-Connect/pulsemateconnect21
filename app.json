@@ -63,7 +63,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://192.168.31.240:5000/api",
+      "apiUrl": "https://api.pulsemateconnect.in/api",
       "apiUrlProd": "https://api.pulsemateconnect.in/api",
       "eas": {
         "projectId": "dc7f9afd-2b0f-4eb0-88f8-7ac7865edbd3"
