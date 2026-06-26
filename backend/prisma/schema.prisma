@@ -486,20 +486,28 @@ model prescriptions {
 }
 
 model ClinicSession {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   clinicId    String
+  sessionType SessionType
   name        String
   startTime   String
   endTime     String
-  maxPatients Int      @default(30)
-  enabled     Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  maxPatients Int         @default(30)
+  enabled     Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  clinic      Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
+  @@unique([clinicId, sessionType])
   @@index([clinicId])
   @@map("clinic_sessions")
+}
+
+enum SessionType {
+  MORNING
+  AFTERNOON
+  EVENING
 }
 
 enum UserRole {

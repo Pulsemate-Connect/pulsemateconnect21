@@ -173,7 +173,14 @@ export default function BookingScreen({ route, navigation }) {
   const [clinicSessions,  setClinicSessions]  = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // ── Build date strip (next 14 days) ─────────────────────────────────────────
+  // Session type display labels
+  const SESSION_TYPE_LABELS = {
+    MORNING: '🌅 Morning Session',
+    AFTERNOON: '☀️ Afternoon Session',
+    EVENING: '🌙 Evening Session',
+  };
+
+  // Build date strip (next 14 days) ─────────────────────────────────────────
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
@@ -587,20 +594,22 @@ export default function BookingScreen({ route, navigation }) {
                       const sessionSlots = getSessionSlots(sess.id);
                       const hasSlots = sessionSlots.length > 0;
                       
-                      // Icon selection based on time
-                      const startHour = parseInt(sess.startTime.split(':')[0], 10);
+                      // Get icon and color based on session type
                       let iconName = 'time';
                       let iconColor = BLUE;
-                      if (startHour < 12) {
+                      if (sess.sessionType === 'MORNING') {
                         iconName = 'sunny';
                         iconColor = '#F59E0B';
-                      } else if (startHour >= 12 && startHour < 17) {
+                      } else if (sess.sessionType === 'AFTERNOON') {
                         iconName = 'partly-sunny';
                         iconColor = '#FB923C';
-                      } else {
+                      } else if (sess.sessionType === 'EVENING') {
                         iconName = 'moon';
                         iconColor = '#6366F1';
                       }
+                      
+                      // Get display label
+                      const displayLabel = SESSION_TYPE_LABELS[sess.sessionType] || sess.name;
                       
                       return (
                         <TouchableOpacity
@@ -615,7 +624,7 @@ export default function BookingScreen({ route, navigation }) {
                             </View>
                           )}
                           <Ionicons name={iconName} size={28} color={active ? BLUE : (hasSlots ? iconColor : MUTED)} />
-                          <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>{sess.name}</Text>
+                          <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>{displayLabel}</Text>
                           <Text style={[s.sessionTime, active && s.sessionTimeActive]}>
                             {fmt12(sess.startTime)} – {fmt12(sess.endTime)}
                           </Text>

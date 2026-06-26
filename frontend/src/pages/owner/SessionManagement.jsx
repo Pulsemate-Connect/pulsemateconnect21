@@ -17,13 +17,67 @@ export default function SessionManagement() {
   const [showModal, setShowModal] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [formData, setFormData] = useState({
+    sessionType: '',
     name: '',
     startTime: '',
     endTime: '',
     maxPatients: 30,
     enabled: true,
-    sortOrder: 0,
   });
+
+  // Session type definitions with defaults
+  const SESSION_TYPES = {
+    MORNING: {
+      label: '🌅 Morning Session',
+      name: 'Morning Session',
+      defaultStart: '08:00',
+      defaultEnd: '12:00',
+      sortOrder: 1,
+    },
+    AFTERNOON: {
+      label: '☀️ Afternoon Session',
+      name: 'Afternoon Session',
+      defaultStart: '13:00',
+      defaultEnd: '17:00',
+      sortOrder: 2,
+    },
+    EVENING: {
+      label: '🌙 Evening Session',
+      name: 'Evening Session',
+      defaultStart: '17:00',
+      defaultEnd: '21:00',
+      sortOrder: 3,
+    },
+  };
+
+  // Get available session types (not yet created)
+  const getAvailableSessionTypes = () => {
+    const existingTypes = sessions.map(s => s.sessionType);
+    return Object.keys(SESSION_TYPES).filter(type => !existingTypes.includes(type));
+  };
+
+  // Handle session type selection
+  const handleSessionTypeChange = (type) => {
+    if (!type) {
+      setFormData({
+        ...formData,
+        sessionType: '',
+        name: '',
+        startTime: '',
+        endTime: '',
+      });
+      return;
+    }
+
+    const sessionDef = SESSION_TYPES[type];
+    setFormData({
+      ...formData,
+      sessionType: type,
+      name: sessionDef.name,
+      startTime: sessionDef.defaultStart,
+      endTime: sessionDef.defaultEnd,
+    });
+  };
 
   useEffect(() => {
     fetchClinics();
@@ -73,22 +127,22 @@ export default function SessionManagement() {
     if (session) {
       setEditingSession(session);
       setFormData({
+        sessionType: session.sessionType,
         name: session.name,
         startTime: session.startTime,
         endTime: session.endTime,
         maxPatients: session.maxPatients,
         enabled: session.enabled,
-        sortOrder: session.sortOrder,
       });
     } else {
       setEditingSession(null);
       setFormData({
+        sessionType: '',
         name: '',
         startTime: '',
         endTime: '',
         maxPatients: 30,
         enabled: true,
-        sortOrder: sessions.length,
       });
     }
     setShowModal(true);
@@ -98,19 +152,19 @@ export default function SessionManagement() {
     setShowModal(false);
     setEditingSession(null);
     setFormData({
+      sessionType: '',
       name: '',
       startTime: '',
       endTime: '',
       maxPatients: 30,
       enabled: true,
-      sortOrder: 0,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.startTime || !formData.endTime) {
+    if (!formData.sessionType || !formData.name || !formData.startTime || !formData.endTime) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -266,14 +320,16 @@ export default function SessionManagement() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{session.name}</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {SESSION_TYPES[session.sessionType]?.label || session.name}
+                      </h3>
                       {!session.enabled && (
                         <span className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded">
                           Disabled
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Time:</span>{' '}
                         <span className="font-medium text-gray-900">
@@ -283,10 +339,6 @@ export default function SessionManagement() {
                       <div>
                         <span className="text-gray-600">Max Patients:</span>{' '}
                         <span className="font-medium text-gray-900">{session.maxPatients}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Sort Order:</span>{' '}
-                        <span className="font-medium text-gray-900">{session.sortOrder}</span>
                       </div>
                     </div>
                   </div>
@@ -328,6 +380,46 @@ export default function SessionManagement() {
                 {editingSession ? 'Edit Session' : 'Create Session'}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Session Type Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Session Type *
+                  </label>
+                  <select
+                    value={formData.sessionType}
+                    onChange={(e) => handleSessionTypeChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                    disabled={editingSession} // Cannot change type when editing
+                  >
+                    <option value="">Select session type...</option>
+                    {editingSession ? (
+                      // When editing, only show the current type
+                      <option value={formData.sessionType}>
+                        {SESSION_TYPES[formData.sessionType]?.label}
+                      </option>
+                    ) : (
+                      // When creating, show only available types
+                      getAvailableSessionTypes().map((type) => (
+                        <option key={type} value={type}>
+                          {SESSION_TYPES[type].label}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  {!editingSession && getAvailableSessionTypes().length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      All session types have been created. Delete a session to create a different type.
+                    </p>
+                  )}
+                  {editingSession && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Session type cannot be changed. Delete and recreate to change type.
+                    </p>
+                  )}
+                </div>
+
+                {/* Session Name (read-only, auto-filled) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Session Name *
@@ -335,11 +427,11 @@ export default function SessionManagement() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., Morning Session"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                    disabled
+                    placeholder="Select a session type first"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Auto-filled based on session type</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -353,6 +445,7 @@ export default function SessionManagement() {
                       onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
+                      disabled={!formData.sessionType}
                     />
                   </div>
                   <div>
@@ -365,6 +458,7 @@ export default function SessionManagement() {
                       onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
+                      disabled={!formData.sessionType}
                     />
                   </div>
                 </div>
@@ -380,21 +474,8 @@ export default function SessionManagement() {
                     min="1"
                     max="200"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!formData.sessionType}
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sort Order
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.sortOrder}
-                    onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value, 10) })}
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
                 </div>
 
                 <div className="flex items-center">
@@ -420,7 +501,7 @@ export default function SessionManagement() {
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !formData.sessionType}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? 'Saving...' : editingSession ? 'Update' : 'Create'}
