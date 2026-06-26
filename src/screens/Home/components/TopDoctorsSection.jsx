@@ -21,7 +21,6 @@ export const DUMMY_DOCTORS = [
     id: 'd1',
     user: { name: 'Rahul Sharma' },
     specialization: 'Cardiologist',
-    consultationFee: 500,
     rating: '4.9',
     ratingCount: 320,
     profilePhotoUrl: null,
@@ -30,7 +29,6 @@ export const DUMMY_DOCTORS = [
     id: 'd2',
     user: { name: 'Priya Mehta' },
     specialization: 'Dermatologist',
-    consultationFee: 400,
     rating: '4.8',
     ratingCount: 215,
     profilePhotoUrl: null,
@@ -39,7 +37,6 @@ export const DUMMY_DOCTORS = [
     id: 'd3',
     user: { name: 'Amit Verma' },
     specialization: 'Orthopedic',
-    consultationFee: 600,
     rating: '4.7',
     ratingCount: 189,
     profilePhotoUrl: null,
@@ -48,7 +45,6 @@ export const DUMMY_DOCTORS = [
     id: 'd4',
     user: { name: 'Sneha Rao' },
     specialization: 'Pediatrician',
-    consultationFee: 450,
     rating: '4.8',
     ratingCount: 163,
     profilePhotoUrl: null,
@@ -97,7 +93,6 @@ function DoctorAvatar({ photoUrl, name, size = 72 }) {
 function DoctorCard({ doctor, onBook, cardWidth }) {
   const name    = doctor.user?.name || 'Doctor';
   const spec    = doctor.specialization || 'General Physician';
-  const fee     = doctor.consultationFee ? `₹${doctor.consultationFee}` : '₹500';
   const rating  = doctor.rating || '4.8';
   const ratingCount = doctor.ratingCount || '';
   const photo   = doctor.profilePhotoUrl || doctor.photoUrl || null;
@@ -122,8 +117,6 @@ function DoctorCard({ doctor, onBook, cardWidth }) {
         <Text style={s.ratingText}>{rating}</Text>
         {ratingCount ? <Text style={s.ratingCount}>({ratingCount})</Text> : null}
       </View>
-
-      <Text style={s.fee}>{fee} Consultation</Text>
 
       {/* Book button */}
       <TouchableOpacity style={s.bookBtn} onPress={onBook} activeOpacity={0.85}>
@@ -257,12 +250,6 @@ const s = StyleSheet.create({
   ratingCount: {
     fontSize: 11,
     color: MUTED,
-  },
-  fee: {
-    fontSize: 11,
-    color: MUTED,
-    marginTop: 4,
-    textAlign: 'center',
   },
   bookBtn: {
     marginTop: 10,

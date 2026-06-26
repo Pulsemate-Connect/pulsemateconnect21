@@ -100,7 +100,6 @@ function Stars({ rating, size = 13 }) {
 function ClinicCard({ dc, accent, onBook }) {
   const days = dc.availableDays?.map((d) => DAY_SHORT[d] || d).join('  ·  ') || 'Mon – Sat';
   const time = dc.startTime && dc.endTime ? `${dc.startTime} – ${dc.endTime}` : '9:00 AM – 6:00 PM';
-  const fee  = dc.consultationFee ? `₹${dc.consultationFee}` : 'Free';
 
   return (
     <View style={[dd.clinicCard, { borderLeftColor: accent }]}>
@@ -117,10 +116,6 @@ function ClinicCard({ dc, accent, onBook }) {
               {[dc.clinic?.address, dc.clinic?.city].filter(Boolean).join(', ') || 'Location not specified'}
             </Text>
           </View>
-        </View>
-        <View style={[dd.clinicFeeBadge, { backgroundColor: accent + '15' }]}>
-          <Text style={[dd.clinicFeeText, { color: accent }]}>{fee}</Text>
-          <Text style={dd.clinicFeeLabel}>fee</Text>
         </View>
       </View>
 
@@ -477,14 +472,8 @@ export default function DoctorDetailScreen({ route, navigation }) {
 
       {/* ── Sticky bottom bar ── */}
       <View style={[dd.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={dd.stickyLeft}>
-          <Text style={dd.stickyFeeLabel}>Consultation Fee</Text>
-          <Text style={[dd.stickyFee, { color: accent }]}>
-            {doctor.consultationFee > 0 ? `₹${doctor.consultationFee}` : 'Contact Clinic'}
-          </Text>
-        </View>
         <TouchableOpacity
-          style={[dd.stickyBtn, { backgroundColor: accent, shadowColor: accent }]}
+          style={[dd.stickyBtn, dd.stickyBtnFull, { backgroundColor: accent, shadowColor: accent }]}
           onPress={() => handleBook(firstClinic)}
           activeOpacity={0.88}
         >
@@ -662,13 +651,11 @@ const dd = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: '#F1F5F9',
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 12,
   },
-  stickyLeft:     { gap: 2 },
-  stickyFeeLabel: { fontSize: 11, color: MUTED, fontWeight: '500' },
-  stickyFee:      { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   stickyBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 16, paddingVertical: 16,
     shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 8,
   },
+  stickyBtnFull: { flex: 1 },
   stickyBtnText: { fontSize: 15, fontWeight: '800', color: WHITE, letterSpacing: 0.1 },
 });

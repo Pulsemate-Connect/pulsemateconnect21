@@ -417,7 +417,6 @@ export default function BookingScreen({ route, navigation }) {
           </View>
           {/* Fee + Availability row */}
           <View style={s.feeRow}>
-            <Text style={s.feeText}>₹{consultFee} Consultation Fee</Text>
             <View style={s.availableRow}>
               <View style={s.greenDot} />
               <Text style={s.availableText}>Available Today</Text>
@@ -617,11 +616,6 @@ export default function BookingScreen({ route, navigation }) {
             ) : (
               <Text style={s.payAmount}>₹10</Text>
             )}
-          </View>
-          <View style={s.payDivider} />
-          <View style={s.payRow}>
-            <Text style={s.payLabel}>Consultation Fee</Text>
-            <Text style={s.payAtClinic}>Pay at clinic — ₹{consultFee}</Text>
           </View>
           <View style={s.payDivider} />
           <View style={s.payRow}>

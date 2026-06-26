@@ -35,7 +35,7 @@ const SPECS = [
 
 const CITIES = ['All Cities', 'Bangalore', 'Mumbai', 'Delhi', 'Chennai', 'Hyderabad', 'Pune', 'Kolkata'];
 const AVAIL  = ['Any', 'Available Today', 'Online Only', 'In-Clinic Only'];
-const SORT   = ['Relevance', 'Experience', 'Fee: Low to High', 'Fee: High to Low', 'Rating'];
+const SORT   = ['Relevance', 'Experience', 'Rating'];
 
 // ── Filter bottom sheet ───────────────────────────────────────────────────────
 function FilterSheet({ visible, onClose, city, setCity, avail, setAvail, sort, setSort, onApply }) {
@@ -119,7 +119,6 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
   const accentBg = cfg.bg;
   const clinic = doc.doctorClinics?.[0]?.clinic;
   const initial = doc.user?.name?.charAt(0)?.toUpperCase() || 'D';
-  const fee    = doc.consultationFee ? `₹${doc.consultationFee}` : 'Free';
   const langs  = doc.languagesKnown?.slice(0, 3).join(', ') || 'English';
   const qual   = doc.qualification || 'MBBS';
   const exp    = doc.experienceYears || 0;
@@ -204,12 +203,6 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
           <Text style={dc.statVal}>{isOnline && isOffline ? 'Both' : isOnline ? 'Online' : 'Clinic'}</Text>
         </View>
         <View style={dc.statSep} />
-        {/* Fee */}
-        <View style={dc.statItem}>
-          <Text style={[dc.feeVal, { color: accent }]}>{fee}</Text>
-          <Text style={dc.statLabel}>Consult</Text>
-        </View>
-        <View style={dc.statSep} />
         {/* Experience */}
         <View style={dc.statItem}>
           <Ionicons name="briefcase-outline" size={13} color={MUTED} />
@@ -274,8 +267,6 @@ export default function SearchScreen({ navigation }) {
       // Client-side sort
       const s = overrides.sort ?? sort;
       if (s === 'Experience')          data = [...data].sort((a, b) => (b.experienceYears || 0) - (a.experienceYears || 0));
-      if (s === 'Fee: Low to High')    data = [...data].sort((a, b) => (a.consultationFee || 0) - (b.consultationFee || 0));
-      if (s === 'Fee: High to Low')    data = [...data].sort((a, b) => (b.consultationFee || 0) - (a.consultationFee || 0));
       setDoctors(data);
     } catch { setDoctors([]); }
     finally { setLoading(false); }

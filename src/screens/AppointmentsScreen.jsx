@@ -395,7 +395,6 @@ export default function AppointmentsScreen({ navigation }) {
                             clinicId:   appt.clinic.id,
                             doctorName: appt.doctor?.user?.name,
                             clinicName: appt.clinic?.name,
-                            fee:        appt.doctor?.consultationFee,
                             specialization: appt.doctor?.specialization,
                           },
                         })}
