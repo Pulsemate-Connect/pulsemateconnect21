@@ -15,10 +15,9 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifyPhoneOtp, sendOtpToPhone, firebaseConfig } from '../config/firebase';
+import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
 import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -83,7 +82,6 @@ export default function OtpScreen({ route, navigation }) {
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
   const progressA    = useRef(new Animated.Value(0)).current;
-  const recaptchaVerifier = useRef(null);
 
   const r0=useRef(null); const r1=useRef(null); const r2=useRef(null);
   const r3=useRef(null); const r4=useRef(null); const r5=useRef(null);
@@ -161,9 +159,7 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleResend = async () => {
     try {
-      // Need a fresh reCAPTCHA token to resend
-      const recaptchaToken = await recaptchaVerifier.current.verify();
-      const newSession = await sendOtpToPhone(mobile, recaptchaToken);
+      const newSession = await sendOtpToPhone(mobile);
       setSessionInfo(newSession);
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
@@ -188,13 +184,6 @@ export default function OtpScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* reCAPTCHA for resend OTP */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>
