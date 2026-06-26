@@ -12,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   initiatePayment, verifyPayment, getPatientProfile,
-  getAvailableSlots, getBookingStatus,
+  getAvailableSlots, getBookingStatus, getClinicSessions,
 } from '../api/patient';
 
 const { width: W } = Dimensions.get('window');
@@ -170,6 +170,8 @@ export default function BookingScreen({ route, navigation }) {
   const [slots,           setSlots]           = useState([]);
   const [slotsLoading,    setSlotsLoading]    = useState(false);
   const [slotsSource,     setSlotsSource]     = useState('none');
+  const [clinicSessions,  setClinicSessions]  = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   // ── Build date strip (next 14 days) ─────────────────────────────────────────
   const days = Array.from({ length: 14 }, (_, i) => {
@@ -184,6 +186,27 @@ export default function BookingScreen({ route, navigation }) {
       isTomorrow: i === 1,
     };
   });
+
+  // ── Fetch clinic sessions on mount ──────────────────────────────────────────
+  useEffect(() => {
+    if (!clinicId) return;
+    setSessionsLoading(true);
+    getClinicSessions(clinicId)
+      .then((r) => {
+        const sessions = r.data.data?.sessions || [];
+        setClinicSessions(sessions);
+        if (__DEV__) {
+          console.log('[Booking] Fetched clinic sessions', { clinicId, count: sessions.length });
+        }
+      })
+      .catch((err) => {
+        if (__DEV__) {
+          console.error('[Booking] Failed to fetch clinic sessions', err);
+        }
+        setClinicSessions([]);
+      })
+      .finally(() => setSessionsLoading(false));
+  }, [clinicId]);
 
   // ── Focus effect: handle payment return + profile fetch ──────────────────────
   useFocusEffect(
@@ -227,6 +250,22 @@ export default function BookingScreen({ route, navigation }) {
     }, [route.params?.paymentResult])
   );
 
+  // ── Fetch clinic sessions on mount ───────────────────────────────────────────
+  useEffect(() => {
+    if (!clinicId) return;
+    setSessionsLoading(true);
+    getClinicSessions(clinicId)
+      .then((r) => {
+        const sessions = r.data.data.sessions || [];
+        setClinicSessions(sessions);
+      })
+      .catch((err) => {
+        if (__DEV__) console.error('[Booking] Failed to fetch clinic sessions', err);
+        setClinicSessions([]);
+      })
+      .finally(() => setSessionsLoading(false));
+  }, [clinicId]);
+
   // ── Fetch slots when date changes ────────────────────────────────────────────
   useEffect(() => {
     if (!date || !doctorId || !clinicId) return;
@@ -250,22 +289,33 @@ export default function BookingScreen({ route, navigation }) {
   }, [date, doctorId, clinicId]);
 
   // ── Slot session helpers ─────────────────────────────────────────────────────
-  // Morning: before 14:00  |  Evening: 16:00+
-  const morningSlots = slots.filter(s => {
-    const h = parseInt(s.time?.split(':')[0] ?? '0', 10);
-    return h < 14 && s.available;
-  });
-  const eveningSlots = slots.filter(s => {
-    const h = parseInt(s.time?.split(':')[0] ?? '0', 10);
-    return h >= 16 && s.available;
-  });
+  // Helper function to convert HH:mm to minutes
+  const convertTimeToMinutes = (timeStr) => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
 
-  const handleSessionSelect = (sess) => {
-    setSession(sess);
-    if (sess === 'morning' && morningSlots.length > 0) {
-      setSlot(morningSlots[0].time);
-    } else if (sess === 'evening' && eveningSlots.length > 0) {
-      setSlot(eveningSlots[0].time);
+  // Dynamic session filtering based on clinic-defined sessions
+  const getSessionSlots = (sessionId) => {
+    const sess = clinicSessions.find(s => s.id === sessionId);
+    if (!sess) return [];
+    
+    const sessStart = convertTimeToMinutes(sess.startTime);
+    const sessEnd = convertTimeToMinutes(sess.endTime);
+    
+    return slots.filter(s => {
+      if (!s.available) return false;
+      const slotMins = convertTimeToMinutes(s.time);
+      return slotMins >= sessStart && slotMins < sessEnd;
+    });
+  };
+
+  const handleSessionSelect = (sessionId) => {
+    setSession(sessionId);
+    const sessionSlots = getSessionSlots(sessionId);
+    if (sessionSlots.length > 0) {
+      setSlot(sessionSlots[0].time);
     } else {
       setSlot('');
     }
@@ -512,72 +562,80 @@ export default function BookingScreen({ route, navigation }) {
           <Text style={s.sectionTitle}>4. Select Session</Text>
           {!date ? (
             <Text style={s.selectDateHint}>Please select a date first</Text>
-          ) : slotsLoading ? (
+          ) : slotsLoading || sessionsLoading ? (
             <View style={s.loadingRow}>
               <ActivityIndicator color={BLUE} />
               <Text style={s.loadingText}>Checking availability...</Text>
             </View>
           ) : (
             <>
-              <View style={s.sessionRow}>
-                {/* Morning Session */}
-                {(() => {
-                  const active = session === 'morning';
-                  const hasSlots = morningSlots.length > 0;
-                  return (
-                    <TouchableOpacity
-                      style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
-                      onPress={() => hasSlots && handleSessionSelect('morning')}
-                      activeOpacity={hasSlots ? 0.85 : 1}
-                    >
-                      {active && (
-                        <View style={s.sessionCheck}>
-                          <Ionicons name="checkmark" size={10} color={WHITE} />
-                        </View>
-                      )}
-                      <Ionicons name="sunny" size={28} color={active ? BLUE : (hasSlots ? '#F59E0B' : MUTED)} />
-                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Morning Session</Text>
-                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>8:00 AM – 2:00 PM</Text>
-                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
-                      {hasSlots && slot && session === 'morning' && (
-                        <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })()}
-                {/* Evening Session */}
-                {(() => {
-                  const active = session === 'evening';
-                  const hasSlots = eveningSlots.length > 0;
-                  return (
-                    <TouchableOpacity
-                      style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
-                      onPress={() => hasSlots && handleSessionSelect('evening')}
-                      activeOpacity={hasSlots ? 0.85 : 1}
-                    >
-                      {active && (
-                        <View style={s.sessionCheck}>
-                          <Ionicons name="checkmark" size={10} color={WHITE} />
-                        </View>
-                      )}
-                      <Ionicons name="moon" size={28} color={active ? BLUE : (hasSlots ? '#6366F1' : MUTED)} />
-                      <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>Evening Session</Text>
-                      <Text style={[s.sessionTime, active && s.sessionTimeActive]}>4:00 PM – 9:00 PM</Text>
-                      {!hasSlots && <Text style={s.sessionNA}>Not available</Text>}
-                      {hasSlots && slot && session === 'evening' && (
-                        <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })()}
-              </View>
-              {slots.length === 0 && (
-                <Text style={s.noSlotsText}>No slots configured for this day. Try a different date.</Text>
+              {/* No Sessions Configured - Show Empty State */}
+              {clinicSessions.length === 0 ? (
+                <View style={s.emptySessionsCard}>
+                  <Ionicons name="calendar-outline" size={48} color={MUTED} style={{ marginBottom: 12 }} />
+                  <Text style={s.emptySessionsTitle}>No Appointment Sessions Available</Text>
+                  <Text style={s.emptySessionsText}>
+                    This clinic hasn't configured appointment sessions yet. Please check back later or contact the clinic directly.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View style={s.sessionRow}>
+                    {/* Dynamic Sessions from Database */}
+                    {clinicSessions.map((sess) => {
+                      const active = session === sess.id;
+                      const sessionSlots = getSessionSlots(sess.id);
+                      const hasSlots = sessionSlots.length > 0;
+                      
+                      // Icon selection based on time
+                      const startHour = parseInt(sess.startTime.split(':')[0], 10);
+                      let iconName = 'time';
+                      let iconColor = BLUE;
+                      if (startHour < 12) {
+                        iconName = 'sunny';
+                        iconColor = '#F59E0B';
+                      } else if (startHour >= 12 && startHour < 17) {
+                        iconName = 'partly-sunny';
+                        iconColor = '#FB923C';
+                      } else {
+                        iconName = 'moon';
+                        iconColor = '#6366F1';
+                      }
+                      
+                      return (
+                        <TouchableOpacity
+                          key={sess.id}
+                          style={[s.sessionCard, active && s.sessionCardActive, !hasSlots && s.sessionCardDisabled]}
+                          onPress={() => hasSlots && handleSessionSelect(sess.id)}
+                          activeOpacity={hasSlots ? 0.85 : 1}
+                        >
+                          {active && (
+                            <View style={s.sessionCheck}>
+                              <Ionicons name="checkmark" size={10} color={WHITE} />
+                            </View>
+                          )}
+                          <Ionicons name={iconName} size={28} color={active ? BLUE : (hasSlots ? iconColor : MUTED)} />
+                          <Text style={[s.sessionLabel, active && s.sessionLabelActive]}>{sess.name}</Text>
+                          <Text style={[s.sessionTime, active && s.sessionTimeActive]}>
+                            {fmt12(sess.startTime)} – {fmt12(sess.endTime)}
+                          </Text>
+                          {!hasSlots && <Text style={s.sessionNA}>Fully Booked</Text>}
+                          {hasSlots && slot && session === sess.id && (
+                            <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {slots.length === 0 && (
+                    <Text style={s.noSlotsText}>No slots configured for this day. Try a different date.</Text>
+                  )}
+                  <View style={s.queueInfo}>
+                    <Ionicons name="information-circle-outline" size={14} color={MUTED} />
+                    <Text style={s.queueInfoText}>Exact queue number will be assigned on the appointment day.</Text>
+                  </View>
+                </>
               )}
-              <View style={s.queueInfo}>
-                <Ionicons name="information-circle-outline" size={14} color={MUTED} />
-                <Text style={s.queueInfoText}>Exact queue number will be assigned on the appointment day.</Text>
-              </View>
             </>
           )}
         </View>
@@ -644,21 +702,37 @@ export default function BookingScreen({ route, navigation }) {
       {/* ── Sticky Bottom Bar ── */}
       <View style={[s.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
-          style={[s.confirmBtn, (loading || !date) && s.confirmBtnDisabled, isFreeBooking && s.confirmBtnFree]}
+          style={[
+            s.confirmBtn,
+            (loading || !date || clinicSessions.length === 0 || !session) && s.confirmBtnDisabled,
+            isFreeBooking && s.confirmBtnFree
+          ]}
           onPress={handleBook}
-          disabled={loading}
+          disabled={loading || !date || clinicSessions.length === 0 || !session}
           activeOpacity={0.88}
         >
           {loading ? (
             <ActivityIndicator color={WHITE} size="small" />
           ) : (
             <Text style={s.confirmBtnText}>
-              {isFreeBooking ? '🎉 Confirm Free Booking' : '💳 Pay ₹10 & Confirm'}
+              {clinicSessions.length === 0
+                ? 'No Sessions Available'
+                : !date
+                ? 'Select Date'
+                : !session
+                ? 'Select Session'
+                : isFreeBooking
+                ? '🎉 Confirm Free Booking'
+                : '💳 Pay ₹10 & Confirm'}
             </Text>
           )}
         </TouchableOpacity>
         <Text style={s.noCharge}>
-          {isFreeBooking ? 'No payment required — first booking is free' : 'Platform booking fee: ₹10 via Razorpay'}
+          {clinicSessions.length === 0
+            ? 'This clinic has not configured appointment sessions yet'
+            : isFreeBooking
+            ? 'No payment required — first booking is free'
+            : 'Platform booking fee: ₹10 via Razorpay'}
         </Text>
       </View>
 
@@ -776,8 +850,8 @@ const s = StyleSheet.create({
   // Date Strip
   dateStrip:   { gap: 10, paddingRight: 4 },
   dateCell:    {
-    width: 62, borderRadius: 14, backgroundColor: BG,
-    alignItems: 'center', paddingVertical: 11,
+    minWidth: 72, borderRadius: 14, backgroundColor: BG,
+    alignItems: 'center', paddingVertical: 11, paddingHorizontal: 8,
     borderWidth: 1.5, borderColor: BORDER, gap: 2,
   },
   dateCellActive:{
@@ -785,7 +859,7 @@ const s = StyleSheet.create({
     shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
-  dateDayName: { fontSize: 10, color: MUTED, fontWeight: '700', textTransform: 'uppercase' },
+  dateDayName: { fontSize: 10, color: MUTED, fontWeight: '700', textTransform: 'uppercase', textAlign: 'center' },
   dateNum:     { fontSize: 22, fontWeight: '800', color: SLATE },
   dateMonth:   { fontSize: 10, color: MUTED, fontWeight: '600' },
   dateTextActive:{ color: WHITE },
@@ -816,6 +890,15 @@ const s = StyleSheet.create({
   noSlotsText:       { fontSize: 12, color: MUTED, textAlign: 'center', marginBottom: 8 },
   queueInfo:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   queueInfoText:     { fontSize: 11, color: MUTED, flex: 1, lineHeight: 16 },
+  
+  // Empty sessions state
+  emptySessionsCard: {
+    alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20,
+    backgroundColor: BG, borderRadius: 14, borderWidth: 1.5,
+    borderColor: BORDER, borderStyle: 'dashed',
+  },
+  emptySessionsTitle:{ fontSize: 15, fontWeight: '700', color: SLATE, marginBottom: 6, textAlign: 'center' },
+  emptySessionsText: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 19 },
 
   // Notes
   notesWrap:   {

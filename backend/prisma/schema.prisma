@@ -148,6 +148,7 @@ model Clinic {
   verifiedBy                         User?                   @relation("ClinicVerifiedBy", fields: [verifiedById], references: [id])
   queues                             Queue[]
   receptionistProfiles               ReceptionistProfile[]
+  sessions                           ClinicSession[]
 
   @@map("clinics")
 }
@@ -482,6 +483,23 @@ model prescriptions {
   appointments     Appointment   @relation(fields: [appointmentId], references: [id])
   doctor_profiles  DoctorProfile @relation(fields: [doctorId], references: [id])
   users            User          @relation(fields: [patientId], references: [id])
+}
+
+model ClinicSession {
+  id          String   @id @default(uuid())
+  clinicId    String
+  name        String
+  startTime   String
+  endTime     String
+  maxPatients Int      @default(30)
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("clinic_sessions")
 }
 
 enum UserRole {
