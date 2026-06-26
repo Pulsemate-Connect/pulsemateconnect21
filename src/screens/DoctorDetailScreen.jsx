@@ -265,18 +265,23 @@ export default function DoctorDetailScreen({ route, navigation }) {
   const spec    = doctor.specialization || 'General Physician';
   const cfg     = getSpec(spec);
   const accent  = cfg.color;
-  const initial = doctor.user?.name?.charAt(0)?.toUpperCase() || 'D';
+  const initial = doctor.user?.name?.replace(/^Dr\.?\s*/i, '').charAt(0)?.toUpperCase() || 'D';
   const langs   = doctor.languagesKnown?.join(', ') || 'English';
   const qual    = doctor.qualification || 'MBBS';
   const exp     = doctor.experienceYears || 0;
-  const fee     = doctor.consultationFee ? `₹${doctor.consultationFee}` : 'Free';
+  const fee     = doctor.consultationFee > 0 ? `₹${doctor.consultationFee}` : null;
   const avgMins = doctor.avgConsultationMins || 10;
   const firstClinic = doctor.doctorClinics?.[0];
+
+  // Avoid "Dr. Dr. Name" if backend already stores the Dr. prefix
+  const doctorName = doctor.user?.name?.match(/^Dr\.?\s*/i)
+    ? doctor.user.name
+    : `Dr. ${doctor.user?.name}`;
 
   const handleBook = (dc) => navigation.navigate('Booking', {
     doctorId:       doctor.id,
     clinicId:       dc?.clinic?.id || firstClinic?.clinic?.id,
-    doctorName:     doctor.user?.name,
+    doctorName:     doctorName,
     clinicName:     dc?.clinic?.name || firstClinic?.clinic?.name,
     fee:            dc?.consultationFee || doctor.consultationFee,
     specialization: doctor.specialization,
@@ -291,7 +296,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
         <TouchableOpacity style={dd.floatBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={20} color={WHITE} />
         </TouchableOpacity>
-        <Text style={dd.floatTitle} numberOfLines={1}>Dr. {doctor.user?.name}</Text>
+        <Text style={dd.floatTitle} numberOfLines={1}>{doctorName}</Text>
         <Animated.View style={{ transform: [{ scale: heartA }] }}>
           <TouchableOpacity style={dd.floatHeart} onPress={handleSave} activeOpacity={0.8}>
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={20} color={saved ? '#FB7185' : WHITE} />
@@ -321,7 +326,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
             {/* Name + spec */}
             <View style={dd.heroText}>
               <View style={dd.heroNameRow}>
-                <Text style={dd.heroName}>Dr. {doctor.user?.name}</Text>
+                <Text style={dd.heroName}>{doctorName}</Text>
                 <Ionicons name="checkmark-circle" size={18} color={TEAL} />
               </View>
               <View style={[dd.specBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
@@ -391,10 +396,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
                     <Text style={[dd.modeText, { color: '#10B981' }]}>Online</Text>
                   </View>
                 )}
-                <View style={[dd.modeChip, { borderColor: accent, backgroundColor: cfg.bg }]}>
-                  <Ionicons name="cash-outline" size={14} color={accent} />
-                  <Text style={[dd.modeText, { color: accent }]}>{fee}</Text>
-                </View>
               </View>
 
               {/* Bio */}
@@ -478,7 +479,9 @@ export default function DoctorDetailScreen({ route, navigation }) {
       <View style={[dd.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={dd.stickyLeft}>
           <Text style={dd.stickyFeeLabel}>Consultation Fee</Text>
-          <Text style={[dd.stickyFee, { color: accent }]}>{fee}</Text>
+          <Text style={[dd.stickyFee, { color: accent }]}>
+            {doctor.consultationFee > 0 ? `₹${doctor.consultationFee}` : 'Contact Clinic'}
+          </Text>
         </View>
         <TouchableOpacity
           style={[dd.stickyBtn, { backgroundColor: accent, shadowColor: accent }]}
