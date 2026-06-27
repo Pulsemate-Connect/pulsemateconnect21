@@ -88,7 +88,7 @@ const countBookedSlots = async (clinicId, doctorId, date, sessionStart, sessionE
  * - date (required): YYYY-MM-DD
  * - doctorId (optional): Filter by specific doctor
  */
-exports.getClinicSessionAvailability = async (req, res, next) => {
+const getClinicSessionAvailability = async (req, res, next) => {
   try {
     const { clinicId } = req.params;
     const { date, doctorId } = req.query;
@@ -203,7 +203,7 @@ exports.getClinicSessionAvailability = async (req, res, next) => {
  * - clinicId (required)
  * - date (required): YYYY-MM-DD
  */
-exports.getDoctorSessionAvailability = async (req, res, next) => {
+const getDoctorSessionAvailability = async (req, res, next) => {
   try {
     const { doctorId } = req.params;
     const { clinicId, date } = req.query;
@@ -360,7 +360,7 @@ exports.getDoctorSessionAvailability = async (req, res, next) => {
  * - sessionId
  * - date
  */
-exports.validateSessionCapacity = async (req, res, next) => {
+const validateSessionCapacity = async (req, res, next) => {
   try {
     const { clinicId, doctorId, sessionId, date } = req.body;
     
