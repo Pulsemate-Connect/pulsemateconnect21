@@ -413,10 +413,6 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
                 <span className="font-bold text-emerald-700">FREE</span>
               </span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Consultation Fee</span>
-              <span className="text-gray-400 text-xs italic">Pay at clinic — ₹{consultationFee}</span>
-            </div>
             <div className="border-t border-emerald-200 pt-2 flex justify-between font-bold text-base">
               <span className="text-emerald-800">Total Payable Now</span>
               <span className="text-emerald-700 text-xl">₹0</span>
@@ -435,17 +431,10 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
               <span className="text-gray-500">Booking Fee (Platform)</span>
               <span className="font-semibold text-gray-900">₹10</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Consultation Fee</span>
-              <span className="text-gray-400 text-xs italic">Pay at clinic — ₹{consultationFee}</span>
-            </div>
             <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
               <span>Pay Now</span>
               <span className="text-primary-600">₹10</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              Consultation fee of ₹{consultationFee} is paid directly at the clinic.
-            </p>
           </div>
         )}
 
@@ -455,7 +444,6 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
             <span className="text-blue-500 mt-0.5">ℹ️</span>
             <p className="text-xs text-blue-700">
               A <strong>₹10 booking fee</strong> is charged to confirm your slot.
-              The consultation fee of <strong>₹{consultationFee}</strong> is paid directly at the clinic.
             </p>
           </div>
         )}

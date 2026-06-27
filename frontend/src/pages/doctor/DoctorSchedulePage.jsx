@@ -472,8 +472,7 @@ const DoctorSchedulePage = () => {
                 {selectedClinicInfo?.clinic?.name || 'Clinic'}
               </p>
               <p className="text-xs text-primary-600 mt-0.5">
-                {selectedClinicInfo?.clinic?.city} ·
-                Fee: ₹{selectedClinicInfo?.consultationFee ?? 0}
+                {selectedClinicInfo?.clinic?.city}
                 {selectedClinicInfo?.startTime && selectedClinicInfo?.endTime
                   ? ` · Default hours: ${selectedClinicInfo.startTime}–${selectedClinicInfo.endTime}`
                   : ''}

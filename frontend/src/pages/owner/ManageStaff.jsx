@@ -235,7 +235,6 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
 
                         <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-text-muted">
                           <p>Experience: <span className="font-medium text-text-primary">{doctor.experienceYears ?? 0} yrs</span></p>
-                          <p>Fee: <span className="font-medium text-text-primary">₹{doctor.consultationFee ?? 0}</span></p>
                           <p>Online: <span className="font-medium text-text-primary">{doctor.onlineAvailable ? 'Yes' : 'No'}</span></p>
                           <p>Offline: <span className="font-medium text-text-primary">{doctor.offlineAvailable ? 'Yes' : 'No'}</span></p>
                         </div>
@@ -377,8 +376,7 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
                           {invite.doctor?.user?.mobile ? ` · ${invite.doctor.user.mobile}` : ''}
                         </p>
                         <p className="text-xs text-text-muted mt-1">
-                          Fee: ₹{invite.consultationFee ?? 0}
-                          {invite.joinedAt ? ` · Joined ${new Date(invite.joinedAt).toLocaleDateString('en-IN')}` : ''}
+                          {invite.joinedAt ? `Joined ${new Date(invite.joinedAt).toLocaleDateString('en-IN')}` : ''}
                           {invite.removedAt ? ` · Removed ${new Date(invite.removedAt).toLocaleDateString('en-IN')}` : ''}
                         </p>
                       </div>

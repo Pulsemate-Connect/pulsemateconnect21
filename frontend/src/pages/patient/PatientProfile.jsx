@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getPatientProfile, updatePatientProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
-
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+import {
+  BLOOD_GROUPS, POPULAR_CITIES,
+  capitaliseName, calcAge,
+  validateName, validateGender, validateDob,
+  validateCity, validateEmergencyContact, normalisePhone,
+} from '../../utils/profileValidation';
 
 // Only the fields that truly matter for healthcare
 const calcCompletion = (user, p) => {
@@ -23,12 +27,18 @@ const calcCompletion = (user, p) => {
 
 const PatientProfile = () => {
   const { updateUser } = useAuthStore();
-  const [profile, setProfile]     = useState(null);
+  const [profile, setProfile]       = useState(null);
   const [completion, setCompletion] = useState({ pct: 0, missing: [] });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving]   = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData]   = useState({});
+  const [isLoading, setIsLoading]   = useState(true);
+  const [isSaving, setIsSaving]     = useState(false);
+  const [isEditing, setIsEditing]   = useState(false);
+  const [formData, setFormData]     = useState({});
+  const [formErrors, setFormErrors] = useState({});
+  const [cityQuery, setCityQuery]   = useState('');
+  const [showCityDrop, setShowCityDrop] = useState(false);
+  const cityRef = useRef(null);
+
+  const userPhone = useAuthStore.getState().user?.mobile || '';
 
   const loadProfile = async () => {
     try {
@@ -41,11 +51,13 @@ const PatientProfile = () => {
         name:             user.name || '',
         gender:           p?.gender || '',
         dob:              p?.dob ? p.dob.split('T')[0] : '',
+        city:             p?.city || '',
         bloodGroup:       p?.bloodGroup || '',
-        emergencyContact: p?.emergencyContact || '',
+        emergencyContact: p?.emergencyContact ? normalisePhone(p.emergencyContact) : '',
         allergies:        p?.allergies || '',
         existingDiseases: p?.existingDiseases || '',
       });
+      setCityQuery(p?.city || '');
     } catch {
       toast.error('Failed to load profile');
     } finally {
@@ -57,32 +69,54 @@ const PatientProfile = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) { toast.error('Name is required'); return; }
+    if (isSaving) return; // double-submit guard
+
+    // Run all validations
+    const errs = {
+      name:             validateName(formData.name),
+      gender:           validateGender(formData.gender),
+      dob:              validateDob(formData.dob),
+      city:             validateCity(formData.city),
+      emergencyContact: validateEmergencyContact(formData.emergencyContact, userPhone),
+    };
+    setFormErrors(errs);
+    if (Object.values(errs).some(Boolean)) {
+      toast.error('Please fix the highlighted errors before saving.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const res = await updatePatientProfile({
-        name:             formData.name || undefined,
-        gender:           formData.gender || undefined,
-        dob:              formData.dob || undefined,
-        bloodGroup:       formData.bloodGroup,        // send empty string so backend can clear it
-        emergencyContact: formData.emergencyContact || undefined,
-        allergies:        formData.allergies,          // send empty string so backend can clear it
-        existingDiseases: formData.existingDiseases,   // send empty string so backend can clear it
+        name:             formData.name.trim(),
+        gender:           formData.gender            || undefined,
+        dob:              formData.dob               || undefined,
+        city:             formData.city.trim()        || undefined,
+        emergencyContact: normalisePhone(formData.emergencyContact).length === 10
+                            ? `+91${normalisePhone(formData.emergencyContact)}` : undefined,
+        bloodGroup:       formData.bloodGroup,
+        allergies:        formData.allergies,
+        existingDiseases: formData.existingDiseases,
       });
       const user = res.data.data.user;
       setProfile(user);
       setCompletion(calcCompletion(user, user?.patientProfile));
+      setCityQuery(user?.patientProfile?.city || '');
       updateUser({ name: user.name });
       setIsEditing(false);
+      setFormErrors({});
       toast.success('Profile updated!');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Update failed');
+      toast.error(err.response?.data?.message || 'Update failed. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const set = (field, val) => setFormData((f) => ({ ...f, [field]: val }));
+  const set = (field, val) => {
+    setFormData((f) => ({ ...f, [field]: val }));
+    setFormErrors((e) => ({ ...e, [field]: null }));
+  };
 
   if (isLoading) {
     return (
@@ -185,34 +219,78 @@ const PatientProfile = () => {
             <div>
               <label className="label">Full Name <span className="text-red-500">*</span></label>
               <input
-                className="input w-full"
+                className={`input w-full ${formErrors.name ? 'border-red-400' : ''}`}
                 value={formData.name}
-                onChange={(e) => set('name', e.target.value)}
-                placeholder="Your full name"
+                onChange={(e) => set('name', capitaliseName(e.target.value))}
+                placeholder="e.g. Rahul Kumar Sharma"
+                maxLength={60}
               />
+              {formErrors.name && <p className="text-xs text-red-500 mt-1">⚠️ {formErrors.name}</p>}
             </div>
 
             {/* Gender + DOB */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Gender <span className="text-red-500">*</span></label>
-                <select className="input w-full" value={formData.gender} onChange={(e) => set('gender', e.target.value)}>
+                <select
+                  className={`input w-full ${formErrors.gender ? 'border-red-400' : ''}`}
+                  value={formData.gender}
+                  onChange={(e) => set('gender', e.target.value)}
+                >
                   <option value="">Select</option>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
                   <option value="OTHER">Other</option>
                 </select>
+                {formErrors.gender && <p className="text-xs text-red-500 mt-1">⚠️ {formErrors.gender}</p>}
               </div>
               <div>
                 <label className="label">Date of Birth <span className="text-red-500">*</span></label>
                 <input
                   type="date"
-                  className="input w-full"
+                  className={`input w-full ${formErrors.dob ? 'border-red-400' : ''}`}
                   value={formData.dob}
                   max={new Date().toISOString().split('T')[0]}
+                  min="1900-01-01"
                   onChange={(e) => set('dob', e.target.value)}
                 />
+                {formErrors.dob && <p className="text-xs text-red-500 mt-1">⚠️ {formErrors.dob}</p>}
+                {!formErrors.dob && calcAge(formData.dob) !== null && (
+                  <p className="text-xs text-emerald-600 mt-1">Age: {calcAge(formData.dob)} years</p>
+                )}
               </div>
+            </div>
+
+            {/* City */}
+            <div>
+              <label className="label">City <span className="text-red-500">*</span></label>
+              <div className="relative" ref={cityRef}>
+                <input
+                  type="text"
+                  className={`input w-full ${formErrors.city ? 'border-red-400' : ''}`}
+                  value={cityQuery}
+                  placeholder="Search city…"
+                  onChange={(e) => { setCityQuery(e.target.value); set('city', e.target.value); setShowCityDrop(true); }}
+                  onFocus={() => setShowCityDrop(true)}
+                  onBlur={() => setTimeout(() => setShowCityDrop(false), 150)}
+                  maxLength={60}
+                />
+                {showCityDrop && (
+                  <ul className="absolute z-50 w-full bg-white border border-border rounded-xl shadow-lg max-h-44 overflow-y-auto mt-1">
+                    {(cityQuery.trim().length >= 1
+                      ? POPULAR_CITIES.filter(c => c.toLowerCase().includes(cityQuery.toLowerCase()))
+                      : POPULAR_CITIES.slice(0, 10)
+                    ).map((c) => (
+                      <li key={c}
+                        className="px-4 py-2 cursor-pointer hover:bg-primary-50 text-sm font-medium text-text-primary"
+                        onMouseDown={() => { set('city', c); setCityQuery(c); setShowCityDrop(false); }}>
+                        📍 {c}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {formErrors.city && <p className="text-xs text-red-500 mt-1">⚠️ {formErrors.city}</p>}
             </div>
 
             {/* Blood Group */}
@@ -220,15 +298,13 @@ const PatientProfile = () => {
               <label className="label">Blood Group <span className="text-red-500">*</span></label>
               <div className="flex flex-wrap gap-2">
                 {BLOOD_GROUPS.map((bg) => (
-                  <button
-                    key={bg} type="button"
+                  <button key={bg} type="button"
                     onClick={() => set('bloodGroup', formData.bloodGroup === bg ? '' : bg)}
                     className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
                       formData.bloodGroup === bg
                         ? 'border-red-500 bg-red-50 text-red-700'
                         : 'border-border text-text-muted hover:border-gray-300'
-                    }`}
-                  >
+                    }`}>
                     {bg}
                   </button>
                 ))}
@@ -238,39 +314,39 @@ const PatientProfile = () => {
             {/* Emergency Contact */}
             <div>
               <label className="label">Emergency Contact <span className="text-red-500">*</span></label>
-              <input
-                type="tel"
-                className="input w-full"
-                value={formData.emergencyContact}
-                onChange={(e) => set('emergencyContact', e.target.value)}
-                placeholder="+91 9876543210"
-              />
+              <div className={`flex items-center border-2 rounded-xl overflow-hidden ${formErrors.emergencyContact ? 'border-red-400' : 'border-border'}`}>
+                <span className="px-3 py-2.5 bg-gray-50 border-r border-border text-sm font-semibold text-gray-600 select-none whitespace-nowrap">🇮🇳 +91</span>
+                <input
+                  type="tel"
+                  className="flex-1 px-3 py-2.5 outline-none text-base"
+                  value={normalisePhone(formData.emergencyContact)}
+                  onChange={(e) => set('emergencyContact', normalisePhone(e.target.value))}
+                  placeholder="9876543210"
+                  maxLength={10}
+                />
+              </div>
+              <p className="text-xs text-text-muted mt-0.5">{normalisePhone(formData.emergencyContact).length}/10 digits</p>
+              {formErrors.emergencyContact && <p className="text-xs text-red-500 mt-1">⚠️ {formErrors.emergencyContact}</p>}
             </div>
 
             {/* Allergies */}
             <div>
               <label className="label">Known Allergies <span className="text-text-muted font-normal text-xs">(optional)</span></label>
-              <input
-                className="input w-full"
-                value={formData.allergies}
+              <input className="input w-full" value={formData.allergies}
                 onChange={(e) => set('allergies', e.target.value)}
-                placeholder="e.g. Penicillin, Dust, Peanuts"
-              />
+                placeholder="e.g. Penicillin, Dust, Peanuts" />
             </div>
 
             {/* Existing Conditions */}
             <div>
               <label className="label">Existing Conditions <span className="text-text-muted font-normal text-xs">(optional)</span></label>
-              <input
-                className="input w-full"
-                value={formData.existingDiseases}
+              <input className="input w-full" value={formData.existingDiseases}
                 onChange={(e) => set('existingDiseases', e.target.value)}
-                placeholder="e.g. Diabetes, Hypertension"
-              />
+                placeholder="e.g. Diabetes, Hypertension" />
             </div>
 
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setIsEditing(false)} className="btn-ghost flex-1">
+              <button type="button" onClick={() => { setIsEditing(false); setFormErrors({}); }} className="btn-ghost flex-1">
                 Cancel
               </button>
               <button type="submit" className="btn-primary flex-1" disabled={isSaving}>

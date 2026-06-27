@@ -283,7 +283,6 @@ const ClinicApprovals = () => {
                           <p>Qualification: {doctor.doctorProfile?.qualification || 'Not provided'}</p>
                           <p>Experience: {doctor.doctorProfile?.experienceYears ?? 0} years</p>
                           <p>Registration: {doctor.doctorProfile?.medicalRegistrationNumber || 'Not provided'}</p>
-                          <p>Consultation fee: {doctor.doctorProfile?.consultationFee ? `INR ${doctor.doctorProfile.consultationFee}` : 'Not provided'}</p>
                         </div>
                         <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
                           <p><span className="font-semibold">Bio:</span> {doctor.doctorProfile?.bio || 'Not provided'}</p>

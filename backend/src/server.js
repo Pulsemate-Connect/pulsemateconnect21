@@ -30,6 +30,7 @@ const availabilityRoutes = require('./routes/availability.routes');
 const deviceTokenRoutes = require('./routes/deviceToken.routes');
 const campaignRoutes = require('./routes/campaign.routes');
 const webhookRoutes = require('./routes/webhook.routes');
+const clinicSessionRoutes = require('./routes/clinicSession.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -250,6 +251,8 @@ app.get('/privacy-policy', (req, res) => {
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+// Clinic session routes MUST come before general clinic routes for proper matching
+app.use('/api/clinics', clinicSessionRoutes); // Public: /:clinicId/sessions
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/clinics', clinicRoutes);
 // Availability routes MUST be registered before doctorRoutes because doctorRoutes

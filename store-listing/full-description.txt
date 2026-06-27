@@ -1,0 +1,51 @@
+PulseMate Connect — Smart Healthcare at Your Fingertips
+
+Book doctor appointments in seconds, track your live queue position in real time, and manage your complete health profile — all in one app.
+
+──────────────────────────────────────
+🗓️  INSTANT APPOINTMENT BOOKING
+──────────────────────────────────────
+• Search verified doctors by specialization, city, or name
+• See real-time availability and consultation fees
+• Book in-person (clinic) or online consultations
+• Your first booking is completely FREE
+
+──────────────────────────────────────
+👥  LIVE QUEUE TRACKING
+──────────────────────────────────────
+• See exactly how many patients are ahead of you
+• Get notified the moment your turn arrives
+• No more waiting in crowded waiting rooms
+
+──────────────────────────────────────
+📋  DIGITAL HEALTH RECORDS
+──────────────────────────────────────
+• Access prescriptions and medical notes anytime
+• Complete health profile: blood group, allergies, conditions
+• Secure emergency contact for clinic visits
+
+──────────────────────────────────────
+💳  SIMPLE & SECURE PAYMENTS
+──────────────────────────────────────
+• ₹10 platform booking fee — transparent pricing
+• Powered by Razorpay — UPI, Cards, Net Banking
+• Secure payment with instant confirmation
+
+──────────────────────────────────────
+🔒  PRIVACY & SECURITY
+──────────────────────────────────────
+• Phone number verified via Firebase Authentication
+• Your health data is encrypted and never sold
+• Account deletion available anytime from the app
+
+──────────────────────────────────────
+⚕️  MEDICAL DISCLAIMER
+──────────────────────────────────────
+PulseMate Connect is an appointment booking platform. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for medical decisions. In an emergency, call 112.
+
+──────────────────────────────────────
+📞  SUPPORT
+──────────────────────────────────────
+Website: https://www.pulsemateconnect.in
+Privacy Policy: https://www.pulsemateconnect.in/privacy-policy
+Terms of Service: https://www.pulsemateconnect.in/terms-of-service
