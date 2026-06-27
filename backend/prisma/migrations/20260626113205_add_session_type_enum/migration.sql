@@ -19,6 +19,20 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- CRITICAL: Remove duplicates BEFORE creating unique index
+-- Keep only the most recent record for each (clinicId, sessionType) pair
+DO $$ 
+BEGIN
+    -- Delete duplicates, keeping the row with the latest createdAt
+    DELETE FROM "clinic_sessions" a
+    USING "clinic_sessions" b
+    WHERE a.id < b.id
+    AND a."clinicId" = b."clinicId"
+    AND a."sessionType" = b."sessionType";
+    
+    RAISE NOTICE 'Removed duplicate clinic_sessions records';
+END $$;
+
 -- CreateIndex (unique constraint for clinicId + sessionType)
 DO $$ BEGIN
     IF NOT EXISTS (

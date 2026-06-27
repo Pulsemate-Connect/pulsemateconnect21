@@ -15,6 +15,22 @@ CREATE TABLE IF NOT EXISTS "doctor_availability" (
     CONSTRAINT "doctor_availability_pkey" PRIMARY KEY ("id")
 );
 
+-- Remove any potential duplicates BEFORE creating unique index
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'doctor_availability') THEN
+        -- Delete duplicates, keeping the row with the latest createdAt (highest id)
+        DELETE FROM "doctor_availability" a
+        USING "doctor_availability" b
+        WHERE a.id < b.id
+        AND a."doctorId" = b."doctorId"
+        AND a."clinicId" = b."clinicId"
+        AND a."dayOfWeek" = b."dayOfWeek";
+        
+        RAISE NOTICE 'Removed duplicate doctor_availability records';
+    END IF;
+END $$;
+
 -- Create indexes if not exist
 CREATE INDEX IF NOT EXISTS "doctor_availability_doctorId_idx" ON "doctor_availability"("doctorId");
 CREATE INDEX IF NOT EXISTS "doctor_availability_clinicId_idx" ON "doctor_availability"("clinicId");
