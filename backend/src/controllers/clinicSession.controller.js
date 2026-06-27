@@ -98,18 +98,36 @@ exports.getMyClinicSessions = async (req, res) => {
 exports.createSession = async (req, res) => {
   try {
     const { clinicId } = req.params;
-    const { name, startTime, endTime, maxPatients = 30, enabled = true, sortOrder = 0 } = req.body;
+    const { sessionType, name, startTime, endTime, maxPatients = 30, enabled = true } = req.body;
     const userId = req.user.id;
 
+    // Enhanced logging for debugging
+    logger.info('[CREATE SESSION] Request received', {
+      clinicId,
+      userId,
+      body: req.body,
+    });
+
     // Validation
-    if (!name || !startTime || !endTime) {
+    if (!sessionType || !name || !startTime || !endTime) {
+      logger.warn('[CREATE SESSION] Validation failed - missing required fields');
       return res.status(400).json({
         success: false,
-        message: 'Session name, start time, and end time are required',
+        message: 'Session type, name, start time, and end time are required',
+      });
+    }
+
+    // Validate sessionType enum
+    const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING'];
+    if (!validSessionTypes.includes(sessionType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid session type. Must be MORNING, AFTERNOON, or EVENING',
       });
     }
 
     // Verify clinic ownership
+    logger.info('[CREATE SESSION] Verifying clinic ownership', { clinicId, userId });
     const clinic = await prisma.clinic.findFirst({
       where: {
         id: clinicId,
@@ -118,19 +136,48 @@ exports.createSession = async (req, res) => {
     });
 
     if (!clinic) {
+      logger.warn('[CREATE SESSION] Clinic not found or permission denied', { clinicId, userId });
       return res.status(403).json({
         success: false,
         message: 'Clinic not found or you do not have permission',
       });
     }
 
-    // Check for time conflicts
+    logger.info('[CREATE SESSION] Clinic ownership verified', { clinicName: clinic.name });
+
+    // Check for duplicate session type (unique constraint: clinicId + sessionType)
+    const existingSession = await prisma.clinicSession.findFirst({
+      where: {
+        clinicId,
+        sessionType,
+      },
+    });
+
+    if (existingSession) {
+      return res.status(400).json({
+        success: false,
+        message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+      });
+    }
+
+    // Auto-assign sortOrder based on session type
+    const sortOrderMap = {
+      MORNING: 1,
+      AFTERNOON: 2,
+      EVENING: 3,
+    };
+    const sortOrder = sortOrderMap[sessionType];
+
+    // Check for time conflicts with other sessions
     const existingSessions = await prisma.clinicSession.findMany({
       where: {
         clinicId,
         enabled: true,
+        sessionType: { not: sessionType }, // Exclude same type (already checked for duplicates)
       },
     });
+
+    logger.info('[CREATE SESSION] Existing sessions found', { count: existingSessions.length });
 
     const newStart = convertTimeToMinutes(startTime);
     const newEnd = convertTimeToMinutes(endTime);
@@ -152,21 +199,34 @@ exports.createSession = async (req, res) => {
     }
 
     // Create session
+    logger.info('[CREATE SESSION] Creating new session', {
+      clinicId,
+      sessionType,
+      name,
+      startTime,
+      endTime,
+      maxPatients: parseInt(maxPatients, 10),
+      enabled,
+      sortOrder,
+    });
+
     const newSession = await prisma.clinicSession.create({
       data: {
         clinicId,
+        sessionType,
         name,
         startTime,
         endTime,
         maxPatients: parseInt(maxPatients, 10),
         enabled,
-        sortOrder: parseInt(sortOrder, 10),
+        sortOrder,
       },
     });
 
-    logger.info('Clinic session created', {
+    logger.info('[CREATE SESSION] Session created successfully', {
       sessionId: newSession.id,
       clinicId,
+      sessionType,
       name,
       userId,
     });
@@ -177,10 +237,19 @@ exports.createSession = async (req, res) => {
       message: 'Session created successfully',
     });
   } catch (error) {
-    logger.error('Error creating clinic session', { error: error.message, stack: error.stack, userId: req.user?.id });
+    logger.error('[CREATE SESSION] Error creating clinic session', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      meta: error.meta,
+      userId: req.user?.id,
+      clinicId: req.params?.clinicId,
+      body: req.body,
+    });
     return res.status(500).json({
       success: false,
       message: 'Failed to create session',
+      error: error.message,
     });
   }
 };
@@ -192,7 +261,7 @@ exports.createSession = async (req, res) => {
 exports.updateSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { name, startTime, endTime, maxPatients, enabled, sortOrder } = req.body;
+    const { sessionType, name, startTime, endTime, maxPatients, enabled } = req.body;
     const userId = req.user.id;
 
     // Fetch the session with clinic ownership check
@@ -215,6 +284,32 @@ exports.updateSession = async (req, res) => {
         success: false,
         message: 'Session not found or you do not have permission',
       });
+    }
+
+    // If sessionType is being changed, check for duplicates
+    if (sessionType && sessionType !== session.sessionType) {
+      const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING'];
+      if (!validSessionTypes.includes(sessionType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid session type. Must be MORNING, AFTERNOON, or EVENING',
+        });
+      }
+
+      const existingSession = await prisma.clinicSession.findFirst({
+        where: {
+          clinicId: session.clinicId,
+          sessionType,
+          id: { not: sessionId },
+        },
+      });
+
+      if (existingSession) {
+        return res.status(400).json({
+          success: false,
+          message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+        });
+      }
     }
 
     // Check for time conflicts (excluding current session)
@@ -249,12 +344,17 @@ exports.updateSession = async (req, res) => {
 
     // Build update data
     const updateData = {};
+    if (sessionType !== undefined) {
+      updateData.sessionType = sessionType;
+      // Auto-update sortOrder based on new session type
+      const sortOrderMap = { MORNING: 1, AFTERNOON: 2, EVENING: 3 };
+      updateData.sortOrder = sortOrderMap[sessionType];
+    }
     if (name !== undefined) updateData.name = name;
     if (startTime !== undefined) updateData.startTime = startTime;
     if (endTime !== undefined) updateData.endTime = endTime;
     if (maxPatients !== undefined) updateData.maxPatients = parseInt(maxPatients, 10);
     if (enabled !== undefined) updateData.enabled = enabled;
-    if (sortOrder !== undefined) updateData.sortOrder = parseInt(sortOrder, 10);
 
     const updatedSession = await prisma.clinicSession.update({
       where: { id: sessionId },

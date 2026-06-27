@@ -1,0 +1,144 @@
+================================================================================
+🎉 NEW AAB READY - PULSEMATE CONNECT
+================================================================================
+
+FILE TO UPLOAD:
+---------------
+✅ pulsemate-connect-patient-v1.0.0.aab (49.1 MB)
+
+PACKAGE NAME:
+-------------
+✅ in.pulsemateconnect.patient
+
+APP NAME:
+---------
+✅ PulseMate Connect
+
+================================================================================
+
+⚠️ IMPORTANT: You MUST Create a NEW App in Play Console
+================================================================================
+
+Google doesn't allow changing package names, so you need a completely NEW app.
+
+STEP 1: Create NEW App in Play Console (5 minutes)
+---------------------------------------------------
+1. Go to: https://play.google.com/console
+2. Click "Create app"
+3. App name: PulseMate Connect
+4. Language: English (United States)
+5. Type: App
+6. Free or paid: Free
+7. Click "Create app"
+
+STEP 2: Get Certificate for App Signing (5 minutes)
+----------------------------------------------------
+Run this command in your terminal:
+
+   eas credentials -p android
+
+Then:
+1. Select: production
+2. Select: credentials.json
+3. Select: Download credentials from EAS to credentials.json
+4. Select the NEWEST keystore
+
+This downloads the keystore to: credentials/android/keystore.jks
+
+Then extract certificate (copy the password and alias from credentials.json):
+
+   keytool -export -rfc -keystore credentials\android\keystore.jks 
+   -storepass [PASSWORD] -alias [ALIAS] 
+   -file pulsemate-patient-certificate.pem
+
+STEP 3: Setup App Signing in Play Console (2 minutes)
+------------------------------------------------------
+1. In Play Console, go to: Setup → App integrity
+2. Click "Use App Signing by Google Play"
+3. Upload: pulsemate-patient-certificate.pem
+4. Click Save
+
+STEP 4: Complete Required Sections (15 minutes)
+------------------------------------------------
+✓ App content → Select "All functionality available" + No ads
+✓ Content rating → Medical category questionnaire
+✓ Target audience → 18 and over
+✓ Data safety → Declare health data, location, personal info
+✓ Privacy policy → https://pulsemateconnect.in/privacy-policy
+
+STEP 5: Store Listing (10 minutes)
+-----------------------------------
+✓ App name: PulseMate Connect
+✓ Short description: Book doctor appointments instantly. Find clinics.
+✓ Full description: (see NEW-AAB-READY-TO-UPLOAD.md for full text)
+✓ App icon: Upload assets/icon.png (512x512)
+✓ Feature graphic: Create 1024x500 image (use Canva)
+✓ Screenshots: Take 2-8 screenshots (1080x1920)
+
+STEP 6: Upload AAB (2 minutes)
+-------------------------------
+1. Go to: Testing → Internal testing
+2. Click "Create new release"
+3. Upload: pulsemate-connect-patient-v1.0.0.aab
+4. Add release notes (see below)
+5. Click "Review release"
+6. Click "Start rollout to Internal testing"
+
+RELEASE NOTES:
+--------------
+Version 1.0.0 - Initial Release
+
+Features:
+• Find nearby clinics and doctors
+• Book appointments instantly
+• Dynamic session management
+• Secure payments with Razorpay
+• Push notifications
+• Digital health records
+
+This is our first public release!
+
+================================================================================
+
+QUICK START (Do These in Order):
+================================================================================
+
+1. Create NEW app in Play Console ✓
+2. Download keystore: eas credentials -p android ✓
+3. Extract certificate with keytool ✓
+4. Setup app signing in Play Console ✓
+5. Complete all required sections ✓
+6. Upload AAB ✓
+
+================================================================================
+
+DETAILED INSTRUCTIONS:
+----------------------
+Read: NEW-AAB-READY-TO-UPLOAD.md (full step-by-step guide)
+
+NEED HELP?
+----------
+- Store listing text: Already written in NEW-AAB-READY-TO-UPLOAD.md
+- Feature graphic: Use Canva (free) to create 1024x500 image
+- Screenshots: Run app and take screenshots
+
+================================================================================
+
+FILES IN YOUR FOLDER:
+---------------------
+✅ pulsemate-connect-patient-v1.0.0.aab ← Upload this
+✅ NEW-AAB-READY-TO-UPLOAD.md ← Read this for details
+✅ assets/icon.png ← Use this as app icon (512x512)
+
+After you download keystore:
+✅ credentials.json ← Keystore passwords
+✅ credentials/android/keystore.jks ← Keystore file
+✅ pulsemate-patient-certificate.pem ← Certificate to upload
+
+================================================================================
+
+START HERE: Step 1 - Create NEW app in Play Console!
+
+🚀 You're ready to upload!
+
+================================================================================
