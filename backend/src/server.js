@@ -31,6 +31,7 @@ const deviceTokenRoutes = require('./routes/deviceToken.routes');
 const campaignRoutes = require('./routes/campaign.routes');
 const webhookRoutes = require('./routes/webhook.routes');
 const clinicSessionRoutes = require('./routes/clinicSession.routes');
+const sessionAvailabilityRoutes = require('./routes/sessionAvailability.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -152,6 +153,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 // Clinic session routes MUST come before general clinic routes for proper matching
 app.use('/api/clinics', clinicSessionRoutes); // Public: /:clinicId/sessions
+// Session availability routes - real-time slot calculation
+app.use('/api', sessionAvailabilityRoutes); // Public: /clinics/:clinicId/sessions/availability, /doctor/:doctorId/sessions/availability
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/clinics', clinicRoutes);
 // Availability routes MUST be registered before doctorRoutes because doctorRoutes
