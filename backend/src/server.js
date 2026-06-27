@@ -146,6 +146,107 @@ app.get('/', (req, res) => {
   });
 });
 
+// ─── Privacy Policy ───────────────────────────────────────────────────────────
+app.get('/privacy-policy', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy – PulseMate Connect</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; }
+    header { background: #0f172a; color: #fff; padding: 28px 24px; text-align: center; }
+    header h1 { font-size: 1.8rem; font-weight: 700; }
+    header p { color: #94a3b8; margin-top: 6px; font-size: 0.95rem; }
+    .container { max-width: 820px; margin: 40px auto; padding: 0 24px 60px; }
+    h2 { font-size: 1.15rem; font-weight: 600; color: #0f172a; margin: 32px 0 10px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+    p, li { font-size: 0.97rem; color: #334155; margin-bottom: 10px; }
+    ul { padding-left: 20px; }
+    a { color: #3b82f6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .card { background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+    .last-updated { font-size: 0.85rem; color: #64748b; margin-bottom: 24px; }
+    footer { text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PulseMate Connect</h1>
+    <p>Privacy Policy</p>
+  </header>
+  <div class="container">
+    <div class="card">
+      <p class="last-updated">Last updated: June 27, 2026</p>
+
+      <p>PulseMate Connect ("we", "our", or "us") operates the PulseMate mobile application and related services. This Privacy Policy explains how we collect, use, and protect your information when you use our platform.</p>
+
+      <h2>1. Information We Collect</h2>
+      <ul>
+        <li><strong>Personal Information:</strong> Name, email address, phone number, date of birth, and gender provided during registration.</li>
+        <li><strong>Health Information:</strong> Appointment details, doctor and clinic interactions, and any health-related data you voluntarily provide.</li>
+        <li><strong>Device Information:</strong> Device type, operating system, unique device identifiers (for push notifications), and app usage data.</li>
+        <li><strong>Location Data:</strong> General location (city/district) to help you find nearby clinics. Precise GPS is only used when you explicitly allow it.</li>
+        <li><strong>Payment Information:</strong> Transaction identifiers processed through Razorpay. We do not store card or bank details.</li>
+      </ul>
+
+      <h2>2. How We Use Your Information</h2>
+      <ul>
+        <li>To create and manage your account and appointments.</li>
+        <li>To send appointment reminders, confirmations, and important notifications via SMS, email, and push notifications.</li>
+        <li>To connect you with doctors and clinics on the platform.</li>
+        <li>To process payments securely through Razorpay.</li>
+        <li>To improve app performance and user experience.</li>
+        <li>To comply with applicable laws and regulations.</li>
+      </ul>
+
+      <h2>3. Sharing of Information</h2>
+      <p>We do not sell your personal information. We share data only with:</p>
+      <ul>
+        <li><strong>Clinics and Doctors:</strong> Your appointment details are shared with the healthcare provider you book with.</li>
+        <li><strong>Service Providers:</strong> Firebase (auth &amp; notifications), Razorpay (payments), Cloudinary (file storage), and Render (cloud hosting) — each under their own privacy policies.</li>
+        <li><strong>Legal Requirements:</strong> When required by law, court order, or government authority.</li>
+      </ul>
+
+      <h2>4. Data Storage and Security</h2>
+      <p>Your data is stored on secure servers hosted on Render in the Singapore region. We use industry-standard encryption (TLS/HTTPS) for all data in transit, and access controls to protect data at rest. We retain your data for as long as your account is active or as required by law.</p>
+
+      <h2>5. Your Rights</h2>
+      <ul>
+        <li>Access, correct, or delete your personal information by contacting us.</li>
+        <li>Withdraw consent for notifications at any time through app settings.</li>
+        <li>Request a copy of your data or ask for account deletion.</li>
+      </ul>
+
+      <h2>6. Children's Privacy</h2>
+      <p>PulseMate Connect is not intended for children under 13. We do not knowingly collect personal information from children under 13. If we discover such data has been collected, we will delete it promptly.</p>
+
+      <h2>7. Third-Party Services</h2>
+      <p>Our app uses the following third-party services, each governed by their own privacy policies:</p>
+      <ul>
+        <li><a href="https://firebase.google.com/support/privacy" target="_blank">Google Firebase</a> – Authentication and push notifications</li>
+        <li><a href="https://razorpay.com/privacy/" target="_blank">Razorpay</a> – Payment processing</li>
+        <li><a href="https://cloudinary.com/privacy" target="_blank">Cloudinary</a> – Media storage</li>
+      </ul>
+
+      <h2>8. Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. We will notify you of significant changes via the app or email. Continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+      <h2>9. Contact Us</h2>
+      <p>If you have any questions or requests regarding this Privacy Policy, please contact us at:</p>
+      <ul>
+        <li>Email: <a href="mailto:pulsemateconnect@gmail.com">pulsemateconnect@gmail.com</a></li>
+        <li>Website: <a href="https://www.pulsemateconnect.in" target="_blank">www.pulsemateconnect.in</a></li>
+      </ul>
+    </div>
+  </div>
+  <footer>© 2026 PulseMate Connect. All rights reserved.</footer>
+</body>
+</html>`);
+});
+
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
