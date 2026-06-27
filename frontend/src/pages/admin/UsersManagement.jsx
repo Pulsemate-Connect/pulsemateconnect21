@@ -6,6 +6,8 @@ import {
   deleteAdminUser,
   getAdminUsers,
   updateUserStatus,
+  getDeletionRequests,
+  cancelDeletionRequest,
 } from '../../api/admin.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
@@ -25,7 +27,10 @@ const ROLE_COLORS = {
 
 const UsersManagement = () => {
   const currentUser = useAuthStore((state) => state.user);
+  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'deletions'
   const [users, setUsers] = useState([]);
+  const [deletionRequests, setDeletionRequests] = useState([]);
+  const [isDeletionsLoading, setIsDeletionsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('All');
   const [search, setSearch] = useState('');
@@ -63,6 +68,34 @@ const UsersManagement = () => {
   useEffect(() => {
     fetchUsers();
   }, [roleFilter, pagination.page]);
+
+  useEffect(() => {
+    if (activeTab === 'deletions') fetchDeletionRequests();
+  }, [activeTab]);
+
+  const fetchDeletionRequests = async () => {
+    setIsDeletionsLoading(true);
+    try {
+      const res = await getDeletionRequests();
+      setDeletionRequests(res.data.data.users || []);
+    } catch (_) {
+      toast.error('Failed to load deletion requests');
+    } finally {
+      setIsDeletionsLoading(false);
+    }
+  };
+
+  const handleCancelDeletion = async (user) => {
+    const confirmed = window.confirm(`Restore account for ${user.mobile}? This will cancel the deletion request.`);
+    if (!confirmed) return;
+    try {
+      await cancelDeletionRequest(user.id);
+      toast.success('Account restored');
+      fetchDeletionRequests();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to cancel deletion');
+    }
+  };
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -146,6 +179,87 @@ const UsersManagement = () => {
           </p>
         </div>
 
+        {/* ── Tab switcher ───────────────────────────────────────────── */}
+        <div className="mb-6 flex gap-2 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'users' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            All Users
+          </button>
+          <button
+            onClick={() => setActiveTab('deletions')}
+            className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'deletions' ? 'border-red-600 text-red-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            🗑️ Deletion Requests
+            {deletionRequests.length > 0 && (
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                {deletionRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* ── Deletion Requests Tab ──────────────────────────────────── */}
+        {activeTab === 'deletions' && (
+          <div>
+            <p className="text-sm text-slate-500 mb-4">
+              Accounts below are pending permanent deletion. Data is hard-purged <strong>10 days</strong> after the request (within 15 days total). You can cancel and restore an account before purge.
+            </p>
+
+            {isDeletionsLoading ? (
+              <div className="flex justify-center py-12"><LoadingSpinner size="lg" /></div>
+            ) : deletionRequests.length === 0 ? (
+              <EmptyState icon="✓" title="No pending deletions" description="No accounts are currently queued for deletion." />
+            ) : (
+              <div className="space-y-3">
+                {deletionRequests.map((user) => {
+                  const requestedDate = new Date(user.deletionRequestedAt).toLocaleDateString('en-IN');
+                  const urgency = user.daysLeft <= 2 ? 'text-red-600' : user.daysLeft <= 5 ? 'text-orange-500' : 'text-slate-500';
+                  return (
+                    <div key={user.id} className="card border border-red-100 bg-red-50/30">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-red-600 text-lg">🗑️</span>
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-slate-800">{user.name || 'Unknown'}</p>
+                              <span className={`badge text-xs ${ROLE_COLORS[user.role] || 'badge-gray'}`}>{user.role}</span>
+                            </div>
+                            <p className="text-sm text-slate-500">{user.mobile}</p>
+                            {user.email && <p className="text-xs text-slate-400">{user.email}</p>}
+                            <p className="text-xs text-slate-400 mt-0.5">Requested: {requestedDate}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          <span className={`text-sm font-bold ${urgency}`}>
+                            {user.daysLeft === 0 ? 'Purging today' : `${user.daysLeft}d left`}
+                          </span>
+                          <button
+                            onClick={() => handleCancelDeletion(user)}
+                            className="text-xs font-semibold text-blue-600 border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-50"
+                          >
+                            Restore Account
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── All Users Tab ──────────────────────────────────────────── */}
+        {activeTab === 'users' && (
+        <div>
         {isRootAdmin ? (
           <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-5">
@@ -308,6 +422,8 @@ const UsersManagement = () => {
               );
             })}
           </div>
+        )}
+        </div>
         )}
       </div>
     </DashboardLayout>

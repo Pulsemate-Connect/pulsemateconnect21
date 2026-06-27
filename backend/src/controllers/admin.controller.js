@@ -942,4 +942,61 @@ module.exports = {
   getAllClinics,
   getClinicStats,
   getClinicDetail,
+  getDeletionRequests,
+  cancelDeletionRequest,
 };
+
+// ── Account Deletion Queue ────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/deletion-requests
+ * Lists users pending deletion, sorted by request date.
+ */
+async function getDeletionRequests(req, res, next) {
+  try {
+    const users = await prisma.user.findMany({
+      where: { deletionRequestedAt: { not: null } },
+      select: {
+        id: true,
+        name: true,
+        mobile: true,
+        email: true,
+        role: true,
+        isActive: true,
+        deletionRequestedAt: true,
+        createdAt: true,
+      },
+      orderBy: { deletionRequestedAt: 'asc' },
+    });
+
+    const now = new Date();
+    const withDaysLeft = users.map((u) => {
+      const purgeDate = new Date(u.deletionRequestedAt);
+      purgeDate.setDate(purgeDate.getDate() + 10);
+      const daysLeft = Math.max(0, Math.ceil((purgeDate - now) / (1000 * 60 * 60 * 24)));
+      return { ...u, purgeDate, daysLeft };
+    });
+
+    return sendSuccess(res, { users: withDaysLeft, total: withDaysLeft.length });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/admin/deletion-requests/:id/cancel
+ * Admin can cancel a pending deletion (restore account).
+ */
+async function cancelDeletionRequest(req, res, next) {
+  try {
+    const { id } = req.params;
+    await prisma.user.update({
+      where: { id },
+      data: { deletionRequestedAt: null, isActive: true },
+    });
+    await createAuditLog({ userId: req.user.id, action: 'CANCEL_DELETION_REQUEST', entityType: 'User', entityId: id });
+    return sendSuccess(res, {}, 'Deletion request cancelled and account restored.');
+  } catch (err) {
+    next(err);
+  }
+}

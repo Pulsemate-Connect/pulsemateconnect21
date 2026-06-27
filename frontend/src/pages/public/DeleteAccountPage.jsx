@@ -149,7 +149,7 @@ export default function DeleteAccountPage() {
               <h2 className="text-xl font-bold text-slate-900 mb-2">Request Received</h2>
               <p className="text-slate-600 mb-4">
                 Your account deletion request has been submitted. Your personal data will be permanently
-                anonymised within 30 days. You will receive a confirmation via SMS.
+                anonymised within 15 days. You will receive a confirmation via SMS.
               </p>
               <p className="text-sm text-slate-400">
                 Questions? Email{' '}

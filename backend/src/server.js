@@ -12,6 +12,7 @@ const logger = require('./config/logger');
 const { errorHandler, notFound } = require('./middleware/error.middleware');
 const { initializeSocket } = require('./socket');
 const { startReminderJob } = require('./jobs/appointmentReminder.job');
+const { startAccountDeletionJob } = require('./jobs/accountDeletion.job');
 const { initFirebase } = require('./config/firebase');
 
 // Routes
@@ -304,6 +305,7 @@ if (process.env.NODE_ENV !== 'test') {
 
     // Start scheduled jobs
     startReminderJob();
+    startAccountDeletionJob();
   });
 }
 

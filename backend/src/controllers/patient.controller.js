@@ -777,14 +777,15 @@ const getNearby = async (req, res, next) => {
 /**
  * DELETE /api/patient/account
  * Google Play compliant account deletion.
- * Anonymizes PII, cancels active appointments, revokes all tokens.
+ * Queues the account for deletion — hard purge happens after 10 days via cron.
+ * User is immediately signed out and deactivated.
  */
 const deleteAccount = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
     await prisma.$transaction(async (tx) => {
-      // 1. Cancel all active/upcoming appointments
+      // 1. Cancel all active/upcoming appointments immediately
       await tx.appointment.updateMany({
         where: {
           patientId: userId,
@@ -793,37 +794,21 @@ const deleteAccount = async (req, res, next) => {
         data: { status: 'CANCELLED' },
       });
 
-      // 2. Revoke all refresh tokens
+      // 2. Revoke all sessions / tokens immediately
       await tx.refreshToken.deleteMany({ where: { userId } });
-
-      // 3. Delete FCM tokens
       await tx.fcmToken.deleteMany({ where: { userId } });
 
-      // 4. Delete OTP verifications
-      await tx.otpVerification.deleteMany({ where: { mobile: req.user.mobile } });
-
-      // 5. Anonymize patient profile (keep for medical record integrity)
-      await tx.patientProfile.updateMany({
-        where: { userId },
-        data: { emergencyContact: null, allergies: null, existingDiseases: null, insuranceProvider: null },
-      });
-
-      // 6. Anonymize user PII — keep ID for data integrity
-      const anonymizedMobile = `+00000000000${userId.slice(-4)}`;
+      // 3. Mark account as pending deletion — cron will hard-purge after 10 days
       await tx.user.update({
         where: { id: userId },
         data: {
-          name: `Deleted User`,
-          mobile: anonymizedMobile,
-          email: null,
           isActive: false,
-          approvalStatus: 'REJECTED',
-          firebaseUid: null,
+          deletionRequestedAt: new Date(),
         },
       });
     });
 
-    return sendSuccess(res, {}, 'Account deleted successfully');
+    return sendSuccess(res, {}, 'Your account has been queued for deletion and will be permanently removed within 15 days.');
   } catch (error) {
     next(error);
   }

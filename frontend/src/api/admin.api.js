@@ -57,3 +57,10 @@ export const deleteAdminUser = (id) =>
 
 export const resetDatabase = () =>
   api.post('/admin/reset-database');
+
+// ── Account Deletion Queue ────────────────────────────────────────────────
+export const getDeletionRequests = () =>
+  api.get('/admin/deletion-requests');
+
+export const cancelDeletionRequest = (id) =>
+  api.patch(`/admin/deletion-requests/${id}/cancel`);

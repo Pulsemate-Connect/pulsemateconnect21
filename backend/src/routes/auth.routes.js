@@ -159,9 +159,43 @@ router.post('/request-account-deletion', otpSendLimiter, async (req, res, next) 
     if (!phone) return res.status(400).json({ success: false, message: 'Phone number required' });
     const { sendSuccess } = require('../utils/response');
     const logger = require('../config/logger');
-    logger.info('[account-deletion] Web deletion request received', { phone: `***${phone.slice(-4)}`, reason });
-    // In production, email support team or create deletion ticket
-    return sendSuccess(res, {}, 'Deletion request received. Your account will be deleted within 30 days.');
+    const prisma = require('../config/database');
+
+    // Normalize phone — accept with or without +91
+    const normalized = phone.toString().replace(/\D/g, '');
+    const mobile = normalized.startsWith('91') && normalized.length === 12
+      ? `+${normalized}`
+      : normalized.length === 10
+        ? `+91${normalized}`
+        : `+${normalized}`;
+
+    logger.info('[account-deletion] Web deletion request received', { phone: `***${mobile.slice(-4)}`, reason });
+
+    // Find the user and queue for deletion
+    const user = await prisma.user.findUnique({ where: { mobile } });
+    if (user && !user.deletionRequestedAt) {
+      await prisma.$transaction(async (tx) => {
+        // Cancel active appointments
+        await tx.appointment.updateMany({
+          where: {
+            patientId: user.id,
+            status: { in: ['BOOKED', 'PENDING_PAYMENT', 'CHECKED_IN', 'IN_QUEUE', 'CALLED'] },
+          },
+          data: { status: 'CANCELLED' },
+        });
+        // Revoke tokens
+        await tx.refreshToken.deleteMany({ where: { userId: user.id } });
+        await tx.fcmToken.deleteMany({ where: { userId: user.id } });
+        // Queue for deletion
+        await tx.user.update({
+          where: { id: user.id },
+          data: { isActive: false, deletionRequestedAt: new Date() },
+        });
+      });
+    }
+
+    // Always return success (don't reveal whether account exists)
+    return sendSuccess(res, {}, 'Deletion request received. Your account will be permanently deleted within 15 days.');
   } catch (err) { next(err); }
 });
 

@@ -17,6 +17,8 @@ const {
   getAllClinics,
   getClinicStats,
   getClinicDetail,
+  getDeletionRequests,
+  cancelDeletionRequest,
 } = require('../controllers/admin.controller');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel } = require('../middleware/auth.middleware');
 const { approvalSchema, adminCreateSchema, validateRequest } = require('../validations/auth.validation');
@@ -50,5 +52,9 @@ router.patch('/doctors/:doctorId/reject', requireAdminLevel('ROOT', 'SUPER_ADMIN
 
 // ── Notification Campaigns ─────────────────────────────────────────────────
 router.use('/notifications', campaignRoutes);
+
+// ── Account Deletion Queue ─────────────────────────────────────────────────
+router.get('/deletion-requests', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getDeletionRequests);
+router.patch('/deletion-requests/:id/cancel', requireAdminLevel('ROOT', 'SUPER_ADMIN'), cancelDeletionRequest);
 
 module.exports = router;

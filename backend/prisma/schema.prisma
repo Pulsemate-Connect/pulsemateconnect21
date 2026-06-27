@@ -29,6 +29,8 @@ model User {
   firebaseUid          String?               @unique
   /// Auth provider used — e.g. FIREBASE_PHONE, EMAIL_PASSWORD (staff)
   authProvider         String?
+  /// Set when user requests account deletion. Hard-deleted by cron after 10 days.
+  deletionRequestedAt  DateTime?
   createdAdmins        AdminProfile[]        @relation("AdminCreator")
   adminProfile         AdminProfile?
   appointments         Appointment[]         @relation("PatientAppointments")

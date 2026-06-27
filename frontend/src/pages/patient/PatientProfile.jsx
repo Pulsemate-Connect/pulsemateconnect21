@@ -4,6 +4,7 @@ import { getPatientProfile, updatePatientProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
+import api from '../../api/axios';
 import {
   BLOOD_GROUPS, POPULAR_CITIES,
   capitaliseName, calcAge,
@@ -39,6 +40,26 @@ const PatientProfile = () => {
   const cityRef = useRef(null);
 
   const userPhone = useAuthStore.getState().user?.mobile || '';
+
+  // ── Delete account state ──────────────────────────────────────────────────
+  const [deleteStep, setDeleteStep] = useState(0); // 0=hidden, 1=confirm, 2=done
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    try {
+      await api.post('/auth/request-account-deletion', {
+        phone: userPhone.replace(/\D/g, '').replace(/^91/, ''),
+        reason: 'User requested deletion from profile page',
+      });
+      setDeleteStep(2);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Request failed. Email support@pulsemateconnect.in');
+      setDeleteStep(0);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -406,6 +427,58 @@ const PatientProfile = () => {
                 + Complete your profile ({completion.missing.join(', ')})
               </button>
             )}
+
+            {/* ── Delete Account ─────────────────────────────────── */}
+            <div className="card border border-red-100 bg-red-50/40 mt-2">
+              <h3 className="text-xs font-semibold text-red-700 uppercase tracking-wider mb-3">Danger Zone</h3>
+
+              {deleteStep === 0 && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">Delete Account</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Permanently delete your account and all data within 15 days.</p>
+                  </div>
+                  <button
+                    onClick={() => setDeleteStep(1)}
+                    className="text-sm font-semibold text-red-600 border border-red-300 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0 ml-4"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+
+              {deleteStep === 1 && (
+                <div>
+                  <p className="text-sm font-semibold text-red-700 mb-1">Are you sure?</p>
+                  <p className="text-xs text-slate-600 mb-3">
+                    This will permanently delete the account for <strong>{userPhone}</strong>.
+                    All appointments, data, and history will be removed within 30 days.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeleteStep(0)}
+                      className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleteLoading}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                    >
+                      {deleteLoading ? 'Processing...' : 'Yes, Delete'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {deleteStep === 2 && (
+                <div className="text-center py-2">
+                  <p className="text-sm font-semibold text-green-700">✓ Deletion request received</p>
+                  <p className="text-xs text-slate-500 mt-1">Your data will be permanently deleted within 30 days.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
