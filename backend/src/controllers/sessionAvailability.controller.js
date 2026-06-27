@@ -429,3 +429,4 @@ module.exports = {
   getDoctorSessionAvailability,
   validateSessionCapacity,
 };
+};
