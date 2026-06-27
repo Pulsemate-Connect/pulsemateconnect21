@@ -292,13 +292,23 @@ const DoctorSchedulePage = () => {
   // ── Save a single day ─────────────────────────────────────────────────────
   const handleSave = async (clinicId, dayIndex) => {
     const row = scheduleMap[clinicId]?.[dayIndex];
-    if (!row) return;
+    if (!row || row.saving) return;
 
     // Validation
     const [sh, sm] = row.startTime.split(':').map(Number);
     const [eh, em] = row.endTime.split(':').map(Number);
     if (sh * 60 + sm >= eh * 60 + em) {
       toast.error('End time must be after start time');
+      return;
+    }
+
+    if (row.slotDurationMin < 5 || row.slotDurationMin > 120) {
+      toast.error('Slot duration must be between 5 and 120 minutes');
+      return;
+    }
+
+    if (row.maxPatients < 1 || row.maxPatients > 200) {
+      toast.error('Max patients must be between 1 and 200');
       return;
     }
 
@@ -331,7 +341,9 @@ const DoctorSchedulePage = () => {
       toast.success(`${DAYS[dayIndex].label} schedule saved`);
     } catch (err) {
       handleChange(clinicId, dayIndex, { saving: false });
-      toast.error(err.response?.data?.message || 'Failed to save');
+      const errMsg = err.response?.data?.message || 'Failed to save schedule. Please try again.';
+      toast.error(errMsg);
+      console.error('[DoctorSchedulePage] Save error:', err);
     }
   };
 
@@ -361,11 +373,32 @@ const DoctorSchedulePage = () => {
   // ── Save all dirty rows at once ───────────────────────────────────────────
   const saveAll = async (clinicId) => {
     const rows = scheduleMap[clinicId] || {};
-    const dirtyDays = Object.entries(rows).filter(([, r]) => r.dirty).map(([d]) => Number(d));
-    if (dirtyDays.length === 0) { toast('No unsaved changes'); return; }
+    const dirtyDays = Object.entries(rows).filter(([, r]) => r.dirty && !r.saving).map(([d]) => Number(d));
+    
+    if (dirtyDays.length === 0) { 
+      toast('No unsaved changes', { icon: 'ℹ️' }); 
+      return; 
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
 
     for (const dayIndex of dirtyDays) {
-      await handleSave(clinicId, dayIndex);
+      try {
+        await handleSave(clinicId, dayIndex);
+        successCount++;
+      } catch (err) {
+        failedCount++;
+        console.error(`[saveAll] Failed to save ${DAYS[dayIndex].label}:`, err);
+      }
+    }
+
+    if (failedCount === 0) {
+      toast.success(`All ${successCount} day(s) saved successfully`);
+    } else if (successCount > 0) {
+      toast.error(`${successCount} saved, ${failedCount} failed. Check individual days.`);
+    } else {
+      toast.error('Failed to save all changes. Please try again.');
     }
   };
 

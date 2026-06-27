@@ -195,39 +195,103 @@ const setAvailability = async (req, res, next) => {
   try {
     const { clinicId, dayOfWeek, startTime, endTime, slotDurationMin, maxPatients, isActive } = req.body;
 
-    const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
-    if (!doctorProfile) return sendError(res, 'Doctor profile not found', 404);
+    // ── Validation ──────────────────────────────────────────────────────────
+    if (!clinicId) {
+      return sendError(res, 'clinicId is required', 400);
+    }
 
     if (typeof dayOfWeek !== 'number' || dayOfWeek < 0 || dayOfWeek > 6) {
       return sendError(res, 'dayOfWeek must be an integer 0 (Sun) – 6 (Sat)', 400);
     }
+
     if (!startTime || !endTime) {
-      return sendError(res, 'startTime and endTime are required (HH:MM)', 400);
+      return sendError(res, 'startTime and endTime are required (HH:MM format)', 400);
     }
 
+    // Validate time format (HH:MM)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(startTime)) {
+      return sendError(res, 'startTime must be in HH:MM format (00:00 to 23:59)', 400);
+    }
+    if (!timeRegex.test(endTime)) {
+      return sendError(res, 'endTime must be in HH:MM format (00:00 to 23:59)', 400);
+    }
+
+    // Validate endTime > startTime
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (endMins <= startMins) {
+      return sendError(res, 'endTime must be after startTime', 400);
+    }
+
+    // Validate slot duration
+    const slotDur = slotDurationMin ?? 15;
+    if (slotDur < 5 || slotDur > 120) {
+      return sendError(res, 'slotDurationMin must be between 5 and 120 minutes', 400);
+    }
+
+    // Validate maxPatients
+    const maxPat = maxPatients ?? 20;
+    if (maxPat < 1 || maxPat > 200) {
+      return sendError(res, 'maxPatients must be between 1 and 200', 400);
+    }
+
+    // ── Authorization ───────────────────────────────────────────────────────
+    const doctorProfile = await prisma.doctorProfile.findUnique({ 
+      where: { userId: req.user.id } 
+    });
+
+    if (!doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
+
+    // Verify doctor belongs to this clinic
+    const doctorClinic = await prisma.doctorClinic.findFirst({
+      where: {
+        doctorId: doctorProfile.id,
+        clinicId: clinicId,
+        isActive: true,
+      },
+    });
+
+    if (!doctorClinic) {
+      return sendError(res, 'You are not associated with this clinic', 403);
+    }
+
+    // ── Upsert availability ─────────────────────────────────────────────────
     const availability = await prisma.doctorAvailability.upsert({
-      where: { doctorId_clinicId_dayOfWeek: { doctorId: doctorProfile.id, clinicId, dayOfWeek } },
+      where: { 
+        doctorId_clinicId_dayOfWeek: { 
+          doctorId: doctorProfile.id, 
+          clinicId, 
+          dayOfWeek 
+        } 
+      },
       create: {
         doctorId: doctorProfile.id,
         clinicId,
         dayOfWeek,
-        startTime: startTime,
-        endTime: endTime,
-        slotDurationMin: slotDurationMin ?? 15,
-        maxPatients: maxPatients ?? 20,
+        startTime,
+        endTime,
+        slotDurationMin: slotDur,
+        maxPatients: maxPat,
         isActive: isActive ?? true,
       },
       update: {
         startTime,
         endTime,
-        slotDurationMin: slotDurationMin ?? 15,
-        maxPatients: maxPatients ?? 20,
+        slotDurationMin: slotDur,
+        maxPatients: maxPat,
         isActive: isActive ?? true,
+        updatedAt: new Date(),
       },
     });
 
-    return sendSuccess(res, { availability }, 'Availability saved');
+    return sendSuccess(res, { availability }, 'Availability saved successfully');
   } catch (error) {
+    console.error('[setAvailability] Error:', error);
     next(error);
   }
 };
@@ -241,27 +305,80 @@ const updateAvailability = async (req, res, next) => {
     const { id } = req.params;
     const { startTime, endTime, slotDurationMin, maxPatients, isActive } = req.body;
 
-    const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
-    if (!doctorProfile) return sendError(res, 'Doctor profile not found', 404);
+    // ── Authorization ───────────────────────────────────────────────────────
+    const doctorProfile = await prisma.doctorProfile.findUnique({ 
+      where: { userId: req.user.id } 
+    });
+
+    if (!doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
 
     const existing = await prisma.doctorAvailability.findFirst({
       where: { id, doctorId: doctorProfile.id },
     });
-    if (!existing) return sendError(res, 'Availability record not found', 404);
 
+    if (!existing) {
+      return sendError(res, 'Availability record not found or access denied', 404);
+    }
+
+    // ── Validation ──────────────────────────────────────────────────────────
+    const updateData = {};
+
+    if (startTime !== undefined) {
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(startTime)) {
+        return sendError(res, 'startTime must be in HH:MM format (00:00 to 23:59)', 400);
+      }
+      updateData.startTime = startTime;
+    }
+
+    if (endTime !== undefined) {
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(endTime)) {
+        return sendError(res, 'endTime must be in HH:MM format (00:00 to 23:59)', 400);
+      }
+      updateData.endTime = endTime;
+    }
+
+    // Validate endTime > startTime if both are provided or one is being updated
+    const finalStart = startTime ?? existing.startTime;
+    const finalEnd = endTime ?? existing.endTime;
+    const [sh, sm] = finalStart.split(':').map(Number);
+    const [eh, em] = finalEnd.split(':').map(Number);
+    if ((eh * 60 + em) <= (sh * 60 + sm)) {
+      return sendError(res, 'endTime must be after startTime', 400);
+    }
+
+    if (slotDurationMin !== undefined) {
+      if (slotDurationMin < 5 || slotDurationMin > 120) {
+        return sendError(res, 'slotDurationMin must be between 5 and 120 minutes', 400);
+      }
+      updateData.slotDurationMin = slotDurationMin;
+    }
+
+    if (maxPatients !== undefined) {
+      if (maxPatients < 1 || maxPatients > 200) {
+        return sendError(res, 'maxPatients must be between 1 and 200', 400);
+      }
+      updateData.maxPatients = maxPatients;
+    }
+
+    if (isActive !== undefined) {
+      updateData.isActive = isActive;
+    }
+
+    updateData.updatedAt = new Date();
+
+    // ── Update ──────────────────────────────────────────────────────────────
     const updated = await prisma.doctorAvailability.update({
       where: { id },
-      data: {
-        ...(startTime !== undefined && { startTime }),
-        ...(endTime !== undefined && { endTime }),
-        ...(slotDurationMin !== undefined && { slotDurationMin }),
-        ...(maxPatients !== undefined && { maxPatients }),
-        ...(isActive !== undefined && { isActive }),
-      },
+      data: updateData,
     });
 
-    return sendSuccess(res, { availability: updated }, 'Availability updated');
+    return sendSuccess(res, { availability: updated }, 'Availability updated successfully');
   } catch (error) {
+    console.error('[updateAvailability] Error:', error);
     next(error);
   }
 };

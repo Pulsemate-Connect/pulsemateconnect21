@@ -141,6 +141,7 @@ model Clinic {
   suspendedReason                    String?
   lastResubmittedAt                  DateTime?
   appointments                       Appointment[]
+  doctorAvailabilities               DoctorAvailability[]
   doctorClinics                      DoctorClinic[]          @relation("MarketplaceClinic")
   staff                              ClinicStaff[]
   verificationLogs                   ClinicVerificationLog[]
@@ -207,6 +208,7 @@ model DoctorProfile {
   updatedAt                 DateTime             @updatedAt
   documentUrl               String?
   appointments              Appointment[]
+  availabilities            DoctorAvailability[]
   doctorClinics             DoctorClinic[]       @relation("MarketplaceDoctor")
   user                      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   prescriptions             prescriptions[]
@@ -714,3 +716,27 @@ enum DoctorVerificationStatus {
   VERIFIED
   REJECTED
 }
+
+model DoctorAvailability {
+  id              String        @id @default(uuid())
+  doctorId        String
+  clinicId        String
+  dayOfWeek       Int           // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  isActive        Boolean       @default(true)
+  startTime       String        // HH:MM format (24-hour)
+  endTime         String        // HH:MM format (24-hour)
+  slotDurationMin Int           @default(15)
+  maxPatients     Int           @default(20)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  doctor          DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic          Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  
+  @@unique([doctorId, clinicId, dayOfWeek])
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([dayOfWeek])
+  @@map("doctor_availability")
+}
+
