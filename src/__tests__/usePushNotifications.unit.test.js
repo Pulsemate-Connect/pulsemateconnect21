@@ -136,7 +136,7 @@ describe('usePushNotifications', () => {
     });
     expect(setNotificationChannelAsync).toHaveBeenCalledWith(
       'pulsemate-default',
-      expect.objectContaining({ name: 'PulseMate Notifications' })
+      expect.objectContaining({ name: 'PulseMate Connect Notifications' })
     );
   });
 

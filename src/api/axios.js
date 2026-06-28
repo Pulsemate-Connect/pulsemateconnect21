@@ -2,8 +2,11 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
+// ── Safe __DEV__ check ─────────────────────────────────────────────────────
+// In release builds, __DEV__ may be undefined. Default to false.
+const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
+
 // ── API URL resolution ─────────────────────────────────────────────────────
-const isDev = __DEV__;
 export const BASE_URL = isDev
   ? (Constants.expoConfig?.extra?.apiUrl ?? 'https://api.pulsemateconnect.in/api')
   : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://api.pulsemateconnect.in/api');
@@ -15,7 +18,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'bypass-tunnel-reminder': 'true',
     'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'PulseMateApp/1.0',
+    'User-Agent': 'PulseMate Connect App/1.0',
   },
 });
 
@@ -47,7 +50,7 @@ api.interceptors.request.use(async (config) => {
     const token = await SecureStore.getItemAsync('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   } catch { }
-  if (__DEV__) {
+  if (isDev) {
     console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
   }
   return config;

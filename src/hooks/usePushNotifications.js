@@ -110,7 +110,7 @@ const usePushNotifications = (navigationRef, isAuthenticated = false) => {
 
     if (Platform.OS === 'android') {
       await N.setNotificationChannelAsync('default', {
-        name: 'PulseMate Notifications',
+        name: 'PulseMate Connect Notifications',
         importance: N.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#0EA5E9',

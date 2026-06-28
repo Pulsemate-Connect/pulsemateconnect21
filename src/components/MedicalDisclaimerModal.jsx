@@ -57,7 +57,7 @@ export default function MedicalDisclaimerModal() {
 
             <Text style={s.body}>
               <Text style={s.bold}>Important: </Text>
-              PulseMate is <Text style={s.bold}>not a substitute</Text> for
+              PulseMate Connect is <Text style={s.bold}>not a substitute</Text> for
               professional medical advice, diagnosis, or treatment. Always seek
               the advice of your physician or other qualified health provider
               with any questions you may have regarding a medical condition.

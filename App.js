@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  PulseMate Connect — App Entry + Premium Splash Screen
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('[App] Starting import phase');
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -8,15 +9,48 @@ import {
   View, Text, Image, StyleSheet, Animated, Easing, Dimensions, StatusBar,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
+console.log('[App] Core imports complete');
+
 import { AuthProvider, useAuth } from './src/store/authStore';
+console.log('[App] AuthStore imported');
+
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
+console.log('[App] Navigators imported');
+
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import MedicalDisclaimerModal from './src/components/MedicalDisclaimerModal';
+import ErrorBoundary from './src/components/ErrorBoundary';
+console.log('[App] All imports complete');
 
 const { width: W, height: H } = Dimensions.get('window');
-const LOGO = require('./assets/logo1.jpeg');
+console.log('[App] Dimensions:', W, 'x', H);
+
+// Safe asset loading with fallback
+let LOGO;
+try {
+  console.log('[App] Loading logo1.jpeg...');
+  LOGO = require('./assets/logo1.jpeg');
+  console.log('[App] logo1.jpeg loaded');
+} catch (e1) {
+  console.log('[App] logo1.jpeg failed:', e1.message);
+  try {
+    console.log('[App] Loading logo.jpeg...');
+    LOGO = require('./assets/logo.jpeg');
+    console.log('[App] logo.jpeg loaded');
+  } catch (e2) {
+    console.log('[App] logo.jpeg failed:', e2.message);
+    try {
+      console.log('[App] Loading android-icon-foreground.png...');
+      LOGO = require('./assets/android-icon-foreground.png');
+      console.log('[App] android-icon-foreground.png loaded');
+    } catch (e3) {
+      console.log('[App] All logo attempts failed, using fallback');
+      LOGO = null;
+    }
+  }
+}
 
 // Brand tokens
 const SKY4 = '#38BDF8';
@@ -140,9 +174,15 @@ function LogoMark({ pulse }) {
         backgroundColor: SKY4, opacity: glo,
       }} />
       {/* Real logo image — animated scale pulse */}
-      <Animated.View style={[sp.logoWrap, { transform: [{ scale: sc }] }]}>
-        <Image source={LOGO} style={sp.logoImg} resizeMode="cover" />
-      </Animated.View>
+      {LOGO ? (
+        <Animated.View style={[sp.logoWrap, { transform: [{ scale: sc }] }]}>
+          <Image source={LOGO} style={sp.logoImg} resizeMode="cover" />
+        </Animated.View>
+      ) : (
+        <Animated.View style={[sp.logoWrap, sp.logoFallback, { transform: [{ scale: sc }] }]}>
+          <Text style={sp.logoFallbackText}>PM</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -263,44 +303,61 @@ function SplashScreen() {
 
 // ─── Root navigator ───────────────────────────────────────────────────────────
 function RootNavigator({ navigationRef }) {
+  console.log('[RootNavigator] Rendering');
   const { user, loading } = useAuth();
+  console.log('[RootNavigator] Auth state - loading:', loading, 'user:', !!user);
 
   // Register push token when authenticated, remove on logout
-  usePushNotifications(navigationRef, !!user);
+  try {
+    usePushNotifications(navigationRef, !!user);
+    console.log('[RootNavigator] Push notifications hook executed');
+  } catch (error) {
+    console.error('[RootNavigator] Push notifications error:', error);
+  }
 
-  if (loading) return <SplashScreen />;
+  if (loading) {
+    console.log('[RootNavigator] Showing splash screen');
+    return <SplashScreen />;
+  }
+  
+  console.log('[RootNavigator] Showing', user ? 'MainNavigator' : 'AuthNavigator');
   return user ? <MainNavigator /> : <AuthNavigator />;
 }
 
 export default function App() {
+  console.log('[App] Main component rendering');
   const navigationRef = useNavigationContainerRef();
 
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
-          <RootNavigator navigationRef={navigationRef} />
-        </NavigationContainer>
-        <Toast
-          config={{
-            success: (props) => (
-              <View style={sp.toast}>
-                <Text style={sp.toastText}>✅ {props.text1}</Text>
-              </View>
-            ),
-            error: (props) => (
-              <View style={[sp.toast, { backgroundColor: '#FEE2E2', borderLeftColor: colors.danger }]}>
-                <Text style={[sp.toastText, { color: colors.danger }]}>❌ {props.text1}</Text>
-              </View>
-            ),
-          }}
-        />
-        {/* Medical disclaimer — shown once on first launch (Play Store requirement) */}
-        <MedicalDisclaimerModal />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <NavigationContainer ref={navigationRef}>
+            <RootNavigator navigationRef={navigationRef} />
+          </NavigationContainer>
+          <Toast
+            config={{
+              success: (props) => (
+                <View style={sp.toast}>
+                  <Text style={sp.toastText}>✅ {props.text1}</Text>
+                </View>
+              ),
+              error: (props) => (
+                <View style={[sp.toast, { backgroundColor: '#FEE2E2', borderLeftColor: colors.danger }]}>
+                  <Text style={[sp.toastText, { color: colors.danger }]}>❌ {props.text1}</Text>
+                </View>
+              ),
+            }}
+          />
+          {/* Medical disclaimer — shown once on first launch (Play Store requirement) */}
+          <MedicalDisclaimerModal />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
+
+console.log('[App] Component defined successfully');
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const sp = StyleSheet.create({
@@ -327,6 +384,18 @@ const sp = StyleSheet.create({
     shadowOpacity: 0.6, shadowRadius: 24, elevation: 16,
   },
   logoImg: { width: '100%', height: '100%' },
+
+  // Fallback logo if image fails
+  logoFallback: {
+    backgroundColor: SKY5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoFallbackText: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: WHITE,
+  },
 
   // App name
   nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10 },

@@ -280,6 +280,8 @@ export default function BookingScreen({ route, navigation }) {
     setSlot('');
     setSession('');
     setSlots([]);
+    
+    // Use the standard slots API
     getAvailableSlots(doctorId, { clinicId, date })
       .then((r) => {
         const data = r.data.data;
@@ -702,7 +704,7 @@ export default function BookingScreen({ route, navigation }) {
             <Text style={s.freeBannerEmoji}>🎉</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.freeBannerTitle}>First Booking Free!</Text>
-              <Text style={s.freeBannerSub}>Your first appointment on PulseMate is completely free. No payment required.</Text>
+              <Text style={s.freeBannerSub}>Your first appointment on PulseMate Connect is completely free. No payment required.</Text>
             </View>
           </View>
         )}

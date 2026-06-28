@@ -1,0 +1,32 @@
+# Dependencies (reinstalled during build)
+node_modules
+
+# Backend (not needed for mobile build)
+backend/node_modules
+backend/.env
+
+# Git
+.git
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+**/__tests__
+**/*.test.js
+**/*.spec.js
+coverage
+
+# Docs
+*.md
