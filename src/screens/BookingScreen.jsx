@@ -638,6 +638,14 @@ export default function BookingScreen({ route, navigation }) {
                       // Get display label
                       const displayLabel = SESSION_TYPE_LABELS[sess.sessionType] || sess.name;
                       
+                      // Determine why slots are unavailable
+                      let unavailableReason = 'Fully Booked';
+                      if (!hasSlots && slotsSource === 'none') {
+                        unavailableReason = 'Not Configured';
+                      } else if (!hasSlots && slots.length === 0) {
+                        unavailableReason = 'Not Available';
+                      }
+                      
                       return (
                         <TouchableOpacity
                           key={sess.id}
@@ -655,7 +663,7 @@ export default function BookingScreen({ route, navigation }) {
                           <Text style={[s.sessionTime, active && s.sessionTimeActive]}>
                             {fmt12(sess.startTime)} – {fmt12(sess.endTime)}
                           </Text>
-                          {!hasSlots && <Text style={s.sessionNA}>Fully Booked</Text>}
+                          {!hasSlots && <Text style={s.sessionNA}>{unavailableReason}</Text>}
                           {hasSlots && slot && session === sess.id && (
                             <Text style={s.sessionSlotHint}>Slot: {fmt12(slot)}</Text>
                           )}
@@ -663,8 +671,19 @@ export default function BookingScreen({ route, navigation }) {
                       );
                     })}
                   </View>
-                  {slots.length === 0 && (
-                    <Text style={s.noSlotsText}>No slots configured for this day. Try a different date.</Text>
+                  {/* Better Empty State with Actionable Message */}
+                  {slots.length === 0 && clinicSessions.length > 0 && (
+                    <View style={s.noSlotsCard}>
+                      <Ionicons name="time-outline" size={40} color={MUTED} style={{ marginBottom: 8 }} />
+                      <Text style={s.noSlotsTitle}>
+                        {slotsSource === 'none' ? 'No Slots Configured' : 'No Slots Available'}
+                      </Text>
+                      <Text style={s.noSlotsText}>
+                        {slotsSource === 'none'
+                          ? 'This doctor has not set up appointment slots yet. Please try a different date or contact the clinic for walk-in appointments.'
+                          : 'All slots are booked or past for this date. Please select another date to see available time slots.'}
+                      </Text>
+                    </View>
                   )}
                   <View style={s.queueInfo}>
                     <Ionicons name="information-circle-outline" size={14} color={MUTED} />
@@ -924,6 +943,15 @@ const s = StyleSheet.create({
   loadingRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },
   loadingText:       { fontSize: 13, color: MUTED },
   noSlotsText:       { fontSize: 12, color: MUTED, textAlign: 'center', marginBottom: 8 },
+  
+  // No slots available card
+  noSlotsCard: {
+    alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20,
+    backgroundColor: BG, borderRadius: 14, borderWidth: 1.5,
+    borderColor: BORDER, marginTop: 12, marginBottom: 8,
+  },
+  noSlotsTitle:{ fontSize: 14, fontWeight: '700', color: SLATE, marginBottom: 6, textAlign: 'center' },
+  
   queueInfo:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   queueInfoText:     { fontSize: 11, color: MUTED, flex: 1, lineHeight: 16 },
   
