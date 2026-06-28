@@ -280,6 +280,8 @@ export default function BookingScreen({ route, navigation }) {
     setSlot('');
     setSession('');
     setSlots([]);
+    
+    // Use the standard slots API
     getAvailableSlots(doctorId, { clinicId, date })
       .then((r) => {
         const data = r.data.data;
