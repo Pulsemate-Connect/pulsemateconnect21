@@ -88,7 +88,7 @@ const buildCheckoutHTML = ({
       amount:      ${amount},
       currency:    '${currency || 'INR'}',
       order_id:    '${orderId}',
-      name:        'PulseMate',
+      name:        'PulseMate Connect',
       description: 'Appointment Booking Fee',
       prefill: {
         name:    '${(patientName  || '').replace(/'/g, "\\'")}',

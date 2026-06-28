@@ -36,7 +36,7 @@ self.addEventListener('message', (event) => {
 
       // Handle background messages
       messagingInstance.onBackgroundMessage((payload) => {
-        const { title = 'PulseMate', body = '' } = payload.notification || {};
+        const { title = 'PulseMate Connect', body = '' } = payload.notification || {};
         const { appointmentId, type } = payload.data || {};
 
         // Build the notification

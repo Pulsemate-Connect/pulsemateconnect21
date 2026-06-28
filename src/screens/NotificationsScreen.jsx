@@ -110,7 +110,7 @@ export default function NotificationsScreen({ navigation }) {
     category: 'Updates',
     title: n.title,
     body: n.message,
-    sub: 'From PulseMate Team',
+    sub: 'From PulseMate Connect Team',
     time: n.createdAt,
     read: inboxReadIds.has(n.id),
     icon: 'megaphone-outline',
