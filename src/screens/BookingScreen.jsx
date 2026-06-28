@@ -285,6 +285,14 @@ export default function BookingScreen({ route, navigation }) {
     getAvailableSlots(doctorId, { clinicId, date })
       .then((r) => {
         const data = r.data.data;
+        console.log('[BookingScreen] Slots API Response:', {
+          source: data.source,
+          totalSlots: data.slots?.length || 0,
+          availableSlots: data.slots?.filter(s => s.available).length || 0,
+          bookedCount: data.bookedCount,
+          slotDuration: data.slotDurationMin,
+          slots: data.slots
+        });
         setSlotsSource(data.source || 'none');
         if (Array.isArray(data.slots) && data.slots.length > 0) {
           setSlots(data.slots);
@@ -293,7 +301,11 @@ export default function BookingScreen({ route, navigation }) {
           setSlotsSource('none');
         }
       })
-      .catch(() => { setSlots([]); setSlotsSource('none'); })
+      .catch((err) => {
+        console.error('[BookingScreen] Slots API Error:', err);
+        setSlots([]);
+        setSlotsSource('none');
+      })
       .finally(() => setSlotsLoading(false));
   }, [date, doctorId, clinicId]);
 
@@ -313,11 +325,24 @@ export default function BookingScreen({ route, navigation }) {
     const sessStart = convertTimeToMinutes(sess.startTime);
     const sessEnd = convertTimeToMinutes(sess.endTime);
     
-    return slots.filter(s => {
+    const filtered = slots.filter(s => {
       if (!s.available) return false;
       const slotMins = convertTimeToMinutes(s.time);
       return slotMins >= sessStart && slotMins < sessEnd;
     });
+    
+    console.log('[BookingScreen] getSessionSlots:', {
+      sessionId,
+      sessionName: sess.name,
+      sessionStart: sess.startTime,
+      sessionEnd: sess.endTime,
+      totalSlots: slots.length,
+      availableSlots: slots.filter(s => s.available).length,
+      filteredForSession: filtered.length,
+      sampleSlots: slots.slice(0, 3)
+    });
+    
+    return filtered;
   };
 
   const handleSessionSelect = (sessionId) => {
