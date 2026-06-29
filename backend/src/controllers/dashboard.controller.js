@@ -19,7 +19,7 @@ exports.getClinicDashboard = async (req, res, next) => {
       const clinic = await prisma.clinic.findFirst({
         where: { id: clinicId, ownerId: req.user.id },
       });
-      
+
       if (!clinic) {
         // Also allow staff
         const staff = await prisma.clinicStaff.findFirst({
@@ -33,7 +33,7 @@ exports.getClinicDashboard = async (req, res, next) => {
     const now = new Date();
     const todayStart = new Date(); todayStart.setUTCHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
-    
+
     const weekStart = new Date(); weekStart.setDate(now.getDate() - 6); weekStart.setUTCHours(0, 0, 0, 0);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1); monthStart.setUTCHours(0, 0, 0, 0);
 
@@ -44,22 +44,22 @@ exports.getClinicDashboard = async (req, res, next) => {
       todayCompleted,
       todayPending,
       todayCancelled,
-      
+
       // Counts
       totalDoctors,
       activeDoctors,
       totalStaff,
       totalPatients,
-      
+
       // Revenue
       todayRevenue,
       weekRevenue,
       monthRevenue,
-      
+
       // Recent data
       recentAppointments,
       activeQueue,
-      
+
       // Clinic info
       clinic,
     ] = await Promise.all([
@@ -76,7 +76,7 @@ exports.getClinicDashboard = async (req, res, next) => {
       prisma.appointment.count({
         where: { clinicId, appointmentDate: { gte: todayStart, lte: todayEnd }, status: 'CANCELLED' },
       }),
-      
+
       // Doctor counts
       prisma.clinicStaff.count({
         where: { clinicId, role: 'DOCTOR' },
@@ -84,19 +84,19 @@ exports.getClinicDashboard = async (req, res, next) => {
       prisma.clinicStaff.count({
         where: { clinicId, role: 'DOCTOR', isActive: true },
       }),
-      
+
       // Staff count
       prisma.clinicStaff.count({
         where: { clinicId, isActive: true },
       }),
-      
+
       // Unique patients
       prisma.appointment.findMany({
         where: { clinicId },
         distinct: ['patientId'],
         select: { patientId: true },
       }).then(r => r.length),
-      
+
       // Revenue queries
       prisma.payment.aggregate({
         where: {
@@ -123,7 +123,7 @@ exports.getClinicDashboard = async (req, res, next) => {
         },
         _sum: { amount: true },
       }),
-      
+
       // Recent appointments
       prisma.appointment.findMany({
         where: { clinicId, appointmentDate: { gte: todayStart, lte: todayEnd } },
@@ -135,12 +135,12 @@ exports.getClinicDashboard = async (req, res, next) => {
           queueItem: { select: { status: true, position: true } },
         },
       }),
-      
+
       // Active queue
       prisma.queue.count({
         where: { clinicId, status: { in: ['WAITING', 'IN_PROGRESS'] } },
       }),
-      
+
       // Clinic info
       prisma.clinic.findUnique({
         where: { id: clinicId },
@@ -234,6 +234,6 @@ exports.getQuickStats = async (req, res, next) => {
 };
 
 module.exports = {
-  getClinicDashboard,
-  getQuickStats,
+  getClinicDashboard: exports.getClinicDashboard,
+  getQuickStats: exports.getQuickStats,
 };
