@@ -126,6 +126,15 @@ exports.createSession = async (req, res) => {
       });
     }
 
+    // ✅ NEW: Validate time ranges based on session type
+    const timeValidation = validateSessionTimeRange(sessionType, startTime, endTime);
+    if (!timeValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: timeValidation.message,
+      });
+    }
+
     // Verify clinic ownership
     logger.info('[CREATE SESSION] Verifying clinic ownership', { clinicId, userId });
     const clinic = await prisma.clinic.findFirst({
@@ -314,6 +323,16 @@ exports.updateSession = async (req, res) => {
 
     // Check for time conflicts (excluding current session)
     if (startTime && endTime) {
+      // ✅ NEW: Validate time range if both times provided
+      const typeToValidate = sessionType || session.sessionType;
+      const timeValidation = validateSessionTimeRange(typeToValidate, startTime, endTime);
+      if (!timeValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: timeValidation.message,
+        });
+      }
+
       const existingSessions = await prisma.clinicSession.findMany({
         where: {
           clinicId: session.clinicId,
@@ -438,4 +457,49 @@ exports.deleteSession = async (req, res) => {
 function convertTimeToMinutes(timeStr) {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+/**
+ * ✅ NEW: Validate session time ranges based on session type
+ * Enforces standard timing:
+ * - MORNING: 6:00 AM - 12:00 PM
+ * - AFTERNOON: 12:00 PM - 6:00 PM  
+ * - EVENING: 6:00 PM - 11:00 PM
+ */
+function validateSessionTimeRange(sessionType, startTime, endTime) {
+  const start = convertTimeToMinutes(startTime);
+  const end = convertTimeToMinutes(endTime);
+
+  // Basic validation: end must be after start
+  if (end <= start) {
+    return {
+      valid: false,
+      message: 'End time must be after start time',
+    };
+  }
+
+  // Session type specific validation
+  const ranges = {
+    MORNING: { min: 6 * 60, max: 12 * 60, label: '6:00 AM - 12:00 PM' },
+    AFTERNOON: { min: 12 * 60, max: 18 * 60, label: '12:00 PM - 6:00 PM' },
+    EVENING: { min: 18 * 60, max: 23 * 60, label: '6:00 PM - 11:00 PM' },
+  };
+
+  const range = ranges[sessionType];
+  
+  if (start < range.min || start >= range.max) {
+    return {
+      valid: false,
+      message: `${sessionType} session start time must be between ${range.label}`,
+    };
+  }
+
+  if (end <= range.min || end > range.max) {
+    return {
+      valid: false,
+      message: `${sessionType} session end time must be between ${range.label}`,
+    };
+  }
+
+  return { valid: true };
 }

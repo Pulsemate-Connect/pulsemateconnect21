@@ -150,6 +150,7 @@ model Clinic {
   queues                             Queue[]
   receptionistProfiles               ReceptionistProfile[]
   sessions                           ClinicSession[]
+  holidays                           ClinicHoliday[]
 
   @@map("clinics")
 }
@@ -504,6 +505,24 @@ model ClinicSession {
   @@unique([clinicId, sessionType])
   @@index([clinicId])
   @@map("clinic_sessions")
+}
+
+model ClinicHoliday {
+  id          String   @id @default(uuid())
+  clinicId    String
+  date        DateTime @db.Date
+  name        String
+  reason      String?
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  
+  @@unique([clinicId, date])
+  @@index([clinicId])
+  @@index([date])
+  @@map("clinic_holidays")
 }
 
 enum SessionType {

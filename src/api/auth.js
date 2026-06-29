@@ -31,3 +31,27 @@ export const registerDeviceToken = (fcmToken, platform = 'ANDROID') =>
   api.post('/device-token/register', { fcmToken, platform });
 export const deactivateDeviceToken = (fcmToken) =>
   api.post('/device-token/deactivate', { fcmToken });
+
+// ── Quick Wins: New Notification APIs ─────────────────────────────────────────
+export const getUserNotifications = (userId, params = {}) => 
+  api.get('/notifications', { params: { userId, ...params } });
+export const getUnreadCount = (userId) => 
+  api.get('/notifications/unread-count', { params: { userId } });
+export const markNotificationAsRead = (notificationId) => 
+  api.patch(`/notifications/${notificationId}/read`);
+export const markAllNotificationsAsRead = (userId) => 
+  api.patch('/notifications/read-all', { userId });
+
+// ── Quick Wins: Dashboard APIs ────────────────────────────────────────────────
+export const getClinicDashboard = (clinicId) => 
+  api.get(`/dashboard/clinic/${clinicId}`);
+export const getClinicDashboardQuick = (clinicId) => 
+  api.get(`/dashboard/clinic/${clinicId}/quick`);
+
+// ── Quick Wins: Booking Control APIs ──────────────────────────────────────────
+export const stopClinicBookings = (clinicId, reason = '') => 
+  api.post(`/clinic/${clinicId}/bookings/stop`, { reason });
+export const resumeClinicBookings = (clinicId) => 
+  api.post(`/clinic/${clinicId}/bookings/resume`);
+export const getClinicBookingStatus = (clinicId) => 
+  api.get(`/clinic/${clinicId}/booking-status`);

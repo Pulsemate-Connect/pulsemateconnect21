@@ -1,125 +1,279 @@
+// ═════════════════════════════════════════════════════════════════════════════
+//  Notification Service — PulseMate Connect
+//  ✅ Quick Win: Basic notification system foundation
+// ═════════════════════════════════════════════════════════════════════════════
 const prisma = require('../config/database');
 const logger = require('../config/logger');
 
 /**
- * FCM Notification Service
- * Sends push notifications via Firebase Cloud Messaging.
- * Requires FIREBASE_SERVER_KEY in .env
- * Falls back to console logging in development.
+ * Notification types enum
  */
-
-const FCM_URL = 'https://fcm.googleapis.com/fcm/send';
+const NotificationType = {
+  BOOKING_CONFIRMED: 'BOOKING_CONFIRMED',
+  BOOKING_CANCELLED: 'BOOKING_CANCELLED',
+  BOOKING_COMPLETED: 'BOOKING_COMPLETED',
+  BOOKING_RESCHEDULED: 'BOOKING_RESCHEDULED',
+  QUEUE_CALLED: 'QUEUE_CALLED',
+  QUEUE_UPDATED: 'QUEUE_UPDATED',
+  DOCTOR_JOINED: 'DOCTOR_JOINED',
+  DOCTOR_LEFT: 'DOCTOR_LEFT',
+  RECEPTIONIST_ADDED: 'RECEPTIONIST_ADDED',
+  SESSION_CREATED: 'SESSION_CREATED',
+  SESSION_CANCELLED: 'SESSION_CANCELLED',
+  PAYMENT_RECEIVED: 'PAYMENT_RECEIVED',
+  PAYMENT_REFUNDED: 'PAYMENT_REFUNDED',
+  CLINIC_VERIFIED: 'CLINIC_VERIFIED',
+  CLINIC_REJECTED: 'CLINIC_REJECTED',
+};
 
 /**
- * Send a push notification to a single user by userId.
- * Looks up all FCM tokens registered for that user.
+ * ✅ Create a notification
+ * @param {Object} data - Notification data
+ * @param {string} data.userId - Recipient user ID
+ * @param {string} data.type - Notification type
+ * @param {string} data.title - Notification title
+ * @param {string} data.message - Notification message
+ * @param {Object} data.metadata - Additional data (appointmentId, etc.)
+ * @param {string} data.priority - LOW | MEDIUM | HIGH
+ * @returns {Promise<Object>} Created notification
  */
-const sendToUser = async (userId, { title, body, data = {} }) => {
+async function createNotification({
+  userId,
+  type,
+  title,
+  message,
+  metadata = {},
+  priority = 'MEDIUM',
+}) {
   try {
-    const tokens = await prisma.fcmToken.findMany({
-      where: { userId },
-      select: { token: true },
-    });
-
-    if (tokens.length === 0) return;
-
-    const tokenList = tokens.map((t) => t.token);
-
-    if (!process.env.FIREBASE_SERVER_KEY) {
-      // Dev fallback — just log
-      logger.info(`[FCM-DEV] → User ${userId} | ${title}: ${body}`, { data, tokens: tokenList });
-      return;
-    }
-
-    const payload = {
-      registration_ids: tokenList,
-      notification: { title, body, sound: 'default' },
-      data,
-      priority: 'high',
-    };
-
-    const response = await fetch(FCM_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `key=${process.env.FIREBASE_SERVER_KEY}`,
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message,
+        metadata,
+        priority,
+        isRead: false,
       },
-      body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
+    logger.info('[Notification] Created', {
+      id: notification.id,
+      userId,
+      type,
+      priority,
+    });
 
-    // Clean up invalid tokens
-    if (result.results) {
-      const invalidTokens = [];
-      result.results.forEach((r, i) => {
-        if (r.error === 'InvalidRegistration' || r.error === 'NotRegistered') {
-          invalidTokens.push(tokenList[i]);
-        }
-      });
-      if (invalidTokens.length > 0) {
-        await prisma.fcmToken.deleteMany({ where: { token: { in: invalidTokens } } });
-        logger.info(`Cleaned up ${invalidTokens.length} invalid FCM tokens`);
-      }
-    }
+    // TODO: Send push notification
+    // TODO: Send email if important
+    // TODO: Send SMS if critical
 
-    logger.info(`FCM sent to user ${userId}: ${title}`);
+    return notification;
   } catch (error) {
-    // Notification failure must never break the main flow
-    logger.error('FCM send failed', { error: error.message, userId });
-  }
-};
-
-/**
- * Notify patient their turn is coming up
- */
-const notifyQueueCalled = async (patientId, queueNumber, doctorName) => {
-  await sendToUser(patientId, {
-    title: '🔔 Your Turn!',
-    body: `Queue #${queueNumber} — Please proceed to Dr. ${doctorName}'s room.`,
-    data: { type: 'QUEUE_CALLED', queueNumber: String(queueNumber) },
-  });
-};
-
-/**
- * Notify patient of appointment confirmation
- */
-const notifyAppointmentBooked = async (patientId, doctorName, date, queueNumber) => {
-  await sendToUser(patientId, {
-    title: '✅ Appointment Confirmed',
-    body: `Booked with Dr. ${doctorName} on ${new Date(date).toLocaleDateString()}${queueNumber ? ` — Queue #${queueNumber}` : ''}.`,
-    data: { type: 'APPOINTMENT_BOOKED' },
-  });
-};
-
-/**
- * Notify patient of follow-up reminder
- */
-const notifyFollowUpReminder = async (patientId, doctorName, followUpDate) => {
-  await sendToUser(patientId, {
-    title: '📅 Follow-Up Reminder',
-    body: `Your follow-up with Dr. ${doctorName} is on ${new Date(followUpDate).toLocaleDateString()}.`,
-    data: { type: 'FOLLOW_UP_REMINDER' },
-  });
-};
-
-/**
- * Notify patient that queue is paused
- */
-const notifyQueuePaused = async (patientIds, doctorName) => {
-  for (const patientId of patientIds) {
-    await sendToUser(patientId, {
-      title: '⏸️ Queue Paused',
-      body: `Dr. ${doctorName}'s queue has been temporarily paused. Please wait.`,
-      data: { type: 'QUEUE_PAUSED' },
+    logger.error('[Notification] Failed to create', {
+      error: error.message,
+      userId,
+      type,
     });
+    throw error;
   }
-};
+}
+
+/**
+ * ✅ Create notification for booking confirmation
+ */
+async function notifyBookingConfirmed(appointment) {
+  try {
+    const doctorName = appointment.doctor?.user?.name || 'Doctor';
+    const date = new Date(appointment.appointmentDate).toLocaleDateString('en-IN');
+    const time = appointment.slotTime || 'scheduled time';
+
+    await createNotification({
+      userId: appointment.patientId,
+      type: NotificationType.BOOKING_CONFIRMED,
+      title: '✅ Appointment Confirmed',
+      message: `Your appointment with Dr. ${doctorName} is confirmed for ${date} at ${time}.`,
+      metadata: {
+        appointmentId: appointment.id,
+        doctorId: appointment.doctorId,
+        clinicId: appointment.clinicId,
+        appointmentDate: appointment.appointmentDate,
+        slotTime: appointment.slotTime,
+      },
+      priority: 'HIGH',
+    });
+
+    // Also notify clinic owner
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: appointment.clinicId },
+      select: { ownerId: true },
+    });
+
+    if (clinic) {
+      await createNotification({
+        userId: clinic.ownerId,
+        type: NotificationType.BOOKING_CONFIRMED,
+        title: '📅 New Booking',
+        message: `New appointment booked with Dr. ${doctorName} for ${date}.`,
+        metadata: {
+          appointmentId: appointment.id,
+          patientId: appointment.patientId,
+        },
+        priority: 'MEDIUM',
+      });
+    }
+  } catch (error) {
+    logger.error('[Notification] Booking confirmed notification failed', error);
+  }
+}
+
+/**
+ * ✅ Create notification for booking cancellation
+ */
+async function notifyBookingCancelled(appointment) {
+  try {
+    const doctorName = appointment.doctor?.user?.name || 'Doctor';
+    const date = new Date(appointment.appointmentDate).toLocaleDateString('en-IN');
+
+    await createNotification({
+      userId: appointment.patientId,
+      type: NotificationType.BOOKING_CANCELLED,
+      title: '❌ Appointment Cancelled',
+      message: `Your appointment with Dr. ${doctorName} on ${date} has been cancelled.`,
+      metadata: {
+        appointmentId: appointment.id,
+        doctorId: appointment.doctorId,
+        clinicId: appointment.clinicId,
+      },
+      priority: 'HIGH',
+    });
+
+    // Notify clinic
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: appointment.clinicId },
+      select: { ownerId: true },
+    });
+
+    if (clinic) {
+      await createNotification({
+        userId: clinic.ownerId,
+        type: NotificationType.BOOKING_CANCELLED,
+        title: '🚫 Booking Cancelled',
+        message: `Appointment with Dr. ${doctorName} on ${date} was cancelled.`,
+        metadata: { appointmentId: appointment.id },
+        priority: 'MEDIUM',
+      });
+    }
+  } catch (error) {
+    logger.error('[Notification] Booking cancelled notification failed', error);
+  }
+}
+
+/**
+ * ✅ Create notification for queue call
+ */
+async function notifyQueueCalled(queueItem) {
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: queueItem.appointmentId },
+      include: {
+        patient: { select: { id: true, name: true } },
+        doctor: { include: { user: { select: { name: true } } } },
+      },
+    });
+
+    if (!appointment) return;
+
+    const doctorName = appointment.doctor?.user?.name || 'Doctor';
+
+    await createNotification({
+      userId: appointment.patientId,
+      type: NotificationType.QUEUE_CALLED,
+      title: '🔔 Your Turn!',
+      message: `Please proceed to Dr. ${doctorName}'s consultation room. Token #${queueItem.position}`,
+      metadata: {
+        queueId: queueItem.id,
+        appointmentId: appointment.id,
+        position: queueItem.position,
+      },
+      priority: 'HIGH',
+    });
+  } catch (error) {
+    logger.error('[Notification] Queue called notification failed', error);
+  }
+}
+
+/**
+ * ✅ Get user notifications
+ */
+async function getUserNotifications(userId, { limit = 20, unreadOnly = false } = {}) {
+  const where = { userId };
+  if (unreadOnly) where.isRead = false;
+
+  return await prisma.notification.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * ✅ Mark notification as read
+ */
+async function markAsRead(notificationId, userId) {
+  return await prisma.notification.updateMany({
+    where: { id: notificationId, userId },
+    data: { isRead: true, readAt: new Date() },
+  });
+}
+
+/**
+ * ✅ Mark all notifications as read
+ */
+async function markAllAsRead(userId) {
+  return await prisma.notification.updateMany({
+    where: { userId, isRead: false },
+    data: { isRead: true, readAt: new Date() },
+  });
+}
+
+/**
+ * ✅ Get unread count
+ */
+async function getUnreadCount(userId) {
+  return await prisma.notification.count({
+    where: { userId, isRead: false },
+  });
+}
+
+/**
+ * ✅ Delete old notifications (cleanup job)
+ */
+async function deleteOldNotifications(daysOld = 30) {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+  const result = await prisma.notification.deleteMany({
+    where: {
+      createdAt: { lt: cutoffDate },
+      isRead: true,
+    },
+  });
+
+  logger.info(`[Notification] Deleted ${result.count} old notifications`);
+  return result.count;
+}
 
 module.exports = {
-  sendToUser,
+  NotificationType,
+  createNotification,
+  notifyBookingConfirmed,
+  notifyBookingCancelled,
   notifyQueueCalled,
-  notifyAppointmentBooked,
-  notifyFollowUpReminder,
-  notifyQueuePaused,
+  getUserNotifications,
+  markAsRead,
+  markAllAsRead,
+  getUnreadCount,
+  deleteOldNotifications,
 };

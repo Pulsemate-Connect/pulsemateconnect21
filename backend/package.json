@@ -1,58 +1,50 @@
 {
   "name": "pulsemate-backend",
   "version": "1.0.0",
-  "description": "PulseMate Healthcare Platform - Backend API",
+  "description": "PulseMate Connect Backend API",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node src/server.js",
     "start": "node src/server.js",
-    "build": "node scripts/resolve-failed-migration.js && npx prisma generate && npx prisma migrate deploy",
-    "postinstall": "npx prisma generate",
-    "seed:prod": "node prisma/seed-production.js",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
+    "dev": "nodemon src/server.js",
+    "test": "jest --coverage --verbose",
     "test:watch": "jest --watch",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate",
-    "db:seed": "node prisma/seed.js",
-    "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force"
+    "test:quick": "jest --testPathPattern='dashboard|notification|booking-control|session-validation' --verbose",
+    "test:unit": "jest --testPathPattern='controllers' --verbose",
+    "test:integration": "jest --testPathPattern='integration' --verbose"
   },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/config/",
+      "/migrations/"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/controllers/**/*.js",
+      "src/services/**/*.js",
+      "src/routes/**/*.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 70,
+        "lines": 70,
+        "statements": 70
+      }
+    }
+  },
+  "keywords": [
+    "healthcare",
+    "clinic",
+    "appointment"
+  ],
+  "author": "PulseMate Team",
+  "license": "MIT",
   "dependencies": {
-    "@prisma/client": "5.22.0",
-    "bcryptjs": "^2.4.3",
-    "cloudinary": "^1.41.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.18.3",
-    "express-rate-limit": "^7.2.0",
-    "firebase-admin": "^12.0.0",
-    "helmet": "^7.1.0",
-    "ioredis": "^5.3.2",
-    "joi": "^17.12.2",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.1.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "node-cron": "3.0.3",
-    "nodemailer": "^8.0.10",
-    "pdfkit": "^0.15.0",
-    "razorpay": "^2.9.4",
-    "socket.io": "^4.7.4",
-    "twilio": "^5.0.4",
-    "uuid": "^9.0.1",
-    "winston": "^3.12.0",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@jest/globals": "^29.7.0",
-    "jest": "^29.7.0",
-    "localtunnel": "^2.0.2",
-    "node-mocks-http": "^1.14.1",
-    "nodemon": "^3.1.0",
-    "prisma": "5.22.0",
-    "socket.io-client": "^4.7.4",
-    "supertest": "^6.3.4"
+    "multer": "^2.2.0",
+    "uuid": "^14.0.1"
   }
 }

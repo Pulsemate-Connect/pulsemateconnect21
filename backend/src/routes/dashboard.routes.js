@@ -1,22 +1,25 @@
 // ═════════════════════════════════════════════════════════════════════════════
-//  Notification Routes — PulseMate Connect
+//  Dashboard Routes — PulseMate Connect
 // ═════════════════════════════════════════════════════════════════════════════
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth.middleware');
-const {
-  getMyNotifications,
-  getUnreadCount,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-} = require('../controllers/notification.controller');
+const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { getClinicDashboard, getQuickStats } = require('../controllers/dashboard.controller');
 
 // All routes require authentication
 router.use(authenticate);
 
-router.get('/', getMyNotifications);
-router.get('/unread-count', getUnreadCount);
-router.patch('/:id/read', markNotificationAsRead);
-router.patch('/read-all', markAllNotificationsAsRead);
+// Dashboard routes
+router.get(
+  '/clinic/:clinicId',
+  authorize('CLINIC_OWNER', 'RECEPTIONIST', 'SUPER_ADMIN'),
+  getClinicDashboard
+);
+
+router.get(
+  '/clinic/:clinicId/quick',
+  authorize('CLINIC_OWNER', 'RECEPTIONIST', 'SUPER_ADMIN'),
+  getQuickStats
+);
 
 module.exports = router;
