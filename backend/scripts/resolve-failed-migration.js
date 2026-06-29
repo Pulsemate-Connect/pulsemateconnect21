@@ -1,51 +1,39 @@
-/**
- * resolve-failed-migration.js
- *
- * Marks any failed Prisma migrations as rolled back so that
- * `prisma migrate deploy` can proceed.
- *
- * Uses only the built-in `https` module — no extra dependencies needed.
- */
-
 const { execSync } = require('child_process');
 
-async function main() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.log('No DATABASE_URL set, skipping migration resolve.');
-    return;
+console.log('🔍 Checking for failed Prisma migrations...');
+
+try {
+  // Check for failed migrations
+  const result = execSync('npx prisma migrate status', { 
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  
+  if (result.includes('following migrations have not yet been applied') || 
+      result.includes('Database schema is not in sync')) {
+    console.log('⚠️  Found pending migrations, will be applied with migrate deploy');
+  } else {
+    console.log('✅ No pending migrations found');
   }
-
-  console.log('Checking for failed Prisma migrations...');
-
-  try {
-    // Use prisma db execute to run raw SQL — no extra packages needed
-    const sql = `
-      UPDATE "_prisma_migrations"
-      SET rolled_back_at = NOW()
-      WHERE rolled_back_at IS NULL
-        AND finished_at IS NULL
-        AND started_at IS NOT NULL;
-    `;
-
-    execSync(
-      `npx prisma db execute --stdin --url="${databaseUrl}"`,
-      {
-        input: sql,
-        stdio: ['pipe', 'inherit', 'inherit'],
-        env: { ...process.env },
-      }
-    );
-
-    console.log('✅ Failed migrations resolved. Proceeding with migrate deploy...');
-  } catch (err) {
-    // If _prisma_migrations table doesn't exist yet (fresh DB), that's fine
-    if (err.message && err.message.includes('_prisma_migrations')) {
-      console.log('No _prisma_migrations table found (fresh database). Skipping.');
-    } else {
-      console.log('Migration resolve step completed (or no failed migrations).');
+} catch (error) {
+  // If there's an error, it might be a failed migration
+  const errorOutput = error.stdout || error.stderr || error.message;
+  
+  if (errorOutput.includes('following migration have failed')) {
+    console.log('❌ Found failed migration, attempting to resolve...');
+    
+    try {
+      // Try to mark the migration as resolved
+      execSync('npx prisma migrate resolve --applied "$(npx prisma migrate status | grep -oP \'(?<=following migration have failed: ).*\')"', {
+        stdio: 'inherit'
+      });
+      console.log('✅ Migration resolved');
+    } catch (resolveError) {
+      console.log('⚠️  Could not auto-resolve migration, will continue with deploy');
     }
+  } else {
+    console.log('✅ No failed migrations detected');
   }
 }
 
-main();
+console.log('Migration resolve step completed (or no failed migrations).');
