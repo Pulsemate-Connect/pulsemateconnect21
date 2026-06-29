@@ -611,6 +611,24 @@ export default function BookingScreen({ route, navigation }) {
                   <Text style={s.emptySessionsText}>
                     This clinic hasn't configured appointment sessions yet. Please check back later or contact the clinic directly.
                   </Text>
+                  {/* ✅ NEW: Action button */}
+                  <TouchableOpacity 
+                    style={s.emptyStateButton} 
+                    onPress={() => {
+                      // Copy clinic phone to clipboard or open dialer
+                      if (clinicName) {
+                        Alert.alert(
+                          'Contact Clinic',
+                          `Please contact ${clinicName} directly to book an appointment.`,
+                          [{ text: 'OK' }]
+                        );
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call-outline" size={16} color={WHITE} />
+                    <Text style={s.emptyStateButtonText}>Contact Clinic</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <>
@@ -962,7 +980,14 @@ const s = StyleSheet.create({
     borderColor: BORDER, borderStyle: 'dashed',
   },
   emptySessionsTitle:{ fontSize: 15, fontWeight: '700', color: SLATE, marginBottom: 6, textAlign: 'center' },
-  emptySessionsText: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 19 },
+  emptySessionsText: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 19, marginBottom: 16 },
+  
+  // ✅ NEW: Empty state button
+  emptyStateButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10,
+  },
+  emptyStateButtonText: { fontSize: 13, fontWeight: '600', color: WHITE },
 
   // Notes
   notesWrap:   {

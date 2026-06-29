@@ -14,6 +14,8 @@ const {
   updateAvailability,
   getDoctorProfile,
   updateDoctorProfile,
+  createPrescription,
+  completeAppointment,
 } = require('../controllers/doctor.controller');
 
 router.use(authenticate, authorize('DOCTOR', 'SUPER_ADMIN'));
@@ -29,5 +31,7 @@ router.patch('/appointments/:id/complete', completeConsultation);
 router.patch('/availability', updateAvailability);
 router.get('/profile', getDoctorProfile);
 router.patch('/profile', updateDoctorProfile);
+router.post('/prescription', createPrescription);
+router.patch('/appointment/:id/complete', completeAppointment);
 
 module.exports = router;

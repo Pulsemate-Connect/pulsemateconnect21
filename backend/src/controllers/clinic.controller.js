@@ -1335,3 +1335,150 @@ module.exports = {
   updateDoctorStatus,
   deleteDoctor,
 };
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ✅ NEW: BOOKING CONTROL ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/clinic/:id/bookings/stop
+ * Stop accepting new bookings for the clinic
+ */
+const stopBookings = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+    const { reason } = req.body;
+
+    // Verify ownership
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({
+        where: { id: clinicId, ownerId: req.user.id },
+      });
+      if (!clinic) return sendError(res, 'Access denied', 403);
+    }
+
+    const clinic = await prisma.clinic.update({
+      where: { id: clinicId },
+      data: {
+        isActive: false,
+        suspendedReason: reason || 'Bookings temporarily stopped by owner',
+      },
+    });
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'BOOKINGS_STOPPED',
+      entityType: 'Clinic',
+      entityId: clinicId,
+      metadata: { reason },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, { clinic }, 'Bookings stopped successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/clinic/:id/bookings/resume
+ * Resume accepting bookings for the clinic
+ */
+const resumeBookings = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+
+    // Verify ownership
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({
+        where: { id: clinicId, ownerId: req.user.id },
+      });
+      if (!clinic) return sendError(res, 'Access denied', 403);
+    }
+
+    const clinic = await prisma.clinic.update({
+      where: { id: clinicId },
+      data: {
+        isActive: true,
+        suspendedReason: null,
+      },
+    });
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'BOOKINGS_RESUMED',
+      entityType: 'Clinic',
+      entityId: clinicId,
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, { clinic }, 'Bookings resumed successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clinic/:id/booking-status
+ * Check if clinic is accepting bookings
+ */
+const getBookingStatus = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        approvalStatus: true,
+        suspendedReason: true,
+      },
+    });
+
+    if (!clinic) return sendError(res, 'Clinic not found', 404);
+
+    const acceptingBookings =
+      clinic.isActive &&
+      clinic.approvalStatus === 'VERIFIED';
+
+    return sendSuccess(res, {
+      acceptingBookings,
+      clinic,
+      message: acceptingBookings
+        ? 'Clinic is accepting bookings'
+        : clinic.suspendedReason || 'Clinic is not accepting bookings',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Export new functions
+module.exports = {
+  createClinic,
+  getMyClinics,
+  getMyClinicStatus,
+  resubmitClinic,
+  getClinic,
+  updateClinic,
+  addStaff,
+  getStaff,
+  getDoctorInvites,
+  updateStaffStatus,
+  getClinicRevenue,
+  getClinicBookingMetrics,
+  getClinicAppointments,
+  createDoctor,
+  getClinicDoctors,
+  getDoctorById,
+  updateDoctor,
+  updateDoctorStatus,
+  deleteDoctor,
+  // ✅ NEW: Booking control
+  stopBookings,
+  resumeBookings,
+  getBookingStatus,
+};

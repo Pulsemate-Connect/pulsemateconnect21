@@ -27,6 +27,10 @@ const {
   updateDoctor,
   updateDoctorStatus,
   deleteDoctor,
+  // ✅ NEW: Booking Control
+  stopBookings,
+  resumeBookings,
+  getBookingStatus,
 } = require('../controllers/clinic.controller');
 const { createReceptionistHandler } = require('../controllers/auth.controller');
 const { validate, createClinicSchema, updateClinicSchema, addStaffSchema } = require('../validators/clinic.validator');
@@ -63,5 +67,10 @@ router.get('/my-sessions', authorize('CLINIC_OWNER'), getMyClinicSessions);
 router.post('/:clinicId/sessions', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), createSession);
 router.put('/sessions/:sessionId', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), updateSession);
 router.delete('/sessions/:sessionId', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), deleteSession);
+
+// ✅ NEW: Booking Control Routes ───────────────────────────────────────────────
+router.post('/:id/bookings/stop', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), stopBookings);
+router.post('/:id/bookings/resume', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), resumeBookings);
+router.get('/:id/booking-status', getBookingStatus); // Public route
 
 module.exports = router;

@@ -33,6 +33,8 @@ const campaignRoutes = require('./routes/campaign.routes');
 const webhookRoutes = require('./routes/webhook.routes');
 const clinicSessionRoutes = require('./routes/clinicSession.routes');
 const sessionAvailabilityRoutes = require('./routes/sessionAvailability.routes');
+const uploadRoutes = require('./routes/upload.routes');
+const holidayRoutes = require('./routes/holiday.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -257,6 +259,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/clinics', clinicSessionRoutes); // Public: /:clinicId/sessions
 // Session availability routes - real-time slot calculation
 app.use('/api', sessionAvailabilityRoutes); // Public: /clinics/:clinicId/sessions/availability, /doctor/:doctorId/sessions/availability
+// ✅ NEW: Dashboard routes
+const dashboardRoutes = require('./routes/dashboard.routes');
+app.use('/api/dashboard', dashboardRoutes);
+// ✅ NEW: Notification routes
+const notificationRoutes = require('./routes/notification.routes');
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/clinics', clinicRoutes);
 // Availability routes MUST be registered before doctorRoutes because doctorRoutes
@@ -273,6 +281,8 @@ app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/device-token', deviceTokenRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api', holidayRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);

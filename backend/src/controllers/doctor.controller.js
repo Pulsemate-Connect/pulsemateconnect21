@@ -295,6 +295,95 @@ const updateDoctorProfile = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/doctor/prescription - Create prescription
+ */
+const createPrescription = async (req, res, next) => {
+  try {
+    const {
+      appointmentId,
+      patientId,
+      symptoms,
+      diagnosis,
+      medicines,
+      instructions,
+      followUpRequired,
+      followUpDate,
+    } = req.body;
+
+    // Verify doctor is assigned to this appointment
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+    });
+
+    if (!appointment) {
+      return sendError(res, 'Appointment not found', 404);
+    }
+
+    const doctorProfile = await prisma.doctorProfile.findUnique({
+      where: { userId: req.user.id },
+    });
+
+    if (appointment.doctorId !== doctorProfile.id) {
+      return sendError(res, 'Unauthorized', 403);
+    }
+
+    // Create prescription
+    const prescription = await prisma.prescriptions.create({
+      data: {
+        id: `${Date.now()}-${appointmentId}`,
+        appointmentId,
+        doctorId: doctorProfile.id,
+        patientId,
+        diagnosis,
+        medicines: JSON.stringify(medicines),
+        instructions,
+        requiresFollowUp: followUpRequired,
+        followUpDate: followUpDate ? new Date(followUpDate) : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return sendSuccess(res, { prescription }, 'Prescription created successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/doctor/appointment/:id/complete - Complete appointment
+ */
+const completeAppointment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment) {
+      return sendError(res, 'Appointment not found', 404);
+    }
+
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { status: 'COMPLETED' },
+    });
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      const { emitAppointmentUpdate } = require('../socket');
+      emitAppointmentUpdate(io, id, updated);
+    }
+
+    return sendSuccess(res, { appointment: updated }, 'Appointment completed');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTodayAppointments,
   getAppointments,
@@ -303,4 +392,6 @@ module.exports = {
   updateAvailability,
   getDoctorProfile,
   updateDoctorProfile,
+  createPrescription,
+  completeAppointment,
 };
