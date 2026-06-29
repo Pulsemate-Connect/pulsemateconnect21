@@ -55,16 +55,19 @@
     "express-rate-limit": "^7.5.0",
     "firebase-admin": "^13.0.2",
     "helmet": "^8.0.0",
+    "ioredis": "^5.3.2",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
+    "razorpay": "^2.9.4",
     "socket.io": "^4.8.1",
     "twilio": "^5.3.5",
     "uuid": "^11.0.3",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
