@@ -262,8 +262,7 @@ app.use('/api', sessionAvailabilityRoutes); // Public: /clinics/:clinicId/sessio
 // ✅ NEW: Dashboard routes
 const dashboardRoutes = require('./routes/dashboard.routes');
 app.use('/api/dashboard', dashboardRoutes);
-// ✅ NEW: Notification routes
-const notificationRoutes = require('./routes/notification.routes');
+// ✅ Notification routes (already declared at top)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/clinics', clinicRoutes);
