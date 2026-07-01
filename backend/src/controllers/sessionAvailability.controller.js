@@ -47,8 +47,9 @@ const countBookedSlots = async (clinicId, doctorId, date, sessionStart, sessionE
   const [startHour, startMin] = sessionStart.split(':').map(Number);
   const [endHour, endMin] = sessionEnd.split(':').map(Number);
   
-  // Count appointments in this session's time range
-  // Exclude CANCELLED, NO_SHOW, and PENDING_PAYMENT (abandoned payments)
+  // Count appointments whose slotTime falls within this session's time range.
+  // Only count appointments that have a slotTime — legacy rows without one are
+  // excluded because we cannot reliably assign them to a session bucket.
   const count = await prisma.appointment.count({
     where: {
       clinicId,
@@ -60,19 +61,10 @@ const countBookedSlots = async (clinicId, doctorId, date, sessionStart, sessionE
       status: {
         notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'],
       },
-      // Filter by slot time if available
-      OR: [
-        {
-          slotTime: {
-            gte: sessionStart,
-            lt: sessionEnd,
-          },
-        },
-        // Include appointments without specific slot time (legacy data)
-        {
-          slotTime: null,
-        },
-      ],
+      slotTime: {
+        gte: sessionStart,
+        lt: sessionEnd,
+      },
     },
   });
   

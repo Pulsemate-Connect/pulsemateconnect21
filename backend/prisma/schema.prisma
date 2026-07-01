@@ -31,26 +31,27 @@ model User {
   authProvider         String?
   /// Set when user requests account deletion. Hard-deleted by cron after 10 days.
   deletionRequestedAt  DateTime?
-  createdAdmins        AdminProfile[]        @relation("AdminCreator")
-  adminProfile         AdminProfile?
-  appointments         Appointment[]         @relation("PatientAppointments")
-  auditLogs            AuditLog[]            @relation("AuditActor")
-  clinicStaff          ClinicStaff[]
-  ownedClinics         Clinic[]              @relation("ClinicOwner")
-  verifiedClinics      Clinic[]              @relation("ClinicVerifiedBy")
-  doctorProfile        DoctorProfile?
-  fcmTokens            FcmToken[]
-  notificationReads    NotificationRead[]
-  userNotifications    UserNotification[]
-  passwordResetTokens  PasswordResetToken[]
-  patientProfile       PatientProfile?
-  payments             Payment[]             @relation("PatientPayments")
-  prescriptions        prescriptions[]
-  queueItems           QueueItem[]           @relation("PatientQueueItems")
-  createdReceptionists ReceptionistProfile[] @relation("OwnerCreatedReceptionists")
-  receptionistProfile  ReceptionistProfile?
-  refreshTokens        RefreshToken[]
-  sessions             Session[]
+  createdAdmins            AdminProfile[]              @relation("AdminCreator")
+  adminProfile             AdminProfile?
+  appointments             Appointment[]               @relation("PatientAppointments")
+  auditLogs                AuditLog[]                  @relation("AuditActor")
+  clinicStaff              ClinicStaff[]
+  ownedClinics             Clinic[]                    @relation("ClinicOwner")
+  verifiedClinics          Clinic[]                    @relation("ClinicVerifiedBy")
+  doctorProfile            DoctorProfile?
+  fcmTokens                FcmToken[]
+  notificationReads        NotificationRead[]
+  userNotifications        UserNotification[]
+  passwordResetTokens      PasswordResetToken[]
+  patientProfile           PatientProfile?
+  payments                 Payment[]                   @relation("PatientPayments")
+  prescriptions            prescriptions[]
+  queueItems               QueueItem[]                 @relation("PatientQueueItems")
+  createdReceptionists     ReceptionistProfile[]       @relation("OwnerCreatedReceptionists")
+  receptionistProfile      ReceptionistProfile?
+  refreshTokens            RefreshToken[]
+  sessions                 Session[]
+  dashboardWidgetPreference DashboardWidgetPreference?
 
   @@map("users")
 }
@@ -153,6 +154,7 @@ model Clinic {
   receptionistProfiles               ReceptionistProfile[]
   sessions                           ClinicSession[]
   holidays                           ClinicHoliday[]
+  dashboardWidgetPreferences         DashboardWidgetPreference[]
 
   @@map("clinics")
 }
@@ -761,3 +763,19 @@ model DoctorAvailability {
   @@map("doctor_availability")
 }
 
+
+model DashboardWidgetPreference {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  clinicId  String
+  widgets   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clinicId])
+  @@map("dashboard_widget_preferences")
+}

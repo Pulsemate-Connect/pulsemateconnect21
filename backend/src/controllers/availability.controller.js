@@ -105,6 +105,10 @@ const getDoctorAvailability = async (req, res, next) => {
  * GET /api/doctor/:doctorId/slots?clinicId=&date=YYYY-MM-DD
  * Public — returns available (unbooked, not-past) slots for a date.
  * Falls back to DoctorClinic schedule if no DoctorAvailability row exists.
+ *
+ * Slots are clipped to the clinic's configured session windows so that a
+ * doctor whose availability spans 06:00–18:00 only produces slots inside
+ * whichever ClinicSession(s) exist for that clinic.
  */
 const getAvailableSlots = async (req, res, next) => {
   try {
@@ -122,65 +126,121 @@ const getAvailableSlots = async (req, res, next) => {
 
     const dayOfWeek = targetDate.getDay(); // 0 = Sunday
 
+    // ── Fetch clinic sessions (used to clip slots to valid windows) ──────────
+    const clinicSessions = await prisma.clinicSession.findMany({
+      where: { clinicId, enabled: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    // ── Resolve doctor working hours ─────────────────────────────────────────
+    let workStart = null;
+    let workEnd = null;
+    let slotDurationMin = 15;
+    let maxPatients = 20;
+    let source = 'none';
+
     // Try DoctorAvailability first
     const avail = await prisma.doctorAvailability.findUnique({
       where: { doctorId_clinicId_dayOfWeek: { doctorId, clinicId, dayOfWeek } },
     });
 
     if (avail && avail.isActive) {
-      const allSlots = generateSlots(avail.startTime, avail.endTime, avail.slotDurationMin);
-      const bookedSet = await fetchBookedSlots(doctorId, clinicId, date);
-      const slots = buildSlotArray(allSlots, bookedSet, targetDate);
-
-      return sendSuccess(res, {
-        slots,
-        slotDurationMin: avail.slotDurationMin,
-        maxPatients: avail.maxPatients,
-        bookedCount: bookedSet.size,
-        source: 'doctorAvailability',
+      workStart = avail.startTime;
+      workEnd = avail.endTime;
+      slotDurationMin = avail.slotDurationMin;
+      maxPatients = avail.maxPatients;
+      source = 'doctorAvailability';
+    } else {
+      // Fallback: DoctorClinic schedule
+      const dc = await prisma.doctorClinic.findFirst({
+        where: { doctorId, clinicId, isActive: true },
       });
+
+      if (!dc || !dc.startTime || !dc.endTime) {
+        return sendSuccess(res, {
+          slots: [],
+          slotDurationMin: 15,
+          maxPatients: 20,
+          bookedCount: 0,
+          source: 'none',
+          message: 'No availability configured for this doctor and clinic.',
+        });
+      }
+
+      // Check if doctor works on this day
+      const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayName = DAY_NAMES[dayOfWeek];
+      if (dc.availableDays?.length > 0 && !dc.availableDays.includes(dayName)) {
+        return sendSuccess(res, {
+          slots: [],
+          slotDurationMin: dc.avgConsultationMins || 15,
+          maxPatients: 20,
+          bookedCount: 0,
+          source: 'doctorClinic',
+          message: `Doctor is not available on ${dayName}`,
+        });
+      }
+
+      workStart = dc.startTime;
+      workEnd = dc.endTime;
+      slotDurationMin = dc.avgConsultationMins || 15;
+      source = 'doctorClinic';
     }
 
-    // Fallback: DoctorClinic schedule
-    const dc = await prisma.doctorClinic.findFirst({
-      where: { doctorId, clinicId, isActive: true },
-    });
+    // ── Build slot windows ────────────────────────────────────────────────────
+    // If clinic has sessions configured, clip the doctor's hours to each session
+    // window individually so slots always belong to a real session bucket.
+    // If no sessions exist, fall back to the full doctor window.
+    const [wsh, wsm] = workStart.split(':').map(Number);
+    const [weh, wem] = workEnd.split(':').map(Number);
+    const workStartMins = wsh * 60 + wsm;
+    const workEndMins = weh * 60 + wem;
 
-    if (!dc || !dc.startTime || !dc.endTime) {
+    let allSlots;
+
+    if (clinicSessions.length > 0) {
+      // Generate slots only within the intersection of doctor hours and each session
+      const merged = [];
+      for (const sess of clinicSessions) {
+        const [ssh, ssm] = sess.startTime.split(':').map(Number);
+        const [seh, sem] = sess.endTime.split(':').map(Number);
+        const sessStartMins = ssh * 60 + ssm;
+        const sessEndMins = seh * 60 + sem;
+
+        const effectiveStart = Math.max(workStartMins, sessStartMins);
+        const effectiveEnd = Math.min(workEndMins, sessEndMins);
+
+        if (effectiveEnd > effectiveStart) {
+          const padTime = (m) =>
+            `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+          merged.push(...generateSlots(padTime(effectiveStart), padTime(effectiveEnd), slotDurationMin));
+        }
+      }
+      allSlots = merged;
+    } else {
+      allSlots = generateSlots(workStart, workEnd, slotDurationMin);
+    }
+
+    if (allSlots.length === 0) {
       return sendSuccess(res, {
         slots: [],
-        slotDurationMin: 15,
-        maxPatients: 20,
+        slotDurationMin,
+        maxPatients,
         bookedCount: 0,
-        source: 'none',
-        message: 'No availability configured for this doctor and clinic.',
+        source,
+        message: 'No slots available — doctor hours do not overlap with any clinic session.',
       });
     }
 
-    // Check if doctor works on this day (availableDays = ["Monday", ...])
-    const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayName = DAY_NAMES[dayOfWeek];
-    if (dc.availableDays?.length > 0 && !dc.availableDays.includes(dayName)) {
-      return sendSuccess(res, {
-        slots: [],
-        slotDurationMin: dc.avgConsultationMins || 15,
-        maxPatients: 20,
-        bookedCount: 0,
-        source: 'doctorClinic',
-        message: `Doctor is not available on ${dayName}`,
-      });
-    }
-
-    const allSlots = generateSlots(dc.startTime, dc.endTime, dc.avgConsultationMins || 15);
     const bookedSet = await fetchBookedSlots(doctorId, clinicId, date);
     const slots = buildSlotArray(allSlots, bookedSet, targetDate);
 
     return sendSuccess(res, {
       slots,
-      slotDurationMin: dc.avgConsultationMins || 15,
-      maxPatients: 20,
+      slotDurationMin,
+      maxPatients,
       bookedCount: bookedSet.size,
-      source: 'doctorClinic',
+      source,
     });
   } catch (error) {
     next(error);

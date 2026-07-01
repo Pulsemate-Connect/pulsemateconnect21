@@ -639,22 +639,30 @@ export default function BookingScreen({ route, navigation }) {
                       const sessionSlots = getSessionSlots(sess.id);
                       const hasSlots = sessionSlots.length > 0;
                       
-                      // Get icon and color based on session type
+                      // Get icon and color based on the ACTUAL stored times, not the sessionType label.
+                      // Derive the period from the real startTime hour so mis-labeled sessions
+                      // (e.g. a MORNING session with a 4 PM start) still show the right icon.
+                      const startHour = sess.startTime ? parseInt(sess.startTime.split(':')[0], 10) : 0;
                       let iconName = 'time';
                       let iconColor = BLUE;
-                      if (sess.sessionType === 'MORNING') {
+                      if (startHour >= 6 && startHour < 12) {
                         iconName = 'sunny';
                         iconColor = '#F59E0B';
-                      } else if (sess.sessionType === 'AFTERNOON') {
+                      } else if (startHour >= 12 && startHour < 18) {
                         iconName = 'partly-sunny';
                         iconColor = '#FB923C';
-                      } else if (sess.sessionType === 'EVENING') {
+                      } else if (startHour >= 18) {
                         iconName = 'moon';
                         iconColor = '#6366F1';
                       }
                       
-                      // Get display label
-                      const displayLabel = SESSION_TYPE_LABELS[sess.sessionType] || sess.name;
+                      // Use the actual session name from the database as the primary label.
+                      // Fall back to a human-readable period name only if the DB name is empty.
+                      const periodLabel =
+                        startHour >= 6 && startHour < 12 ? 'Morning Session' :
+                        startHour >= 12 && startHour < 18 ? 'Afternoon Session' :
+                        startHour >= 18 ? 'Evening Session' : 'Session';
+                      const displayLabel = sess.name || periodLabel;
                       
                       // Determine why slots are unavailable
                       let unavailableReason = 'Fully Booked';
@@ -662,6 +670,18 @@ export default function BookingScreen({ route, navigation }) {
                         unavailableReason = 'Not Configured';
                       } else if (!hasSlots && slots.length === 0) {
                         unavailableReason = 'Not Available';
+                      } else if (!hasSlots) {
+                        // Could still be past-time slots — give a clearer message
+                        const now = new Date();
+                        const endHour = sess.endTime ? parseInt(sess.endTime.split(':')[0], 10) : 23;
+                        const endMin  = sess.endTime ? parseInt(sess.endTime.split(':')[1], 10) : 59;
+                        const isDateToday = date === new Date().toISOString().split('T')[0];
+                        const sessionEndPassed = isDateToday && (now.getHours() > endHour || (now.getHours() === endHour && now.getMinutes() >= endMin));
+                        if (sessionEndPassed) {
+                          unavailableReason = 'Session Ended';
+                        } else {
+                          unavailableReason = 'Fully Booked';
+                        }
                       }
                       
                       return (

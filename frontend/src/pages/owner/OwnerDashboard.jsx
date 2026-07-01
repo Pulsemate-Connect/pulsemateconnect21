@@ -1,13 +1,56 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import useAuthStore from '../../store/authStore';
-import { getMyClinics, getClinicRevenue, getMyClinicStatus, resubmitClinic } from '../../api/clinic.api';
+import { getMyClinics, getMyClinicStatus, resubmitClinic } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
+// ── New hooks & store ──────────────────────────────────────────────────────────
+import useDashboardFilters from '../../hooks/useDashboardFilters';
+import useDashboardData from '../../hooks/useDashboardData';
+import useDashboardSocket from '../../hooks/useDashboardSocket';
+import useAlertEngine from '../../hooks/useAlertEngine';
+import useWidgetPreferences from '../../hooks/useWidgetPreferences';
+import useExportService from '../../hooks/useExportService';
+import useDashboardStore from '../../store/dashboardStore';
+
+// ── Dashboard components ───────────────────────────────────────────────────────
+import MetricCard from '../../components/dashboard/MetricCard';
+import AlertsInsightsWidget from '../../components/dashboard/AlertsInsightsWidget';
+import DashboardFilterBar from '../../components/dashboard/DashboardFilterBar';
+import DashboardFilterDrawer, { FilterTriggerButton } from '../../components/dashboard/DashboardFilterDrawer';
+import WidgetCustomizerModal from '../../components/dashboard/WidgetCustomizerModal';
+import ConnectionStatusBadge from '../../components/dashboard/ConnectionStatusBadge';
+import ExportButton from '../../components/dashboard/ExportButton';
+import RecentTransactionsTable from '../../components/dashboard/RecentTransactionsTable';
+import RevenueTrendChart from '../../components/dashboard/charts/RevenueTrendChart';
+import AppointmentTrendChart from '../../components/dashboard/charts/AppointmentTrendChart';
+import DoctorPerformanceBar from '../../components/dashboard/charts/DoctorPerformanceBar';
+
+// ── API ────────────────────────────────────────────────────────────────────────
+import { getDoctorList } from '../../api/dashboard.api';
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  STATUS CONFIG  — messages, colours, icon per approval state
+//  ErrorBoundary — wraps each widget so a single failure can't crash the page
+// ─────────────────────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
+const WidgetErrorFallback = ({ id }) => (
+  <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-600">
+    Widget &quot;{id}&quot; failed to load.
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  STATUS CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   PENDING: {
@@ -121,43 +164,33 @@ const ACTIVE_FEATURES = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  StatusBanner — shown at top of dashboard for every non-VERIFIED status,
-//  and as a green confirmation card when VERIFIED
+//  StatusBanner
 // ─────────────────────────────────────────────────────────────────────────────
 const StatusBanner = ({ clinic, resubmitting, onResubmit }) => {
-  const status  = clinic?.approvalStatus || 'PENDING';
-  const cfg     = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-  const reason  = cfg.reasonKey ? clinic?.[cfg.reasonKey] : null;
+  const status = clinic?.approvalStatus || 'PENDING';
+  const cfg    = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
+  const reason = cfg.reasonKey ? clinic?.[cfg.reasonKey] : null;
 
   return (
     <div className={`rounded-2xl border p-5 mb-6 ${cfg.banner}`}>
       <div className="flex items-start gap-4">
-        {/* Icon */}
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${cfg.iconBg}`}>
           {cfg.icon}
         </div>
-
         <div className="flex-1 min-w-0">
-          {/* Title + badge row */}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <h2 className="text-sm font-bold text-gray-900">{cfg.title}</h2>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.badge}`}>
               {cfg.label}
             </span>
           </div>
-
-          {/* Message */}
           <p className="text-sm text-gray-600 leading-relaxed">{cfg.message}</p>
-
-          {/* Admin reason box */}
           {reason && (
             <div className="mt-3 bg-white/80 rounded-xl border border-white/60 px-4 py-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">{cfg.reasonLabel}</p>
               <p className="text-sm text-gray-800 leading-relaxed">{reason}</p>
             </div>
           )}
-
-          {/* Blocked features grid */}
           {cfg.showBlockedFeatures && (
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {BLOCKED_FEATURES.map((f) => (
@@ -168,8 +201,6 @@ const StatusBanner = ({ clinic, resubmitting, onResubmit }) => {
               ))}
             </div>
           )}
-
-          {/* Active features (VERIFIED) */}
           {status === 'VERIFIED' && (
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACTIVE_FEATURES.map((f) => (
@@ -180,18 +211,11 @@ const StatusBanner = ({ clinic, resubmitting, onResubmit }) => {
               ))}
             </div>
           )}
-
-          {/* Resubmit actions */}
           {cfg.canResubmit && (
             <div className="mt-4">
-              <ClinicResubmitForm
-                resubmitting={resubmitting}
-                onResubmit={onResubmit}
-              />
+              <ClinicResubmitForm resubmitting={resubmitting} onResubmit={onResubmit} />
             </div>
           )}
-
-          {/* Support contact for suspended clinics */}
           {cfg.showSupportContact && (
             <div className="mt-4 flex items-center gap-3 bg-white/80 rounded-xl border border-white/60 px-4 py-3">
               <span className="text-xl">📞</span>
@@ -214,7 +238,7 @@ const StatusBanner = ({ clinic, resubmitting, onResubmit }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ClinicResubmitForm — buttons to go to the full edit page or resubmit as-is
+//  ClinicResubmitForm
 // ─────────────────────────────────────────────────────────────────────────────
 const ClinicResubmitForm = ({ resubmitting, onResubmit }) => {
   const navigate = useNavigate();
@@ -240,51 +264,77 @@ const ClinicResubmitForm = ({ resubmitting, onResubmit }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  StatCard
+//  Mobile detection helper
 // ─────────────────────────────────────────────────────────────────────────────
-const StatCard = ({ label, value, icon, color, big }) => (
-  <div className={`card text-center ${big ? 'col-span-2 sm:col-span-1' : ''}`}>
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mx-auto mb-2 ${color}`}>
-      {icon}
-    </div>
-    <p className={`font-bold ${big ? 'text-2xl' : 'text-xl'} text-gray-900`}>{value}</p>
-    <p className="text-xs text-gray-500 mt-1">{label}</p>
-  </div>
-);
-
-const fmt = (n) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
-
-const PERIODS = [
-  { key: 'today', label: 'Today' },
-  { key: 'week',  label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'all',   label: 'All Time' },
-];
+const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OwnerDashboard
 // ─────────────────────────────────────────────────────────────────────────────
 const OwnerDashboard = () => {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
 
-  // Always load clinic status regardless of approval state
-  const [clinicStatus, setClinicStatus] = useState(null);
+  // ── Performance timing ──────────────────────────────────────────────────────
+  const mountTime = React.useRef(performance.now());
+
+  // ── Clinic status (always loaded) ──────────────────────────────────────────
+  const [clinicStatus,  setClinicStatus]  = useState(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
-  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitting,  setResubmitting]  = useState(false);
 
-  // Operational data (only used when VERIFIED)
-  const [clinics,        setClinics]       = useState([]);
+  // ── Clinic list ─────────────────────────────────────────────────────────────
+  const [clinics,        setClinics]        = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
-  const [period,         setPeriod]         = useState('today');
-  const [revenue,        setRevenue]        = useState(null);
   const [loadingClinics, setLoadingClinics] = useState(false);
-  const [loadingRevenue, setLoadingRevenue] = useState(false);
+
+  // ── Enhanced dashboard UI state ─────────────────────────────────────────────
+  const [customizerOpen,  setCustomizerOpen]  = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [txPage,           setTxPage]           = useState(1);
+  const [doctors,          setDoctors]          = useState([]);
 
   const approvalStatus = clinicStatus?.approvalStatus || user?.approvalStatus || 'PENDING';
   const isVerified     = approvalStatus === 'VERIFIED';
 
-  // ── Load clinic status (always, on mount) ──────────────────────────────────
+  // ── Hooks (always called — React rules of hooks) ────────────────────────────
+  const { filters, setFilter, clearAll, activeCount } =
+    useDashboardFilters(selectedClinic?.id);
+
+  const { data, chartData, comparisonData, loading } =
+    useDashboardData(selectedClinic?.id, filters);
+
+  const { alerts, dismiss } = useAlertEngine(data, comparisonData);
+
+  const { widgets, isVisible, save: saveWidgets, reset: resetWidgets, saving: savingWidgets } =
+    useWidgetPreferences(selectedClinic?.id);
+
+  const { exporting, exportPDF, exportExcel } =
+    useExportService(
+      selectedClinic?.id,
+      filters,
+      {
+        ...data,
+        doctorPerformance: chartData?.doctorPerformance,
+        transactions: data?.recentTransactions,
+      },
+    );
+
+  // ── Socket callbacks via store ──────────────────────────────────────────────
+  const socketCallbacks = React.useMemo(() => {
+    const apply = useDashboardStore.getState().applyRealtimeUpdate;
+    return {
+      onNewAppointment:      (payload) => apply({ ...payload, type: 'new-appointment' }),
+      onAppointmentCompleted:(payload) => apply({ ...payload, type: 'appointment-completed' }),
+      onNewPayment:          (payload) => apply({ ...payload, type: 'new-payment' }),
+      onQueueUpdated:        (payload) => apply({ ...payload, type: 'queue-updated' }),
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { connected, reconnecting } =
+    useDashboardSocket(selectedClinic?.id, socketCallbacks, filters);
+
+  // ── Load clinic status on mount ─────────────────────────────────────────────
   const loadStatus = useCallback(() => {
     setLoadingStatus(true);
     return getMyClinicStatus()
@@ -295,7 +345,7 @@ const OwnerDashboard = () => {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  // ── Load clinic list + revenue only when verified ──────────────────────────
+  // ── Load clinics when verified ──────────────────────────────────────────────
   useEffect(() => {
     if (!isVerified) return;
     setLoadingClinics(true);
@@ -309,20 +359,26 @@ const OwnerDashboard = () => {
       .finally(() => setLoadingClinics(false));
   }, [isVerified]);
 
+  // ── Load doctors for filter dropdown ───────────────────────────────────────
   useEffect(() => {
     if (!isVerified || !selectedClinic) return;
-    setLoadingRevenue(true);
-    getClinicRevenue(selectedClinic.id, period)
-      .then((res) => setRevenue(res.data.data))
-      .catch(() => toast.error('Failed to load revenue'))
-      .finally(() => setLoadingRevenue(false));
-  }, [selectedClinic, period, isVerified]);
+    getDoctorList(selectedClinic.id)
+      .then((res) => setDoctors(res.data.data?.doctors || []))
+      .catch(() => {});
+  }, [isVerified, selectedClinic]);
+
+  // ── Log performance when data arrives ──────────────────────────────────────
+  useEffect(() => {
+    if (!loading && data) {
+      console.info('[Dashboard] Load time:', Math.round(performance.now() - mountTime.current), 'ms');
+    }
+  }, [loading, data]);
 
   // ── Resubmit handler ───────────────────────────────────────────────────────
-  const handleResubmit = async (data) => {
+  const handleResubmit = async (formData) => {
     setResubmitting(true);
     try {
-      await resubmitClinic(data);
+      await resubmitClinic(formData);
       toast.success('Clinic resubmitted for review!');
       await loadStatus();
     } catch (err) {
@@ -332,14 +388,128 @@ const OwnerDashboard = () => {
     }
   };
 
+  // ── renderWidget ────────────────────────────────────────────────────────────
+  const renderWidget = (id) => {
+    const metrics     = data?.metrics;
+    const comparison  = comparisonData?.comparison;
+
+    switch (id) {
+      case 'alerts-insights':
+        return <AlertsInsightsWidget alerts={alerts} onDismiss={dismiss} />;
+
+      case 'revenue-metrics':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <MetricCard icon="💰" label="Total Revenue"    value={metrics?.revenue?.total}            unit="₹" comparison={comparison?.revenue} />
+            <MetricCard icon="💵" label="Cash Revenue"     value={metrics?.revenue?.cash}             unit="₹" />
+            <MetricCard icon="💳" label="Online Revenue"   value={metrics?.revenue?.online}           unit="₹" />
+            <MetricCard icon="📈" label="Avg / Appt"       value={metrics?.revenue?.avgPerAppointment} unit="₹" />
+            <MetricCard icon="📊" label="Month Growth"     value={metrics?.revenue?.monthGrowth}      unit="%" />
+          </div>
+        );
+
+      case 'patient-metrics':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <MetricCard icon="👥" label="Total Patients"    value={metrics?.patients?.total}     comparison={comparison?.patients} />
+            <MetricCard icon="🆕" label="New Patients"      value={metrics?.patients?.new} />
+            <MetricCard icon="🔁" label="Returning"         value={metrics?.patients?.returning} />
+          </div>
+        );
+
+      case 'appointment-metrics':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <MetricCard icon="📅" label="Total Appts"       value={metrics?.appointments?.total}          comparison={comparison?.appointments} />
+            <MetricCard icon="✅" label="Completed"         value={metrics?.appointments?.completed} />
+            <MetricCard icon="❌" label="Cancelled"         value={metrics?.appointments?.cancelled} />
+            <MetricCard icon="🚫" label="No-Show"           value={metrics?.appointments?.noShow} />
+            <MetricCard icon="📉" label="Completion Rate"   value={metrics?.appointments?.completionRate}  unit="%" comparison={comparison?.completionRate} />
+            <MetricCard icon="⏱️" label="Avg Wait"          value={metrics?.appointments?.avgWaitTime}     unit=" min" />
+          </div>
+        );
+
+      case 'staff-metrics':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <MetricCard icon="👨‍⚕️" label="Active Staff"    value={metrics?.staff?.active} />
+            <MetricCard icon="🩺"  label="Doctors"          value={metrics?.staff?.doctors} />
+            <MetricCard icon="👩‍💼" label="Receptionists"   value={metrics?.staff?.receptionists} />
+            <MetricCard icon="📊"  label="Utilization"      value={metrics?.staff?.utilizationRate}  unit="%" />
+          </div>
+        );
+
+      case 'revenue-chart':
+        return (
+          <RevenueTrendChart
+            data={chartData?.revenueTrend}
+            granularity={chartData?.granularity}
+            loading={loading}
+            empty={!chartData?.revenueTrend?.length}
+            isMobile={isMobile}
+          />
+        );
+
+      case 'appointment-chart':
+        return (
+          <AppointmentTrendChart
+            data={chartData?.appointmentTrend}
+            loading={loading}
+            empty={!chartData?.appointmentTrend?.length}
+            isMobile={isMobile}
+          />
+        );
+
+      case 'revenue-by-doctor':
+        return (
+          <DoctorPerformanceBar
+            data={chartData?.doctorPerformance}
+            loading={loading}
+            empty={!chartData?.doctorPerformance?.length}
+            isMobile={isMobile}
+          />
+        );
+
+      case 'recent-transactions':
+        return (
+          <RecentTransactionsTable
+            transactions={data?.recentTransactions}
+            total={data?.total}
+            page={txPage}
+            onPageChange={setTxPage}
+            loading={loading}
+          />
+        );
+
+      case 'quick-actions':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              { to: '/clinic/profile',       icon: '🏥', label: 'Manage Clinic',  color: 'bg-blue-50 text-blue-600'    },
+              { to: '/clinic/doctors',       icon: '👨‍⚕️', label: 'Doctors',       color: 'bg-green-50 text-green-600'  },
+              { to: '/clinic/receptionists', icon: '👩‍💼', label: 'Receptionists', color: 'bg-purple-50 text-purple-600' },
+              { to: '/clinic/appointments',  icon: '📅', label: 'Appointments',   color: 'bg-orange-50 text-orange-600' },
+              { to: '/clinic/queue',         icon: '🔢', label: 'Queue Overview', color: 'bg-red-50 text-red-600'       },
+            ].map((a) => (
+              <Link key={a.to} to={a.to} className="card-hover flex flex-col items-center gap-2 py-4 text-center">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${a.color}`}>{a.icon}</div>
+                <span className="text-sm font-medium text-gray-800">{a.label}</span>
+              </Link>
+            ))}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loadingStatus) {
     return (
       <DashboardLayout>
         <div className="page-container">
-          {/* Skeleton banner */}
           <div className="rounded-2xl bg-gray-100 animate-pulse h-32 mb-6" />
-          {/* Skeleton cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-gray-100 animate-pulse h-24" />
@@ -350,209 +520,139 @@ const OwnerDashboard = () => {
     );
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="page-container">
 
-        {/* ── Page header ────────────────────────────────────────────── */}
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Clinic Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Welcome back, <span className="font-semibold text-gray-700">{user?.name}</span>
-          </p>
-        </div>
-
-        {/* ── Status Banner (always visible) ─────────────────────────── */}
+        {/* ── Status Banner (always visible) ───────────────────────── */}
         <StatusBanner
           clinic={clinicStatus}
           resubmitting={resubmitting}
           onResubmit={handleResubmit}
         />
 
-        {/* ── Quick Actions ── only when VERIFIED ──────────────────────── */}
+        {/* ── VERIFIED branch — full enhanced dashboard ─────────────── */}
         {isVerified ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-              {[
-                { to: '/clinic/profile',        icon: '🏥', label: 'Manage Clinic',  color: 'bg-blue-50 text-blue-600'   },
-                { to: '/clinic/doctors',        icon: '👨‍⚕️', label: 'Doctors',        color: 'bg-green-50 text-green-600' },
-                { to: '/clinic/receptionists',  icon: '👩‍💼', label: 'Receptionists',  color: 'bg-purple-50 text-purple-600'},
-                { to: '/clinic/appointments',   icon: '📅', label: 'Appointments',   color: 'bg-orange-50 text-orange-600'},
-                { to: '/clinic/queue',          icon: '🔢', label: 'Queue Overview', color: 'bg-red-50 text-red-600'     },
-              ].map((a) => (
-                <Link key={a.to} to={a.to}
-                  className="card-hover flex flex-col items-center gap-2 py-4 text-center">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${a.color}`}>{a.icon}</div>
-                  <span className="text-sm font-medium text-gray-800">{a.label}</span>
-                </Link>
-              ))}
-            </div>
-
-            {/* Revenue section */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                <h2 className="text-lg font-bold text-gray-900">💰 Revenue</h2>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {clinics.length > 1 && (
-                    <select className="input text-sm py-1.5 max-w-[180px]"
-                      value={selectedClinic?.id || ''}
-                      onChange={(e) => setSelectedClinic(clinics.find((c) => c.id === e.target.value))}>
-                      {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  )}
-                  <div className="flex rounded-xl border border-gray-200 overflow-hidden">
-                    {PERIODS.map((p) => (
-                      <button key={p.key} onClick={() => setPeriod(p.key)}
-                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                          period === p.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-                        }`}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            {/* Clinic selector (multi-clinic) */}
+            {loadingClinics ? (
+              <div className="flex justify-center py-4"><LoadingSpinner /></div>
+            ) : clinics.length > 1 ? (
+              <div className="mb-4">
+                <select
+                  className="input text-sm py-1.5 max-w-[220px]"
+                  value={selectedClinic?.id || ''}
+                  onChange={(e) => setSelectedClinic(clinics.find((c) => c.id === e.target.value))}
+                >
+                  {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
+            ) : null}
 
-              {loadingRevenue ? (
-                <div className="flex justify-center py-10"><LoadingSpinner size="lg" /></div>
-              ) : revenue ? (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                    <StatCard label="Total Revenue"   value={fmt(revenue.totalRevenue)}   icon="💰" color="bg-green-50 text-green-700"  big />
-                    <StatCard label="Cash Collected"  value={fmt(revenue.cashRevenue)}    icon="💵" color="bg-blue-50 text-blue-700"   />
-                    <StatCard label="Online Payments" value={fmt(revenue.onlineRevenue)}  icon="💳" color="bg-purple-50 text-purple-700"/>
-                    <StatCard label="Transactions"    value={revenue.transactionCount}    icon="🧾" color="bg-orange-50 text-orange-700"/>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <StatCard label="Today's Appts"   value={revenue.stats?.totalAppointments ?? 0} icon="📅" color="bg-gray-50 text-gray-700"   />
-                    <StatCard label="Completed Today" value={revenue.stats?.completedToday ?? 0}    icon="✅" color="bg-green-50 text-green-700" />
-                    <StatCard label="Pending Payment" value={revenue.stats?.pendingPayments ?? 0}   icon="⏳" color="bg-yellow-50 text-yellow-700"/>
-                  </div>
-
-                  {revenue.revenueByDoctor?.length > 0 && (
-                    <div className="card mb-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Revenue by Doctor</h3>
-                      <div className="space-y-3">
-                        {revenue.revenueByDoctor.map(({ doctor, amount }) => {
-                          const pct = revenue.totalRevenue > 0 ? Math.round((amount / revenue.totalRevenue) * 100) : 0;
-                          return (
-                            <div key={doctor}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium text-gray-800">{doctor}</span>
-                                <span className="text-sm font-bold text-green-600">{fmt(amount)}</span>
-                              </div>
-                              <div className="w-full bg-gray-100 rounded-full h-2">
-                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {revenue.recentPayments?.length > 0 ? (
-                    <div className="card">
-                      <h3 className="font-semibold text-gray-900 mb-4">Recent Transactions</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
-                              <th className="pb-2 pr-4">Patient</th>
-                              <th className="pb-2 pr-4">Doctor</th>
-                              <th className="pb-2 pr-4">Method</th>
-                              <th className="pb-2 pr-4">Amount</th>
-                              <th className="pb-2">Time</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {revenue.recentPayments.map((p) => (
-                              <tr key={p.id} className="hover:bg-gray-50">
-                                <td className="py-2.5 pr-4 font-medium text-gray-800">{p.patient?.name || '—'}</td>
-                                <td className="py-2.5 pr-4 text-gray-500">{p.appointment?.doctor?.user?.name || '—'}</td>
-                                <td className="py-2.5 pr-4">
-                                  <span className={`badge text-xs ${p.method === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                                    {p.method === 'CASH' ? '💵 Cash' : '💳 Online'}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 pr-4 font-bold text-green-600">{fmt(p.amount)}</td>
-                                <td className="py-2.5 text-gray-400 text-xs">
-                                  {p.paidAt ? new Date(p.paidAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="card text-center py-8 text-gray-500">
-                      <p className="text-3xl mb-2">💸</p>
-                      <p className="font-medium">No transactions {period === 'today' ? 'today' : `this ${period}`}</p>
-                      <p className="text-sm mt-1 text-gray-400">Revenue will appear here once patients pay</p>
-                    </div>
-                  )}
-                </>
-              ) : null}
-            </div>
-
-            {/* My Clinics list */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">My Clinics</h2>
+            {/* Dashboard header */}
+            <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Clinic Dashboard</h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Welcome back, <span className="font-semibold text-gray-700">{user?.name}</span>
+                </p>
               </div>
-              {loadingClinics ? (
-                <div className="flex justify-center py-8"><LoadingSpinner /></div>
-              ) : clinics.length === 0 ? (
-                <div className="card text-center py-10 text-gray-400">
-                  <p className="text-3xl mb-2">🏥</p>
-                  <p className="font-medium text-gray-600">No clinics found</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {clinics.map((clinic) => (
-                    <Link key={clinic.id} to={`/clinic/profile/${clinic.id}`} className="card-hover block">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{clinic.name}</h3>
-                          <p className="text-sm text-gray-500 mt-0.5">📍 {clinic.city}</p>
-                          <p className="text-sm text-gray-500">🕐 {clinic.openingTime} – {clinic.closingTime}</p>
-                        </div>
-                        <span className={`badge ${clinic.isVerified ? 'badge-success' : 'badge-warning'}`}>
-                          {clinic.isVerified ? '✓ Verified' : 'Pending'}
-                        </span>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-gray-100 flex gap-4 text-sm text-gray-400">
-                        <span>👥 {clinic._count?.staff || 0} staff</span>
-                        <span>📅 {clinic._count?.appointments || 0} appointments</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                <ConnectionStatusBadge connected={connected} reconnecting={reconnecting} />
+                <ExportButton
+                  exporting={exporting}
+                  onExportPDF={() => exportPDF(selectedClinic)}
+                  onExportExcel={exportExcel}
+                />
+                <button
+                  onClick={() => setCustomizerOpen(true)}
+                  className="px-4 py-2 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                >
+                  ⚙️ <span className="hidden sm:inline">Customize</span>
+                </button>
+              </div>
             </div>
+
+            {/* Filter bar — desktop */}
+            <DashboardFilterBar
+              filters={filters}
+              doctors={doctors}
+              onFilterChange={setFilter}
+              onClearAll={clearAll}
+              activeCount={activeCount}
+              loading={loading}
+              resultCount={data?.filteredCount}
+            />
+
+            {/* Filter trigger + drawer — mobile */}
+            <FilterTriggerButton
+              onClick={() => setFilterDrawerOpen(true)}
+              activeCount={activeCount}
+            />
+            <DashboardFilterDrawer
+              open={filterDrawerOpen}
+              onClose={() => setFilterDrawerOpen(false)}
+              filters={filters}
+              doctors={doctors}
+              onFilterChange={setFilter}
+              onClearAll={clearAll}
+              activeCount={activeCount}
+              loading={loading}
+            />
+
+            {/* Widget grid */}
+            <div className="space-y-6 mt-6">
+              {[...widgets].sort((a, b) => a.order - b.order).map((widget) => {
+                if (!isVisible(widget.id)) return null;
+                return (
+                  <ErrorBoundary key={widget.id} fallback={<WidgetErrorFallback id={widget.id} />}>
+                    <div className="transition-all duration-300">
+                      {renderWidget(widget.id)}
+                    </div>
+                  </ErrorBoundary>
+                );
+              })}
+            </div>
+
+            {/* Widget customizer modal */}
+            <WidgetCustomizerModal
+              open={customizerOpen}
+              widgets={widgets}
+              saving={savingWidgets}
+              onSave={(updated) => { saveWidgets(updated); setCustomizerOpen(false); }}
+              onCancel={() => setCustomizerOpen(false)}
+              onReset={() => { resetWidgets(); setCustomizerOpen(false); }}
+            />
           </>
         ) : (
-          /* ── Non-operational: show clinic info card ─── */
+          /* ── Non-operational: show clinic info card ─────────────── */
           clinicStatus && (
             <div className="card">
               <h2 className="text-sm font-bold text-gray-900 mb-3">Clinic Information</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
                 {[
-                  { label: 'Clinic Name',   value: clinicStatus.name        },
-                  { label: 'City',          value: clinicStatus.city        },
-                  { label: 'State',         value: clinicStatus.state       },
-                  { label: 'Clinic Type',   value: clinicStatus.clinicType  },
-                  { label: 'Phone',         value: clinicStatus.phone       },
-                  { label: 'Submitted',     value: clinicStatus.submittedAt
-                    ? new Date(clinicStatus.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : null },
-                ].map(({ label, value }) => value ? (
-                  <div key={label}>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-                    <p className="text-sm text-gray-800 mt-0.5 font-medium">{value}</p>
-                  </div>
-                ) : null)}
+                  { label: 'Clinic Name', value: clinicStatus.name       },
+                  { label: 'City',        value: clinicStatus.city       },
+                  { label: 'State',       value: clinicStatus.state      },
+                  { label: 'Clinic Type', value: clinicStatus.clinicType },
+                  { label: 'Phone',       value: clinicStatus.phone      },
+                  {
+                    label: 'Submitted',
+                    value: clinicStatus.submittedAt
+                      ? new Date(clinicStatus.submittedAt).toLocaleDateString('en-IN', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                        })
+                      : null,
+                  },
+                ].map(({ label, value }) =>
+                  value ? (
+                    <div key={label}>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+                      <p className="text-sm text-gray-800 mt-0.5 font-medium">{value}</p>
+                    </div>
+                  ) : null,
+                )}
               </div>
             </div>
           )

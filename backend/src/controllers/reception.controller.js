@@ -7,6 +7,7 @@ const {
   notifyDoctorFollowUp,
   notifyReceptionistNewWalkIn,
 } = require('../services/fcm.service');
+const { emitClinicUpdate } = require('../socket');
 
 /**
  * Helper: Get or create today's queue for a doctor in a clinic
@@ -194,6 +195,12 @@ const addWalkIn = async (req, res, next) => {
         type: 'PATIENT_ADDED',
         queueItem: { ...queueItem, patient: { name: patient.name, mobile: patient.mobile } },
       });
+
+      // Notify clinic dashboard of queue change
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId: queue.id, status: 'WAITING' },
+      });
+      emitClinicUpdate(io, clinicId, { type: 'queue-updated', queueLength });
     }
 
     // Notify receptionist of new walk-in (find receptionist for this clinic)
@@ -330,6 +337,12 @@ const addFollowUp = async (req, res, next) => {
         },
       });
       io.to(roomName).emit('queue:positionUpdated', { queueId: queue.id });
+
+      // Notify clinic dashboard of queue change
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId: queue.id, status: 'WAITING' },
+      });
+      emitClinicUpdate(io, clinicId, { type: 'queue-updated', queueLength });
     }
 
     // Notify the doctor about the follow-up patient
@@ -430,6 +443,29 @@ const callNext = async (req, res, next) => {
           where: { id: currentConsultation.appointmentId },
           data: { status: 'COMPLETED' },
         });
+
+        // Emit appointment-completed to clinic dashboard
+        const io = req.app.get('io');
+        if (io) {
+          // Calculate completion rate for the clinic today
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0);
+          const [totalToday, completedToday] = await Promise.all([
+            prisma.appointment.count({
+              where: { clinicId: queue.clinicId, appointmentDate: { gte: today } },
+            }),
+            prisma.appointment.count({
+              where: { clinicId: queue.clinicId, appointmentDate: { gte: today }, status: 'COMPLETED' },
+            }),
+          ]);
+          const completionRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
+
+          emitClinicUpdate(io, queue.clinicId, {
+            type: 'appointment-completed',
+            appointmentId: currentConsultation.appointmentId,
+            completionRate,
+          });
+        }
       }
     }
 
@@ -508,6 +544,12 @@ const callNext = async (req, res, next) => {
         queueId,
         calledQueueNumber: nextItem.queueNumber,
       });
+
+      // Notify clinic dashboard of queue change
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId, status: 'WAITING' },
+      });
+      emitClinicUpdate(io, queue.clinicId, { type: 'queue-updated', queueLength });
     }
 
     return sendSuccess(
@@ -558,6 +600,12 @@ const skipPatient = async (req, res, next) => {
         type: 'PATIENT_SKIPPED',
         queueItemId: id,
       });
+
+      // Notify clinic dashboard of queue change
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId: queueItem.queueId, status: 'WAITING' },
+      });
+      emitClinicUpdate(io, queueItem.queue.clinicId, { type: 'queue-updated', queueLength });
     }
 
     return sendSuccess(res, {}, 'Patient skipped');
@@ -601,6 +649,33 @@ const completePatient = async (req, res, next) => {
         queueItemId: id,
         queueNumber: queueItem.queueNumber,
       });
+
+      // Emit appointment-completed to clinic dashboard
+      if (queueItem.appointmentId) {
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const [totalToday, completedToday] = await Promise.all([
+          prisma.appointment.count({
+            where: { clinicId: queueItem.queue.clinicId, appointmentDate: { gte: todayStart } },
+          }),
+          prisma.appointment.count({
+            where: { clinicId: queueItem.queue.clinicId, appointmentDate: { gte: todayStart }, status: 'COMPLETED' },
+          }),
+        ]);
+        const completionRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
+
+        emitClinicUpdate(io, queueItem.queue.clinicId, {
+          type: 'appointment-completed',
+          appointmentId: queueItem.appointmentId,
+          completionRate,
+        });
+      }
+
+      // Emit queue-updated to clinic dashboard
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId: queueItem.queueId, status: 'WAITING' },
+      });
+      emitClinicUpdate(io, queueItem.queue.clinicId, { type: 'queue-updated', queueLength });
     }
 
     return sendSuccess(res, {}, 'Patient marked as completed');

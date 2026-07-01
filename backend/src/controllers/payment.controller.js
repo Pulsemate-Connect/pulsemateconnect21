@@ -3,6 +3,8 @@ const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
 const { notifyAppointmentBooked, notifyDoctorNewBooking, sendNotification } = require('../services/fcm.service');
 const logger = require('../config/logger');
+const { emitClinicUpdate } = require('../socket');
+const { getIo } = require('../config/socket');
 
 // ─── Fixed platform booking fee ───────────────────────────────────────────────
 // Charged from the SECOND booking onward.
@@ -72,6 +74,28 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
         type: 'APPOINTMENT_BOOKED',
         appointmentId: appointment.id,
         queueNumber,
+      });
+    }
+
+    // Emit clinic-room events for dashboard real-time updates
+    const ioInstance = io || getIo();
+    if (ioInstance) {
+      emitClinicUpdate(ioInstance, appointment.clinicId, {
+        type: 'new-appointment',
+        appointment: {
+          id: confirmed.id,
+          patientId: confirmed.patientId,
+          doctorId: confirmed.doctorId,
+        },
+      });
+
+      // Count current waiting queue length for the queue-updated event
+      const queueLength = await prisma.queueItem.count({
+        where: { queueId: queue.id, status: 'WAITING' },
+      });
+      emitClinicUpdate(ioInstance, appointment.clinicId, {
+        type: 'queue-updated',
+        queueLength,
       });
     }
 
@@ -404,6 +428,20 @@ const verifyPayment = async (req, res, next) => {
       });
       notifyStakeholders(confirmed, patientUser?.name || 'A patient');
 
+      // Emit new-payment to clinic dashboard (dev-mode payment)
+      const devPayment = await prisma.payment.findUnique({ where: { appointmentId } });
+      if (io && devPayment) {
+        emitClinicUpdate(io, appointment.clinicId, {
+          type: 'new-payment',
+          payment: {
+            id: devPayment.id,
+            amount: devPayment.amount,
+            method: devPayment.method,
+            paidAt: devPayment.paidAt,
+          },
+        });
+      }
+
       return sendSuccess(res, { verified: true, appointment: confirmed }, 'Payment verified — appointment confirmed!');
     }
 
@@ -449,6 +487,20 @@ const verifyPayment = async (req, res, next) => {
       select: { name: true },
     });
     notifyStakeholders(confirmed, patientUser?.name || 'A patient');
+
+    // Emit new-payment to clinic dashboard (real Razorpay payment)
+    const verifiedPayment = await prisma.payment.findUnique({ where: { appointmentId } });
+    if (io && verifiedPayment) {
+      emitClinicUpdate(io, appointment.clinicId, {
+        type: 'new-payment',
+        payment: {
+          id: verifiedPayment.id,
+          amount: verifiedPayment.amount,
+          method: verifiedPayment.method,
+          paidAt: verifiedPayment.paidAt,
+        },
+      });
+    }
 
     return sendSuccess(res, { verified: true, appointment: confirmed }, 'Payment verified — appointment confirmed!');
   } catch (error) {
@@ -516,6 +568,17 @@ const markCashPayment = async (req, res, next) => {
       const today = new Date().toISOString().split('T')[0];
       const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${today}`;
       io.to(roomName).emit('queue:updated', { type: 'PAYMENT_RECORDED', appointmentId, method: 'CASH' });
+
+      // Also notify clinic dashboard
+      emitClinicUpdate(io, appointment.clinicId, {
+        type: 'new-payment',
+        payment: {
+          id: payment.id,
+          amount: payment.amount,
+          method: payment.method,
+          paidAt: payment.paidAt,
+        },
+      });
     }
 
     return sendSuccess(res, { payment }, 'Cash payment recorded');

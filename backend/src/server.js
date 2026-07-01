@@ -56,7 +56,10 @@ const io = new Server(server, {
 });
 
 initializeSocket(io);
-app.set('io', io); // Make io accessible in controllers
+app.set('io', io); // Make io accessible in controllers via req.app.get('io')
+
+// Store io in singleton so helpers that lack `req` can access it without circular deps
+require('./config/socket').setIo(io);
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
 app.use(helmet({
@@ -262,6 +265,9 @@ app.use('/api', sessionAvailabilityRoutes); // Public: /clinics/:clinicId/sessio
 // ✅ NEW: Dashboard routes
 const dashboardRoutes = require('./routes/dashboard.routes');
 app.use('/api/dashboard', dashboardRoutes);
+// ✅ NEW: Enhanced dashboard routes (clinic owner BI endpoints)
+const dashboardEnhancedRoutes = require('./routes/dashboard-enhanced.routes');
+app.use('/api/dashboard', dashboardEnhancedRoutes);
 // ✅ Notification routes (already declared at top)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/clinic', clinicRoutes);
