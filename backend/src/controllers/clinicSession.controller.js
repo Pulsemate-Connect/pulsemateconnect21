@@ -37,13 +37,13 @@ exports.getClinicSessions = async (req, res) => {
 
 /**
  * GET /api/clinic/my-sessions
- * Fetch sessions for the authenticated clinic owner's clinics
+ * Fetch ALL sessions (enabled and disabled) for the authenticated clinic owner's clinics.
+ * Returns all so the owner can edit or delete sessions regardless of enabled state.
  */
 exports.getMyClinicSessions = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get user's clinics
     const clinics = await prisma.clinic.findMany({
       where: { ownerId: userId },
       select: { id: true },
@@ -59,7 +59,7 @@ exports.getMyClinicSessions = async (req, res) => {
 
     const clinicIds = clinics.map(c => c.id);
 
-    // Get all sessions for user's clinics
+    // Return ALL sessions (no enabled filter) so owner can edit/delete any session
     const sessions = await prisma.clinicSession.findMany({
       where: {
         clinicId: { in: clinicIds },
@@ -402,20 +402,17 @@ exports.updateSession = async (req, res) => {
 
 /**
  * DELETE /api/clinic/sessions/:sessionId
- * Delete a session (soft delete by setting enabled = false)
+ * Hard delete a session so the owner can recreate it with correct settings.
  */
 exports.deleteSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user.id;
 
-    // Fetch the session with clinic ownership check
     const session = await prisma.clinicSession.findFirst({
       where: {
         id: sessionId,
-        clinic: {
-          ownerId: userId,
-        },
+        clinic: { ownerId: userId },
       },
     });
 
@@ -426,16 +423,12 @@ exports.deleteSession = async (req, res) => {
       });
     }
 
-    // Soft delete (set enabled = false)
-    await prisma.clinicSession.update({
+    // Hard delete — frees up the sessionType slot for recreation
+    await prisma.clinicSession.delete({
       where: { id: sessionId },
-      data: { enabled: false },
     });
 
-    logger.info('Clinic session deleted (soft)', {
-      sessionId,
-      userId,
-    });
+    logger.info('Clinic session deleted', { sessionId, userId });
 
     return res.json({
       success: true,
