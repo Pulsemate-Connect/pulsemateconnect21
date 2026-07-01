@@ -5,7 +5,7 @@ services:
     runtime: node
     region: singapore
     rootDir: backend
-    buildCommand: npm install && npx prisma migrate resolve --applied 20260628140314_add_clinic_holidays || echo "Migration already resolved or not failed" && npx prisma generate && npx prisma migrate deploy && node prisma/seed-production.js
+    buildCommand: npm install && npx prisma migrate resolve --applied 20260628140314_add_clinic_holidays || echo "Migration already resolved or not failed" && npx prisma migrate resolve --rolled-back 20260700000000_dashboard_enhancements || echo "No rollback needed" && npx prisma generate && npx prisma migrate deploy && node prisma/seed-production.js
     startCommand: node src/server.js
     healthCheckPath: /health
     envVars:

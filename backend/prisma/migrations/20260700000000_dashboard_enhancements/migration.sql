@@ -1,14 +1,13 @@
 -- Requirements 10.11 & 10.12: Performance indexes for dashboard queries
+-- Note: payments table has no direct clinicId — it links via appointmentId.
+-- Index on appointments(clinicId, createdAt) covers revenue queries via joins.
 
 CREATE INDEX IF NOT EXISTS idx_appointment_clinic_created
   ON "appointments"("clinicId", "createdAt");
 
-CREATE INDEX IF NOT EXISTS idx_payment_clinic_paid
-  ON "payments"("clinicId", "paidAt");
-
 -- DashboardWidgetPreference table for per-user widget layout persistence
 
-CREATE TABLE "dashboard_widget_preferences" (
+CREATE TABLE IF NOT EXISTS "dashboard_widget_preferences" (
     "id"        TEXT NOT NULL,
     "userId"    TEXT NOT NULL,
     "clinicId"  TEXT NOT NULL,
@@ -20,24 +19,36 @@ CREATE TABLE "dashboard_widget_preferences" (
 );
 
 -- Unique constraint: one preference record per user
-CREATE UNIQUE INDEX "dashboard_widget_preferences_userId_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "dashboard_widget_preferences_userId_key"
   ON "dashboard_widget_preferences"("userId");
 
 -- Additional indexes for lookup performance
-CREATE INDEX "dashboard_widget_preferences_userId_idx"
+CREATE INDEX IF NOT EXISTS "dashboard_widget_preferences_userId_idx"
   ON "dashboard_widget_preferences"("userId");
 
-CREATE INDEX "dashboard_widget_preferences_clinicId_idx"
+CREATE INDEX IF NOT EXISTS "dashboard_widget_preferences_clinicId_idx"
   ON "dashboard_widget_preferences"("clinicId");
 
--- Foreign key: userId → users.id (cascade delete)
-ALTER TABLE "dashboard_widget_preferences"
-  ADD CONSTRAINT "dashboard_widget_preferences_userId_fkey"
-  FOREIGN KEY ("userId") REFERENCES "users"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+-- Foreign keys (only add if they don't already exist)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'dashboard_widget_preferences_userId_fkey'
+  ) THEN
+    ALTER TABLE "dashboard_widget_preferences"
+      ADD CONSTRAINT "dashboard_widget_preferences_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "users"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
--- Foreign key: clinicId → clinics.id (cascade delete)
-ALTER TABLE "dashboard_widget_preferences"
-  ADD CONSTRAINT "dashboard_widget_preferences_clinicId_fkey"
-  FOREIGN KEY ("clinicId") REFERENCES "clinics"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'dashboard_widget_preferences_clinicId_fkey'
+  ) THEN
+    ALTER TABLE "dashboard_widget_preferences"
+      ADD CONSTRAINT "dashboard_widget_preferences_clinicId_fkey"
+      FOREIGN KEY ("clinicId") REFERENCES "clinics"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
