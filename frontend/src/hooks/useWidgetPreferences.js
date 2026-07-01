@@ -115,3 +115,5 @@ export function useWidgetPreferences(clinicId) {
 
   return { widgets, saving, isVisible, save, reset };
 }
+
+export default useWidgetPreferences;
