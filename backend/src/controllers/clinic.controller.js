@@ -415,12 +415,15 @@ const addStaff = async (req, res, next) => {
 
 /**
  * GET /api/clinics/:id/staff - Get clinic staff
+ * Returns all active staff from ClinicStaff table
+ * ALSO includes doctors who joined via DoctorClinic invitation (inviteStatus ACCEPTED)
  */
 const getStaff = async (req, res, next) => {
   try {
     const { id: clinicId } = req.params;
 
-    const staff = await prisma.clinicStaff.findMany({
+    // Staff added directly (receptionists + directly-added doctors)
+    const directStaff = await prisma.clinicStaff.findMany({
       where: { clinicId, isActive: true },
       include: {
         user: {
@@ -430,6 +433,48 @@ const getStaff = async (req, res, next) => {
         },
       },
     });
+
+    // Doctors who joined via DoctorClinic invitation (NOT already in directStaff)
+    const directStaffUserIds = new Set(directStaff.map((s) => s.user.id));
+
+    const invitedDoctors = await prisma.doctorClinic.findMany({
+      where: {
+        clinicId,
+        isActive: true,
+        inviteStatus: 'ACCEPTED',
+        doctorId: { not: undefined },
+      },
+      include: {
+        doctor: {
+          include: {
+            user: {
+              select: {
+                id: true, name: true, mobile: true, email: true, role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Convert invited doctors to the same shape as ClinicStaff entries
+    const invitedAsStaff = invitedDoctors
+      .filter((dc) => !directStaffUserIds.has(dc.doctor?.user?.id)) // avoid duplicates
+      .map((dc) => ({
+        id: dc.id,
+        clinicId: dc.clinicId,
+        userId: dc.doctor?.user?.id,
+        role: 'DOCTOR',
+        isActive: true,
+        createdAt: dc.createdAt,
+        updatedAt: dc.updatedAt,
+        user: {
+          ...dc.doctor.user,
+          doctorProfile: dc.doctor,
+        },
+      }));
+
+    const staff = [...directStaff, ...invitedAsStaff];
 
     return sendSuccess(res, { staff });
   } catch (error) {
