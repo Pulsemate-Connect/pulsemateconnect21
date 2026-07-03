@@ -17,8 +17,16 @@ const isAdminUser = (user) => user?.role === 'SUPER_ADMIN' && !!user?.adminProfi
 
 const getDashboard = async (req, res, next) => {
   try {
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
     const [
       totalUsers,
+      patientCount,
+      doctorCount,
+      clinicOwnerCount,
       pendingClinics,
       underReviewClinics,
       pendingDoctors,
@@ -30,8 +38,18 @@ const getDashboard = async (req, res, next) => {
       freeBookings,
       paidBookings,
       totalRevenue,
+      totalAppointments,
+      appointmentsToday,
+      completedToday,
+      todayRevenue,
+      recentBookings,
+      recentVerifiedClinics,
+      pendingDeletionRequests,
     ] = await Promise.all([
       prisma.user.count(),
+      prisma.user.count({ where: { role: 'PATIENT' } }),
+      prisma.user.count({ where: { role: 'DOCTOR' } }),
+      prisma.user.count({ where: { role: 'CLINIC_OWNER' } }),
       prisma.clinic.count({ where: { approvalStatus: 'PENDING' } }),
       prisma.clinic.count({ where: { approvalStatus: 'UNDER_REVIEW' } }),
       prisma.doctorProfile.count({ where: { approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] } } }),
@@ -40,15 +58,49 @@ const getDashboard = async (req, res, next) => {
       prisma.clinic.count({ where: { approvalStatus: 'REJECTED' } }),
       prisma.clinic.count({ where: { approvalStatus: 'CHANGES_REQUIRED' } }),
       prisma.clinic.count({ where: { approvalStatus: 'SUSPENDED' } }),
-      // Free bookings = payments with amount = 0 and status PAID
       prisma.payment.count({ where: { amount: 0, status: 'PAID' } }),
-      // Paid bookings = payments with amount > 0 and status PAID
       prisma.payment.count({ where: { amount: { gt: 0 }, status: 'PAID' } }),
-      // Total platform revenue from ₹10 booking fees
       prisma.payment.aggregate({
         where: { amount: { gt: 0 }, status: 'PAID' },
         _sum: { amount: true },
       }),
+      prisma.appointment.count({ where: { status: { notIn: ['PENDING_PAYMENT'] } } }),
+      prisma.appointment.count({
+        where: { appointmentDate: { gte: todayStart, lte: todayEnd }, status: { notIn: ['PENDING_PAYMENT', 'CANCELLED'] } },
+      }),
+      prisma.appointment.count({
+        where: { appointmentDate: { gte: todayStart, lte: todayEnd }, status: 'COMPLETED' },
+      }),
+      prisma.payment.aggregate({
+        where: { status: 'PAID', paidAt: { gte: todayStart, lte: todayEnd } },
+        _sum: { amount: true },
+      }),
+      // 10 most recent confirmed bookings
+      prisma.payment.findMany({
+        where: { status: 'PAID' },
+        orderBy: { paidAt: 'desc' },
+        take: 10,
+        include: {
+          patient: { select: { id: true, name: true, mobile: true } },
+          appointment: {
+            select: {
+              id: true,
+              appointmentDate: true,
+              appointmentType: true,
+              clinic: { select: { id: true, name: true } },
+              doctor: { include: { user: { select: { name: true } } } },
+            },
+          },
+        },
+      }),
+      // 5 most recently verified clinics
+      prisma.clinic.findMany({
+        where: { approvalStatus: 'VERIFIED' },
+        orderBy: { verifiedAt: 'desc' },
+        take: 5,
+        select: { id: true, name: true, city: true, state: true, verifiedAt: true, clinicType: true },
+      }),
+      prisma.user.count({ where: { deletionRequestedAt: { not: null } } }),
     ]);
 
     const totalPaidPlusFreeBkg = freeBookings + paidBookings;
@@ -59,6 +111,9 @@ const getDashboard = async (req, res, next) => {
     return sendSuccess(res, {
       stats: {
         totalUsers,
+        patientCount,
+        doctorCount,
+        clinicOwnerCount,
         pendingClinics,
         underReviewClinics,
         pendingDoctors,
@@ -67,17 +122,36 @@ const getDashboard = async (req, res, next) => {
         rejectedClinics,
         changesRequiredClinics,
         suspendedClinics,
+        totalAppointments,
+        appointmentsToday,
+        completedToday,
+        pendingDeletionRequests,
       },
       bookingMetrics: {
         freeBookings,
         paidBookings,
         totalBookings: totalPaidPlusFreeBkg,
-        conversionRate,       // % of bookings that were paid (not free)
+        conversionRate,
         totalRevenue: totalRevenue._sum.amount || 0,
+        todayRevenue: todayRevenue._sum.amount || 0,
         revenuePerPatient: paidBookings > 0
           ? Math.round(((totalRevenue._sum.amount || 0) / paidBookings) * 100) / 100
           : 0,
       },
+      recentBookings: recentBookings.map((p) => ({
+        paymentId: p.id,
+        patientName: p.patient?.name || 'Unknown',
+        patientMobile: p.patient?.mobile || '',
+        amount: p.amount,
+        isFree: p.amount === 0,
+        method: p.method,
+        paidAt: p.paidAt,
+        clinicName: p.appointment?.clinic?.name || '—',
+        doctorName: p.appointment?.doctor?.user?.name || '—',
+        appointmentDate: p.appointment?.appointmentDate,
+        appointmentType: p.appointment?.appointmentType,
+      })),
+      recentVerifiedClinics,
     });
   } catch (error) {
     next(error);
