@@ -109,7 +109,39 @@ const getQueue = async (req, res, next) => {
       return sendSuccess(res, { queue: null, queueItems: [] });
     }
 
-    return sendSuccess(res, { queue, queueItems: queue.queueItems });
+    // ── Compute estimated appointment time per queue item ─────────────────────
+    // Formula: sessionStart + (position - 1) × avgConsultationMins
+    let sessionStartMinutes = null;
+    let avgMins = 15;
+    try {
+      const clinicSessions = await prisma.clinicSession.findMany({
+        where: { clinicId, enabled: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      if (clinicSessions.length > 0) {
+        const [h, m] = clinicSessions[0].startTime.split(':').map(Number);
+        sessionStartMinutes = h * 60 + m;
+      }
+      const doctorProfile = await prisma.doctorProfile.findUnique({
+        where: { id: doctorId },
+        select: { avgConsultationMins: true },
+      });
+      avgMins = doctorProfile?.avgConsultationMins || 15;
+    } catch (_) { /* non-critical */ }
+
+    // Attach estimatedAppointmentTime to each queue item
+    const enrichedItems = queue.queueItems.map((item) => {
+      let estimatedAppointmentTime = null;
+      if (sessionStartMinutes !== null && item.position > 0) {
+        const totalMins = sessionStartMinutes + (item.position - 1) * avgMins;
+        const h = Math.floor(totalMins / 60);
+        const m = totalMins % 60;
+        estimatedAppointmentTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+      return { ...item, estimatedAppointmentTime };
+    });
+
+    return sendSuccess(res, { queue, queueItems: enrichedItems });
   } catch (error) {
     next(error);
   }

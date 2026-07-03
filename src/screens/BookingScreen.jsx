@@ -65,7 +65,7 @@ const FOR_WHOM_OPTIONS = [
 ];
 
 // ── Success Overlay ───────────────────────────────────────────────────────────
-function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, isFree }) {
+function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, estimatedTime, onView, isFree }) {
   const scaleA = useRef(new Animated.Value(0)).current;
   const fadeA  = useRef(new Animated.Value(0)).current;
   const checkA = useRef(new Animated.Value(0)).current;
@@ -113,6 +113,16 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, onView, 
                 <Ionicons name="people" size={13} color={BLUE} />
                 <Text style={so.detailLabel}>Queue Token</Text>
                 <Text style={[so.detailVal, { color: BLUE, fontWeight: '800' }]}>#{queueNumber}</Text>
+              </View>
+            </>
+          )}
+          {estimatedTime && (
+            <>
+              <View style={so.divider} />
+              <View style={so.detailRow}>
+                <Ionicons name="time" size={13} color='#0284C7' />
+                <Text style={so.detailLabel}>Estimated Slot</Text>
+                <Text style={[so.detailVal, { color: '#0284C7', fontWeight: '800' }]}>{fmt12(estimatedTime)}</Text>
               </View>
             </>
           )}
@@ -402,11 +412,10 @@ export default function BookingScreen({ route, navigation }) {
 
       if (isFree) {
         // Fix: capture the free state in a separate flag BEFORE clearing isFreeBooking.
-        // SuccessOverlay reads isFree={confirmedIsFree}, not isFreeBooking, so
-        // setting isFreeBooking=false here won't affect the overlay display.
         setConfirmedIsFree(true);
-        setIsFreeBooking(false); // mark consumed so banner disappears on re-entry
-        setBookedAppt(freeAppt || { queueNumber: null });
+        setIsFreeBooking(false);
+        const estimatedTime = initRes.data.data.estimatedAppointmentTime || null;
+        setBookedAppt({ ...(freeAppt || {}), estimatedAppointmentTime: estimatedTime, queueNumber: freeAppt?.queueNumber || null });
         setSuccess(true);
         return;
       }
@@ -836,6 +845,7 @@ export default function BookingScreen({ route, navigation }) {
         date={date}
         slot={slot}
         queueNumber={bookedAppt?.queueNumber}
+        estimatedTime={bookedAppt?.estimatedAppointmentTime || null}
         isFree={confirmedIsFree}
         onView={() => navigation.navigate('AppointmentsTab')}
       />

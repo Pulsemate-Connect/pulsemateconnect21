@@ -372,6 +372,15 @@ const TodayQueue = () => {
   );
 };
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+function formatTime12(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }) => {
   const isActive  = ['WAITING', 'CALLED', 'IN_CONSULTATION'].includes(item.status);
   const isCurrent = ['CALLED', 'IN_CONSULTATION'].includes(item.status);
@@ -410,6 +419,11 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
         </div>
         <div className="flex flex-col items-end gap-1">
           <StatusBadge status={item.status} />
+          {item.estimatedAppointmentTime && (
+            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              🕐 {formatTime12(item.estimatedAppointmentTime)}
+            </span>
+          )}
           {item.position > 0 && isActive && (
             <span className="text-xs text-text-muted">Pos {item.position}</span>
           )}

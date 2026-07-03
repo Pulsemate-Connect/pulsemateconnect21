@@ -69,10 +69,11 @@ export default function AppointmentsScreen({ navigation }) {
           const qr = await getLiveQueue(a.id);
           const { queueInfo: qi } = qr.data.data;
           qMap[a.id] = qi ? {
-            position:             qi.position,
-            patientsAhead:        qi.patientsAhead,
-            estimatedWaitMinutes: qi.estimatedWaitMinutes,
-            status:               qi.status,
+            position:                qi.position,
+            patientsAhead:           qi.patientsAhead,
+            estimatedWaitMinutes:    qi.estimatedWaitMinutes,
+            estimatedAppointmentTime:qi.estimatedAppointmentTime ?? null,
+            status:                  qi.status,
           } : null;
         } catch {}
       }));
@@ -276,6 +277,16 @@ export default function AppointmentsScreen({ navigation }) {
                             <Text style={s.qStripVal}>Est. wait</Text>
                             <Text style={s.qStripBold}>
                               {qi.estimatedWaitMinutes ? `~${qi.estimatedWaitMinutes} mins` : '—'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={s.qStripDiv} />
+                        <View style={s.qStripItem}>
+                          <Ionicons name="time-outline" size={16} color={colors.primary} />
+                          <View>
+                            <Text style={s.qStripVal}>Your slot</Text>
+                            <Text style={[s.qStripBold, { color: '#0284C7' }]}>
+                              {qi.estimatedAppointmentTime ? fmtTime(qi.estimatedAppointmentTime) : '—'}
                             </Text>
                           </View>
                         </View>

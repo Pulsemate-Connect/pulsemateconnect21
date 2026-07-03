@@ -493,18 +493,19 @@ model prescriptions {
 }
 
 model ClinicSession {
-  id          String      @id @default(uuid())
-  clinicId    String
-  sessionType SessionType
-  name        String
-  startTime   String
-  endTime     String
-  maxPatients Int         @default(30)
-  enabled     Boolean     @default(true)
-  sortOrder   Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  clinic      Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  id                String      @id @default(uuid())
+  clinicId          String
+  sessionType       SessionType
+  name              String
+  startTime         String
+  endTime           String
+  maxPatients       Int         @default(30)
+  avgConsultationMins Int       @default(15)
+  enabled           Boolean     @default(true)
+  sortOrder         Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  clinic            Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, sessionType])
   @@index([clinicId])

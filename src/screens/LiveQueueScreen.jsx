@@ -16,6 +16,15 @@ import { useQueueSocket } from '../hooks/useQueueSocket';
 
 const { width: W } = Dimensions.get('window');
 
+// ── Helper: convert "09:45" to "9:45 AM" ─────────────────────────────────────
+const fmt12h = (t) => {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hr   = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 const SKY5    = '#0EA5E9';
 const SKY6    = '#0284C7';
@@ -285,6 +294,7 @@ export default function LiveQueueScreen({ route, navigation }) {
   const patientsAhead = qi?.patientsAhead ?? null;
   const currentServing = qi?.currentlyServing ?? null;
   const estimatedWait = qi?.estimatedWaitMinutes ?? appt?.estimatedWaitMinutes ?? null;
+  const estimatedAppointmentTime = qi?.estimatedAppointmentTime ?? null;
   const position      = qi?.position      ?? null;
   const queueStatus   = qi?.queueStatus   ?? 'ACTIVE';
   const doctorName    = appt?.doctor?.user?.name;
@@ -394,9 +404,28 @@ export default function LiveQueueScreen({ route, navigation }) {
             value={patientsAhead} label="Ahead of You" highlight={patientsAhead === 0} />
           <StatCard icon="person"  iconBg={BLUE_L}  iconColor={BLUE}
             value={currentServing != null ? `#${currentServing}` : null} label="Now Serving" />
-          <StatCard icon="timer"   iconBg={GREEN_L} iconColor={GREEN}
-            value={estimatedWait != null ? `${estimatedWait}m` : null} label="Est. Wait" />
+          <StatCard icon="time"    iconBg={GREEN_L} iconColor={GREEN}
+            value={estimatedAppointmentTime ? fmt12h(estimatedAppointmentTime) : (estimatedWait != null ? `${estimatedWait}m` : null)}
+            label={estimatedAppointmentTime ? "Your Slot" : "Est. Wait"} />
         </View>
+
+        {/* ── Estimated appointment time card ── */}
+        {estimatedAppointmentTime && status === 'WAITING' && (
+          <View style={lq.slotCard}>
+            <View style={lq.slotCardLeft}>
+              <Text style={lq.slotCardIcon}>🕐</Text>
+              <View>
+                <Text style={lq.slotCardLabel}>Your Estimated Appointment</Text>
+                <Text style={lq.slotCardTime}>{fmt12h(estimatedAppointmentTime)}</Text>
+              </View>
+            </View>
+            <View style={lq.slotCardRight}>
+              <Text style={lq.slotCardNote}>
+                {patientsAhead === 0 ? "You're next!" : `${patientsAhead} patient${patientsAhead > 1 ? 's' : ''} ahead`}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Queue progress tracker ── */}
         {status === 'WAITING' && totalInQueue != null && (
@@ -765,4 +794,13 @@ const lq = StyleSheet.create({
   calledBannerTitle: { fontSize: 15, fontWeight: '800', color: WHITE, marginBottom: 2 },
   calledBannerSub:   { fontSize: 11, color: 'rgba(255,255,255,0.8)' },
   calledArrow:       { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+
+  // Estimated slot card
+  slotCard:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#EFF6FF', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: '#BFDBFE' },
+  slotCardLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  slotCardIcon:  { fontSize: 24 },
+  slotCardLabel: { fontSize: 11, color: SKY6, fontWeight: '600', marginBottom: 2 },
+  slotCardTime:  { fontSize: 22, fontWeight: '900', color: SKY7, letterSpacing: -0.5 },
+  slotCardRight: { alignItems: 'flex-end' },
+  slotCardNote:  { fontSize: 11, color: SKY6, fontWeight: '600' },
 });

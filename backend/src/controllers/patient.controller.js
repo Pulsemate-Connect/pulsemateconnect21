@@ -188,6 +188,7 @@ const bookAppointment = async (req, res, next) => {
 
     let queueNumber = null;
     let estimatedWaitMinutes = null;
+    let estimatedAppointmentTime = null;
 
     // For offline appointments, assign queue number
     if (appointmentType === 'OFFLINE') {
@@ -216,7 +217,26 @@ const bookAppointment = async (req, res, next) => {
         where: { queueId: queue.id, status: 'WAITING' },
       });
 
-      estimatedWaitMinutes = (waitingCount + 1) * (doctorClinic.avgConsultationMins || 10);
+      const avgMins = doctorClinic.avgConsultationMins || 10;
+      estimatedWaitMinutes = (waitingCount + 1) * avgMins;
+
+      // Calculate estimated appointment time from session start
+      try {
+        const clinicSessions = await prisma.clinicSession.findMany({
+          where: { clinicId, enabled: true },
+          orderBy: { sortOrder: 'asc' },
+        });
+        if (clinicSessions.length > 0) {
+          const sessionAvgMins = clinicSessions[0].avgConsultationMins || avgMins;
+          const [startH, startM] = clinicSessions[0].startTime.split(':').map(Number);
+          const sessionStartMins = startH * 60 + startM;
+          const position = waitingCount + 1;
+          const totalMins = sessionStartMins + (position - 1) * sessionAvgMins;
+          const estH = Math.floor(totalMins / 60);
+          const estM = totalMins % 60;
+          estimatedAppointmentTime = `${String(estH).padStart(2, '0')}:${String(estM).padStart(2, '0')}`;
+        }
+      } catch (_) { /* non-critical */ }
     }
 
     const appointment = await prisma.appointment.create({
@@ -284,7 +304,7 @@ const bookAppointment = async (req, res, next) => {
       ).catch(() => { });
     }
 
-    return sendSuccess(res, { appointment }, 'Appointment booked successfully', 201);
+    return sendSuccess(res, { appointment, estimatedAppointmentTime }, 'Appointment booked successfully', 201);
   } catch (error) {
     next(error);
   }
@@ -413,11 +433,43 @@ const getLiveQueue = async (req, res, next) => {
       },
     });
 
+    // ── Compute estimated appointment time ──────────────────────────────────
+    // Formula: sessionStart + (position - 1) × avgConsultationMins
+    let estimatedAppointmentTime = null;
+    try {
+      const apptDateStr = new Date(appointment.appointmentDate).toISOString().split('T')[0];
+      // Fetch the clinic session that covers the queue's time
+      const clinicSessions = await prisma.clinicSession.findMany({
+        where: { clinicId: appointment.clinicId, enabled: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+
+      // Get avg consultation time from doctor profile
+      const doctorProfile = await prisma.doctorProfile.findUnique({
+        where: { id: appointment.doctorId },
+        select: { avgConsultationMins: true },
+      });
+      const avgMins = doctorProfile?.avgConsultationMins || 15;
+
+      // Find the earliest session start as the base time
+      if (clinicSessions.length > 0) {
+        const firstSession = clinicSessions[0];
+        const [startH, startM] = firstSession.startTime.split(':').map(Number);
+        const sessionStartMinutes = startH * 60 + startM;
+        const positionOffset = (appointment.queueItem.position - 1) * avgMins;
+        const totalMinutes = sessionStartMinutes + positionOffset;
+        const estH = Math.floor(totalMinutes / 60);
+        const estM = totalMinutes % 60;
+        estimatedAppointmentTime = `${String(estH).padStart(2, '0')}:${String(estM).padStart(2, '0')}`;
+      }
+    } catch (_) { /* non-critical */ }
+
     const queueInfo = {
       queueNumber: appointment.queueItem.queueNumber,
       position: appointment.queueItem.position,
       status: appointment.queueItem.status,
       estimatedWaitMinutes: appointment.estimatedWaitMinutes,
+      estimatedAppointmentTime, // ← NEW: "09:45" format
       patientsAhead,
       currentlyServing: currentlyServing?.queueNumber || null,
       queueStatus: appointment.queueItem.queue.status,

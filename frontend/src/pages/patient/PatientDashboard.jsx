@@ -124,6 +124,11 @@ const PatientDashboard = () => {
                       {appt.queueNumber && (
                         <p className="text-xs text-gray-400 mt-1">Queue #{appt.queueNumber}</p>
                       )}
+                      {appt.estimatedWaitMinutes != null && (
+                        <p className="text-xs font-semibold text-blue-600 mt-0.5">
+                          🕐 ~{appt.estimatedWaitMinutes} min wait
+                        </p>
+                      )}
                     </div>
                   </div>
                   {['IN_QUEUE', 'BOOKED', 'CHECKED_IN'].includes(appt.status) && (

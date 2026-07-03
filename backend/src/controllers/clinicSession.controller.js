@@ -98,7 +98,7 @@ exports.getMyClinicSessions = async (req, res) => {
 exports.createSession = async (req, res) => {
   try {
     const { clinicId } = req.params;
-    const { sessionType, name, startTime, endTime, maxPatients = 30, enabled = true } = req.body;
+    const { sessionType, name, startTime, endTime, maxPatients = 30, avgConsultationMins = 15, enabled = true } = req.body;
     const userId = req.user.id;
 
     // Enhanced logging for debugging
@@ -227,6 +227,7 @@ exports.createSession = async (req, res) => {
         startTime,
         endTime,
         maxPatients: parseInt(maxPatients, 10),
+        avgConsultationMins: parseInt(avgConsultationMins, 10) || 15,
         enabled,
         sortOrder,
       },
@@ -270,7 +271,7 @@ exports.createSession = async (req, res) => {
 exports.updateSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { sessionType, name, startTime, endTime, maxPatients, enabled } = req.body;
+    const { sessionType, name, startTime, endTime, maxPatients, avgConsultationMins, enabled } = req.body;
     const userId = req.user.id;
 
     // Fetch the session with clinic ownership check
@@ -373,6 +374,7 @@ exports.updateSession = async (req, res) => {
     if (startTime !== undefined) updateData.startTime = startTime;
     if (endTime !== undefined) updateData.endTime = endTime;
     if (maxPatients !== undefined) updateData.maxPatients = parseInt(maxPatients, 10);
+    if (avgConsultationMins !== undefined) updateData.avgConsultationMins = parseInt(avgConsultationMins, 10) || 15;
     if (enabled !== undefined) updateData.enabled = enabled;
 
     const updatedSession = await prisma.clinicSession.update({

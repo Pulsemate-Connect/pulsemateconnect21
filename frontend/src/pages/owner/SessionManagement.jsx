@@ -22,6 +22,7 @@ export default function SessionManagement() {
     startTime: '',
     endTime: '',
     maxPatients: 30,
+    avgConsultationMins: 15,
     enabled: true,
   });
 
@@ -132,6 +133,7 @@ export default function SessionManagement() {
         startTime: session.startTime,
         endTime: session.endTime,
         maxPatients: session.maxPatients,
+        avgConsultationMins: session.avgConsultationMins || 15,
         enabled: session.enabled,
       });
     } else {
@@ -142,6 +144,7 @@ export default function SessionManagement() {
         startTime: '',
         endTime: '',
         maxPatients: 30,
+        avgConsultationMins: 15,
         enabled: true,
       });
     }
@@ -157,6 +160,7 @@ export default function SessionManagement() {
       startTime: '',
       endTime: '',
       maxPatients: 30,
+      avgConsultationMins: 15,
       enabled: true,
     });
   };
@@ -329,7 +333,7 @@ export default function SessionManagement() {
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Time:</span>{' '}
                         <span className="font-medium text-gray-900">
@@ -339,6 +343,13 @@ export default function SessionManagement() {
                       <div>
                         <span className="text-gray-600">Max Patients:</span>{' '}
                         <span className="font-medium text-gray-900">{session.maxPatients}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">⏱️ Avg/patient:</span>{' '}
+                        <span className="font-medium text-gray-900">{session.avgConsultationMins || 15} min</span>
+                        <span className="text-xs text-blue-600 ml-2">
+                          Patient 1 → {formatTime(session.startTime)}, Patient 2 → {addMinutes(session.startTime, session.avgConsultationMins || 15)}…
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -463,19 +474,37 @@ export default function SessionManagement() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Max Patients
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.maxPatients}
-                    onChange={(e) => setFormData({ ...formData, maxPatients: parseInt(e.target.value, 10) })}
-                    min="1"
-                    max="200"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={!formData.sessionType}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Max Patients
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.maxPatients}
+                      onChange={(e) => setFormData({ ...formData, maxPatients: parseInt(e.target.value, 10) })}
+                      min="1"
+                      max="200"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!formData.sessionType}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      ⏱️ Avg time per patient (min)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.avgConsultationMins}
+                      onChange={(e) => setFormData({ ...formData, avgConsultationMins: parseInt(e.target.value, 10) || 15 })}
+                      min="5"
+                      max="120"
+                      step="5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!formData.sessionType}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Used to calculate patient slot times</p>
+                  </div>
                 </div>
 
                 <div className="flex items-center">
@@ -523,4 +552,15 @@ function formatTime(timeStr) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function addMinutes(timeStr, mins) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + (mins || 15);
+  const nh = Math.floor(total / 60) % 24;
+  const nm = total % 60;
+  const ampm = nh >= 12 ? 'PM' : 'AM';
+  const hour = nh > 12 ? nh - 12 : nh === 0 ? 12 : nh;
+  return `${hour}:${String(nm).padStart(2, '0')} ${ampm}`;
 }
