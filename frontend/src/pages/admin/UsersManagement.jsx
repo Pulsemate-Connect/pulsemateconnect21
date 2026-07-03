@@ -5,6 +5,7 @@ import {
   createAdminUser,
   deleteAdminUser,
   getAdminUsers,
+  getAdminUserDetail,
   updateUserStatus,
   getDeletionRequests,
   cancelDeletionRequest,
@@ -25,9 +26,190 @@ const ROLE_COLORS = {
   PATIENT: 'bg-gray-100 text-gray-700',
 };
 
+// ── User Detail Drawer ────────────────────────────────────────────────────────
+const UserDetailDrawer = ({ userId, onClose, onToggleStatus, actionLoading, currentUser }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    setLoading(true);
+    getAdminUserDetail(userId)
+      .then((res) => setUser(res.data.data.user))
+      .catch(() => toast.error('Failed to load user details'))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never';
+
+  const canToggle = user && user.id !== currentUser?.id && !(user.role === 'SUPER_ADMIN' && currentUser?.adminLevel !== 'ROOT');
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
+
+      {/* Drawer */}
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">User Details</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>
+          ) : !user ? (
+            <p className="text-center text-gray-400 py-20">User not found</p>
+          ) : (
+            <div className="space-y-5">
+
+              {/* Avatar + name */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl font-bold text-primary-700">{user.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{user.name || 'Unknown'}</h3>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    <span className={`badge text-xs ${ROLE_COLORS[user.role] || 'badge-gray'}`}>{user.role}</span>
+                    <span className={`badge text-xs ${user.isActive ? 'badge-success' : 'badge-error'}`}>
+                      {user.isActive ? 'Active' : 'Disabled'}
+                    </span>
+                    {user.approvalStatus && <StatusBadge status={user.approvalStatus} />}
+                    {user.adminProfile?.level && <span className="badge badge-gray text-xs">{user.adminProfile.level}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact */}
+              <Section title="Contact">
+                <Row label="Mobile" value={user.mobile} />
+                <Row label="Email" value={user.email || '—'} />
+                <Row label="Auth Provider" value={user.authProvider || '—'} />
+              </Section>
+
+              {/* Account */}
+              <Section title="Account">
+                <Row label="User ID" value={<span className="font-mono text-xs break-all">{user.id}</span>} />
+                <Row label="Joined" value={fmtDate(user.createdAt)} />
+                <Row label="Last Login" value={fmtTime(user.lastLoginAt)} />
+                <Row label="Free Booking" value={user.freeBookingUsed ? '✅ Used' : '🎁 Available'} />
+                <Row label="Total Appointments" value={user._count?.appointments ?? '—'} />
+                <Row label="Total Payments" value={user._count?.payments ?? '—'} />
+              </Section>
+
+              {/* Patient profile */}
+              {user.patientProfile && (
+                <Section title="Patient Profile">
+                  <Row label="Gender" value={user.patientProfile.gender || '—'} />
+                  <Row label="Age / DOB" value={user.patientProfile.age || (user.patientProfile.dob ? fmtDate(user.patientProfile.dob) : '—')} />
+                  <Row label="City" value={user.patientProfile.city || '—'} />
+                  <Row label="Blood Group" value={user.patientProfile.bloodGroup || '—'} />
+                  <Row label="Emergency Contact" value={user.patientProfile.emergencyContact || '—'} />
+                  <Row label="Allergies" value={user.patientProfile.allergies || '—'} />
+                  <Row label="Profile Complete" value={user.patientProfile.profileCompleted ? '✅ Yes' : '⚠️ No'} />
+                </Section>
+              )}
+
+              {/* Doctor profile */}
+              {user.doctorProfile && (
+                <Section title="Doctor Profile">
+                  <Row label="Specialization" value={user.doctorProfile.specialization || '—'} />
+                  <Row label="Qualification" value={user.doctorProfile.qualification || '—'} />
+                  <Row label="Experience" value={user.doctorProfile.experienceYears ? `${user.doctorProfile.experienceYears} yrs` : '—'} />
+                  <Row label="Consultation Fee" value={user.doctorProfile.consultationFee ? `₹${user.doctorProfile.consultationFee}` : '—'} />
+                  <Row label="Avg Time/Patient" value={user.doctorProfile.avgConsultationMins ? `${user.doctorProfile.avgConsultationMins} min` : '—'} />
+                  <Row label="Verification" value={user.doctorProfile.verificationStatus || '—'} />
+                </Section>
+              )}
+
+              {/* Owned clinics */}
+              {user.ownedClinics?.length > 0 && (
+                <Section title="Clinics Owned">
+                  {user.ownedClinics.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between py-1.5">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                        <p className="text-xs text-gray-400">{c.city}</p>
+                      </div>
+                      <StatusBadge status={c.approvalStatus} />
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {/* Recent appointments */}
+              {user.appointments?.length > 0 && (
+                <Section title="Recent Appointments">
+                  {user.appointments.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between py-1.5">
+                      <p className="text-sm text-gray-700">{fmtDate(a.appointmentDate)}</p>
+                      <StatusBadge status={a.status} />
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {/* Rejection reason */}
+              {user.rejectionReason && (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-red-500 uppercase mb-1">Rejection Reason</p>
+                  <p className="text-sm text-red-800">{user.rejectionReason}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        {user && canToggle && (
+          <div className="border-t border-gray-100 px-6 py-4">
+            <button
+              onClick={() => onToggleStatus(user)}
+              disabled={actionLoading === user.id}
+              className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                user.isActive
+                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                  : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+              }`}
+            >
+              {actionLoading === user.id ? 'Saving...' : user.isActive ? '🚫 Disable Account' : '✅ Enable Account'}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+// ── Helper sub-components ────────────────────────────────────────────────────
+const Section = ({ title, children }) => (
+  <div>
+    <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{title}</p>
+    <div className="bg-gray-50 rounded-xl px-4 py-1 divide-y divide-gray-100">
+      {children}
+    </div>
+  </div>
+);
+
+const Row = ({ label, value }) => (
+  <div className="flex items-center justify-between py-2.5 gap-3">
+    <span className="text-xs font-medium text-gray-500 flex-shrink-0">{label}</span>
+    <span className="text-sm text-gray-900 text-right">{value}</span>
+  </div>
+);
+
 const UsersManagement = () => {
   const currentUser = useAuthStore((state) => state.user);
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'deletions'
+  const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [deletionRequests, setDeletionRequests] = useState([]);
   const [isDeletionsLoading, setIsDeletionsLoading] = useState(false);
@@ -36,6 +218,7 @@ const UsersManagement = () => {
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [pagination, setPagination] = useState({ total: 0, page: 1 });
+  const [selectedUserId, setSelectedUserId] = useState(null); // ← NEW: drawer
   const [adminForm, setAdminForm] = useState({
     fullName: '',
     phone: '',
@@ -108,6 +291,7 @@ const UsersManagement = () => {
     try {
       await updateUserStatus(user.id, !user.isActive);
       toast.success(`${user.name || 'User'} ${user.isActive ? 'disabled' : 'enabled'}`);
+      setSelectedUserId(null); // close drawer after action
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update status');
@@ -170,6 +354,7 @@ const UsersManagement = () => {
     user.id !== currentUser?.id;
 
   return (
+    <>
     <DashboardLayout>
       <div className="page-container">
         <div className="mb-6">
@@ -366,7 +551,11 @@ const UsersManagement = () => {
               const deleteLoading = actionLoading === `delete-${user.id}`;
 
               return (
-                <div key={user.id} className="card">
+                <div
+                  key={user.id}
+                  className="card cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-150"
+                  onClick={() => setSelectedUserId(user.id)}
+                >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
@@ -384,7 +573,6 @@ const UsersManagement = () => {
                         </div>
                         <p className="text-sm text-text-muted">{user.mobile}</p>
                         {user.email ? <p className="text-xs text-text-muted">{user.email}</p> : null}
-                        {user.rejectionReason ? <p className="mt-1 text-xs text-red-600">Reason: {user.rejectionReason}</p> : null}
                       </div>
                     </div>
 
@@ -392,30 +580,10 @@ const UsersManagement = () => {
                       <span className={`badge ${user.isActive ? 'badge-success' : 'badge-error'}`}>
                         {user.isActive ? 'Active' : 'Disabled'}
                       </span>
-
-                      {canToggleUser(user) ? (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(user)}
-                          disabled={toggleLoading || deleteLoading}
-                          className={`text-sm font-medium ${
-                            user.isActive ? 'text-error hover:text-red-700' : 'text-secondary-600 hover:text-secondary-700'
-                          }`}
-                        >
-                          {toggleLoading ? 'Saving...' : user.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                      ) : null}
-
-                      {canDeleteAdmin(user) ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAdmin(user)}
-                          disabled={toggleLoading || deleteLoading}
-                          className="text-sm font-medium text-red-700 hover:text-red-800"
-                        >
-                          {deleteLoading ? 'Deleting...' : 'Delete Admin'}
-                        </button>
-                      ) : null}
+                      {/* Chevron hint */}
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -427,6 +595,18 @@ const UsersManagement = () => {
         )}
       </div>
     </DashboardLayout>
+
+      {/* ── User Detail Drawer ─────────────────────────────────────── */}
+      {selectedUserId && (
+        <UserDetailDrawer
+          userId={selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          onToggleStatus={handleToggleStatus}
+          actionLoading={actionLoading}
+          currentUser={currentUser}
+        />
+      )}
+    </>
   );
 };
 

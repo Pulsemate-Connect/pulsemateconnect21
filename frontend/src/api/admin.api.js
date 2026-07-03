@@ -46,6 +46,9 @@ export const decideDoctorApproval = (doctorUserId, data) =>
 export const getAdminUsers = (params) =>
   api.get('/admin/users', { params });
 
+export const getAdminUserDetail = (id) =>
+  api.get(`/admin/users/${id}`);
+
 export const updateUserStatus = (id, isActive) =>
   api.patch(`/admin/users/${id}/status`, { isActive });
 

@@ -345,6 +345,70 @@ const rejectDoctor = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /admin/users/:id — Get detailed user profile for admin
+ */
+const getUserDetail = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        mobile: true,
+        email: true,
+        role: true,
+        isActive: true,
+        approvalStatus: true,
+        rejectionReason: true,
+        createdAt: true,
+        lastLoginAt: true,
+        freeBookingUsed: true,
+        authProvider: true,
+        adminProfile: { select: { level: true } },
+        patientProfile: {
+          select: {
+            age: true, dob: true, gender: true,
+            city: true, state: true,
+            bloodGroup: true, emergencyContact: true,
+            allergies: true, existingDiseases: true,
+            profileCompleted: true,
+          },
+        },
+        doctorProfile: {
+          select: {
+            specialization: true, qualification: true,
+            experienceYears: true, consultationFee: true,
+            avgConsultationMins: true, approvalStatus: true,
+            verificationStatus: true, bio: true,
+          },
+        },
+        ownedClinics: {
+          select: { id: true, name: true, city: true, approvalStatus: true },
+          take: 5,
+        },
+        appointments: {
+          select: { id: true, status: true, appointmentDate: true },
+          orderBy: { appointmentDate: 'desc' },
+          take: 5,
+        },
+        _count: {
+          select: {
+            appointments: true,
+            payments: true,
+          },
+        },
+      },
+    });
+
+    if (!user) return sendError(res, 'User not found', 404);
+    return sendSuccess(res, { user });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, role, search, isActive } = req.query;
@@ -933,6 +997,7 @@ module.exports = {
   approveDoctor,
   rejectDoctor,
   getUsers,
+  getUserDetail,
   updateUserStatus,
   createAdminAccount,
   deleteAdminAccount,

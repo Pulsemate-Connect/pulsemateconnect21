@@ -8,6 +8,7 @@ const {
   approveDoctor,
   rejectDoctor,
   getUsers,
+  getUserDetail,
   updateUserStatus,
   createAdminAccount,
   deleteAdminAccount,
@@ -30,6 +31,7 @@ router.use(authenticateUser, requireSuperAdmin);
 
 router.get('/dashboard', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getDashboard);
 router.get('/users', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getUsers);
+router.get('/users/:id', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getUserDetail);
 router.post('/admins', requireAdminLevel('ROOT'), validateRequest(adminCreateSchema), createAdminAccount);
 router.delete('/admins/:id', requireAdminLevel('ROOT'), deleteAdminAccount);
 router.get('/pending-clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingClinics);
