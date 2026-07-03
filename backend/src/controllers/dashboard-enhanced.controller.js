@@ -121,13 +121,24 @@ exports.getEnhancedDashboard = async (req, res, next) => {
 
     // Appointment where clause (base — without status override for sub-queries)
     const apptWhere = buildAppointmentWhere(clinicId, dateRange, filters);
-    // Payment where clause
+    // Payment where clause — EXCLUDE RAZORPAY (platform fee, not clinic revenue)
+    // Clinic revenue = CASH + UPI only (collected by receptionist)
+    const CLINIC_REVENUE_METHODS = ['CASH', 'UPI'];
+
     const payWhere = buildPaymentWhere(clinicId, dateRange, {
       paymentMethod,
     });
+    // Override: always exclude RAZORPAY from clinic revenue totals
+    if (!paymentMethod || paymentMethod === 'ALL') {
+      payWhere.method = { in: CLINIC_REVENUE_METHODS };
+    } else if (paymentMethod === 'ONLINE') {
+      // ONLINE in clinic context = UPI only (not Razorpay platform fee)
+      payWhere.method = 'UPI';
+    }
 
-    // Payment where without paymentMethod filter (used for cash/online breakdown)
+    // Payment where without paymentMethod filter (used for cash/online breakdown) — also exclude RAZORPAY
     const payWhereNoMethod = buildPaymentWhere(clinicId, dateRange, {});
+    payWhereNoMethod.method = { in: CLINIC_REVENUE_METHODS };
 
     // Apply doctorId to payment queries via nested appointment relation
     if (doctorId) {
@@ -272,21 +283,23 @@ exports.getEnhancedDashboard = async (req, res, next) => {
         _sum: { amount: true },
       }),
 
-      // ── Revenue: this month (unfiltered — requirement spec) ───────────────
+      // ── Revenue: this month (unfiltered — requirement spec, clinic only) ──────
       prisma.payment.aggregate({
         where: {
           appointment: { clinicId },
           status: 'PAID',
+          method: { in: ['CASH', 'UPI'] },
           paidAt: { gte: thisMonthStart, lte: thisMonthEnd },
         },
         _sum: { amount: true },
       }),
 
-      // ── Revenue: last month (unfiltered) ─────────────────────────────────
+      // ── Revenue: last month (unfiltered, clinic only) ─────────────────────
       prisma.payment.aggregate({
         where: {
           appointment: { clinicId },
           status: 'PAID',
+          method: { in: ['CASH', 'UPI'] },
           paidAt: { gte: lastMonthStart, lte: lastMonthEnd },
         },
         _sum: { amount: true },
@@ -778,8 +791,14 @@ exports.getChartData = async (req, res, next) => {
       paymentMethod,
     });
 
-    // Payment where clause (for revenue series — only PAID payments)
+    // Payment where clause (for revenue series — only PAID clinic payments, exclude RAZORPAY)
+    const CLINIC_REVENUE_METHODS_CHART = ['CASH', 'UPI'];
     const payWhere = buildPaymentWhere(clinicId, dateRange, { paymentMethod });
+    if (!paymentMethod || paymentMethod === 'ALL') {
+      payWhere.method = { in: CLINIC_REVENUE_METHODS_CHART };
+    } else if (paymentMethod === 'ONLINE') {
+      payWhere.method = 'UPI';
+    }
     if (doctorId) {
       payWhere.appointment = {
         ...(payWhere.appointment || {}),
@@ -788,8 +807,9 @@ exports.getChartData = async (req, res, next) => {
       };
     }
 
-    // Payment where without method filter (for cash/online breakdown)
+    // Payment where without method filter (for cash/online breakdown) — exclude RAZORPAY
     const payWhereNoMethod = buildPaymentWhere(clinicId, dateRange, {});
+    payWhereNoMethod.method = { in: CLINIC_REVENUE_METHODS_CHART };
     if (doctorId) {
       payWhereNoMethod.appointment = {
         ...(payWhereNoMethod.appointment || {}),
@@ -823,15 +843,22 @@ exports.getChartData = async (req, res, next) => {
         select: { paidAt: true, amount: true },
       }),
 
-      // Cash total
+      // Cash total (clinic revenue — receptionist collected)
       prisma.payment.aggregate({
         where: { ...payWhereNoMethod, method: 'CASH' },
         _sum: { amount: true },
       }),
 
-      // Online total (RAZORPAY + UPI)
+      // UPI total (clinic revenue — receptionist collected, NOT platform Razorpay)
       prisma.payment.aggregate({
-        where: { ...payWhereNoMethod, method: { in: ['RAZORPAY', 'UPI'] } },
+        where: { ...payWhereNoMethod, method: 'UPI' },
+        _sum: { amount: true },
+      }),
+
+      // UPI total (clinic revenue — already included above, this slot kept for array index compat)
+      // Note: online for clinic = UPI only (Razorpay is platform fee, excluded)
+      prisma.payment.aggregate({
+        where: { ...payWhereNoMethod, method: 'UPI' },
         _sum: { amount: true },
       }),
 

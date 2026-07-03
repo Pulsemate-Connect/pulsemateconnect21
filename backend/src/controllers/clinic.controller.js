@@ -527,10 +527,11 @@ const getClinicRevenue = async (req, res, next) => {
       endDate = new Date();
     }
 
-    // All paid payments for this clinic in range
+    // Clinic revenue = CASH + UPI only (exclude RAZORPAY which is platform booking fee)
     const payments = await prisma.payment.findMany({
       where: {
         status: 'PAID',
+        method: { in: ['CASH', 'UPI'] },
         paidAt: { gte: startDate, lte: endDate },
         appointment: { clinicId },
       },
@@ -547,8 +548,8 @@ const getClinicRevenue = async (req, res, next) => {
     });
 
     const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const cashRevenue = payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amount, 0);
-    const onlineRevenue = payments.filter((p) => p.method !== 'CASH').reduce((sum, p) => sum + p.amount, 0);
+    const cashRevenue  = payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amount, 0);
+    const onlineRevenue = payments.filter((p) => p.method === 'UPI').reduce((sum, p) => sum + p.amount, 0);
 
     // Revenue by doctor
     const byDoctor = {};
