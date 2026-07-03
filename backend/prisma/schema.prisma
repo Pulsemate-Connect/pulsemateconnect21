@@ -296,6 +296,10 @@ model Appointment {
   queueItem            QueueItem?
   reminders            ReminderSent[]
 
+  @@index([patientId, appointmentDate])
+  @@index([doctorId, appointmentDate])
+  @@index([clinicId, status, appointmentDate])
+  @@index([sessionId])
   @@map("appointments")
 }
 
@@ -335,6 +339,8 @@ model QueueItem {
   patient       User            @relation("PatientQueueItems", fields: [patientId], references: [id])
   queue         Queue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
 
+  @@index([queueId, status])
+  @@index([patientId])
   @@map("queue_items")
 }
 
@@ -438,6 +444,9 @@ model Payment {
   appointment       Appointment   @relation(fields: [appointmentId], references: [id])
   patient           User          @relation("PatientPayments", fields: [patientId], references: [id])
 
+  @@index([patientId, createdAt])
+  @@index([status, paidAt])
+  @@index([razorpayOrderId])
   @@map("payments")
 }
 
@@ -464,6 +473,9 @@ model AuditLog {
   createdAt  DateTime @default(now())
   user       User?    @relation("AuditActor", fields: [userId], references: [id])
 
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 
@@ -479,7 +491,7 @@ model ReminderSent {
 }
 
 model prescriptions {
-  id               String        @id
+  id               String        @id @default(uuid())
   appointmentId    String        @unique
   doctorId         String
   patientId        String

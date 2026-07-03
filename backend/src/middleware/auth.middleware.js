@@ -78,14 +78,17 @@ const requireVerifiedClinic = async (req, res, next) => {
 
   if (!clinicId) return sendError(res, 'Clinic ID is required', 400);
 
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
-  if (!clinic) return sendError(res, 'Clinic not found', 404);
-  if (clinic.approvalStatus !== 'VERIFIED' || !clinic.isActive) {
-    return sendError(res, 'Clinic verification is required before using this feature.', 403);
+  try {
+    const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
+    if (!clinic) return sendError(res, 'Clinic not found', 404);
+    if (clinic.approvalStatus !== 'VERIFIED' || !clinic.isActive) {
+      return sendError(res, 'Clinic verification is required before using this feature.', 403);
+    }
+    req.clinic = clinic;
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  req.clinic = clinic;
-  next();
 };
 
 const requireClinicOwner = authorizeRoles('CLINIC_OWNER');

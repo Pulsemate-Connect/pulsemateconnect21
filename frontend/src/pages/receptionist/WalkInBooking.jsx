@@ -99,7 +99,7 @@ const WalkInBooking = () => {
       const res = await addWalkIn(formData);
       setResult(res.data.data);
       toast.success(`Walk-in added! Queue #${res.data.data.queueNumber}`);
-      setFormData((prev) => ({ ...prev, patientMobile: '', patientName: '', symptoms: '' }));
+      setFormData((prev) => ({ ...prev, patientMobile: '+91 ', patientName: '', symptoms: '' }));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add walk-in');
     } finally {

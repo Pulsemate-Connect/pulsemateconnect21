@@ -268,19 +268,16 @@ app.use('/api/dashboard', dashboardRoutes);
 // ✅ NEW: Enhanced dashboard routes (clinic owner BI endpoints)
 const dashboardEnhancedRoutes = require('./routes/dashboard-enhanced.routes');
 app.use('/api/dashboard', dashboardEnhancedRoutes);
-// ✅ Notification routes (already declared at top)
+// ✅ Notification routes (single mount — was duplicated)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/clinics', clinicRoutes);
-// Availability routes MUST be registered before doctorRoutes because doctorRoutes
-// applies authenticate middleware to everything under /api/doctor, which would
-// block the public slot/availability endpoints (/:doctorId/slots, /:doctorId/availability).
+// Availability routes MUST be registered before doctorRoutes
 app.use('/api/doctor', availabilityRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/reception', receptionRoutes);
 app.use('/api/patient', patientRoutes);
 app.use('/api/payments', paymentRoutes);
-app.use('/api/notifications', notificationRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);

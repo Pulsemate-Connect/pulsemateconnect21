@@ -409,8 +409,12 @@ const verifyPayment = async (req, res, next) => {
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
 
-    // ── Dev mode ──────────────────────────────────────────────────────────
+    // ── Dev mode — only allowed outside production ────────────────────────
     if (razorpayOrderId?.startsWith('order_dev_')) {
+      if (process.env.NODE_ENV === 'production') {
+        logger.warn('[payment] dev-mode order rejected in production', { razorpayOrderId, patientId: req.user.id });
+        return sendError(res, 'Invalid payment order', 400);
+      }
       await prisma.payment.update({
         where: { appointmentId },
         data: {
@@ -620,6 +624,11 @@ const getPaymentStatusByOrderId = async (req, res, next) => {
     });
 
     if (!payment) return sendError(res, 'Payment not found for this order', 404);
+
+    // Ownership check — patients can only see their own payments
+    if (req.user.role === 'PATIENT' && payment.patientId !== req.user.id) {
+      return sendError(res, 'Access denied', 403);
+    }
 
     logger.info('[payment] status-poll', {
       razorpayOrderId: orderId,

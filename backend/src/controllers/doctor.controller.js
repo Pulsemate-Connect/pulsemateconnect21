@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/response');
+const { emitAppointmentUpdate } = require('../socket');
 
 /**
  * GET /api/doctor/today - Today's appointments
@@ -100,6 +101,10 @@ const startConsultation = async (req, res, next) => {
     const { id } = req.params;
     const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
 
+    if (!doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
+
     const appointment = await prisma.appointment.findFirst({
       where: { id, doctorId: doctorProfile.id },
       include: { queueItem: true },
@@ -145,6 +150,10 @@ const completeConsultation = async (req, res, next) => {
     const { id } = req.params;
     const { notes } = req.body;
     const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
+
+    if (!doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
 
     const appointment = await prisma.appointment.findFirst({
       where: { id, doctorId: doctorProfile.id },
@@ -331,7 +340,6 @@ const createPrescription = async (req, res, next) => {
     // Create prescription
     const prescription = await prisma.prescriptions.create({
       data: {
-        id: `${Date.now()}-${appointmentId}`,
         appointmentId,
         doctorId: doctorProfile.id,
         patientId,
@@ -340,7 +348,6 @@ const createPrescription = async (req, res, next) => {
         instructions,
         requiresFollowUp: followUpRequired,
         followUpDate: followUpDate ? new Date(followUpDate) : null,
-        createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
@@ -358,12 +365,22 @@ const completeAppointment = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Verify the requesting doctor owns this appointment
+    const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
+    if (!doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
+
     const appointment = await prisma.appointment.findUnique({
       where: { id },
     });
 
     if (!appointment) {
       return sendError(res, 'Appointment not found', 404);
+    }
+
+    if (appointment.doctorId !== doctorProfile.id) {
+      return sendError(res, 'You are not authorized to complete this appointment', 403);
     }
 
     const updated = await prisma.appointment.update({
@@ -374,7 +391,6 @@ const completeAppointment = async (req, res, next) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      const { emitAppointmentUpdate } = require('../socket');
       emitAppointmentUpdate(io, id, updated);
     }
 

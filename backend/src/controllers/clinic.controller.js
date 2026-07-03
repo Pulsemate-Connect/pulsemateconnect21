@@ -262,9 +262,32 @@ const updateClinic = async (req, res, next) => {
       return sendError(res, 'Clinic not found or access denied', 404);
     }
 
+    const ALLOWED_FIELDS = [
+      'name', 'phone', 'address', 'city', 'state', 'pincode', 'landmark',
+      'googleMapsLocation', 'description', 'openingTime', 'closingTime',
+      'openingHours', 'specialties', 'consultationModes', 'facilities',
+      'languagesSpoken', 'paymentMethods', 'insuranceSupported',
+      'weeklySchedule', 'avgConsultationMinutes', 'appointmentSlotMinutes',
+      'dailyPatientCapacity', 'clinicLogoUrl', 'clinicCoverImageUrl',
+      'emergencyContactNumber', 'alternateEmail', 'clinicType', 'clinicTypeOther',
+      'specialtyOther', 'district', 'latitude', 'longitude',
+      'clinicRegistrationNumber', 'gstNumber', 'panNumber',
+      'licenseDocumentUrl', 'medicalEstablishmentCertificateUrl',
+      'gstCertificateUrl', 'panCardUrl', 'additionalDocuments',
+    ];
+
+    const updateData = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return sendError(res, 'No valid fields to update', 400);
+    }
+
     const clinic = await prisma.clinic.update({
       where: { id },
-      data: req.body,
+      data: updateData,
     });
 
     return sendSuccess(res, { clinic }, 'Clinic updated successfully');

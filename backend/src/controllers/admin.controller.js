@@ -706,10 +706,9 @@ const resetDatabase = async (req, res, next) => {
       {
         admin: {
           email: adminUser.email,
-          password: 'Nkabu18$',
         },
       },
-      'Database reset successfully. Sign in again with the recreated admin account.'
+      'Database reset successfully. Sign in again with the recreated admin account using the configured credentials.'
     );
   } catch (error) {
     next(error);
@@ -885,14 +884,19 @@ const getClinicStats = async (req, res, next) => {
 
     const STATUSES = ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'CHANGES_REQUIRED', 'SUSPENDED'];
 
-    const counts = await Promise.all(
-      STATUSES.map((s) =>
-        prisma.clinic.count({ where: { ...baseWhere, approvalStatus: s } })
-      )
-    );
+    const counts = await prisma.clinic.groupBy({
+      by: ['approvalStatus'],
+      where: baseWhere,
+      _count: { _all: true },
+    });
 
-    const stats = Object.fromEntries(STATUSES.map((s, i) => [s, counts[i]]));
-    stats.TOTAL = counts.reduce((sum, n) => sum + n, 0);
+    const stats = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+    for (const row of counts) {
+      if (stats.hasOwnProperty(row.approvalStatus)) {
+        stats[row.approvalStatus] = row._count._all;
+      }
+    }
+    stats.TOTAL = Object.values(stats).reduce((sum, n) => sum + n, 0);
 
     return res.json({ success: true, data: { stats } });
   } catch (error) {

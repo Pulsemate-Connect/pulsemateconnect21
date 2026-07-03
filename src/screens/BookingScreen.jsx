@@ -268,6 +268,7 @@ export default function BookingScreen({ route, navigation }) {
   );
 
   // ── Fetch clinic sessions on mount ───────────────────────────────────────────
+  // NOTE: Only one useEffect for sessions — duplicate removed
   useEffect(() => {
     if (!clinicId) return;
     setSessionsLoading(true);

@@ -369,9 +369,11 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
     const email = rawEmail ? rawEmail.toLowerCase() : undefined;
     const otp = req.body.otp || req.query.token;
 
-    const verified = (email && otp)
-      ? await verifyEmailVerificationToken(email, otp)
-      : await verifyEmailVerificationToken(otp);
+    if (!email || !otp) {
+      return sendError(res, 'Email and OTP/token are required', 400);
+    }
+
+    const verified = await verifyEmailVerificationToken(email, otp);
 
     return sendSuccess(
       res,

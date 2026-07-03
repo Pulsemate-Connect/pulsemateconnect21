@@ -38,3 +38,12 @@ export const getClinicRevenue = (clinicId, period = 'today') =>
 
 export const getClinicSessions = (clinicId) =>
   api.get(`/clinics/${clinicId}/sessions`);
+
+export const getClinicBookingMetrics = (clinicId, params) =>
+  api.get(`/clinics/${clinicId}/booking-metrics`, { params });
+
+export const stopClinicBookings = (clinicId) =>
+  api.post(`/clinics/${clinicId}/bookings/stop`);
+
+export const resumeClinicBookings = (clinicId) =>
+  api.post(`/clinics/${clinicId}/bookings/resume`);
