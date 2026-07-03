@@ -143,7 +143,7 @@ const getDoctorProfile = async (req, res, next) => {
  */
 const bookAppointment = async (req, res, next) => {
   try {
-    const { doctorId, clinicId, appointmentType, appointmentDate, slotTime, symptoms } = req.body;
+    const { doctorId, clinicId, appointmentType, appointmentDate, slotTime, symptoms, sessionId } = req.body;
 
     // Verify the clinic is approved and active
     const clinic = await prisma.clinic.findUnique({
@@ -195,14 +195,16 @@ const bookAppointment = async (req, res, next) => {
       const today = new Date(appointmentDate);
       today.setUTCHours(0, 0, 0, 0); // use UTC midnight to match Queue.date storage
 
-      // Get or create queue
-      let queue = await prisma.queue.findFirst({
-        where: { clinicId, doctorId, date: today },
-      });
+      // Get or create queue — scoped to session if provided
+      const queueWhereClause = sessionId
+        ? { clinicId, doctorId, date: today, sessionId }
+        : { clinicId, doctorId, date: today, sessionId: null };
+
+      let queue = await prisma.queue.findFirst({ where: queueWhereClause });
 
       if (!queue) {
         queue = await prisma.queue.create({
-          data: { clinicId, doctorId, date: today, status: 'ACTIVE' },
+          data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
         });
       }
 
@@ -220,15 +222,23 @@ const bookAppointment = async (req, res, next) => {
       const avgMins = doctorClinic.avgConsultationMins || 10;
       estimatedWaitMinutes = (waitingCount + 1) * avgMins;
 
-      // Calculate estimated appointment time from session start
+      // Calculate estimated appointment time from the selected session start
       try {
-        const clinicSessions = await prisma.clinicSession.findMany({
-          where: { clinicId, enabled: true },
-          orderBy: { sortOrder: 'asc' },
-        });
-        if (clinicSessions.length > 0) {
-          const sessionAvgMins = clinicSessions[0].avgConsultationMins || avgMins;
-          const [startH, startM] = clinicSessions[0].startTime.split(':').map(Number);
+        let targetSession = null;
+        if (sessionId) {
+          targetSession = await prisma.clinicSession.findUnique({ where: { id: sessionId } });
+        }
+        if (!targetSession) {
+          // Fallback: first enabled session
+          const clinicSessions = await prisma.clinicSession.findMany({
+            where: { clinicId, enabled: true },
+            orderBy: { sortOrder: 'asc' },
+          });
+          targetSession = clinicSessions[0] || null;
+        }
+        if (targetSession) {
+          const sessionAvgMins = targetSession.avgConsultationMins || avgMins;
+          const [startH, startM] = targetSession.startTime.split(':').map(Number);
           const sessionStartMins = startH * 60 + startM;
           const position = waitingCount + 1;
           const totalMins = sessionStartMins + (position - 1) * sessionAvgMins;
@@ -244,6 +254,7 @@ const bookAppointment = async (req, res, next) => {
         patientId: req.user.id,
         doctorId,
         clinicId,
+        ...(sessionId ? { sessionId } : {}),
         appointmentType,
         appointmentDate: new Date(appointmentDate),
         slotTime,
@@ -263,20 +274,22 @@ const bookAppointment = async (req, res, next) => {
     // Create queue item for offline appointments
     if (appointmentType === 'OFFLINE' && queueNumber) {
       const today = new Date(appointmentDate);
-      today.setHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
 
-      const queue = await prisma.queue.findFirst({
-        where: { clinicId, doctorId, date: today },
+      const queueForItem = await prisma.queue.findFirst({
+        where: sessionId
+          ? { clinicId, doctorId, date: today, sessionId }
+          : { clinicId, doctorId, date: today, sessionId: null },
       });
 
-      if (queue) {
+      if (queueForItem) {
         const waitingCount = await prisma.queueItem.count({
-          where: { queueId: queue.id, status: 'WAITING' },
+          where: { queueId: queueForItem.id, status: 'WAITING' },
         });
 
         await prisma.queueItem.create({
           data: {
-            queueId: queue.id,
+            queueId: queueForItem.id,
             appointmentId: appointment.id,
             patientId: req.user.id,
             queueNumber,

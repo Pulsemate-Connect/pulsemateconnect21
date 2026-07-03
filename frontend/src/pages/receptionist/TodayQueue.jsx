@@ -6,62 +6,64 @@ import {
 } from '../../api/reception.api';
 import { markCashPayment } from '../../api/payment.api';
 import { getMe } from '../../api/auth.api';
-import { getStaff } from '../../api/clinic.api';
+import { getStaff, getClinicSessions } from '../../api/clinic.api';
 import StatusBadge from '../../components/ui/StatusBadge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import useSocket from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
+const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+
 const TodayQueue = () => {
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [selectedSession, setSelectedSession] = useState(null); // null = all (legacy)
   const [queue, setQueue] = useState(null);
   const [queueItems, setQueueItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  // payment modal
-  const [payModal, setPayModal] = useState(null); // { appointmentId, patientName, consultationFee }
+  const [payModal, setPayModal] = useState(null);
   const [payAmount, setPayAmount] = useState('');
   const [paying, setPaying] = useState(false);
-  // track which appointments are already paid
   const [paidAppointments, setPaidAppointments] = useState(new Set());
   const { joinStaffQueueRoom, onEvent } = useSocket();
 
-  // Load clinic + doctors on mount
+  // Load clinic + doctors + sessions on mount
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('[TodayQueue] Fetching user data...');
         const meRes = await getMe();
-        console.log('[TodayQueue] getMe response:', meRes.data);
-        
         const staffClinics = meRes.data.data.user?.clinicStaff || [];
-        console.log('[TodayQueue] staffClinics length:', staffClinics.length);
-        
-        if (staffClinics.length === 0) {
-          console.log('[TodayQueue] No clinic staff entries found!');
-          setIsLoading(false);
-          return;
-        }
+        if (staffClinics.length === 0) { setIsLoading(false); return; }
 
         const myClinic = staffClinics[0].clinic;
-        console.log('[TodayQueue] My clinic:', myClinic.name, '- ID:', myClinic.id);
         setClinic(myClinic);
 
-        console.log('[TodayQueue] Fetching staff for clinic:', myClinic.id);
-        const staffRes = await getStaff(myClinic.id);
-        console.log('[TodayQueue] getStaff response:', staffRes.data);
-        
-        const allStaff = staffRes.data.data.staff || [];
-        console.log('[TodayQueue] Total staff:', allStaff.length);
-        
-        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
-        console.log('[TodayQueue] Doctors found:', doctorStaff.length, doctorStaff);
-        setDoctors(doctorStaff);
+        const [staffRes, sessionsRes] = await Promise.all([
+          getStaff(myClinic.id),
+          getClinicSessions(myClinic.id),
+        ]);
 
+        const allStaff = staffRes.data.data.staff || [];
+        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
+        setDoctors(doctorStaff);
         if (doctorStaff.length > 0) setSelectedDoctor(doctorStaff[0]);
+
+        const clinicSessions = sessionsRes.data.data.sessions || [];
+        setSessions(clinicSessions);
+        // Auto-select the current active session based on time
+        const now = new Date();
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const activeSession = clinicSessions.find((s) => {
+          const [sh, sm] = s.startTime.split(':').map(Number);
+          const [eh, em] = s.endTime.split(':').map(Number);
+          return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
+        });
+        if (activeSession) setSelectedSession(activeSession.id);
+        else if (clinicSessions.length > 0) setSelectedSession(clinicSessions[0].id);
       } catch (err) {
         console.error('[TodayQueue] Error:', err);
         toast.error('Failed to load clinic data');
@@ -78,12 +80,11 @@ const TodayQueue = () => {
     if (!doctorProfileId) return;
 
     try {
-      const res = await getQueue(doctorProfileId, clinic.id);
+      const res = await getQueue(doctorProfileId, clinic.id, selectedSession);
       const items = res.data.data.queueItems || [];
       setQueue(res.data.data.queue);
       setQueueItems(items);
 
-      // Build paid set directly from queue item data — no extra API calls
       const paidSet = new Set(
         items
           .filter((i) => i.appointment?.payment?.status === 'PAID')
@@ -96,11 +97,11 @@ const TodayQueue = () => {
     } catch (err) {
       toast.error('Failed to load queue');
     }
-  }, [selectedDoctor, clinic, joinStaffQueueRoom]);
+  }, [selectedDoctor, clinic, selectedSession, joinStaffQueueRoom]);
 
   useEffect(() => {
     if (selectedDoctor) fetchQueue();
-  }, [fetchQueue, selectedDoctor]);
+  }, [fetchQueue, selectedDoctor, selectedSession]);
 
   useEffect(() => {
     const cleanup = onEvent('queue:updated', () => fetchQueue());
@@ -198,6 +199,36 @@ const TodayQueue = () => {
             <span className="text-xs font-medium text-secondary-600">Live</span>
           </div>
         </div>
+
+        {/* Session tabs */}
+        {sessions.length > 0 && (
+          <div className="card mb-4">
+            <label className="label mb-2">Session</label>
+            <div className="flex flex-wrap gap-2">
+              {sessions.map((s) => {
+                const icon = SESSION_ICONS[s.sessionType] || '🕐';
+                const active = selectedSession === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedSession(s.id)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-colors flex items-center gap-1.5 ${
+                      active
+                        ? 'border-primary-600 bg-primary-50 text-primary-700'
+                        : 'border-border text-text-muted hover:border-gray-300'
+                    }`}
+                  >
+                    <span>{icon}</span>
+                    <span>{s.name}</span>
+                    <span className="text-xs opacity-60">
+                      {formatTime12(s.startTime)}–{formatTime12(s.endTime)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Doctor selector */}
         {doctors.length > 0 ? (

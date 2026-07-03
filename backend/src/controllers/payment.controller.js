@@ -24,12 +24,22 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
     const day = new Date(appointment.appointmentDate);
     day.setUTCHours(0, 0, 0, 0);
 
-    let queue = await prisma.queue.findFirst({
-      where: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day },
-    });
+    const effectiveSessionId = appointment.sessionId || null;
+
+    const queueWhere = effectiveSessionId
+      ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
+      : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
+
+    let queue = await prisma.queue.findFirst({ where: queueWhere });
     if (!queue) {
       queue = await prisma.queue.create({
-        data: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, status: 'ACTIVE' },
+        data: {
+          clinicId: appointment.clinicId,
+          doctorId: appointment.doctorId,
+          date: day,
+          status: 'ACTIVE',
+          ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+        },
       });
     }
 
@@ -170,7 +180,7 @@ const initiatePayment = async (req, res, next) => {
   try {
     const {
       doctorId, clinicId, appointmentType,
-      appointmentDate, slotTime, symptoms,
+      appointmentDate, slotTime, symptoms, sessionId,
     } = req.body;
 
     const patientId = req.user.id;
@@ -240,6 +250,7 @@ const initiatePayment = async (req, res, next) => {
             patientId,
             doctorId,
             clinicId,
+            ...(sessionId ? { sessionId } : {}),
             appointmentType,
             appointmentDate: new Date(appointmentDate),
             slotTime: slotTime || null,
@@ -305,6 +316,7 @@ const initiatePayment = async (req, res, next) => {
         patientId,
         doctorId,
         clinicId,
+        ...(sessionId ? { sessionId } : {}),
         appointmentType,
         appointmentDate: new Date(appointmentDate),
         slotTime: slotTime || null,

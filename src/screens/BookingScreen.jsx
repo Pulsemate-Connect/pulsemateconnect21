@@ -396,6 +396,7 @@ export default function BookingScreen({ route, navigation }) {
         appointmentType: visitType,
         appointmentDate: date,
         slotTime:        slot     || undefined,
+        sessionId:       session  || undefined,
         symptoms:        notes.trim() || undefined,
       });
       const { appointmentId, order, devMode, isFree, appointment: freeAppt } = initRes.data.data;

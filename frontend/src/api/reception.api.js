@@ -1,7 +1,7 @@
 import api from './axios';
 
-export const getQueue = (doctorId, clinicId) =>
-  api.get(`/reception/queue/${doctorId}`, { params: { clinicId } });
+export const getQueue = (doctorId, clinicId, sessionId = null) =>
+  api.get(`/reception/queue/${doctorId}`, { params: { clinicId, ...(sessionId ? { sessionId } : {}) } });
 
 export const addWalkIn = (data) =>
   api.post('/reception/walk-in', data);

@@ -10,19 +10,23 @@ const {
 const { emitClinicUpdate } = require('../socket');
 
 /**
- * Helper: Get or create today's queue for a doctor in a clinic
+ * Helper: Get or create today's queue for a doctor in a clinic, scoped to a session.
+ * If sessionId is provided, creates a per-session queue.
+ * Falls back to legacy behaviour (no sessionId) for backwards compat.
  */
-const getOrCreateQueue = async (clinicId, doctorId) => {
+const getOrCreateQueue = async (clinicId, doctorId, sessionId = null) => {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
-  let queue = await prisma.queue.findFirst({
-    where: { clinicId, doctorId, date: today },
-  });
+  const whereClause = sessionId
+    ? { clinicId, doctorId, date: today, sessionId }
+    : { clinicId, doctorId, date: today, sessionId: null };
+
+  let queue = await prisma.queue.findFirst({ where: whereClause });
 
   if (!queue) {
     queue = await prisma.queue.create({
-      data: { clinicId, doctorId, date: today, status: 'ACTIVE' },
+      data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
     });
   }
 
@@ -60,13 +64,10 @@ const recalculatePositions = async (queueId, doctorAvgMins = 10) => {
   return waitingItems;
 };
 
-/**
- * GET /api/reception/queue/:doctorId - Get today's queue
- */
 const getQueue = async (req, res, next) => {
   try {
     const { doctorId } = req.params;
-    const { clinicId } = req.query;
+    const { clinicId, sessionId } = req.query;
 
     if (!clinicId) {
       return sendError(res, 'clinicId query param is required', 400);
@@ -75,12 +76,20 @@ const getQueue = async (req, res, next) => {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
+    // Build where clause — scope to session if provided
+    const whereClause = sessionId
+      ? { clinicId, doctorId, date: today, sessionId }
+      : sessionId === ''
+        ? { clinicId, doctorId, date: today, sessionId: null }
+        : { clinicId, doctorId, date: today }; // legacy: any queue for this doctor today
+
     const queue = await prisma.queue.findFirst({
-      where: { clinicId, doctorId, date: today },
+      where: whereClause,
       include: {
         doctor: {
           include: { user: { select: { id: true, name: true } } },
         },
+        session: { select: { id: true, name: true, startTime: true, endTime: true, avgConsultationMins: true, sessionType: true } },
         queueItems: {
           orderBy: [{ isFollowUp: 'desc' }, { position: 'asc' }],
           include: {
@@ -92,6 +101,7 @@ const getQueue = async (req, res, next) => {
                 appointmentType: true,
                 slotTime: true,
                 estimatedWaitMinutes: true,
+                sessionId: true,
                 doctor: {
                   select: { consultationFee: true },
                 },
@@ -110,26 +120,28 @@ const getQueue = async (req, res, next) => {
     }
 
     // ── Compute estimated appointment time per queue item ─────────────────────
-    // Formula: sessionStart + (position - 1) × avgConsultationMins
+    // Use session's start time and avgConsultationMins if available
     let sessionStartMinutes = null;
     let avgMins = 15;
     try {
-      const clinicSessions = await prisma.clinicSession.findMany({
-        where: { clinicId, enabled: true },
-        orderBy: { sortOrder: 'asc' },
-      });
-      if (clinicSessions.length > 0) {
-        const [h, m] = clinicSessions[0].startTime.split(':').map(Number);
+      if (queue.session) {
+        const [h, m] = queue.session.startTime.split(':').map(Number);
         sessionStartMinutes = h * 60 + m;
+        avgMins = queue.session.avgConsultationMins || 15;
+      } else {
+        // Legacy: fetch first session
+        const clinicSessions = await prisma.clinicSession.findMany({
+          where: { clinicId, enabled: true },
+          orderBy: { sortOrder: 'asc' },
+        });
+        if (clinicSessions.length > 0) {
+          const [h, m] = clinicSessions[0].startTime.split(':').map(Number);
+          sessionStartMinutes = h * 60 + m;
+          avgMins = clinicSessions[0].avgConsultationMins || 15;
+        }
       }
-      const doctorProfile = await prisma.doctorProfile.findUnique({
-        where: { id: doctorId },
-        select: { avgConsultationMins: true },
-      });
-      avgMins = doctorProfile?.avgConsultationMins || 15;
     } catch (_) { /* non-critical */ }
 
-    // Attach estimatedAppointmentTime to each queue item
     const enrichedItems = queue.queueItems.map((item) => {
       let estimatedAppointmentTime = null;
       if (sessionStartMinutes !== null && item.position > 0) {
@@ -152,7 +164,7 @@ const getQueue = async (req, res, next) => {
  */
 const addWalkIn = async (req, res, next) => {
   try {
-    const { doctorId, clinicId, patientMobile, patientName, symptoms } = req.body;
+    const { doctorId, clinicId, patientMobile, patientName, symptoms, sessionId } = req.body;
 
     // Find or create patient
     let patient = await prisma.user.findUnique({ where: { mobile: patientMobile } });
@@ -173,7 +185,7 @@ const addWalkIn = async (req, res, next) => {
       return sendError(res, 'Doctor not found', 404);
     }
 
-    const queue = await getOrCreateQueue(clinicId, doctorId);
+    const queue = await getOrCreateQueue(clinicId, doctorId, sessionId || null);
 
     if (queue.status === 'CLOSED') {
       return sendError(res, 'Queue is closed for today', 400);
@@ -191,12 +203,29 @@ const addWalkIn = async (req, res, next) => {
       where: { queueId: queue.id, status: 'WAITING' },
     });
 
+    // Compute estimated appointment time from session start
+    let estimatedAppointmentTimeWalkIn = null;
+    try {
+      if (sessionId) {
+        const sess = await prisma.clinicSession.findUnique({ where: { id: sessionId } });
+        if (sess) {
+          const avgSess = sess.avgConsultationMins || doctorProfile.avgConsultationMins || 15;
+          const [startH, startM] = sess.startTime.split(':').map(Number);
+          const totalMins = startH * 60 + startM + waitingCount * avgSess;
+          const estH = Math.floor(totalMins / 60);
+          const estM = totalMins % 60;
+          estimatedAppointmentTimeWalkIn = `${String(estH).padStart(2, '0')}:${String(estM).padStart(2, '0')}`;
+        }
+      }
+    } catch (_) { /* non-critical */ }
+
     // Create appointment for walk-in
     const appointment = await prisma.appointment.create({
       data: {
         patientId: patient.id,
         doctorId,
         clinicId,
+        ...(sessionId ? { sessionId } : {}),
         appointmentType: 'OFFLINE',
         appointmentDate: new Date(),
         status: 'IN_QUEUE',
@@ -246,7 +275,7 @@ const addWalkIn = async (req, res, next) => {
       }
     } catch { /* non-critical */ }
 
-    return sendSuccess(res, { appointment, queueItem, queueNumber }, 'Walk-in patient added to queue', 201);
+    return sendSuccess(res, { appointment, queueItem, queueNumber, estimatedAppointmentTime: estimatedAppointmentTimeWalkIn }, 'Walk-in patient added to queue', 201);
   } catch (error) {
     next(error);
   }
@@ -259,7 +288,7 @@ const addWalkIn = async (req, res, next) => {
  */
 const addFollowUp = async (req, res, next) => {
   try {
-    const { doctorId, clinicId, originalAppointmentId, symptoms } = req.body;
+    const { doctorId, clinicId, originalAppointmentId, symptoms, sessionId } = req.body;
 
     // Verify original appointment exists
     const originalAppointment = await prisma.appointment.findUnique({
@@ -278,7 +307,10 @@ const addFollowUp = async (req, res, next) => {
       return sendError(res, 'Doctor not found', 404);
     }
 
-    const queue = await getOrCreateQueue(clinicId, doctorId);
+    // Use sessionId from request, or inherit from original appointment
+    const effectiveSessionId = sessionId || originalAppointment.sessionId || null;
+
+    const queue = await getOrCreateQueue(clinicId, doctorId, effectiveSessionId);
 
     if (queue.status === 'CLOSED') {
       return sendError(res, 'Queue is closed for today', 400);
@@ -307,6 +339,7 @@ const addFollowUp = async (req, res, next) => {
         patientId: originalAppointment.patientId,
         doctorId,
         clinicId,
+        ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
         appointmentType: 'OFFLINE',
         appointmentDate: new Date(),
         status: 'IN_QUEUE',

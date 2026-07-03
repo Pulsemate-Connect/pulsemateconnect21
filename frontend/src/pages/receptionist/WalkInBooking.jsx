@@ -2,17 +2,29 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { addWalkIn } from '../../api/reception.api';
 import { getMe } from '../../api/auth.api';
-import { getStaff } from '../../api/clinic.api';
+import { getStaff, getClinicSessions } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+
+const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+
+const fmt12 = (t) => {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hr = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
+};
 
 const WalkInBooking = () => {
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [isInitLoading, setIsInitLoading] = useState(true);
   const [formData, setFormData] = useState({
     doctorId: '',
     clinicId: '',
+    sessionId: '',
     patientMobile: '+91 ',
     patientName: '',
     symptoms: '',
@@ -36,28 +48,36 @@ const WalkInBooking = () => {
         }
 
         const myClinic = staffClinics[0].clinic;
-        console.log('[WalkIn] My clinic:', myClinic.name, '- ID:', myClinic.id);
         setClinic(myClinic);
         setFormData((prev) => ({ ...prev, clinicId: myClinic.id }));
 
-        console.log('[WalkIn] Fetching staff for clinic:', myClinic.id);
-        const staffRes = await getStaff(myClinic.id);
-        console.log('[WalkIn] getStaff response:', staffRes.data);
-        
-        const allStaff = staffRes.data.data.staff || [];
-        console.log('[WalkIn] Total staff:', allStaff.length);
-        
-        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
-        console.log('[WalkIn] Doctors found:', doctorStaff.length, doctorStaff);
-        setDoctors(doctorStaff);
+        const [staffRes, sessionsRes] = await Promise.all([
+          getStaff(myClinic.id),
+          getClinicSessions(myClinic.id),
+        ]);
 
+        const allStaff = staffRes.data.data.staff || [];
+        const doctorStaff = allStaff.filter((s) => s.role === 'DOCTOR');
+        setDoctors(doctorStaff);
         if (doctorStaff.length > 0) {
           const firstDoctorProfileId = doctorStaff[0].user?.doctorProfile?.id;
-          console.log('[WalkIn] First doctor profile ID:', firstDoctorProfileId);
           if (firstDoctorProfileId) {
             setFormData((prev) => ({ ...prev, doctorId: firstDoctorProfileId }));
           }
         }
+
+        const clinicSessions = sessionsRes.data.data.sessions || [];
+        setSessions(clinicSessions);
+        // Auto-select current session
+        const now = new Date();
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const activeSession = clinicSessions.find((s) => {
+          const [sh, sm] = s.startTime.split(':').map(Number);
+          const [eh, em] = s.endTime.split(':').map(Number);
+          return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
+        });
+        const defaultSession = activeSession || clinicSessions[0];
+        if (defaultSession) setFormData((prev) => ({ ...prev, sessionId: defaultSession.id }));
       } catch (err) {
         console.error('[WalkIn] Error:', err);
         toast.error('Failed to load clinic data');
@@ -150,6 +170,35 @@ const WalkInBooking = () => {
                 </select>
               )}
             </div>
+
+            {/* Session selector */}
+            {sessions.length > 0 && (
+              <div>
+                <label className="label">Session *</label>
+                <div className="flex flex-wrap gap-2">
+                  {sessions.map((s) => {
+                    const icon = SESSION_ICONS[s.sessionType] || '🕐';
+                    const active = formData.sessionId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, sessionId: s.id })}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors flex items-center gap-1.5 ${
+                          active
+                            ? 'border-primary-600 bg-primary-50 text-primary-700'
+                            : 'border-border text-text-muted hover:border-gray-300'
+                        }`}
+                      >
+                        <span>{icon}</span>
+                        <span>{s.name}</span>
+                        <span className="text-xs opacity-60">{fmt12(s.startTime)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Patient mobile */}
             <div>

@@ -35,3 +35,6 @@ export const getClinicAppointments = (clinicId, params) =>
 
 export const getClinicRevenue = (clinicId, period = 'today') =>
   api.get(`/clinics/${clinicId}/revenue`, { params: { period } });
+
+export const getClinicSessions = (clinicId) =>
+  api.get(`/clinics/${clinicId}/sessions`);
