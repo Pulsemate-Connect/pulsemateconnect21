@@ -24,47 +24,49 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
     const day = new Date(appointment.appointmentDate);
     day.setUTCHours(0, 0, 0, 0);
     const effectiveSessionId = appointment.sessionId || null;
+    const queueWhere = effectiveSessionId
+      ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
+      : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-    // ── ATOMIC queue assignment inside Prisma transaction ─────────────────
-    const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
-      const queueWhere = effectiveSessionId
-        ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
-        : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
-
-      // findFirst + create with P2002 catch — handles nullable sessionId
-      // (Prisma upsert cannot use unique indexes with nullable fields)
-      let q = await tx.queue.findFirst({ where: queueWhere });
-      if (!q) {
-        try {
-          q = await tx.queue.create({
-            data: {
-              clinicId: appointment.clinicId,
-              doctorId: appointment.doctorId,
-              date: day,
-              status: 'ACTIVE',
-              ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
-            },
-          });
-        } catch (err) {
-          // P2002 = another concurrent request created it first — fetch it
-          if (err.code === 'P2002') {
-            q = await tx.queue.findFirst({ where: queueWhere });
-          } else {
-            throw err;
-          }
+    // ── Get or create Queue OUTSIDE the transaction ───────────────────────
+    // PostgreSQL (25P02): once any error occurs inside a transaction, the
+    // entire tx is aborted and ALL subsequent queries fail. So we NEVER do
+    // try/catch inside a Prisma transaction. Queue get-or-create is safe
+    // outside because it's idempotent.
+    let q = await prisma.queue.findFirst({ where: queueWhere });
+    if (!q) {
+      try {
+        q = await prisma.queue.create({
+          data: {
+            clinicId: appointment.clinicId,
+            doctorId: appointment.doctorId,
+            date: day,
+            status: 'ACTIVE',
+            ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+          },
+        });
+      } catch (err) {
+        if (err.code === 'P2002') {
+          q = await prisma.queue.findFirst({ where: queueWhere });
+        } else {
+          throw err;
         }
       }
+    }
+    const resolvedQueueId = q.id;
 
-      // Count ALL items (not just waiting) to get a monotonically increasing number
+    // ── ATOMIC: assign queue number + confirm appointment ─────────────────
+    const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
+      // Count ALL items to get monotonically increasing queue number
       const allItems = await tx.queueItem.findMany({
-        where: { queueId: q.id },
+        where: { queueId: resolvedQueueId },
         orderBy: { queueNumber: 'desc' },
         take: 1,
       });
       const qNum = (allItems[0]?.queueNumber || 0) + 1;
 
       const waitingCount = await tx.queueItem.count({
-        where: { queueId: q.id, status: 'WAITING' },
+        where: { queueId: resolvedQueueId, status: 'WAITING' },
       });
 
       const updatedAppt = await tx.appointment.update({
@@ -72,7 +74,6 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
         data: {
           status: 'BOOKED',
           queueNumber: qNum,
-          // estimatedWaitMinutes = patients currently waiting × avg consultation time
           estimatedWaitMinutes: waitingCount * avgMins,
         },
         include: {
@@ -83,7 +84,7 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
 
       await tx.queueItem.create({
         data: {
-          queueId: q.id,
+          queueId: resolvedQueueId,
           appointmentId: appointment.id,
           patientId: appointment.patientId,
           queueNumber: qNum,
@@ -250,7 +251,49 @@ const initiatePayment = async (req, res, next) => {
     // PATH A — FREE FIRST BOOKING
     // ═════════════════════════════════════════════════════════════════════
     if (isFree) {
-      // Use a DB transaction to prevent double-claiming via concurrent requests.
+      // ── Step 1: Get or create the Queue OUTSIDE the transaction ──────────
+      // PostgreSQL aborts the whole transaction on ANY error (code 25P02),
+      // so we cannot catch P2002 inside a transaction and retry there.
+      // Queue get-or-create is idempotent, so it's safe outside the tx.
+      let queueId = null;
+      let queueNumber = null;
+      let waitingCountForItem = 0;
+      let estimatedWaitMinutes = null;
+
+      if (appointmentType === 'OFFLINE') {
+        const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
+        const effectiveSessionId = sessionId || null;
+        const queueWhere = effectiveSessionId
+          ? { clinicId, doctorId, date: day, sessionId: effectiveSessionId }
+          : { clinicId, doctorId, date: day, sessionId: null };
+
+        let q = await prisma.queue.findFirst({ where: queueWhere });
+        if (!q) {
+          try {
+            q = await prisma.queue.create({
+              data: { clinicId, doctorId, date: day, status: 'ACTIVE', ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}) },
+            });
+          } catch (err) {
+            // P2002 = concurrent request created it first — just fetch it
+            if (err.code === 'P2002') {
+              q = await prisma.queue.findFirst({ where: queueWhere });
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        const lastItem = await prisma.queueItem.findFirst({
+          where: { queueId: q.id },
+          orderBy: { queueNumber: 'desc' },
+        });
+        queueNumber = (lastItem?.queueNumber || 0) + 1;
+        waitingCountForItem = await prisma.queueItem.count({ where: { queueId: q.id, status: 'WAITING' } });
+        estimatedWaitMinutes = waitingCountForItem * (doctorClinic?.avgConsultationMins || 10);
+        queueId = q.id;
+      }
+
+      // ── Step 2: Atomic transaction — only clean writes, no error-prone ops ──
       const result = await prisma.$transaction(async (tx) => {
         // Re-read freeBookingUsed inside the transaction for concurrency safety
         const userLocked = await tx.user.findUnique({
@@ -258,48 +301,10 @@ const initiatePayment = async (req, res, next) => {
           select: { freeBookingUsed: true },
         });
         if (userLocked.freeBookingUsed) {
-          // Race condition — another request already claimed the free booking
           throw new Error('FREE_BOOKING_ALREADY_USED');
         }
 
-        // ── Assign queue number inline (same tx) so we can set status=BOOKED directly ──
-        let queueNumber = null;
-        let estimatedWaitMinutes = null;
-        let queueId = null;
-        let waitingCountForItem = 0;
-        if (appointmentType === 'OFFLINE') {
-          const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
-          const effectiveSessionId = sessionId || null;
-          const queueWhere = effectiveSessionId
-            ? { clinicId, doctorId, date: day, sessionId: effectiveSessionId }
-            : { clinicId, doctorId, date: day, sessionId: null };
-
-          // findFirst + create with P2002 catch — handles nullable sessionId
-          let q = await tx.queue.findFirst({ where: queueWhere });
-          if (!q) {
-            try {
-              q = await tx.queue.create({
-                data: { clinicId, doctorId, date: day, status: 'ACTIVE', ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}) },
-              });
-            } catch (err) {
-              if (err.code === 'P2002') {
-                q = await tx.queue.findFirst({ where: queueWhere });
-              } else {
-                throw err;
-              }
-            }
-          }
-          const lastItem = await tx.queueItem.findFirst({
-            where: { queueId: q.id },
-            orderBy: { queueNumber: 'desc' },
-          });
-          queueNumber = (lastItem?.queueNumber || 0) + 1;
-          waitingCountForItem = await tx.queueItem.count({ where: { queueId: q.id, status: 'WAITING' } });
-          estimatedWaitMinutes = waitingCountForItem * (doctorClinic?.avgConsultationMins || 10);
-          queueId = q.id;
-        }
-
-        // Create the appointment directly as BOOKED (no PENDING_PAYMENT for free bookings)
+        // Create appointment directly as BOOKED
         const appointment = await tx.appointment.create({
           data: {
             patientId,
@@ -333,7 +338,7 @@ const initiatePayment = async (req, res, next) => {
           });
         }
 
-        // Create a FREE payment record (amount = 0, status PAID immediately)
+        // Create FREE payment record
         await tx.payment.create({
           data: {
             appointmentId: appointment.id,
@@ -348,7 +353,7 @@ const initiatePayment = async (req, res, next) => {
           },
         });
 
-        // Consume the free booking benefit — this is the critical atomic write
+        // Consume the free booking benefit — critical atomic write
         await tx.user.update({
           where: { id: patientId },
           data: { freeBookingUsed: true, freeBookingUsedAt: new Date() },
@@ -357,18 +362,23 @@ const initiatePayment = async (req, res, next) => {
         return appointment;
       });
 
-      // Emit socket events (non-critical, outside transaction)
+      // ── Step 3: Non-critical side effects outside transaction ─────────────
       const io = req.app.get('io');
       const confirmed = result;
 
-      // Notify patient — free booking message
+      if (io && queueId) {
+        const today = new Date(appointmentDate).toISOString().split('T')[0];
+        io.to(`queue:${clinicId}:${doctorId}:${today}`).emit('queue:updated', {
+          type: 'APPOINTMENT_BOOKED', appointmentId: confirmed.id, queueNumber,
+        });
+      }
+
       sendNotification(patientId, {
         title: '🎉 First Booking Free!',
         body: `Your appointment with Dr. ${doctorClinic.doctor?.user?.name || 'the doctor'} is confirmed. Your first booking is free!`,
         data: { type: 'APPOINTMENT_BOOKED', appointmentId: confirmed.id, isFree: 'true' },
       }).catch(() => { });
 
-      // Notify stakeholders
       notifyStakeholders(confirmed, patientUser.name || 'A patient');
 
       return sendSuccess(res, {

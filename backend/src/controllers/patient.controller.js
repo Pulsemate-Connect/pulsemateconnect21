@@ -240,41 +240,40 @@ const bookAppointment = async (req, res, next) => {
     let estimatedAppointmentTime = null;
 
     if (appointmentType === 'OFFLINE') {
-      // ── ATOMIC queue number assignment to prevent duplicates ──────────────
-      appointment = await prisma.$transaction(async (tx) => {
-        const today = new Date(appointmentDate); today.setUTCHours(0, 0, 0, 0);
-
-        // findFirst + create with P2002 catch — handles nullable sessionId
-        // (Prisma upsert cannot use unique indexes with nullable fields)
-        let queue = await tx.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
-        if (!queue) {
-          try {
-            queue = await tx.queue.create({
-              data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
-            });
-          } catch (err) {
-            if (err.code === 'P2002') {
-              queue = await tx.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
-            } else {
-              throw err;
-            }
+      // ── Get or create Queue OUTSIDE the transaction ───────────────────────
+      // PostgreSQL (25P02): never catch errors inside a Prisma transaction —
+      // once any error fires, the whole tx is aborted.
+      const today = new Date(appointmentDate); today.setUTCHours(0, 0, 0, 0);
+      let queue = await prisma.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
+      if (!queue) {
+        try {
+          queue = await prisma.queue.create({
+            data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
+          });
+        } catch (err) {
+          if (err.code === 'P2002') {
+            queue = await prisma.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
+          } else {
+            throw err;
           }
         }
-        if (queue.status === 'CLOSED') throw new Error('QUEUE_CLOSED');
+      }
+      if (queue.status === 'CLOSED') throw new Error('QUEUE_CLOSED');
+      const resolvedQueueId = queue.id;
 
-        // Atomic queue number: count all items (not just waiting) to avoid gaps
+      // ── ATOMIC: assign queue number + create appointment ──────────────────
+      appointment = await prisma.$transaction(async (tx) => {
         const allItems = await tx.queueItem.findMany({
-          where: { queueId: queue.id },
+          where: { queueId: resolvedQueueId },
           orderBy: { queueNumber: 'desc' },
           take: 1,
         });
         const queueNumber = (allItems[0]?.queueNumber || 0) + 1;
 
         const waitingCount = await tx.queueItem.count({
-          where: { queueId: queue.id, status: 'WAITING' },
+          where: { queueId: resolvedQueueId, status: 'WAITING' },
         });
 
-        // Determine estimated time from slotTime (booked slot IS the appointment time)
         const avgMins = doctorClinic.avgConsultationMins || 15;
 
         const created = await tx.appointment.create({
@@ -288,7 +287,6 @@ const bookAppointment = async (req, res, next) => {
             symptoms: symptoms || null,
             status: 'BOOKED',
             queueNumber,
-            // estimatedWaitMinutes: how long until their turn from now
             estimatedWaitMinutes: waitingCount * avgMins,
           },
           include: {
@@ -299,7 +297,7 @@ const bookAppointment = async (req, res, next) => {
 
         await tx.queueItem.create({
           data: {
-            queueId: queue.id,
+            queueId: resolvedQueueId,
             appointmentId: created.id,
             patientId: req.user.id,
             queueNumber,
