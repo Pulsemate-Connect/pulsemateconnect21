@@ -31,18 +31,21 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
         ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
         : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-      let q = await tx.queue.findFirst({ where: queueWhere });
-      if (!q) {
-        q = await tx.queue.create({
-          data: {
-            clinicId: appointment.clinicId,
-            doctorId: appointment.doctorId,
-            date: day,
-            status: 'ACTIVE',
-            ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
-          },
-        });
-      }
+      // upsert prevents P2002 unique constraint error when two concurrent
+      // requests both find no queue and both try to create one
+      let q = await tx.queue.upsert({
+        where: effectiveSessionId
+          ? { clinicId_doctorId_date_sessionId: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId } }
+          : { clinicId_doctorId_date_sessionId: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null } },
+        update: {}, // already exists — no changes needed
+        create: {
+          clinicId: appointment.clinicId,
+          doctorId: appointment.doctorId,
+          date: day,
+          status: 'ACTIVE',
+          ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+        },
+      });
 
       // Count ALL items (not just waiting) to get a monotonically increasing number
       const allItems = await tx.queueItem.findMany({

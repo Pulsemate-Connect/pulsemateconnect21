@@ -243,16 +243,15 @@ const bookAppointment = async (req, res, next) => {
       // ── ATOMIC queue number assignment to prevent duplicates ──────────────
       appointment = await prisma.$transaction(async (tx) => {
         const today = new Date(appointmentDate); today.setUTCHours(0, 0, 0, 0);
-        const queueWhere = sessionId
-          ? { clinicId, doctorId, date: today, sessionId }
-          : { clinicId, doctorId, date: today, sessionId: null };
 
-        let queue = await tx.queue.findFirst({ where: queueWhere });
-        if (!queue) {
-          queue = await tx.queue.create({
-            data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
-          });
-        }
+        // upsert prevents P2002 unique constraint error on concurrent queue creation
+        let queue = await tx.queue.upsert({
+          where: sessionId
+            ? { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: today, sessionId } }
+            : { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: today, sessionId: null } },
+          update: {},
+          create: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
+        });
         if (queue.status === 'CLOSED') throw new Error('QUEUE_CLOSED');
 
         // Atomic queue number: count all items (not just waiting) to avoid gaps
