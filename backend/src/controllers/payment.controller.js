@@ -23,58 +23,65 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
   if (appointment.appointmentType === 'OFFLINE') {
     const day = new Date(appointment.appointmentDate);
     day.setUTCHours(0, 0, 0, 0);
-
     const effectiveSessionId = appointment.sessionId || null;
 
-    const queueWhere = effectiveSessionId
-      ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
-      : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
+    // ── ATOMIC queue assignment inside Prisma transaction ─────────────────
+    const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
+      const queueWhere = effectiveSessionId
+        ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
+        : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-    let queue = await prisma.queue.findFirst({ where: queueWhere });
-    if (!queue) {
-      queue = await prisma.queue.create({
+      let q = await tx.queue.findFirst({ where: queueWhere });
+      if (!q) {
+        q = await tx.queue.create({
+          data: {
+            clinicId: appointment.clinicId,
+            doctorId: appointment.doctorId,
+            date: day,
+            status: 'ACTIVE',
+            ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+          },
+        });
+      }
+
+      // Count ALL items (not just waiting) to get a monotonically increasing number
+      const allItems = await tx.queueItem.findMany({
+        where: { queueId: q.id },
+        orderBy: { queueNumber: 'desc' },
+        take: 1,
+      });
+      const qNum = (allItems[0]?.queueNumber || 0) + 1;
+
+      const waitingCount = await tx.queueItem.count({
+        where: { queueId: q.id, status: 'WAITING' },
+      });
+
+      const updatedAppt = await tx.appointment.update({
+        where: { id: appointment.id },
         data: {
-          clinicId: appointment.clinicId,
-          doctorId: appointment.doctorId,
-          date: day,
-          status: 'ACTIVE',
-          ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+          status: 'BOOKED',
+          queueNumber: qNum,
+          // estimatedWaitMinutes = patients currently waiting × avg consultation time
+          estimatedWaitMinutes: waitingCount * avgMins,
+        },
+        include: {
+          doctor: { include: { user: { select: { id: true, name: true } } } },
+          clinic: { select: { id: true, name: true, address: true, city: true } },
         },
       });
-    }
 
-    const lastItem = await prisma.queueItem.findFirst({
-      where: { queueId: queue.id },
-      orderBy: { queueNumber: 'desc' },
-    });
-    const queueNumber = (lastItem?.queueNumber || 0) + 1;
+      await tx.queueItem.create({
+        data: {
+          queueId: q.id,
+          appointmentId: appointment.id,
+          patientId: appointment.patientId,
+          queueNumber: qNum,
+          status: 'WAITING',
+          position: waitingCount + 1,
+        },
+      });
 
-    const waitingCount = await prisma.queueItem.count({
-      where: { queueId: queue.id, status: 'WAITING' },
-    });
-
-    const confirmed = await prisma.appointment.update({
-      where: { id: appointment.id },
-      data: {
-        status: 'BOOKED',
-        queueNumber,
-        estimatedWaitMinutes: (waitingCount + 1) * avgMins,
-      },
-      include: {
-        doctor: { include: { user: { select: { id: true, name: true } } } },
-        clinic: { select: { id: true, name: true, address: true, city: true } },
-      },
-    });
-
-    await prisma.queueItem.create({
-      data: {
-        queueId: queue.id,
-        appointmentId: appointment.id,
-        patientId: appointment.patientId,
-        queueNumber,
-        status: 'WAITING',
-        position: waitingCount + 1,
-      },
+      return { confirmed: updatedAppt, queueNumber: qNum, queue: q };
     });
 
     if (io) {

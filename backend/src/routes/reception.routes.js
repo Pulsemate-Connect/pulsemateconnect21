@@ -13,6 +13,7 @@ const {
   completePatient,
   pauseQueue,
   resumeQueue,
+  getSessionQueueStats,
 } = require('../controllers/reception.controller');
 
 router.use(authenticate, authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'));
@@ -77,5 +78,7 @@ router.patch('/queue-item/:id/skip', skipPatient);
 router.patch('/queue-item/:id/complete', completePatient);
 router.patch('/queue/:queueId/pause', pauseQueue);
 router.patch('/queue/:queueId/resume', resumeQueue);
+// Session-level live stats for clinic owner dashboard (Req #13)
+router.get('/session-stats/:clinicId', getSessionQueueStats);
 
 module.exports = router;

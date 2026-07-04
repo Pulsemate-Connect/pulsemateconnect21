@@ -26,3 +26,7 @@ export const pauseQueue = (queueId) =>
 
 export const resumeQueue = (queueId) =>
   api.patch(`/reception/queue/${queueId}/resume`);
+
+// Session-level live queue stats for clinic owner dashboard (Req #13)
+export const getSessionQueueStats = (clinicId) =>
+  api.get(`/reception/session-stats/${clinicId}`);

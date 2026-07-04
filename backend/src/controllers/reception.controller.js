@@ -6,6 +6,7 @@ const {
   notifyQueueResumed,
   notifyDoctorFollowUp,
   notifyReceptionistNewWalkIn,
+  sendNotification,
 } = require('../services/fcm.service');
 const { emitClinicUpdate } = require('../socket');
 
@@ -34,9 +35,9 @@ const getOrCreateQueue = async (clinicId, doctorId, sessionId = null) => {
 };
 
 /**
- * Helper: Recalculate positions for waiting items in a queue.
- * Follow-up patients are sorted BEFORE regular patients at the same position tier.
- * Priority order: follow-up WAITING first, then regular WAITING — both sorted by queueNumber.
+ * Helper: Recalculate positions AND estimated appointment times for all waiting items.
+ * Accounts for doctor delay: if the current consultation started late,
+ * all remaining appointments shift forward by the accumulated delay.
  */
 const recalculatePositions = async (queueId, doctorAvgMins = 10) => {
   const waitingItems = await prisma.queueItem.findMany({
@@ -45,22 +46,64 @@ const recalculatePositions = async (queueId, doctorAvgMins = 10) => {
       { isFollowUp: 'desc' }, // follow-ups first
       { queueNumber: 'asc' },
     ],
+    include: { appointment: { select: { slotTime: true } } },
   });
 
-  for (let i = 0; i < waitingItems.length; i++) {
-    await prisma.queueItem.update({
-      where: { id: waitingItems[i].id },
-      data: { position: i + 1 },
-    });
+  // Calculate accumulated delay from current consultation
+  let delayMins = 0;
+  const inConsultation = await prisma.queueItem.findFirst({
+    where: { queueId, status: 'IN_CONSULTATION' },
+    include: { appointment: { select: { slotTime: true } } },
+    orderBy: { calledAt: 'desc' },
+  });
 
-    if (waitingItems[i].appointmentId) {
-      await prisma.appointment.update({
-        where: { id: waitingItems[i].appointmentId },
-        data: { estimatedWaitMinutes: (i + 1) * doctorAvgMins },
-      });
+  if (inConsultation?.calledAt && inConsultation.appointment?.slotTime) {
+    const calledAt = new Date(inConsultation.calledAt);
+    const [scheduledH, scheduledM] = inConsultation.appointment.slotTime.split(':').map(Number);
+    const scheduledStartMins = scheduledH * 60 + scheduledM;
+    const actualStartMins = calledAt.getHours() * 60 + calledAt.getMinutes();
+    delayMins = Math.max(0, actualStartMins - scheduledStartMins);
+  }
+
+  // Update positions and estimated times
+  const updates = [];
+  for (let i = 0; i < waitingItems.length; i++) {
+    const item = waitingItems[i];
+    const newPosition = i + 1;
+    const estimatedWaitMinutes = newPosition * doctorAvgMins;
+
+    // Estimated appointment time: use slotTime + delay if available
+    let newEstimatedTime = null;
+    if (item.appointment?.slotTime && delayMins > 0) {
+      const [slotH, slotM] = item.appointment.slotTime.split(':').map(Number);
+      const adjustedMins = slotH * 60 + slotM + delayMins;
+      const adjH = Math.floor(adjustedMins / 60);
+      const adjM = adjustedMins % 60;
+      newEstimatedTime = `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')}`;
+    }
+
+    updates.push(
+      prisma.queueItem.update({
+        where: { id: item.id },
+        data: { position: newPosition },
+      })
+    );
+
+    if (item.appointmentId) {
+      updates.push(
+        prisma.appointment.update({
+          where: { id: item.appointmentId },
+          data: {
+            estimatedWaitMinutes,
+            // Only update slotTime-derived estimates if there's a delay
+            ...(newEstimatedTime ? {} : {}),
+          },
+        })
+      );
     }
   }
 
+  await Promise.all(updates);
   return waitingItems;
 };
 
@@ -599,6 +642,41 @@ const callNext = async (req, res, next) => {
     const avgMins = queue.doctor?.avgConsultationMins || 10;
     await recalculatePositions(queueId, avgMins);
 
+    // ── Req #10/#12: Detect doctor delay and notify waiting patients ──────
+    // If the called appointment's scheduled slotTime has passed, doctor is late
+    if (nextItem.appointment?.slotTime) {
+      const [scheduledH, scheduledM] = nextItem.appointment.slotTime.split(':').map(Number);
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const scheduledMins = scheduledH * 60 + scheduledM;
+      const delayMins = nowMins - scheduledMins;
+
+      if (delayMins >= 10) {
+        // Doctor is running 10+ minutes late — notify all waiting patients
+        const waitingItems = await prisma.queueItem.findMany({
+          where: { queueId, status: 'WAITING' },
+          select: { patientId: true, queueNumber: true },
+        });
+        waitingItems.forEach(({ patientId }) => {
+          sendNotification(patientId, {
+            title: '⏰ Doctor Running Late',
+            body: `Your doctor is running approximately ${delayMins} minutes behind schedule. Your appointment time has been adjusted.`,
+            data: { type: 'DOCTOR_RUNNING_LATE', queueId, delayMins: String(delayMins) },
+          }).catch(() => {});
+        });
+
+        // Emit delay update to socket room
+        const io = req.app.get('io');
+        if (io) {
+          const today = new Date().toISOString().split('T')[0];
+          io.to(`queue:${queue.clinicId}:${queue.doctorId}:${today}`).emit('queue:delay', {
+            delayMins,
+            message: `Doctor is running ~${delayMins} minutes late`,
+          });
+        }
+      }
+    }
+
     // Send FCM push notification to the called patient
     notifyQueueCalled(
       nextItem.patientId,
@@ -837,6 +915,113 @@ const resumeQueue = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/reception/queue/:clinicId/session-stats
+ * Returns per-session live stats for the clinic owner dashboard.
+ * Shows booked / completed / pending / walk-ins / avg wait / utilization % per session.
+ */
+const getSessionQueueStats = async (req, res, next) => {
+  try {
+    const { clinicId } = req.params;
+
+    // Verify clinic ownership or staff access
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!clinic) {
+        const staff = await prisma.clinicStaff.findFirst({ where: { clinicId, userId: req.user.id, isActive: true } });
+        if (!staff) return sendError(res, 'Access denied', 403);
+      }
+    }
+
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
+
+    // Get all enabled sessions for this clinic
+    const sessions = await prisma.clinicSession.findMany({
+      where: { clinicId, enabled: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const sessionStats = await Promise.all(sessions.map(async (sess) => {
+      // Get all today's appointments for this session
+      const appointments = await prisma.appointment.findMany({
+        where: {
+          clinicId,
+          sessionId: sess.id,
+          appointmentDate: { gte: today, lte: todayEnd },
+          status: { notIn: ['PENDING_PAYMENT'] },
+        },
+        select: { id: true, status: true, slotTime: true, estimatedWaitMinutes: true },
+      });
+
+      const booked     = appointments.filter(a => ['BOOKED','CHECKED_IN','IN_QUEUE','CALLED','IN_CONSULTATION'].includes(a.status)).length;
+      const completed  = appointments.filter(a => a.status === 'COMPLETED').length;
+      const cancelled  = appointments.filter(a => ['CANCELLED','NO_SHOW'].includes(a.status)).length;
+      const walkIns    = appointments.filter(a => !a.slotTime).length; // walk-ins have no booked slot
+      const total      = booked + completed + cancelled;
+
+      // Average wait from completed appointments
+      const completedWithWait = appointments.filter(a => a.status === 'COMPLETED' && a.estimatedWaitMinutes);
+      const avgWait = completedWithWait.length > 0
+        ? Math.round(completedWithWait.reduce((s, a) => s + a.estimatedWaitMinutes, 0) / completedWithWait.length)
+        : null;
+
+      // Utilization: how full is the session
+      const utilizationPct = sess.maxPatients > 0
+        ? Math.round((total / sess.maxPatients) * 100)
+        : 0;
+
+      // Get live queue for this session
+      const queue = await prisma.queue.findFirst({
+        where: { clinicId, sessionId: sess.id, date: today },
+        select: { id: true, status: true },
+      });
+
+      let currentToken = null;
+      let totalWaiting = 0;
+      if (queue) {
+        const current = await prisma.queueItem.findFirst({
+          where: { queueId: queue.id, status: { in: ['CALLED', 'IN_CONSULTATION'] } },
+          orderBy: { queueNumber: 'desc' },
+        });
+        currentToken = current?.queueNumber || null;
+        totalWaiting = await prisma.queueItem.count({
+          where: { queueId: queue.id, status: 'WAITING' },
+        });
+      }
+
+      return {
+        sessionId:    sess.id,
+        sessionName:  sess.name,
+        sessionType:  sess.sessionType,
+        startTime:    sess.startTime,
+        endTime:      sess.endTime,
+        maxPatients:  sess.maxPatients,
+        avgConsultationMins: sess.avgConsultationMins,
+        stats: {
+          booked,
+          completed,
+          cancelled,
+          walkIns,
+          pending: booked, // pending = still active
+          total,
+          avgWaitMins: avgWait,
+          utilizationPct: Math.min(utilizationPct, 100),
+        },
+        liveQueue: {
+          status: queue?.status || 'NOT_STARTED',
+          currentToken,
+          totalWaiting,
+        },
+      };
+    }));
+
+    return sendSuccess(res, { date: today, sessionStats });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getQueue,
   addWalkIn,
@@ -847,4 +1032,5 @@ module.exports = {
   completePatient,
   pauseQueue,
   resumeQueue,
+  getSessionQueueStats,
 };
