@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getMyClinics, getStaff } from '../../api/clinic.api';
-import { getQueue } from '../../api/reception.api';
+import { getQueue, getSessionQueueStats } from '../../api/reception.api';
 import StatusBadge from '../../components/ui/StatusBadge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
@@ -9,11 +9,93 @@ import ClinicNotVerifiedGuard from '../../components/ui/ClinicNotVerifiedGuard';
 import useSocket from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
+// ── Session icons ─────────────────────────────────────────────────────────────
+const SESSION_ICON = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+
+// ── Session Stats Card (Req #13) ──────────────────────────────────────────────
+const SessionStatsCard = ({ sess }) => {
+  const { sessionName, sessionType, startTime, endTime, stats, liveQueue } = sess;
+  const icon = SESSION_ICON[sessionType] || '🕐';
+  const pct = stats.utilizationPct || 0;
+  const barColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981';
+
+  const fmt12 = (t) => {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    return `${h > 12 ? h - 12 : h || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <span className="text-2xl">{icon}</span>
+          <div>
+            <p className="font-bold text-gray-900 text-sm">{sessionName}</p>
+            <p className="text-xs text-gray-400">{fmt12(startTime)} – {fmt12(endTime)}</p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+          liveQueue.status === 'ACTIVE' ? 'bg-green-50 text-green-700' :
+          liveQueue.status === 'PAUSED' ? 'bg-amber-50 text-amber-700' :
+          'bg-gray-50 text-gray-400'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            liveQueue.status === 'ACTIVE' ? 'bg-green-500 animate-pulse' :
+            liveQueue.status === 'PAUSED' ? 'bg-amber-500' : 'bg-gray-300'
+          }`} />
+          {liveQueue.status === 'ACTIVE' ? 'Live' : liveQueue.status === 'PAUSED' ? 'Paused' : 'Not Started'}
+        </div>
+      </div>
+
+      {/* Live queue token */}
+      {liveQueue.currentToken && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 mb-4 flex items-center justify-between">
+          <span className="text-xs font-semibold text-blue-600">Now Serving</span>
+          <span className="text-lg font-black text-blue-700">#{liveQueue.currentToken}</span>
+          <span className="text-xs text-blue-500">{liveQueue.totalWaiting} waiting</span>
+        </div>
+      )}
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        {[
+          { label: 'Booked',    value: stats.booked,    color: 'text-blue-600',   bg: 'bg-blue-50'   },
+          { label: 'Done',      value: stats.completed, color: 'text-green-600',  bg: 'bg-green-50'  },
+          { label: 'Walk-ins',  value: stats.walkIns,   color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Avg Wait',  value: stats.avgWaitMins ? `${stats.avgWaitMins}m` : '—', color: 'text-amber-600', bg: 'bg-amber-50' },
+        ].map((s) => (
+          <div key={s.label} className={`${s.bg} rounded-xl p-2 text-center`}>
+            <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-gray-400 leading-tight">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Utilization bar */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-gray-400">Session Utilization</span>
+          <span className="text-xs font-bold" style={{ color: barColor }}>{pct}%</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+          <div className="h-2 rounded-full transition-all duration-700"
+            style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
+        </div>
+        <p className="text-xs text-gray-400 mt-1">{stats.total} / {sess.maxPatients} patients</p>
+      </div>
+    </div>
+  );
+};
+
 const QueueOverview = () => {
   const [clinics, setClinics] = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
-  const [queues, setQueues] = useState({}); // { doctorId: { queue, queueItems } }
+  const [queues, setQueues] = useState({});
+  const [sessionStats, setSessionStats] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { joinStaffQueueRoom, onEvent } = useSocket();
 
@@ -31,9 +113,20 @@ const QueueOverview = () => {
   useEffect(() => {
     if (!selectedClinic) return;
     fetchDoctorsAndQueues();
+    fetchSessionStats();
   }, [selectedClinic]);
 
-  const fetchDoctorsAndQueues = async () => {
+  const fetchSessionStats = useCallback(async () => {
+    if (!selectedClinic) return;
+    setStatsLoading(true);
+    try {
+      const res = await getSessionQueueStats(selectedClinic.id);
+      setSessionStats(res.data.data.sessionStats || []);
+    } catch { /* non-critical */ }
+    finally { setStatsLoading(false); }
+  }, [selectedClinic]);
+
+  const fetchDoctorsAndQueues = useCallback(async () => {
     if (!selectedClinic) return;
     setIsLoading(true);
     try {
@@ -43,7 +136,6 @@ const QueueOverview = () => {
 
       const today = new Date().toISOString().split('T')[0];
       const queueData = {};
-
       await Promise.all(
         doctorStaff.map(async (s) => {
           const doctorProfileId = s.user?.doctorProfile?.id;
@@ -55,70 +147,76 @@ const QueueOverview = () => {
               queueItems: res.data.data.queueItems || [],
               doctorName: s.user?.name,
             };
-            // Join socket room for live updates
             joinStaffQueueRoom({ clinicId: selectedClinic.id, doctorId: doctorProfileId, date: today });
           } catch {
             queueData[doctorProfileId] = { queue: null, queueItems: [], doctorName: s.user?.name };
           }
         })
       );
-
       setQueues(queueData);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load queue data');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedClinic, joinStaffQueueRoom]);
 
-  // Live updates
+  // Refresh session stats on socket queue:updated
   useEffect(() => {
-    const cleanup = onEvent('queue:updated', () => fetchDoctorsAndQueues());
+    const cleanup = onEvent('queue:updated', () => {
+      fetchDoctorsAndQueues();
+      fetchSessionStats();
+    });
     return cleanup;
-  }, [onEvent, selectedClinic]);
+  }, [onEvent, fetchDoctorsAndQueues, fetchSessionStats]);
 
   return (
     <DashboardLayout>
       <ClinicNotVerifiedGuard>
       <div className="page-container">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Queue Overview</h1>
-            <p className="text-text-muted text-sm mt-1">
+            <h1 className="text-2xl font-bold text-gray-900">Queue Overview</h1>
+            <p className="text-gray-400 text-sm mt-1">
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          {/* Live indicator */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <div className="w-2.5 h-2.5 bg-secondary-500 rounded-full" />
-              <div className="absolute inset-0 w-2.5 h-2.5 bg-secondary-500 rounded-full pulse-dot" />
-            </div>
-            <span className="text-xs font-medium text-secondary-600">Live</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-100 rounded-xl">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-semibold text-green-700">Live</span>
           </div>
         </div>
 
         {/* Clinic selector */}
         {clinics.length > 1 && (
-          <div className="mb-6">
-            <select
-              className="input max-w-xs"
-              value={selectedClinic?.id || ''}
-              onChange={(e) => setSelectedClinic(clinics.find((c) => c.id === e.target.value))}
-            >
+          <div className="mb-5">
+            <select className="input max-w-xs" value={selectedClinic?.id || ''}
+              onChange={(e) => setSelectedClinic(clinics.find((c) => c.id === e.target.value))}>
               {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
         )}
 
+        {/* ── Session Stats (Req #13) ── */}
+        {sessionStats.length > 0 && (
+          <div className="mb-7">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Session Overview</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {sessionStats.map((sess) => (
+                <SessionStatsCard key={sess.sessionId} sess={sess} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Per-Doctor Live Queue ── */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Live Queue by Doctor</p>
         {isLoading ? (
           <div className="flex justify-center py-12"><LoadingSpinner size="lg" /></div>
         ) : Object.keys(queues).length === 0 ? (
-          <EmptyState
-            icon="🔢"
-            title="No active queues"
-            description="Queues will appear here once doctors start seeing patients"
-          />
+          <EmptyState icon="🔢" title="No active queues"
+            description="Queues will appear here once doctors start seeing patients" />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {Object.entries(queues).map(([doctorId, data]) => (
