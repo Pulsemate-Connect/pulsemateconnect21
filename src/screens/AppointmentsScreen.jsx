@@ -15,6 +15,20 @@ const FILTERS = [
   { key: 'COMPLETED', label: 'Completed', icon: 'checkmark-circle' },
 ];
 
+// Statuses that belong to each filter tab
+const FILTER_STATUSES = {
+  All:       null, // show everything
+  BOOKED:    ['BOOKED', 'PENDING_PAYMENT'],
+  IN_QUEUE:  ['CHECKED_IN', 'IN_QUEUE', 'CALLED', 'IN_CONSULTATION'],
+  COMPLETED: ['COMPLETED', 'CANCELLED', 'NO_SHOW'],
+};
+
+const matchesFilter = (appt, filter) => {
+  if (filter === 'All') return true;
+  const allowed = FILTER_STATUSES[filter];
+  return allowed ? allowed.includes(appt.status) : appt.status === filter;
+};
+
 const SPEC_COLOR = {
   'General Physician': '#2563EB',
   'Cardiologist':      '#EF4444',
@@ -104,11 +118,11 @@ export default function AppointmentsScreen({ navigation }) {
 
   const upcoming = appointments
     .filter((a) => ['BOOKED','CHECKED_IN','IN_QUEUE','IN_CONSULTATION','CALLED','PENDING_PAYMENT'].includes(a.status))
-    .filter((a) => filter === 'All' || a.status === filter);
+    .filter((a) => matchesFilter(a, filter));
 
   const allPast = appointments
     .filter((a) => ['COMPLETED','CANCELLED','NO_SHOW'].includes(a.status))
-    .filter((a) => filter === 'All' || a.status === filter);
+    .filter((a) => matchesFilter(a, filter));
 
   // Show 3 most recent by default; expand on "View All"
   const PAST_PREVIEW = 3;
@@ -296,6 +310,18 @@ export default function AppointmentsScreen({ navigation }) {
                           <Text style={s.qStripVal}>Notify before{'\n'}your turn</Text>
                         </View>
                       </View>
+                    )}
+
+                    {/* Track Live Queue — for active queue statuses */}
+                    {['CHECKED_IN','IN_QUEUE','CALLED','IN_CONSULTATION'].includes(appt.status) && (
+                      <TouchableOpacity
+                        style={s.trackBtn}
+                        onPress={() => navigation.navigate('LiveQueue', { appointmentId: appt.id })}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="radio-outline" size={14} color="#0284C7" />
+                        <Text style={s.trackTxt}>Track Live Queue</Text>
+                      </TouchableOpacity>
                     )}
 
                     {/* Cancel */}
@@ -503,6 +529,8 @@ const s = StyleSheet.create({
   // Cancel
   cancelBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: radius.md, backgroundColor: '#FEE2E2' },
   cancelTxt:        { fontSize: 12, fontWeight: '700', color: colors.danger },
+  trackBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: radius.md, backgroundColor: '#EFF6FF', marginBottom: 6 },
+  trackTxt:         { fontSize: 12, fontWeight: '700', color: '#0284C7' },
 
   // Past card
   pastCard:         { backgroundColor: '#fff', borderRadius: radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, ...shadow.sm },
