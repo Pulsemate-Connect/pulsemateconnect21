@@ -194,6 +194,7 @@ export default function HomeScreen({ navigation }) {
   const goDoctors    = () => navigation.navigate('DoctorsTab');
   const goBooking    = (doctor) => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { doctorId: doctor?.id } });
   const goClinicBook = () => navigation.navigate('DoctorsTab');
+  const goAllClinics = () => navigation.navigate('NearbyClinics');
   const goProfile    = () => navigation.navigate('ProfileTab', { screen: 'ProfileWizard', params: { returnTo: 'Home' } });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -244,7 +245,7 @@ export default function HomeScreen({ navigation }) {
           loading={nearbyLoading}
           locationStatus={nearbyClinics.length > 0 || nearbyLoading ? 'granted' : 'idle'}
           onRequestLoc={() => {}}
-          onViewAll={goDoctors}
+          onViewAll={goAllClinics}
           onBook={goClinicBook}
         />
 
