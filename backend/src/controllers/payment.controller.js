@@ -211,8 +211,8 @@ const initiatePayment = async (req, res, next) => {
         doctorId,
         clinicId,
         appointmentDate: {
-          gte: new Date(new Date(appointmentDate).setHours(0, 0, 0, 0)),
-          lte: new Date(new Date(appointmentDate).setHours(23, 59, 59, 999)),
+          gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+          lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
         },
         OR: [
           // Confirmed/active bookings — always block
