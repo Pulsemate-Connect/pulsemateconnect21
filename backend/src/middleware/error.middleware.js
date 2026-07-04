@@ -62,8 +62,7 @@ const errorHandler = (err, req, res, next) => {
   // Default 500
   return res.status(500).json({
     success: false,
-    message: err.message || 'Internal server error',
-    _debug: err.code || err.name || undefined,
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
   });
 };
 
