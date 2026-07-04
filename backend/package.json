@@ -6,35 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --coverage --verbose",
-    "test:watch": "jest --watch",
-    "test:quick": "jest --testPathPattern='dashboard|notification|booking-control|session-validation' --verbose",
-    "test:unit": "jest --testPathPattern='controllers' --verbose",
-    "test:integration": "jest --testPathPattern='integration' --verbose"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/config/",
-      "/migrations/"
-    ],
-    "testMatch": [
-      "**/__tests__/**/*.test.js"
-    ],
-    "collectCoverageFrom": [
-      "src/controllers/**/*.js",
-      "src/services/**/*.js",
-      "src/routes/**/*.js"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 70,
-        "functions": 70,
-        "lines": 70,
-        "statements": 70
-      }
-    }
+    "test": "jest --config jest.config.js --coverage --verbose",
+    "test:watch": "jest --config jest.config.js --watch",
+    "test:queue": "jest --config jest.config.js --testPathPattern='reception|booking|queue|availability' --verbose --no-coverage",
+    "test:unit": "jest --config jest.config.js --testPathPattern='unit' --verbose --no-coverage",
+    "test:integration": "jest --config jest.config.js --testPathPattern='integration' --verbose --no-coverage"
   },
   "keywords": [
     "healthcare",
