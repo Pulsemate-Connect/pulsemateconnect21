@@ -265,6 +265,8 @@ const initiatePayment = async (req, res, next) => {
         // ── Assign queue number inline (same tx) so we can set status=BOOKED directly ──
         let queueNumber = null;
         let estimatedWaitMinutes = null;
+        let queueId = null;
+        let waitingCountForItem = 0;
         if (appointmentType === 'OFFLINE') {
           const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
           const effectiveSessionId = sessionId || null;
@@ -292,11 +294,9 @@ const initiatePayment = async (req, res, next) => {
             orderBy: { queueNumber: 'desc' },
           });
           queueNumber = (lastItem?.queueNumber || 0) + 1;
-          const waitingCount = await tx.queueItem.count({ where: { queueId: q.id, status: 'WAITING' } });
-          estimatedWaitMinutes = waitingCount * (doctorClinic?.avgConsultationMins || 10);
-          // We'll create the QueueItem after the appointment is created below
-          const apptForQueue = { clinicId, doctorId, sessionId, queueNumber, waitingCount, queueId: q.id };
-          tx._queueData = apptForQueue; // pass to post-create step
+          waitingCountForItem = await tx.queueItem.count({ where: { queueId: q.id, status: 'WAITING' } });
+          estimatedWaitMinutes = waitingCountForItem * (doctorClinic?.avgConsultationMins || 10);
+          queueId = q.id;
         }
 
         // Create the appointment directly as BOOKED (no PENDING_PAYMENT for free bookings)
@@ -320,8 +320,7 @@ const initiatePayment = async (req, res, next) => {
         });
 
         // Create QueueItem if offline
-        if (appointmentType === 'OFFLINE' && tx._queueData) {
-          const { queueId, waitingCount } = tx._queueData;
+        if (appointmentType === 'OFFLINE' && queueId) {
           await tx.queueItem.create({
             data: {
               queueId,
@@ -329,7 +328,7 @@ const initiatePayment = async (req, res, next) => {
               patientId,
               queueNumber,
               status: 'WAITING',
-              position: waitingCount + 1,
+              position: waitingCountForItem + 1,
             },
           });
         }
