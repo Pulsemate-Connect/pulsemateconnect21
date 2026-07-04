@@ -27,9 +27,9 @@ export const updateDoctorProfile = (data) =>
 export const getDoctorSchedule = (doctorId, params) =>
   api.get(`/doctor/${doctorId}/availability`, { params });
 
-/** PATCH /doctor/availability — upsert a single day's schedule (backend only supports PATCH) */
+/** POST /doctor/availability — upsert a single day's schedule */
 export const setDaySchedule = (data) =>
-  api.patch('/doctor/availability', data);
+  api.post('/doctor/availability', data);
 
 /** PUT /doctor/availability/:id — update an existing schedule record */
 export const updateDaySchedule = (id, data) =>
