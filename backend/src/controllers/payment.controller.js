@@ -426,7 +426,6 @@ const initiatePayment = async (req, res, next) => {
       req.body._forcePaid = true;
       return initiatePayment(req, res, next);
     }
-    console.error('[initiatePayment] ERROR:', error?.message, '| code:', error?.code, '| stack:', error?.stack);
     next(error);
   }
 };
