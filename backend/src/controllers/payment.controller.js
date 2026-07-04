@@ -5,10 +5,9 @@ const { notifyAppointmentBooked, notifyDoctorNewBooking, sendNotification } = re
 const logger = require('../config/logger');
 const { emitClinicUpdate } = require('../socket');
 const { getIo } = require('../config/socket');
+const { getOrCreateQueue } = require('../utils/getOrCreateQueue');
 
 // ─── Fixed platform booking fee ───────────────────────────────────────────────
-// Charged from the SECOND booking onward.
-// The first booking is FREE (platform fee waived, queue assigned immediately).
 const BOOKING_FEE = 10; // ₹10
 
 // ─── Shared queue-assignment helper ──────────────────────────────────────────
@@ -28,31 +27,10 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
       ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
       : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-    // ── Get or create Queue OUTSIDE the transaction ───────────────────────
-    // PostgreSQL (25P02): once any error occurs inside a transaction, the
-    // entire tx is aborted and ALL subsequent queries fail. So we NEVER do
-    // try/catch inside a Prisma transaction. Queue get-or-create is safe
-    // outside because it's idempotent.
-    let q = await prisma.queue.findFirst({ where: queueWhere });
-    if (!q) {
-      try {
-        q = await prisma.queue.create({
-          data: {
-            clinicId: appointment.clinicId,
-            doctorId: appointment.doctorId,
-            date: day,
-            status: 'ACTIVE',
-            ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
-          },
-        });
-      } catch (err) {
-        if (err.code === 'P2002') {
-          q = await prisma.queue.findFirst({ where: queueWhere });
-        } else {
-          throw err;
-        }
-      }
-    }
+    // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
+    const q = await getOrCreateQueue(
+      appointment.clinicId, appointment.doctorId, day, effectiveSessionId
+    );
     const resolvedQueueId = q.id;
 
     // ── ATOMIC: assign queue number + confirm appointment ─────────────────
@@ -263,25 +241,9 @@ const initiatePayment = async (req, res, next) => {
       if (appointmentType === 'OFFLINE') {
         const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
         const effectiveSessionId = sessionId || null;
-        const queueWhere = effectiveSessionId
-          ? { clinicId, doctorId, date: day, sessionId: effectiveSessionId }
-          : { clinicId, doctorId, date: day, sessionId: null };
 
-        let q = await prisma.queue.findFirst({ where: queueWhere });
-        if (!q) {
-          try {
-            q = await prisma.queue.create({
-              data: { clinicId, doctorId, date: day, status: 'ACTIVE', ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}) },
-            });
-          } catch (err) {
-            // P2002 = concurrent request created it first — just fetch it
-            if (err.code === 'P2002') {
-              q = await prisma.queue.findFirst({ where: queueWhere });
-            } else {
-              throw err;
-            }
-          }
-        }
+        // ── Atomic INSERT ON CONFLICT DO NOTHING — bulletproof get-or-create ──
+        const q = await getOrCreateQueue(clinicId, doctorId, day, effectiveSessionId);
 
         const lastItem = await prisma.queueItem.findFirst({
           where: { queueId: q.id },

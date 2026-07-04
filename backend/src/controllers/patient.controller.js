@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/response');
 const { notifyAppointmentBooked, notifyAppointmentCancelled, notifyDoctorNewBooking, sendNotification } = require('../services/fcm.service');
+const { getOrCreateQueue } = require('../utils/getOrCreateQueue');
 
 /**
  * GET /api/patient/doctors - Search doctors
@@ -240,24 +241,9 @@ const bookAppointment = async (req, res, next) => {
     let estimatedAppointmentTime = null;
 
     if (appointmentType === 'OFFLINE') {
-      // ── Get or create Queue OUTSIDE the transaction ───────────────────────
-      // PostgreSQL (25P02): never catch errors inside a Prisma transaction —
-      // once any error fires, the whole tx is aborted.
+      // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
       const today = new Date(appointmentDate); today.setUTCHours(0, 0, 0, 0);
-      let queue = await prisma.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
-      if (!queue) {
-        try {
-          queue = await prisma.queue.create({
-            data: { clinicId, doctorId, date: today, status: 'ACTIVE', ...(sessionId ? { sessionId } : {}) },
-          });
-        } catch (err) {
-          if (err.code === 'P2002') {
-            queue = await prisma.queue.findFirst({ where: { clinicId, doctorId, date: today, sessionId: sessionId || null } });
-          } else {
-            throw err;
-          }
-        }
-      }
+      const queue = await getOrCreateQueue(clinicId, doctorId, today, sessionId || null);
       if (queue.status === 'CLOSED') throw new Error('QUEUE_CLOSED');
       const resolvedQueueId = queue.id;
 
