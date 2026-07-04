@@ -61,7 +61,9 @@ function SearchStack() {
       <Stack.Screen name="DoctorDetail" component={DoctorDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
       <Stack.Screen name="Razorpay" component={RazorpayScreen} options={{ gestureEnabled: false }} />
+      <Stack.Screen name="PaymentStatus" component={PaymentStatusScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
+      <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
     </Stack.Navigator>
   );
 }
