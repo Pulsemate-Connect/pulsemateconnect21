@@ -1,41 +1,53 @@
 const prisma = require('../config/database');
 
 /**
- * Atomically get or create a Queue row.
+ * Get or create a Queue row — safe against race conditions.
  *
- * Uses raw SQL INSERT ... ON CONFLICT DO NOTHING so it is safe against race
- * conditions AND against Prisma's inability to upsert on nullable unique fields.
+ * Strategy:
+ *   1. findFirst — return immediately if exists
+ *   2. create — if P2002 unique violation, another request beat us to it
+ *   3. findFirst again — guaranteed to find it after P2002
  *
- * @param {string} clinicId
- * @param {string} doctorId
- * @param {Date}   date       - UTC midnight date (setUTCHours(0,0,0,0) already applied)
+ * This runs OUTSIDE any Prisma transaction so PostgreSQL 25P02 cannot fire.
+ *
+ * @param {string}      clinicId
+ * @param {string}      doctorId
+ * @param {Date}        date      — must already be UTC midnight (@db.Date)
  * @param {string|null} sessionId
  * @returns {Promise<Queue>}
  */
 const getOrCreateQueue = async (clinicId, doctorId, date, sessionId) => {
   const sid = sessionId || null;
+  const where = sid
+    ? { clinicId, doctorId, date, sessionId: sid }
+    : { clinicId, doctorId, date, sessionId: null };
 
-  if (sid) {
-    await prisma.$executeRaw`
-      INSERT INTO queues ("id", "clinicId", "doctorId", "date", "sessionId", "status", "createdAt", "updatedAt")
-      VALUES (gen_random_uuid(), ${clinicId}, ${doctorId}, ${date}, ${sid}, 'ACTIVE', NOW(), NOW())
-      ON CONFLICT ("clinicId", "doctorId", "date", "sessionId") DO NOTHING
-    `;
-  } else {
-    await prisma.$executeRaw`
-      INSERT INTO queues ("id", "clinicId", "doctorId", "date", "sessionId", "status", "createdAt", "updatedAt")
-      VALUES (gen_random_uuid(), ${clinicId}, ${doctorId}, ${date}, NULL, 'ACTIVE', NOW(), NOW())
-      ON CONFLICT ("clinicId", "doctorId", "date", "sessionId") DO NOTHING
-    `;
+  // Step 1 — optimistic read (covers 99% of requests after first booking)
+  let q = await prisma.queue.findFirst({ where });
+  if (q) return q;
+
+  // Step 2 — try to create
+  try {
+    q = await prisma.queue.create({
+      data: {
+        clinicId,
+        doctorId,
+        date,
+        status: 'ACTIVE',
+        ...(sid ? { sessionId: sid } : {}),
+      },
+    });
+    return q;
+  } catch (err) {
+    // P2002 = concurrent request created the row between our findFirst and create
+    if (err.code !== 'P2002') throw err;
   }
 
-  const q = await prisma.queue.findFirst({
-    where: sid
-      ? { clinicId, doctorId, date, sessionId: sid }
-      : { clinicId, doctorId, date, sessionId: null },
-  });
-
-  if (!q) throw new Error(`getOrCreateQueue: row missing after insert — clinicId=${clinicId} doctorId=${doctorId} date=${date} sessionId=${sid}`);
+  // Step 3 — race lost, fetch the winner's row
+  q = await prisma.queue.findFirst({ where });
+  if (!q) throw new Error(
+    `getOrCreateQueue: row still missing after P2002 — clinicId=${clinicId} doctorId=${doctorId} date=${date} sessionId=${sid}`
+  );
   return q;
 };
 
