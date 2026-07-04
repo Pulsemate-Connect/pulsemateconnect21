@@ -255,7 +255,7 @@ app.get('/privacy-policy', (req, res) => {
 </html>`);
 });
 
-// ─── ONE-TIME CLEANUP: Cancel stale PENDING_PAYMENT appointments ──────────────
+// ─── ONE-TIME CLEANUP: Cancel stale PENDING_PAYMENT appointments + orphaned queues ──
 // Secured by secret key. Call once then this will be removed.
 // GET /api/fix-pending?key=pulsemate-fix-2026
 app.get('/api/fix-pending', async (req, res) => {
@@ -265,16 +265,36 @@ app.get('/api/fix-pending', async (req, res) => {
   const { PrismaClient } = require('@prisma/client');
   const _prisma = new PrismaClient();
   try {
+    // Cancel stuck PENDING_PAYMENT appointments
     const stuck = await _prisma.appointment.findMany({
       where: { status: 'PENDING_PAYMENT' },
       select: { id: true, patientId: true, doctorId: true, clinicId: true, appointmentDate: true, createdAt: true },
     });
-    const result = await _prisma.appointment.updateMany({
+    const apptResult = await _prisma.appointment.updateMany({
       where: { status: 'PENDING_PAYMENT' },
       data: { status: 'CANCELLED' },
     });
+
+    // Delete ALL Queue rows that have no QueueItems (orphaned from failed bookings)
+    const orphanedQueues = await _prisma.queue.findMany({
+      where: { queueItems: { none: {} } },
+      select: { id: true, clinicId: true, doctorId: true, date: true, sessionId: true },
+    });
+    let queueResult = { count: 0 };
+    if (orphanedQueues.length > 0) {
+      queueResult = await _prisma.queue.deleteMany({
+        where: { id: { in: orphanedQueues.map(q => q.id) } },
+      });
+    }
+
     await _prisma.$disconnect();
-    return res.json({ success: true, cancelled: result.count, records: stuck });
+    return res.json({
+      success: true,
+      cancelledAppointments: apptResult.count,
+      deletedOrphanQueues: queueResult.count,
+      appointments: stuck,
+      queues: orphanedQueues,
+    });
   } catch (err) {
     await _prisma.$disconnect();
     return res.status(500).json({ error: err.message });
