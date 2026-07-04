@@ -51,10 +51,15 @@ const fetchBookedSlots = async (doctorId, clinicId, dateStr) => {
   return new Set(booked.map((a) => a.slotTime));
 };
 
-/** Build the slot response array with available/booked/past flags */
+/** Build the slot response array with available/booked/past flags.
+ * Adds a 5-minute buffer — slots starting within the next 5 minutes are also
+ * treated as past so patients can't book a slot that's essentially already started.
+ */
 const buildSlotArray = (allSlots, bookedSet, targetDate) => {
   const now = new Date();
   const isToday = new Date(targetDate).toDateString() === now.toDateString();
+  // 5-minute booking buffer — don't allow booking a slot < 5 minutes away
+  const bufferMs = 5 * 60 * 1000;
 
   return allSlots.map((time) => {
     let isPast = false;
@@ -62,7 +67,7 @@ const buildSlotArray = (allSlots, bookedSet, targetDate) => {
       const [h, m] = time.split(':').map(Number);
       const slotDt = new Date(targetDate);
       slotDt.setHours(h, m, 0, 0);
-      isPast = slotDt <= now;
+      isPast = slotDt.getTime() - now.getTime() < bufferMs;
     }
     return {
       time,

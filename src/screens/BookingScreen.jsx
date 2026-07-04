@@ -279,29 +279,47 @@ export default function BookingScreen({ route, navigation }) {
     getAvailableSlots(doctorId, { clinicId, date })
       .then((r) => {
         const data = r.data.data;
-        console.log('[BookingScreen] Slots API Response:', {
-          source: data.source,
-          totalSlots: data.slots?.length || 0,
-          availableSlots: data.slots?.filter(s => s.available).length || 0,
-          bookedCount: data.bookedCount,
-          slotDuration: data.slotDurationMin,
-          slots: data.slots
-        });
         setSlotsSource(data.source || 'none');
         if (Array.isArray(data.slots) && data.slots.length > 0) {
           setSlots(data.slots);
+          // Auto-select the first session that has available slots for this date
+          // (handles case where morning session has ended — go straight to afternoon)
+          if (clinicSessions.length > 0) {
+            const isToday = date === new Date().toISOString().split('T')[0];
+            const nowMins = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : 0;
+
+            for (const sess of clinicSessions) {
+              const sessStart = convertTimeToMinutes(sess.startTime);
+              const sessEnd   = convertTimeToMinutes(sess.endTime);
+
+              // Skip sessions that have fully ended today
+              if (isToday && sessEnd <= nowMins + 5) continue;
+
+              // Check if this session has available slots
+              const available = data.slots.filter(s => {
+                if (!s.available) return false;
+                const slotMins = convertTimeToMinutes(s.time);
+                return slotMins >= sessStart && slotMins < sessEnd;
+              });
+
+              if (available.length > 0) {
+                setSession(sess.id);
+                setSlot(available[0].time);
+                break;
+              }
+            }
+          }
         } else {
           setSlots([]);
           setSlotsSource('none');
         }
       })
-      .catch((err) => {
-        console.error('[BookingScreen] Slots API Error:', err);
+      .catch(() => {
         setSlots([]);
         setSlotsSource('none');
       })
       .finally(() => setSlotsLoading(false));
-  }, [date, doctorId, clinicId]);
+  }, [date, doctorId, clinicId, clinicSessions]);
 
   // ── Slot session helpers ─────────────────────────────────────────────────────
   // Helper function to convert HH:mm to minutes
@@ -323,17 +341,6 @@ export default function BookingScreen({ route, navigation }) {
       if (!s.available) return false;
       const slotMins = convertTimeToMinutes(s.time);
       return slotMins >= sessStart && slotMins < sessEnd;
-    });
-    
-    console.log('[BookingScreen] getSessionSlots:', {
-      sessionId,
-      sessionName: sess.name,
-      sessionStart: sess.startTime,
-      sessionEnd: sess.endTime,
-      totalSlots: slots.length,
-      availableSlots: slots.filter(s => s.available).length,
-      filteredForSession: filtered.length,
-      sampleSlots: slots.slice(0, 3)
     });
     
     return filtered;
@@ -627,8 +634,14 @@ export default function BookingScreen({ route, navigation }) {
               ) : (
                 <>
                   <View style={s.sessionRow}>
-                    {/* Dynamic Sessions from Database */}
-                    {clinicSessions.map((sess) => {
+                    {/* Dynamic Sessions — hide sessions that have fully ended today */}
+                    {clinicSessions.filter((sess) => {
+                      const isToday = date === new Date().toISOString().split('T')[0];
+                      if (!isToday) return true;
+                      const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+                      const sessEnd = convertTimeToMinutes(sess.endTime);
+                      return sessEnd > nowMins + 5; // only show sessions still running or upcoming
+                    }).map((sess) => {
                       const active = session === sess.id;
                       const sessionSlots = getSessionSlots(sess.id);
                       const hasSlots = sessionSlots.length > 0;
