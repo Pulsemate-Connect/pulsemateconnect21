@@ -372,18 +372,31 @@ const addFollowUp = async (req, res, next) => {
       data: { position: { increment: 1 } },
     });
 
-    // Update estimated wait for all regular waiting patients
+    // Update estimated wait for all regular waiting patients — single updateMany
+    // We can't use a subquery join in Prisma for this, but we can batch the IDs
     const regularWaiting = await prisma.queueItem.findMany({
       where: { queueId: queue.id, status: 'WAITING', isFollowUp: false },
+      select: { id: true, position: true, appointmentId: true },
     });
+
+    // Batch update appointments using updateMany per position group
+    // Group by position to minimize queries
+    const positionGroups = {};
     for (const item of regularWaiting) {
       if (item.appointmentId) {
-        await prisma.appointment.update({
-          where: { id: item.appointmentId },
-          data: { estimatedWaitMinutes: item.position * (doctorProfile.avgConsultationMins || 10) },
-        });
+        const estWait = item.position * (doctorProfile.avgConsultationMins || 10);
+        if (!positionGroups[estWait]) positionGroups[estWait] = [];
+        positionGroups[estWait].push(item.appointmentId);
       }
     }
+    await Promise.all(
+      Object.entries(positionGroups).map(([estWait, apptIds]) =>
+        prisma.appointment.updateMany({
+          where: { id: { in: apptIds } },
+          data: { estimatedWaitMinutes: parseInt(estWait) },
+        })
+      )
+    );
 
     // Emit socket update
     const io = req.app.get('io');

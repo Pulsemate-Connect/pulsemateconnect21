@@ -113,7 +113,7 @@ const getDoctorProfile = async (req, res, next) => {
                 id: true, name: true, city: true, address: true, phone: true,
                 openingTime: true, closingTime: true,
                 isVerified: true, approvalStatus: true,
-                clinicLogoUrl: true,
+                clinicLogoUrl: true, latitude: true, longitude: true,
               },
             },
           },
