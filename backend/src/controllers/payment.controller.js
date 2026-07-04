@@ -254,7 +254,35 @@ const initiatePayment = async (req, res, next) => {
           throw new Error('FREE_BOOKING_ALREADY_USED');
         }
 
-        // Create the appointment
+        // ── Assign queue number inline (same tx) so we can set status=BOOKED directly ──
+        let queueNumber = null;
+        let estimatedWaitMinutes = null;
+        if (appointmentType === 'OFFLINE') {
+          const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
+          const effectiveSessionId = sessionId || null;
+          const q = await tx.queue.upsert({
+            where: effectiveSessionId
+              ? { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: day, sessionId: effectiveSessionId } }
+              : { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: day, sessionId: null } },
+            update: {},
+            create: {
+              clinicId, doctorId, date: day, status: 'ACTIVE',
+              ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+            },
+          });
+          const lastItem = await tx.queueItem.findFirst({
+            where: { queueId: q.id },
+            orderBy: { queueNumber: 'desc' },
+          });
+          queueNumber = (lastItem?.queueNumber || 0) + 1;
+          const waitingCount = await tx.queueItem.count({ where: { queueId: q.id, status: 'WAITING' } });
+          estimatedWaitMinutes = waitingCount * (doctorClinic?.avgConsultationMins || 10);
+          // We'll create the QueueItem after the appointment is created below
+          const apptForQueue = { clinicId, doctorId, sessionId, queueNumber, waitingCount, queueId: q.id };
+          tx._queueData = apptForQueue; // pass to post-create step
+        }
+
+        // Create the appointment directly as BOOKED (no PENDING_PAYMENT for free bookings)
         const appointment = await tx.appointment.create({
           data: {
             patientId,
@@ -265,9 +293,29 @@ const initiatePayment = async (req, res, next) => {
             appointmentDate: new Date(appointmentDate),
             slotTime: slotTime || null,
             symptoms: symptoms || null,
-            status: 'PENDING_PAYMENT', // will be updated to BOOKED by assignQueueAndConfirm
+            status: 'BOOKED',
+            ...(queueNumber != null ? { queueNumber, estimatedWaitMinutes } : {}),
+          },
+          include: {
+            doctor: { include: { user: { select: { id: true, name: true } } } },
+            clinic: { select: { id: true, name: true, address: true, city: true } },
           },
         });
+
+        // Create QueueItem if offline
+        if (appointmentType === 'OFFLINE' && tx._queueData) {
+          const { queueId, waitingCount } = tx._queueData;
+          await tx.queueItem.create({
+            data: {
+              queueId,
+              appointmentId: appointment.id,
+              patientId,
+              queueNumber,
+              status: 'WAITING',
+              position: waitingCount + 1,
+            },
+          });
+        }
 
         // Create a FREE payment record (amount = 0, status PAID immediately)
         await tx.payment.create({
@@ -276,7 +324,7 @@ const initiatePayment = async (req, res, next) => {
             patientId,
             amount: 0,
             status: 'PAID',
-            method: 'RAZORPAY', // reuse existing enum; amount=0 distinguishes it
+            method: 'RAZORPAY',
             razorpayOrderId: `free_${appointment.id}`,
             razorpayPaymentId: `free_${appointment.id}`,
             razorpaySignature: 'free_booking',
@@ -293,9 +341,9 @@ const initiatePayment = async (req, res, next) => {
         return appointment;
       });
 
-      // Assign queue + confirm outside the transaction (non-critical DB writes)
+      // Emit socket events (non-critical, outside transaction)
       const io = req.app.get('io');
-      const confirmed = await assignQueueAndConfirm(result, doctorClinic, io);
+      const confirmed = result;
 
       // Notify patient — free booking message
       sendNotification(patientId, {
