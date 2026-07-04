@@ -28,6 +28,7 @@ import MyAppointments from './pages/patient/MyAppointments';
 import LiveQueue from './pages/patient/LiveQueue';
 import PatientProfile from './pages/patient/PatientProfile';
 import PaymentPage from './pages/patient/PaymentPage';
+import MyPayments from './pages/patient/MyPayments';
 
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import DoctorAppointments from './pages/doctor/DoctorAppointments';
@@ -92,6 +93,7 @@ const AppRoutes = () => {
       <Route path="/patient/queue/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><LiveQueue /></ProtectedRoute>} />
       <Route path="/patient/profile" element={<ProtectedRoute roles={['PATIENT']}><PatientProfile /></ProtectedRoute>} />
       <Route path="/patient/payment/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><PaymentPage /></ProtectedRoute>} />
+      <Route path="/patient/payments" element={<ProtectedRoute roles={['PATIENT']}><MyPayments /></ProtectedRoute>} />
 
       <Route path="/doctor" element={<Navigate to="/doctor/dashboard" replace />} />
       <Route path="/doctor/dashboard" element={<ProtectedRoute roles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />

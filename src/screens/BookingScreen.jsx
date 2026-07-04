@@ -267,23 +267,6 @@ export default function BookingScreen({ route, navigation }) {
     }, [route.params?.paymentResult])
   );
 
-  // ── Fetch clinic sessions on mount ───────────────────────────────────────────
-  // NOTE: Only one useEffect for sessions — duplicate removed
-  useEffect(() => {
-    if (!clinicId) return;
-    setSessionsLoading(true);
-    getClinicSessions(clinicId)
-      .then((r) => {
-        const sessions = r.data.data.sessions || [];
-        setClinicSessions(sessions);
-      })
-      .catch((err) => {
-        if (__DEV__) console.error('[Booking] Failed to fetch clinic sessions', err);
-        setClinicSessions([]);
-      })
-      .finally(() => setSessionsLoading(false));
-  }, [clinicId]);
-
   // ── Fetch slots when date changes ────────────────────────────────────────────
   useEffect(() => {
     if (!date || !doctorId || !clinicId) return;

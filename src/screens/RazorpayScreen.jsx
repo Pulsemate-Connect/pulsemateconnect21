@@ -188,12 +188,16 @@ export default function RazorpayScreen({ route, navigation }) {
         });
       } catch (err) {
         setVerifying(false);
-        Alert.alert(
-          'Payment Verification Failed',
-          err.response?.data?.message ||
-            'Payment received but verification failed. Please contact support with your payment ID.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        // Navigate to PaymentStatus screen which will poll until confirmed
+        // This handles the case where verify call fails but payment may have succeeded
+        navigation.navigate('PaymentStatus', {
+          appointmentId,
+          orderId:         msg.razorpayOrderId,
+          amount:          Math.round((orderAmount || 0) / 100),
+          doctorName,
+          clinicName:      route.params?.clinicName || '',
+          appointmentDate: route.params?.appointmentDate || '',
+        });
       }
       return;
     }

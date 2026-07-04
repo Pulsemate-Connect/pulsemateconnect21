@@ -29,3 +29,9 @@ export const updatePatientProfile = (data) =>
 
 export const getNearby = (params) =>
   api.get('/patient/nearby', { params });
+
+export const getAvailableSlots = (doctorId, params) =>
+  api.get(`/doctor/${doctorId}/slots`, { params });
+
+export const getClinicSessions = (clinicId) =>
+  api.get(`/clinics/${clinicId}/sessions`);
