@@ -441,7 +441,21 @@ export default function BookingScreen({ route, navigation }) {
       if (__DEV__) {
         console.error('[Booking] Error', err.response?.data || err.message);
       }
-      Alert.alert('Booking Failed', err.response?.data?.message || 'Please try again.');
+      const errMsg = err.response?.data?.message || 'Please try again.';
+      const isAlreadyBooked = errMsg.includes('already have') || err.response?.status === 409;
+
+      if (isAlreadyBooked) {
+        Alert.alert(
+          'Already Booked',
+          'You already have an appointment with this doctor on this date. Check your Appointments tab.',
+          [
+            { text: 'View My Appointments', onPress: () => navigation.navigate('AppointmentsTab') },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      } else {
+        Alert.alert('Booking Failed', errMsg);
+      }
     } finally {
       setLoading(false);
     }

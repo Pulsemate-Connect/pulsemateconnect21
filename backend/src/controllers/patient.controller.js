@@ -209,6 +209,8 @@ const bookAppointment = async (req, res, next) => {
     }
 
     // Check for duplicate booking by same patient
+    // Exclude PENDING_PAYMENT > 30 min old (abandoned payments allow rebooking)
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
     const existingBooking = await prisma.appointment.findFirst({
       where: {
         patientId: req.user.id,
@@ -217,10 +219,22 @@ const bookAppointment = async (req, res, next) => {
           gte: new Date(new Date(appointmentDate).setHours(0, 0, 0, 0)),
           lte: new Date(new Date(appointmentDate).setHours(23, 59, 59, 999)),
         },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        OR: [
+          // Any confirmed/active booking — always block
+          { status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] } },
+          // Recent PENDING_PAYMENT only (within 30 min) — block double-tap
+          { status: 'PENDING_PAYMENT', createdAt: { gte: thirtyMinsAgo } },
+        ],
       },
+      select: { id: true, queueNumber: true, slotTime: true, status: true },
     });
-    if (existingBooking) return sendError(res, 'You already have an appointment with this doctor on this date', 409);
+    if (existingBooking) {
+      // Return the existing appointment details so the patient can see what they already have
+      return sendError(res,
+        `You already have a confirmed appointment with this doctor on this date (Token #${existingBooking.queueNumber || 'assigned at clinic'}, Slot: ${existingBooking.slotTime || 'walk-in'}). Check your appointments tab.`,
+        409
+      );
+    }
 
     let appointment;
     let estimatedAppointmentTime = null;
