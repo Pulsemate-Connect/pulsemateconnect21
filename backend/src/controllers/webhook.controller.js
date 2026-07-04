@@ -36,19 +36,26 @@ const assignQueueAndConfirm = async (appointment, io) => {
     const day = new Date(appointment.appointmentDate);
     day.setUTCHours(0, 0, 0, 0);
 
-    // upsert prevents P2002 unique constraint error on concurrent queue creation
-    let queue = await prisma.queue.upsert({
-      where: {
-        clinicId_doctorId_date_sessionId: {
-          clinicId: appointment.clinicId,
-          doctorId: appointment.doctorId,
-          date: day,
-          sessionId: null,
-        },
-      },
-      update: {},
-      create: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, status: 'ACTIVE' },
+    // findFirst + create with P2002 catch — handles nullable sessionId
+    // (Prisma upsert cannot use unique indexes with nullable fields)
+    let queue = await prisma.queue.findFirst({
+      where: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day },
     });
+    if (!queue) {
+      try {
+        queue = await prisma.queue.create({
+          data: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, status: 'ACTIVE' },
+        });
+      } catch (err) {
+        if (err.code === 'P2002') {
+          queue = await prisma.queue.findFirst({
+            where: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day },
+          });
+        } else {
+          throw err;
+        }
+      }
+    }
 
     const lastItem = await prisma.queueItem.findFirst({
       where: { queueId: queue.id },

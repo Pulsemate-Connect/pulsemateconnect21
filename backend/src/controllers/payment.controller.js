@@ -31,21 +31,29 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
         ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
         : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-      // upsert prevents P2002 unique constraint error when two concurrent
-      // requests both find no queue and both try to create one
-      let q = await tx.queue.upsert({
-        where: effectiveSessionId
-          ? { clinicId_doctorId_date_sessionId: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId } }
-          : { clinicId_doctorId_date_sessionId: { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null } },
-        update: {}, // already exists — no changes needed
-        create: {
-          clinicId: appointment.clinicId,
-          doctorId: appointment.doctorId,
-          date: day,
-          status: 'ACTIVE',
-          ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
-        },
-      });
+      // findFirst + create with P2002 catch — handles nullable sessionId
+      // (Prisma upsert cannot use unique indexes with nullable fields)
+      let q = await tx.queue.findFirst({ where: queueWhere });
+      if (!q) {
+        try {
+          q = await tx.queue.create({
+            data: {
+              clinicId: appointment.clinicId,
+              doctorId: appointment.doctorId,
+              date: day,
+              status: 'ACTIVE',
+              ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+            },
+          });
+        } catch (err) {
+          // P2002 = another concurrent request created it first — fetch it
+          if (err.code === 'P2002') {
+            q = await tx.queue.findFirst({ where: queueWhere });
+          } else {
+            throw err;
+          }
+        }
+      }
 
       // Count ALL items (not just waiting) to get a monotonically increasing number
       const allItems = await tx.queueItem.findMany({
@@ -260,16 +268,25 @@ const initiatePayment = async (req, res, next) => {
         if (appointmentType === 'OFFLINE') {
           const day = new Date(appointmentDate); day.setUTCHours(0, 0, 0, 0);
           const effectiveSessionId = sessionId || null;
-          const q = await tx.queue.upsert({
-            where: effectiveSessionId
-              ? { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: day, sessionId: effectiveSessionId } }
-              : { clinicId_doctorId_date_sessionId: { clinicId, doctorId, date: day, sessionId: null } },
-            update: {},
-            create: {
-              clinicId, doctorId, date: day, status: 'ACTIVE',
-              ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
-            },
-          });
+          const queueWhere = effectiveSessionId
+            ? { clinicId, doctorId, date: day, sessionId: effectiveSessionId }
+            : { clinicId, doctorId, date: day, sessionId: null };
+
+          // findFirst + create with P2002 catch — handles nullable sessionId
+          let q = await tx.queue.findFirst({ where: queueWhere });
+          if (!q) {
+            try {
+              q = await tx.queue.create({
+                data: { clinicId, doctorId, date: day, status: 'ACTIVE', ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}) },
+              });
+            } catch (err) {
+              if (err.code === 'P2002') {
+                q = await tx.queue.findFirst({ where: queueWhere });
+              } else {
+                throw err;
+              }
+            }
+          }
           const lastItem = await tx.queueItem.findFirst({
             where: { queueId: q.id },
             orderBy: { queueNumber: 'desc' },
