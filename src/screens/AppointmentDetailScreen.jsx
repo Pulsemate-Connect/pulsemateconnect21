@@ -159,8 +159,8 @@ export default function AppointmentDetailScreen({ route, navigation }) {
           <Text style={s.sectionTitle}>Details</Text>
           <View style={s.grid}>
             <InfoItem label="Date"  value={new Date(appt.appointmentDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
-            <InfoItem label="Type"  value={appt.appointmentType === 'OFFLINE' ? 'In-Clinic' : 'Online'} />
-            {appt.slotTime && <InfoItem label="Time" value={appt.slotTime} />}
+            <InfoItem label="Type"  value={appt.appointmentType === 'OFFLINE' ? '🏥 In-Clinic' : '💻 Online'} />
+            {appt.slotTime && <InfoItem label="Time" value={(() => { const [h,m] = appt.slotTime.split(':').map(Number); return `${h > 12 ? h-12 : h||12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`; })()} />}
             {appt.estimatedWaitMinutes && <InfoItem label="Est. Wait" value={`${appt.estimatedWaitMinutes} min`} />}
           </View>
           {appt.symptoms && (
@@ -260,7 +260,7 @@ const s = StyleSheet.create({
   docSpec:      { fontSize: 13, color: colors.primary, marginTop: 2 },
   infoRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   infoText:     { fontSize: 14, color: colors.text, flex: 1 },
-  grid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 0 },
+  grid:         { flexDirection: 'column', gap: 0 },
   symptomsBox:  { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginTop: 8 },
   symptomsLabel:{ fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 4 },
   symptomsText: { fontSize: 13, color: colors.text, lineHeight: 20 },
