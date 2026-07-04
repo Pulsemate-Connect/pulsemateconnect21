@@ -2,7 +2,7 @@
   "expo": {
     "name": "PulseMate Connect",
     "slug": "pulsemate-app",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,7 @@
         "backgroundColor": "#2563EB"
       },
       "package": "in.pulsemateconnect.patient",
-      "versionCode": 20,
+      "versionCode": 21,
       "targetSdkVersion": 34,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
