@@ -336,7 +336,7 @@ const addStaff = async (req, res, next) => {
             doctorProfile: {
               create: {
                 approvalStatus: 'VERIFIED',
-                marketplaceVisible: false,
+                marketplaceVisible: true,
               },
             },
           }),
@@ -373,7 +373,7 @@ const addStaff = async (req, res, next) => {
             data: {
               userId: user.id,
               approvalStatus: 'VERIFIED',
-              marketplaceVisible: false,
+              marketplaceVisible: true,
             },
           });
         }
@@ -828,7 +828,7 @@ const createDoctor = async (req, res, next) => {
           approvalStatus: 'VERIFIED',
           profileStatus: 'INCOMPLETE',
           verificationStatus: 'NOT_VERIFIED',
-          marketplaceVisible: false,
+          marketplaceVisible: true,
           onlineAvailable: consultationMode === 'ONLINE' || consultationMode === 'BOTH',
           offlineAvailable: consultationMode === 'OFFLINE' || consultationMode === 'BOTH',
         },
