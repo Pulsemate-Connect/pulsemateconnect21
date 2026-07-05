@@ -98,7 +98,9 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, estimate
           <View style={so.detailRow}>
             <Ionicons name="person" size={13} color={BLUE} />
             <Text style={so.detailLabel}>Doctor</Text>
-            <Text style={so.detailVal}>Dr. {doctorName}</Text>
+            <Text style={so.detailVal}>
+              {doctorName?.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`}
+            </Text>
           </View>
           <View style={so.divider} />
           <View style={so.detailRow}>
@@ -137,18 +139,18 @@ function SuccessOverlay({ visible, doctorName, date, slot, queueNumber, estimate
 }
 
 const so = StyleSheet.create({
-  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.75)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card:       { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', width: '100%' },
-  checkCircle:{ width: 88, height: 88, borderRadius: 44, backgroundColor: GREEN_L, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  checkInner: { width: 70, height: 70, borderRadius: 35, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
-  title:      { fontSize: 22, fontWeight: '800', color: SLATE, marginBottom: 6, textAlign: 'center' },
-  sub:        { fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 20, lineHeight: 19 },
-  detailBox:  { width: '100%', backgroundColor: BG, borderRadius: 14, padding: 4, marginBottom: 20 },
-  detailRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
-  detailLabel:{ fontSize: 12, color: MUTED, flex: 1 },
-  detailVal:  { fontSize: 13, fontWeight: '700', color: SLATE },
-  divider:    { height: 1, backgroundColor: BORDER, marginHorizontal: 12 },
-  btn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 15, width: '100%', justifyContent: 'center' },
+  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.78)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  card:       { backgroundColor: WHITE, borderRadius: 28, padding: 28, alignItems: 'center', width: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.25, shadowRadius: 24, elevation: 16 },
+  checkCircle:{ width: 90, height: 90, borderRadius: 45, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  checkInner: { width: 68, height: 68, borderRadius: 34, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
+  title:      { fontSize: 22, fontWeight: '800', color: SLATE, marginBottom: 6, textAlign: 'center', letterSpacing: -0.3 },
+  sub:        { fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 22, lineHeight: 20, paddingHorizontal: 8 },
+  detailBox:  { width: '100%', backgroundColor: '#F8FAFF', borderRadius: 16, borderWidth: 1, borderColor: '#E8EEFF', marginBottom: 22, overflow: 'hidden' },
+  detailRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 13 },
+  detailLabel:{ fontSize: 12, color: MUTED, width: 90 },
+  detailVal:  { fontSize: 13, fontWeight: '700', color: SLATE, flex: 1, textAlign: 'right' },
+  divider:    { height: 1, backgroundColor: '#EEF0FF' },
+  btn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 15, width: '100%', justifyContent: 'center', shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   btnText:    { fontSize: 15, fontWeight: '800', color: WHITE },
 });
 
