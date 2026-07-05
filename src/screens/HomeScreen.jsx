@@ -223,15 +223,6 @@ export default function HomeScreen({ navigation }) {
           <SearchBar onPress={goSearch} />
         </View>
 
-        {/* Profile completion banner — shown below sticky search */}
-        {profileCompletion && profileCompletion.pct < 100 && (
-          <ProfileBanner
-            pct={profileCompletion.pct}
-            missing={profileCompletion.missing}
-            onPress={goProfile}
-          />
-        )}
-
         {/* rest scrolls freely */}
         <HeroBanner onGetStarted={goSearch} />
 
