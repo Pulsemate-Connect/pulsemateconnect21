@@ -276,39 +276,47 @@ export default function AppointmentsScreen({ navigation }) {
                     {/* Queue strip */}
                     {qi && (
                       <View style={s.qStrip}>
-                        <View style={s.qStripItem}>
-                          <Ionicons name="people-outline" size={16} color={colors.primary} />
-                          <View>
-                            <Text style={s.qStripVal}>
-                              <Text style={s.qStripBold}>{qi.position ? `${qi.position}th` : '—'}</Text> in queue
-                            </Text>
+                        {/* Row 1 — Position + Est. Wait */}
+                        <View style={s.qStripRow}>
+                          <View style={s.qStatBox}>
+                            <Ionicons name="people" size={18} color="#6366F1" />
+                            <View>
+                              <Text style={s.qStatVal}>{qi.position ? `#${qi.position}` : '—'}</Text>
+                              <Text style={s.qStatLbl}>Your Position</Text>
+                            </View>
+                          </View>
+                          <View style={s.qStripVDiv} />
+                          <View style={s.qStatBox}>
+                            <Ionicons name="timer" size={18} color="#F59E0B" />
+                            <View>
+                              <Text style={s.qStatVal}>
+                                {qi.estimatedWaitMinutes != null ? `~${qi.estimatedWaitMinutes}m` : '—'}
+                              </Text>
+                              <Text style={s.qStatLbl}>Est. Wait</Text>
+                            </View>
+                          </View>
+                          <View style={s.qStripVDiv} />
+                          <View style={s.qStatBox}>
+                            <Ionicons name="time" size={18} color="#0284C7" />
+                            <View>
+                              <Text style={[s.qStatVal, { color: '#0284C7' }]}>
+                                {qi.estimatedAppointmentTime ? fmtTime(qi.estimatedAppointmentTime) : '—'}
+                              </Text>
+                              <Text style={s.qStatLbl}>Your Slot</Text>
+                            </View>
                           </View>
                         </View>
-                        <View style={s.qStripDiv} />
-                        <View style={s.qStripItem}>
-                          <Ionicons name="timer-outline" size={16} color={colors.primary} />
-                          <View>
-                            <Text style={s.qStripVal}>Est. wait</Text>
-                            <Text style={s.qStripBold}>
-                              {qi.estimatedWaitMinutes ? `~${qi.estimatedWaitMinutes} mins` : '—'}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={s.qStripDiv} />
-                        <View style={s.qStripItem}>
-                          <Ionicons name="time-outline" size={16} color={colors.primary} />
-                          <View>
-                            <Text style={s.qStripVal}>Your slot</Text>
-                            <Text style={[s.qStripBold, { color: '#0284C7' }]}>
-                              {qi.estimatedAppointmentTime ? fmtTime(qi.estimatedAppointmentTime) : '—'}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={s.qStripDiv} />
-                        <View style={s.qStripItem}>
-                          <Ionicons name="notifications-outline" size={16} color={colors.primary} />
-                          <Text style={s.qStripVal}>Notify before{'\n'}your turn</Text>
-                        </View>
+
+                        {/* Row 2 — Notify button */}
+                        <TouchableOpacity
+                          style={s.notifyBtn}
+                          activeOpacity={0.8}
+                          onPress={() => navigation.navigate('LiveQueue', { appointmentId: appt.id })}
+                        >
+                          <Ionicons name="notifications" size={15} color="#fff" />
+                          <Text style={s.notifyBtnTxt}>Get Notified Before Your Turn</Text>
+                          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.8)" />
+                        </TouchableOpacity>
                       </View>
                     )}
 
@@ -520,11 +528,14 @@ const s = StyleSheet.create({
   tokenNum:         { fontSize: 18, fontWeight: '900' },
 
   // Queue strip
-  qStrip:           { flexDirection: 'row', backgroundColor: '#F0F4FF', borderRadius: radius.lg, padding: 10, gap: 4, marginBottom: 10 },
-  qStripItem:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qStripDiv:        { width: 1, backgroundColor: colors.border, marginHorizontal: 2 },
-  qStripVal:        { fontSize: 10, color: colors.textMuted, lineHeight: 14 },
-  qStripBold:       { fontSize: 11, fontWeight: '800', color: colors.text },
+  qStrip:           { backgroundColor: '#F0F4FF', borderRadius: radius.lg, padding: 12, marginBottom: 10, gap: 10 },
+  qStripRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  qStatBox:         { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qStripVDiv:       { width: 1, height: 36, backgroundColor: '#D1D5DB' },
+  qStatVal:         { fontSize: 14, fontWeight: '800', color: colors.text },
+  qStatLbl:         { fontSize: 10, color: colors.textMuted, marginTop: 1, fontWeight: '500' },
+  notifyBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 14 },
+  notifyBtnTxt:     { flex: 1, fontSize: 12, fontWeight: '700', color: '#fff', textAlign: 'center' },
 
   // Cancel
   cancelBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: radius.md, backgroundColor: '#FEE2E2' },
