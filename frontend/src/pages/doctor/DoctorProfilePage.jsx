@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getDoctorProfile, updateDoctorProfile, updateAvailability } from '../../api/doctor.api';
 import { getMyDoctorInvitations, respondToDoctorInvitation } from '../../api/marketplace.api';
+import api from '../../api/axios';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
@@ -105,6 +106,20 @@ const DoctorProfilePage = () => {
     );
   }
 
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('photo', file);
+    try {
+      const res = await api.post('/upload/doctor-photo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setProfile((p) => ({ ...p, profileImage: res.data.data.url }));
+      toast.success('Profile photo updated!');
+    } catch {
+      toast.error('Upload failed');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="page-container max-w-2xl">
@@ -118,10 +133,23 @@ const DoctorProfilePage = () => {
         {/* Header card */}
         <div className="card mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center">
-              <span className="text-primary-700 font-bold text-2xl">
-                {user?.name?.charAt(0)?.toUpperCase() || 'D'}
-              </span>
+            <div className="relative">
+              {profile?.profileImage ? (
+                <img src={profile.profileImage} alt="Profile" className="w-16 h-16 rounded-2xl object-cover" />
+              ) : (
+                <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center">
+                  <span className="text-primary-700 font-bold text-2xl">
+                    {user?.name?.charAt(0)?.toUpperCase() || 'D'}
+                  </span>
+                </div>
+              )}
+              <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700">
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </label>
             </div>
             <div>
               <h2 className="text-xl font-bold text-text-primary">{user?.name}</h2>

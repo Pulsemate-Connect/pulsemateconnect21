@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getMyClinics, createClinic, updateClinic } from '../../api/clinic.api';
+import api from '../../api/axios';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
@@ -10,6 +11,7 @@ const ClinicProfile = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(!!id);
   const [isSaving, setIsSaving] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -27,6 +29,7 @@ const ClinicProfile = () => {
           const res = await getMyClinics();
           const clinic = res.data.data.clinics?.find((c) => c.id === id);
           if (clinic) {
+            setLogoUrl(clinic.clinicLogoUrl || '');
             setFormData({
               name: clinic.name || '',
               phone: clinic.phone || '',
@@ -74,6 +77,21 @@ const ClinicProfile = () => {
     );
   }
 
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('logo', file);
+    if (id) formData.append('clinicId', id);
+    try {
+      const res = await api.post('/upload/clinic-logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setLogoUrl(res.data.data.url);
+      toast.success('Logo uploaded!');
+    } catch {
+      toast.error('Upload failed');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="page-container max-w-2xl">
@@ -87,6 +105,32 @@ const ClinicProfile = () => {
         </div>
 
         <div className="card">
+          {/* Clinic Logo */}
+          <div className="flex items-center gap-4 mb-6 pb-6 border-b border-border">
+            <div className="relative">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Clinic Logo" className="w-16 h-16 rounded-2xl object-cover border border-border" />
+              ) : (
+                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center border border-border">
+                  <span className="text-2xl font-bold text-blue-600">
+                    {formData.name?.charAt(0)?.toUpperCase() || '🏥'}
+                  </span>
+                </div>
+              )}
+              <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700">
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoUpload} />
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </label>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Clinic Logo</p>
+              <p className="text-xs text-text-muted mt-0.5">JPEG, PNG or WebP · Max 5MB</p>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">Clinic Name *</label>

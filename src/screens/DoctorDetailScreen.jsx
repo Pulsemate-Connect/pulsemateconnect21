@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Animated, Easing, Dimensions, StatusBar,
-  Linking, Platform, Alert,
+  Linking, Platform, Alert, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -310,9 +310,17 @@ export default function DoctorDetailScreen({ route, navigation }) {
           <View style={dd.heroContent}>
             {/* Avatar */}
             <View style={dd.avatarRing}>
-              <View style={[dd.avatar, { backgroundColor: cfg.bg }]}>
-                <Text style={[dd.avatarInitial, { color: accent }]}>{initial}</Text>
-              </View>
+              {doctor.profilePhotoUrl || doctor.profileImage ? (
+                <Image
+                  source={{ uri: doctor.profilePhotoUrl || doctor.profileImage }}
+                  style={{ width: 82, height: 82, borderRadius: 41 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[dd.avatar, { backgroundColor: cfg.bg }]}>
+                  <Text style={[dd.avatarInitial, { color: accent }]}>{initial}</Text>
+                </View>
+              )}
               <View style={dd.onlineDot} />
             </View>
 

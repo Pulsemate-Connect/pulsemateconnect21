@@ -74,7 +74,7 @@ const searchDoctors = async (req, res, next) => {
               clinic: {
                 select: {
                   id: true, name: true, city: true, address: true,
-                  isVerified: true, approvalStatus: true,
+                  isVerified: true, approvalStatus: true, clinicLogoUrl: true,
                 },
               },
             },
@@ -84,7 +84,7 @@ const searchDoctors = async (req, res, next) => {
       prisma.doctorProfile.count({ where }),
     ]);
 
-    return sendPaginated(res, doctors, total, page, limit);
+    return sendPaginated(res, doctors.map(d => ({ ...d, profilePhotoUrl: d.profileImage || null })), total, page, limit);
   } catch (error) {
     next(error);
   }
@@ -345,9 +345,12 @@ const getMyAppointments = async (req, res, next) => {
         take: parseInt(limit),
         include: {
           doctor: {
-            include: { user: { select: { id: true, name: true } } },
+            include: {
+              user: { select: { id: true, name: true } },
+            },
+            // include profileImage so avatars can be shown
           },
-          clinic: { select: { id: true, name: true, address: true, city: true, phone: true } },
+          clinic: { select: { id: true, name: true, address: true, city: true, phone: true, clinicLogoUrl: true } },
           queueItem: true,
           payment: { select: { id: true, status: true, amount: true, method: true } },
         },
@@ -375,7 +378,7 @@ const getAppointmentDetails = async (req, res, next) => {
         doctor: {
           include: { user: { select: { id: true, name: true } } },
         },
-        clinic: { select: { id: true, name: true, address: true, city: true, phone: true, latitude: true, longitude: true } },
+        clinic: { select: { id: true, name: true, address: true, city: true, phone: true, latitude: true, longitude: true, clinicLogoUrl: true } },
         queueItem: true,
         payment: { select: { id: true, status: true, amount: true, method: true, paidAt: true, razorpayPaymentId: true } },
       },

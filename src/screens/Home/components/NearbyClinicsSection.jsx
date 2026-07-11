@@ -3,9 +3,10 @@
 //  Horizontal scrollable clinic cards — matches TopDoctorsSection pattern
 // ─────────────────────────────────────────────────────────────────────────────
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, Image, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import SectionHeader from './SectionHeader';
 
@@ -24,12 +25,25 @@ export const DUMMY_CLINICS = [
   { id: 'd4', name: 'Medanta Care',            distanceKm: '5.3', city: 'Whitefield',  queueCount: 5,  rating: '4.5', ratingCount: 142, clinicLogoUrl: null, isOpen: true  },
 ];
 
-// ── Clinic logo placeholder ────────────────────────────────────────────────
-function ClinicLogo({ name, size = 52 }) {
+// ── Clinic logo with image + initial fallback ──────────────────────────────
+function ClinicLogo({ name, logoUrl, size = 52 }) {
+  const [broken, setBroken] = useState(false);
   const initial = name?.charAt(0)?.toUpperCase() || '🏥';
   const paletteBg   = ['#DBEAFE', '#D1FAE5', '#FEE2E2', '#EDE9FE', '#FEF3C7', '#CCFBF1'];
   const paletteText = ['#1D4ED8', '#065F46', '#991B1B', '#6D28D9', '#92400E', '#0F766E'];
   const idx = ((name?.charCodeAt(0) || 72) - 65) % paletteBg.length;
+
+  if (logoUrl && !broken) {
+    return (
+      <Image
+        source={{ uri: logoUrl }}
+        style={{ width: size, height: size, borderRadius: size * 0.25, borderWidth: 1.5, borderColor: '#E2E8F0' }}
+        resizeMode="cover"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+
   return (
     <View style={[logo.wrap, { width: size, height: size, borderRadius: size * 0.25, backgroundColor: paletteBg[idx] }]}>
       <Text style={[logo.initial, { color: paletteText[idx], fontSize: size * 0.42 }]}>{initial}</Text>
@@ -52,7 +66,7 @@ function ClinicCard({ clinic, onBook, cardWidth }) {
     <View style={[s.card, { width: cardWidth }]}>
       {/* Header: logo + open badge */}
       <View style={s.cardTop}>
-        <ClinicLogo name={name} size={48} />
+        <ClinicLogo name={name} logoUrl={clinicLogoUrl} size={48} />
         <View style={[s.openBadge, !isOpenVal && s.closedBadge]}>
           <View style={[s.openDot, !isOpenVal && s.closedDot]} />
           <Text style={[s.openBadgeText, !isOpenVal && s.closedBadgeText]}>

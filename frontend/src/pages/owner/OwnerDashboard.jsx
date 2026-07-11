@@ -552,11 +552,26 @@ const OwnerDashboard = () => {
 
             {/* Dashboard header */}
             <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Clinic Dashboard</h1>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Welcome back, <span className="font-semibold text-gray-700">{user?.name}</span>
-                </p>
+              <div className="flex items-center gap-3">
+                {selectedClinic?.clinicLogoUrl ? (
+                  <img
+                    src={selectedClinic.clinicLogoUrl}
+                    alt={selectedClinic.name}
+                    className="w-10 h-10 rounded-xl object-cover border border-gray-200 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-600 font-bold text-lg">
+                      {selectedClinic?.name?.charAt(0)?.toUpperCase() || '🏥'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Clinic Dashboard</h1>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Welcome back, <span className="font-semibold text-gray-700">{user?.name}</span>
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <ConnectionStatusBadge connected={connected} reconnecting={reconnecting} />

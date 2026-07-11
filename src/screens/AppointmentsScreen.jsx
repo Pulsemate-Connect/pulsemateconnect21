@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, Image, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, ScrollView, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -54,6 +54,32 @@ const fmtTime = (t) => {
   const hr = parseInt(h);
   return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
 };
+
+// ── DoctorAvatar — photo with graceful fallback to colour initial ─────────────
+function DoctorAvatar({ photoUrl, name, size = 48 }) {
+  const [broken, setBroken] = useState(false);
+  const initial = name?.charAt(0)?.toUpperCase() || 'D';
+  const paletteBg   = ['#DBEAFE','#D1FAE5','#FEE2E2','#EDE9FE','#FEF3C7'];
+  const paletteText = ['#1D4ED8','#065F46','#991B1B','#6D28D9','#92400E'];
+  const idx = ((name?.charCodeAt(0) || 65) - 65) % paletteBg.length;
+
+  if (photoUrl && !broken) {
+    return (
+      <Image
+        source={{ uri: photoUrl }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: paletteBg[idx], alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontSize: size * 0.4, fontWeight: '800', color: paletteText[idx] }}>{initial}</Text>
+    </View>
+  );
+}
 
 export default function AppointmentsScreen({ navigation }) {
   const [appointments, setAppointments] = useState([]);
@@ -227,11 +253,11 @@ export default function AppointmentsScreen({ navigation }) {
                   >
                     {/* Doctor row */}
                     <View style={s.upTop}>
-                      <View style={[s.upAvatar, { backgroundColor: color + '18' }]}>
-                        <Text style={[s.upAvatarTxt, { color }]}>
-                          {appt.doctor?.user?.name?.charAt(0)?.toUpperCase() || 'D'}
-                        </Text>
-                      </View>
+                      <DoctorAvatar
+                        photoUrl={appt.doctor?.profileImage || appt.doctor?.profilePhotoUrl}
+                        name={appt.doctor?.user?.name}
+                        size={64}
+                      />
 
                       <View style={s.upInfo}>
                         <Text style={s.upName}>Dr. {appt.doctor?.user?.name}</Text>
@@ -382,11 +408,11 @@ export default function AppointmentsScreen({ navigation }) {
                       onPress={() => navigation.navigate('AppointmentDetail', { id: appt.id })}
                       activeOpacity={0.85}
                     >
-                      <View style={[s.pastAvatar, { backgroundColor: color + '18' }]}>
-                        <Text style={[s.pastAvatarTxt, { color }]}>
-                          {appt.doctor?.user?.name?.charAt(0)?.toUpperCase() || 'D'}
-                        </Text>
-                      </View>
+                      <DoctorAvatar
+                        photoUrl={appt.doctor?.profileImage || appt.doctor?.profilePhotoUrl}
+                        name={appt.doctor?.user?.name}
+                        size={48}
+                      />
                       <View style={s.pastInfo}>
                         <Text style={s.pastName}>Dr. {appt.doctor?.user?.name}</Text>
                         <Text style={[s.pastSpec, { color }]}>
