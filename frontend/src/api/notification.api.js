@@ -8,7 +8,7 @@ export const removeFcmToken = (token) =>
   api.delete('/notifications/fcm-token', { data: { token } });
 
 export const getMyNotifications = () =>
-  api.get('/notifications/my');
+  api.get('/notifications');
 
 export const markNotificationRead = (notificationId) =>
   api.patch(`/notifications/${notificationId}/read`);

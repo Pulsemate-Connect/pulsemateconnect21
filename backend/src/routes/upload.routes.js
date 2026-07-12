@@ -12,21 +12,21 @@ const {
 // Clinic uploads (owner only)
 router.post('/clinic-logo',
   authenticate,
-  authorize(['CLINIC_OWNER', 'SUPER_ADMIN']),
+  authorize('CLINIC_OWNER', 'SUPER_ADMIN'),
   upload.single('logo'),
   uploadClinicLogo
 );
 
 router.post('/clinic-cover',
   authenticate,
-  authorize(['CLINIC_OWNER', 'SUPER_ADMIN']),
+  authorize('CLINIC_OWNER', 'SUPER_ADMIN'),
   upload.single('cover'),
   uploadClinicCover
 );
 
 router.post('/clinic-document',
   authenticate,
-  authorize(['CLINIC_OWNER', 'SUPER_ADMIN']),
+  authorize('CLINIC_OWNER', 'SUPER_ADMIN'),
   upload.single('document'),
   uploadClinicDocument
 );
@@ -34,7 +34,7 @@ router.post('/clinic-document',
 // Doctor uploads
 router.post('/doctor-photo',
   authenticate,
-  authorize(['DOCTOR']),
+  authorize('DOCTOR'),
   upload.single('photo'),
   uploadDoctorPhoto
 );
