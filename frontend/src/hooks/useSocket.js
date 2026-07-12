@@ -2,7 +2,11 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import useAuthStore from '../store/authStore';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+// Use VITE_SOCKET_URL if set, otherwise derive from VITE_API_URL, otherwise use production URL
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') ||
+  'https://api.pulsemateconnect.in';
 
 let socketInstance = null;
 

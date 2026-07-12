@@ -47,11 +47,18 @@ const upload = multer({
 });
 
 /**
- * Get file URL from filename
+ * Get file URL from filename.
+ * Always uses HTTPS on production (Render terminates SSL at the proxy,
+ * so req.protocol is 'http' even on HTTPS requests — we force https here).
  */
 const getFileUrl = (filename, req) => {
-  const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}/uploads/${filename}`;
+  // Prefer explicit API_URL env var (set in Render environment variables)
+  if (process.env.API_URL) {
+    return `${process.env.API_URL.replace(/\/api\/?$/, '')}/uploads/${filename}`;
+  }
+  // In production, always use https regardless of req.protocol
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+  return `${protocol}://${req.get('host')}/uploads/${filename}`;
 };
 
 /**
