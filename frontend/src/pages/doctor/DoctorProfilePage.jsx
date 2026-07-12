@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { getDoctorProfile, updateDoctorProfile, updateAvailability } from '../../api/doctor.api';
+import { getDoctorProfile, updateDoctorProfile } from '../../api/doctor.api';
 import { getMyDoctorInvitations, respondToDoctorInvitation } from '../../api/marketplace.api';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -82,10 +82,6 @@ const DoctorProfilePage = () => {
     setIsSaving(true);
     try {
       await updateDoctorProfile(formData);
-      await updateAvailability({
-        onlineAvailable: formData.onlineAvailable,
-        offlineAvailable: formData.offlineAvailable,
-      });
       // Refresh
       const res = await getDoctorProfile();
       setProfile(res.data.data.profile);
