@@ -15,6 +15,7 @@ const {
 router.use(authenticate);
 
 router.get('/', getMyNotifications);
+router.get('/my', getMyNotifications); // alias for older frontend builds
 router.get('/unread-count', getUnreadCount);
 router.patch('/:id/read', markNotificationAsRead);
 router.patch('/read-all', markAllNotificationsAsRead);
