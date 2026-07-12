@@ -2,23 +2,22 @@
 //  Notification Controller — PulseMate Connect
 // ═════════════════════════════════════════════════════════════════════════════
 const { sendSuccess, sendError } = require('../utils/response');
-const {
-  getUserNotifications,
-  markAsRead,
-  markAllAsRead,
-  getUnreadCount,
-} = require('../services/notification.service');
+const prisma = require('../config/database');
 
 /**
- * GET /api/notifications
- * Get current user's notifications
+ * GET /api/notifications (also /api/notifications/my)
+ * Get current user's notifications from UserNotification table (campaign-based)
  */
 exports.getMyNotifications = async (req, res, next) => {
   try {
     const { limit = 20, unreadOnly = false } = req.query;
-    const notifications = await getUserNotifications(req.user.id, {
-      limit: parseInt(limit),
-      unreadOnly: unreadOnly === 'true',
+    const where = { userId: req.user.id };
+    if (unreadOnly === 'true') where.isRead = false;
+
+    const notifications = await prisma.userNotification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit),
     });
 
     return sendSuccess(res, { notifications });
@@ -29,11 +28,12 @@ exports.getMyNotifications = async (req, res, next) => {
 
 /**
  * GET /api/notifications/unread-count
- * Get unread notification count
  */
 exports.getUnreadCount = async (req, res, next) => {
   try {
-    const count = await getUnreadCount(req.user.id);
+    const count = await prisma.userNotification.count({
+      where: { userId: req.user.id, isRead: false },
+    });
     return sendSuccess(res, { count });
   } catch (error) {
     next(error);
@@ -42,12 +42,14 @@ exports.getUnreadCount = async (req, res, next) => {
 
 /**
  * PATCH /api/notifications/:id/read
- * Mark notification as read
  */
 exports.markNotificationAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
-    await markAsRead(id, req.user.id);
+    await prisma.userNotification.updateMany({
+      where: { id, userId: req.user.id },
+      data: { isRead: true },
+    });
     return sendSuccess(res, {}, 'Notification marked as read');
   } catch (error) {
     next(error);
@@ -56,11 +58,13 @@ exports.markNotificationAsRead = async (req, res, next) => {
 
 /**
  * PATCH /api/notifications/read-all
- * Mark all notifications as read
  */
 exports.markAllNotificationsAsRead = async (req, res, next) => {
   try {
-    const result = await markAllAsRead(req.user.id);
+    const result = await prisma.userNotification.updateMany({
+      where: { userId: req.user.id, isRead: false },
+      data: { isRead: true },
+    });
     return sendSuccess(res, { updated: result.count }, 'All notifications marked as read');
   } catch (error) {
     next(error);
