@@ -242,6 +242,7 @@ const patientFirebasePhoneLoginHandler = async (req, res, next) => {
       isNewUser ? 'Patient account created successfully' : 'Login successful'
     );
   } catch (error) {
+    console.error('[patientFirebasePhoneLogin] 500:', error?.message, '| code:', error?.code, '| meta:', JSON.stringify(error?.meta));
     next(error);
   }
 };
