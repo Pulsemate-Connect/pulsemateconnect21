@@ -20,6 +20,17 @@ import PublicHomePage from './pages/public/PublicHomePage';
 import PrivacyPolicyPage from './pages/public/PrivacyPolicyPage';
 import TermsPage from './pages/public/TermsPage';
 import DeleteAccountPage from './pages/public/DeleteAccountPage';
+import RefundPolicyPage from './pages/public/legal/RefundPolicyPage';
+import CancellationPolicyPage from './pages/public/legal/CancellationPolicyPage';
+import CookiesPolicyPage from './pages/public/legal/CookiesPolicyPage';
+import SecurityPolicyPage from './pages/public/legal/SecurityPolicyPage';
+import MedicalDisclaimerPage from './pages/public/legal/MedicalDisclaimerPage';
+import CommunityGuidelinesPage from './pages/public/legal/CommunityGuidelinesPage';
+import ContactPage from './pages/public/legal/ContactPage';
+import AboutPage from './pages/public/legal/AboutPage';
+import AccessibilityPage from './pages/public/legal/AccessibilityPage';
+import CopyrightPage from './pages/public/legal/CopyrightPage';
+import OpenSourcePage from './pages/public/legal/OpenSourcePage';
 
 import PatientDashboard from './pages/patient/PatientDashboard';
 import DoctorSearch from './pages/patient/DoctorSearch';
@@ -72,6 +83,18 @@ const AppRoutes = () => {
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/delete-account" element={<DeleteAccountPage />} />
+      <Route path="/data-deletion" element={<DeleteAccountPage />} />
+      <Route path="/refund-policy" element={<RefundPolicyPage />} />
+      <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
+      <Route path="/cookies" element={<CookiesPolicyPage />} />
+      <Route path="/security" element={<SecurityPolicyPage />} />
+      <Route path="/medical-disclaimer" element={<MedicalDisclaimerPage />} />
+      <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/accessibility" element={<AccessibilityPage />} />
+      <Route path="/copyright" element={<CopyrightPage />} />
+      <Route path="/open-source" element={<OpenSourcePage />} />
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/staff/login" element={<PublicRoute><StaffLoginPage /></PublicRoute>} />
       <Route path="/login/:role" element={<PublicRoute><RoleLoginPage /></PublicRoute>} />

@@ -6,6 +6,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Dimensions, StatusBar,
   Modal, TextInput, KeyboardAvoidingView, Platform, Animated,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +39,19 @@ const SLATE    = '#334155';
 const GRAY     = '#64748B';
 const MUTED    = '#94A3B8';
 const BORDER   = '#E2E8F0';
+
+// ── Legal links ───────────────────────────────────────────────────────────────
+const BASE_URL = 'https://pulsemateconnect.in';
+const LEGAL_LINKS = [
+  { label: 'Privacy Policy',      url: '/privacy' },
+  { label: 'Terms & Conditions',  url: '/terms' },
+  { label: 'Refund Policy',       url: '/refund-policy' },
+  { label: 'Cancellation Policy', url: '/cancellation-policy' },
+  { label: 'Medical Disclaimer',  url: '/medical-disclaimer' },
+  { label: 'Data Deletion',       url: '/delete-account' },
+  { label: 'Contact Us',          url: '/contact' },
+  { label: 'About PulseMate',     url: '/about' },
+];
 
 const BLOOD_GROUPS   = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const GENDER_OPTIONS = [
@@ -729,6 +743,22 @@ export default function ProfileScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* ── Legal & Policies ── */}
+        <View style={s.legalSection}>
+          <Text style={s.legalSectionTitle}>Legal & Policies</Text>
+          {LEGAL_LINKS.map(link => (
+            <TouchableOpacity
+              key={link.url}
+              style={s.legalRow}
+              onPress={() => Linking.openURL(BASE_URL + link.url)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.legalLabel}>{link.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color={MUTED} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* ── Logout ── */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
           <View style={s.logoutIconWrap}>
@@ -874,6 +904,12 @@ const s = StyleSheet.create({
   apptDate:   { fontSize: 11, color: GRAY, fontWeight: '500' },
   timeRow:    { flexDirection: 'row', alignItems: 'center', gap: 3 },
   apptTime:   { fontSize: 10, color: MUTED },
+
+  // Legal section
+  legalSection:      { marginBottom: 16 },
+  legalSectionTitle: { fontSize: 12, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, paddingHorizontal: 4 },
+  legalRow:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12, marginBottom: 2, borderWidth: 1, borderColor: BORDER },
+  legalLabel:        { fontSize: 14, color: DARK, fontWeight: '500' },
 
   // Logout
   logoutBtn:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 18, borderWidth: 1, borderColor: '#FEE2E2', paddingHorizontal: 16, paddingVertical: 16, marginBottom: 8, shadowColor: RED, shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },

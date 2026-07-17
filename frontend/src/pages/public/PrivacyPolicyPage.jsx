@@ -1,167 +1,158 @@
-import { Link } from 'react-router-dom';
-import PulsemateLogo from '../../components/PulsemateLogo';
+import LegalLayout, { Section, InfoBox, Ul, ContactBlock } from './legal/LegalLayout';
 
-const Section = ({ title, children }) => (
-  <div className="mb-8">
-    <h2 className="text-xl font-bold text-slate-900 mb-3">{title}</h2>
-    <div className="text-slate-600 leading-relaxed space-y-2">{children}</div>
-  </div>
-);
+const TOC = [
+  { id: 'intro',       label: '1. Introduction' },
+  { id: 'collected',   label: '2. Information Collected' },
+  { id: 'firebase',    label: '3. Firebase Authentication' },
+  { id: 'fcm',         label: '4. Push Notifications (FCM)' },
+  { id: 'razorpay',    label: '5. Razorpay Payments' },
+  { id: 'location',    label: '6. Location Permission' },
+  { id: 'camera',      label: '7. Camera Permission' },
+  { id: 'files',       label: '8. File Upload Permission' },
+  { id: 'usage',       label: '9. How We Use Information' },
+  { id: 'sharing',     label: '10. Data Sharing' },
+  { id: 'security',    label: '11. Data Storage & Security' },
+  { id: 'retention',   label: '12. Data Retention' },
+  { id: 'rights',      label: '13. User Rights' },
+  { id: 'deletion',    label: '14. Account Deletion' },
+  { id: 'children',    label: '15. Children\'s Privacy' },
+  { id: 'updates',     label: '16. Policy Updates' },
+  { id: 'contact',     label: '17. Contact Us' },
+];
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link to="/"><PulsemateLogo size="md" theme="light" /></Link>
-          <Link to="/" className="text-sm text-blue-600 hover:underline">← Back to Home</Link>
-        </div>
-      </header>
+    <LegalLayout
+      title="Privacy Policy"
+      lastUpdated="July 17, 2026"
+      toc={TOC}
+      subtitle="How PulseMate Connect collects, uses, and protects your personal information."
+    >
+      <Section title="1. Introduction" id="intro">
+        <p>PulseMate Connect ("PulseMate", "we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and web platform (collectively, the "Service").</p>
+        <p>By using the Service, you agree to the practices described in this policy. If you do not agree, please discontinue use of the Service.</p>
+        <InfoBox type="info">This policy applies to all users of PulseMate Connect, including patients, doctors, clinic owners, and receptionists registered on the platform.</InfoBox>
+      </Section>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-12">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Privacy Policy</h1>
-          <p className="text-sm text-slate-400 mb-8">Last updated: June 19, 2026 · Effective: June 19, 2026</p>
+      <Section title="2. Information Collected" id="collected">
+        <p><strong>Phone Number &amp; OTP</strong> — Your mobile number is used for Firebase OTP authentication. It is stored securely and never shared for marketing purposes.</p>
+        <p><strong>Profile Information</strong> — Name, date of birth, gender, blood group, city, emergency contact, allergies, and existing medical conditions you optionally provide to personalise your care experience.</p>
+        <p><strong>Appointment Data</strong> — Doctor, clinic, slot, symptoms, queue position, and appointment status — necessary to deliver the booking service.</p>
+        <p><strong>Clinic &amp; Doctor Information</strong> — Clinic name, address, registration documents, and doctor credentials uploaded during onboarding for verification.</p>
+        <p><strong>Device &amp; Analytics Data</strong> — FCM tokens, crash logs, and anonymised usage metrics to improve app stability. These are not linked to your personal identity.</p>
+        <p><strong>Payment References</strong> — Razorpay Order ID, Payment ID, and status. We never store card numbers or UPI credentials.</p>
+      </Section>
 
-          <p className="text-slate-600 leading-relaxed mb-8">
-            PulseMate Connect ("PulseMate", "we", "our", or "us") is committed to protecting your privacy.
-            This Privacy Policy explains how we collect, use, disclose, and safeguard your information when
-            you use the PulseMate mobile application and website (collectively, the "Service").
-            Please read this policy carefully. By using the Service, you agree to the collection and use
-            of information in accordance with this policy.
-          </p>
+      <Section title="3. Firebase Authentication" id="firebase">
+        <p>We use <strong>Firebase Authentication</strong> (Google LLC) for phone-based OTP login. Firebase processes your phone number to deliver an SMS verification code. Your data under Firebase is governed by Google's Privacy Policy: <a href="https://policies.google.com/privacy" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a></p>
+        <p>Firebase may temporarily retain your phone number and device token for the duration of OTP delivery. PulseMate does not access raw OTP codes — Firebase handles verification on our behalf.</p>
+      </Section>
 
-          <Section title="1. Information We Collect">
-            <p><strong>a) Phone Number</strong></p>
-            <p>We collect your mobile phone number to create and authenticate your account using Firebase Phone Authentication (OTP). Your phone number is stored securely and used only for identity verification and account recovery. It is never shared with third parties for marketing purposes.</p>
-            <p className="mt-2"><strong>b) Name and Profile Information</strong></p>
-            <p>You may optionally provide your full name, date of birth, gender, blood group, city, emergency contact number, known allergies, and existing medical conditions. This information personalises your experience and assists healthcare providers.</p>
-            <p className="mt-2"><strong>c) Location Data</strong></p>
-            <p>With your explicit permission, we collect your device's precise GPS location (latitude and longitude) solely to show you nearby clinics and doctors. Location is collected only while the app is in use (foreground) and is never collected in the background. You can deny or revoke location permission at any time in your device settings.</p>
-            <p className="mt-2"><strong>d) Payment Information</strong></p>
-            <p>Appointment booking fees are processed via Razorpay, a PCI-DSS compliant payment gateway. PulseMate does not store your card numbers, UPI IDs, or banking credentials. We only store payment status, Razorpay Order ID, and Payment ID for appointment confirmation and refund purposes.</p>
-            <p className="mt-2"><strong>e) Appointment and Health Data</strong></p>
-            <p>We store appointment details including doctor, clinic, date, time, symptoms, queue position, and status. This data is used to provide the Service and is not sold to third parties.</p>
-            <p className="mt-2"><strong>f) Device and Usage Data</strong></p>
-            <p>We may collect device identifiers (FCM token for push notifications), app usage logs, and crash reports to improve app performance. This data is anonymised and not linked to your personal identity.</p>
-          </Section>
+      <Section title="4. Push Notifications (FCM)" id="fcm">
+        <p>With your permission, PulseMate sends push notifications via <strong>Firebase Cloud Messaging</strong> for appointment confirmations, queue updates, payment receipts, and reminders.</p>
+        <Ul items={[
+          'You can disable notifications in device Settings → Apps → PulseMate → Notifications',
+          'Or within the app: Profile → Notification Settings',
+          'FCM tokens are deleted when you log out or delete your account',
+        ]} />
+      </Section>
 
-          <Section title="2. Firebase Authentication">
-            <p>PulseMate uses <strong>Firebase Authentication</strong> (provided by Google LLC) for phone number-based OTP login. Firebase processes your phone number to send an SMS verification code. Google's Privacy Policy applies to Firebase services: <a href="https://policies.google.com/privacy" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">https://policies.google.com/privacy</a></p>
-            <p>Firebase may temporarily store your phone number and device token to deliver the OTP. This data is governed by Google's data processing terms.</p>
-          </Section>
+      <Section title="5. Razorpay Payments" id="razorpay">
+        <p>Booking fees are processed by <strong>Razorpay Software Private Limited</strong>, a PCI-DSS compliant payment gateway. Razorpay's Privacy Policy applies: <a href="https://razorpay.com/privacy/" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">razorpay.com/privacy</a></p>
+        <p>PulseMate only receives payment status (PAID/FAILED) and transaction references. We never access or store your card numbers, CVV, UPI ID, or net banking credentials.</p>
+      </Section>
 
-          <Section title="3. Push Notifications (FCM)">
-            <p>With your permission, PulseMate sends push notifications via <strong>Firebase Cloud Messaging (FCM)</strong> to inform you about appointment confirmations, queue updates, reminders, and important health updates.</p>
-            <p>You can disable notifications at any time through your device's notification settings or within the PulseMate app under Profile → Notification Settings.</p>
-            <p>FCM tokens are stored on our servers and linked to your account to deliver relevant notifications. Tokens are deleted when you log out or delete your account.</p>
-          </Section>
+      <Section title="6. Location Permission" id="location">
+        <p>Location access is requested with an explicit in-app prompt. We use your GPS coordinates solely to display nearby clinics and doctors on the home screen.</p>
+        <InfoBox type="warning">Location is accessed only while the app is in the foreground. We never track location in the background or share it with advertisers.</InfoBox>
+        <p>To revoke: Device Settings → Apps → PulseMate → Permissions → Location → Deny.</p>
+      </Section>
 
-          <Section title="4. Razorpay Payments">
-            <p>Booking fee payments are processed by <strong>Razorpay Software Private Limited</strong>. When you make a payment, you are subject to Razorpay's Privacy Policy: <a href="https://razorpay.com/privacy/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">https://razorpay.com/privacy/</a></p>
-            <p>PulseMate receives only payment status confirmations (PAID/FAILED) and transaction references. We do not have access to your full payment credentials.</p>
-          </Section>
+      <Section title="7. Camera Permission" id="camera">
+        <p>Camera access may be requested for clinic owners and doctors to upload profile photos or clinic images during registration. Images are securely stored on Cloudinary.</p>
+        <p>Patients are not required to grant camera access. The app functions fully without it.</p>
+      </Section>
 
-          <Section title="5. Location Permission">
-            <p>Location access is requested with explicit in-app disclosure before collection. Location is used <strong>only</strong> to find nearby clinics and doctors on the home screen. We do not track your location in the background, share it with third parties, or use it for advertising.</p>
-            <p>To revoke location access: Go to your device's Settings → Apps → PulseMate → Permissions → Location → Deny.</p>
-          </Section>
+      <Section title="8. File Upload Permission" id="files">
+        <p>Clinic owners may upload registration certificates and doctor credential documents as part of our verification process. Files are stored on Cloudinary with restricted access and reviewed only by authorised PulseMate administrators.</p>
+        <p>Patients may upload a profile photo optionally. No medical documents or reports are collected from patients.</p>
+      </Section>
 
-          <Section title="6. How We Use Your Information">
-            <ul className="list-disc pl-5 space-y-1">
-              <li>To create and manage your account</li>
-              <li>To facilitate appointment bookings and queue management</li>
-              <li>To process payments and issue refunds</li>
-              <li>To send appointment reminders and queue updates</li>
-              <li>To show relevant clinics and doctors near you</li>
-              <li>To improve app performance and fix bugs</li>
-              <li>To comply with legal obligations</li>
-            </ul>
-            <p className="mt-2">We do <strong>not</strong> sell your personal data. We do <strong>not</strong> use your health information for advertising.</p>
-          </Section>
+      <Section title="9. How We Use Information" id="usage">
+        <Ul items={[
+          'Create and manage your account securely',
+          'Facilitate appointment bookings and queue management',
+          'Process payments and issue eligible refunds',
+          'Send appointment reminders and real-time queue notifications',
+          'Show clinics and doctors relevant to your location',
+          'Verify clinic and doctor credentials before onboarding',
+          'Improve app performance and resolve technical issues',
+          'Comply with applicable legal obligations under Indian law',
+        ]} />
+        <InfoBox type="success">We do NOT sell your personal data. We do NOT use your health information for targeted advertising.</InfoBox>
+      </Section>
 
-          <Section title="7. Data Sharing">
-            <p>We share your data only in the following limited circumstances:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Healthcare Providers:</strong> Your appointment details and symptoms are shared with the doctor/clinic you book with, solely to provide the medical service.</li>
-              <li><strong>Firebase (Google):</strong> For authentication and push notifications.</li>
-              <li><strong>Razorpay:</strong> For payment processing.</li>
-              <li><strong>Cloudinary:</strong> For storing clinic logo and document images uploaded by clinic owners.</li>
-              <li><strong>Legal Requirements:</strong> We may disclose information if required by law or to protect rights and safety.</li>
-            </ul>
-          </Section>
+      <Section title="10. Data Sharing" id="sharing">
+        <p>We share your data only in these limited circumstances:</p>
+        <Ul items={[
+          'Healthcare Providers — Appointment and symptom details with the doctor/clinic you book with, to deliver the medical service',
+          'Google Firebase — For OTP authentication and FCM push notifications',
+          'Razorpay — For payment processing',
+          'Cloudinary — For secure image and document storage',
+          'Legal Authorities — When required by Indian law, court order, or to protect rights and safety',
+        ]} />
+      </Section>
 
-          <Section title="8. Data Retention">
-            <p>We retain your personal data for as long as your account is active or as needed to provide the Service. After account deletion, your PII (name, phone, email) is anonymised within 30 days. Appointment records are retained in anonymised form for legal and audit purposes.</p>
-          </Section>
+      <Section title="11. Data Storage & Security" id="security">
+        <Ul items={[
+          'All data in transit is encrypted via HTTPS/TLS 1.2+',
+          'JWT tokens used for session management with short expiry windows',
+          'Passwords and sensitive tokens hashed with bcrypt',
+          'Mobile tokens stored in Expo SecureStore (hardware-backed secure enclave)',
+          'Razorpay webhook signatures verified with HMAC-SHA256',
+          'Database hosted on secured PostgreSQL infrastructure',
+        ]} />
+      </Section>
 
-          <Section title="9. Account Deletion">
-            <p>You have the right to delete your account at any time. Upon deletion:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Your name, phone number, and email are permanently anonymised</li>
-              <li>All active appointments are cancelled</li>
-              <li>FCM tokens are deleted</li>
-              <li>Your profile and health information is cleared</li>
-              <li>You are signed out of all devices immediately</li>
-            </ul>
-            <p className="mt-2">To delete your account:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>In-app:</strong> Profile → Delete Account</li>
-              <li><strong>Web:</strong> <Link to="/delete-account" className="text-blue-600 hover:underline">pulsemateconnect.in/delete-account</Link></li>
-              <li><strong>Email:</strong> support@pulsemateconnect.in with subject "Account Deletion Request"</li>
-            </ul>
-          </Section>
+      <Section title="12. Data Retention" id="retention">
+        <p>Personal data is retained while your account is active. Upon account deletion, your PII (name, phone number) is anonymised within 30 days. Appointment records are retained in anonymised form for legal and audit purposes as required under Indian healthcare regulations.</p>
+      </Section>
 
-          <Section title="10. Security">
-            <p>We implement industry-standard security measures including:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>HTTPS encryption for all data in transit</li>
-              <li>JWT tokens with short expiry for session management</li>
-              <li>Passwords hashed using bcrypt</li>
-              <li>Sensitive tokens stored in device's secure enclave (Expo SecureStore)</li>
-              <li>Razorpay HMAC-SHA256 signature verification for payments</li>
-              <li>Cloudinary for secure file storage</li>
-            </ul>
-          </Section>
+      <Section title="13. User Rights" id="rights">
+        <p>Under applicable privacy law, you have the right to:</p>
+        <Ul items={[
+          'Access the personal data we hold about you',
+          'Correct inaccurate or incomplete information',
+          'Request deletion of your account and personal data',
+          'Withdraw consent for location access or push notifications at any time',
+          'Lodge a complaint with a data protection authority',
+        ]} />
+        <p>To exercise any right, contact us at <a href="mailto:support@pulsemateconnect.in" className="text-blue-600 underline">support@pulsemateconnect.in</a>.</p>
+      </Section>
 
-          <Section title="11. Children's Privacy">
-            <p>PulseMate is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, contact us at support@pulsemateconnect.in.</p>
-          </Section>
+      <Section title="14. Account Deletion" id="deletion">
+        <p>You can delete your account at any time. Upon deletion:</p>
+        <Ul items={[
+          'Your name, phone number, and profile data are permanently anonymised',
+          'All active appointments are cancelled with applicable refunds',
+          'FCM push notification tokens are deleted',
+          'You are signed out of all devices immediately',
+        ]} />
+        <p>Deletion requests are processed within 30 days. See our full <a href="/delete-account" className="text-blue-600 underline">Data Deletion Policy</a>.</p>
+      </Section>
 
-          <Section title="12. Your Rights">
-            <p>You have the right to:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Access the personal data we hold about you</li>
-              <li>Correct inaccurate data</li>
-              <li>Request deletion of your data</li>
-              <li>Withdraw consent for location or notifications</li>
-              <li>Lodge a complaint with a data protection authority</li>
-            </ul>
-          </Section>
+      <Section title="15. Children's Privacy" id="children">
+        <p>PulseMate Connect is not intended for individuals under 13 years of age. We do not knowingly collect personal data from children. If you believe a child has registered on our platform, contact us immediately and we will remove their data.</p>
+      </Section>
 
-          <Section title="13. Changes to This Policy">
-            <p>We may update this Privacy Policy from time to time. We will notify you of any significant changes via in-app notification or email. Continued use of the Service after changes constitutes acceptance of the updated policy.</p>
-          </Section>
+      <Section title="16. Policy Updates" id="updates">
+        <p>We may update this Privacy Policy periodically. Significant changes will be communicated via in-app notification or email. Continued use of the Service after any update constitutes acceptance of the revised policy. The "Last Updated" date at the top reflects the most recent revision.</p>
+      </Section>
 
-          <Section title="14. Contact Us">
-            <p>If you have questions about this Privacy Policy or our data practices, contact us at:</p>
-            <div className="mt-2 p-4 bg-blue-50 rounded-xl">
-              <p><strong>PulseMate Connect</strong></p>
-              <p>Email: <a href="mailto:support@pulsemateconnect.in" className="text-blue-600 hover:underline">support@pulsemateconnect.in</a></p>
-              <p>Website: <a href="https://www.pulsemateconnect.in" className="text-blue-600 hover:underline">www.pulsemateconnect.in</a></p>
-            </div>
-          </Section>
-        </div>
-      </main>
-
-      <footer className="text-center py-8 text-sm text-slate-400">
-        <p>© 2026 PulseMate Connect. All rights reserved.</p>
-        <div className="flex justify-center gap-6 mt-2">
-          <Link to="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
-          <Link to="/terms" className="hover:text-slate-600">Terms of Service</Link>
-          <Link to="/delete-account" className="hover:text-slate-600">Delete Account</Link>
-        </div>
-      </footer>
-    </div>
+      <Section title="17. Contact Us" id="contact">
+        <p>For privacy-related queries or to exercise your rights, contact:</p>
+        <ContactBlock />
+      </Section>
+    </LegalLayout>
   );
 }
