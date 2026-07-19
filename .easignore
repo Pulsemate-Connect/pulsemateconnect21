@@ -30,3 +30,9 @@ coverage
 
 # Docs
 *.md
+
+# Android Gradle cache (locked files, not needed for EAS build)
+android/.gradle
+android/app/.cxx
+android/app/build
+android/build
