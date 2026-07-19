@@ -171,9 +171,14 @@ export default function HomeScreen({ navigation }) {
     try {
       const res = await getNearby({
         lat: coords.latitude, lng: coords.longitude,
-        radius: 50, type: 'clinics', limit: 10,
+        radius: 50, type: 'all', limit: 10,
       });
       setNearbyClinics(res?.data?.data?.clinics || []);
+      // Also populate top doctors from nearby if searchDoctors returned empty
+      const nearbyDocs = res?.data?.data?.doctors || [];
+      if (nearbyDocs.length > 0) {
+        setTopDoctors((prev) => prev.length > 0 ? prev : nearbyDocs);
+      }
     } catch {
       setNearbyClinics([]);
     } finally {
@@ -191,7 +196,7 @@ export default function HomeScreen({ navigation }) {
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goSearch     = () => navigation.navigate('Search');
-  const goDoctors    = () => navigation.navigate('DoctorsTab');
+  const goDoctors    = () => navigation.navigate('TopDoctors');
   const goBooking    = (doctor) => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { doctorId: doctor?.id } });
   const goClinicBook = () => navigation.navigate('DoctorsTab');
   const goAllClinics = () => navigation.navigate('NearbyClinics');
@@ -234,8 +239,7 @@ export default function HomeScreen({ navigation }) {
         <NearbyClinicsSection
           clinics={nearbyClinics}
           loading={nearbyLoading}
-          locationStatus={nearbyClinics.length > 0 || nearbyLoading ? 'granted' : 'idle'}
-          onRequestLoc={() => {}}
+          onRefresh={() => { loadData(); }}
           onViewAll={goAllClinics}
           onBook={goClinicBook}
         />

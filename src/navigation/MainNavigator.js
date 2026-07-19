@@ -24,6 +24,7 @@ import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import RazorpayScreen from '../screens/RazorpayScreen';
 import PaymentStatusScreen from '../screens/PaymentStatusScreen';
 import NearbyClinicsScreen from '../screens/NearbyClinicsScreen';
+import TopDoctorsScreen from '../screens/TopDoctorsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -47,6 +48,7 @@ function HomeStack() {
       <Stack.Screen name="PaymentStatus" component={PaymentStatusScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
       <Stack.Screen name="NearbyClinics" component={NearbyClinicsScreen} />
+      <Stack.Screen name="TopDoctors" component={TopDoctorsScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="ProfileWizard" component={ProfileWizardScreen} />
