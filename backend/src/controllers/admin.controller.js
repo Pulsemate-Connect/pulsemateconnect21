@@ -714,7 +714,7 @@ const resetDatabase = async (req, res, next) => {
       name: req.user.name,
     };
 
-    const adminPasswordHash = await hashPassword('Nkabu18$');
+    const adminPasswordHash = await hashPassword(process.env.ROOT_ADMIN_PASSWORD || 'ChangeMe@2024!');
 
     const adminUser = await prisma.$transaction(async (tx) => {
       await tx.auditLog.deleteMany();
@@ -738,9 +738,9 @@ const resetDatabase = async (req, res, next) => {
 
       const createdAdmin = await tx.user.create({
         data: {
-          name: 'Sahil Naik',
-          mobile: '+919000000001',
-          email: 'sahilnaik1515@gmail.com',
+          name: process.env.ROOT_ADMIN_NAME || 'Root Admin',
+          mobile: process.env.ROOT_ADMIN_MOBILE || '+919000000001',
+          email: process.env.ROOT_ADMIN_EMAIL || 'admin@pulsemateconnect.in',
           role: 'SUPER_ADMIN',
           approvalStatus: 'VERIFIED',
           passwordHash: adminPasswordHash,
