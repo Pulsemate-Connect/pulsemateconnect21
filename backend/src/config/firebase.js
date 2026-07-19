@@ -16,7 +16,21 @@ let isInitialized = false;
 const initFirebase = () => {
   if (isInitialized) return adminApp;
 
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  // Try env var first, then fall back to Render secret file
+  let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (!serviceAccountJson) {
+    const fs = require('fs');
+    const secretPath = '/etc/secrets/firebase.json';
+    if (fs.existsSync(secretPath)) {
+      try {
+        serviceAccountJson = fs.readFileSync(secretPath, 'utf8');
+        logger.info('Firebase: loaded service account from secret file');
+      } catch (e) {
+        logger.warn('Firebase: failed to read secret file:', e.message);
+      }
+    }
+  }
 
   if (!serviceAccountJson) {
     logger.warn(
