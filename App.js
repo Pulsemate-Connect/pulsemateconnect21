@@ -307,11 +307,13 @@ function RootNavigator({ navigationRef }) {
   const { user, loading } = useAuth();
   console.log('[RootNavigator] Auth state - loading:', loading, 'user:', !!user);
 
-  // Register push token when authenticated, remove on logout
+  // usePushNotifications must be called unconditionally (Rules of Hooks).
+  // Pass null-safe navigationRef — the hook itself guards against undefined.
+  const safeNavRef = navigationRef ?? { current: null };
   try {
-    usePushNotifications(navigationRef, !!user);
-    console.log('[RootNavigator] Push notifications hook executed');
+    usePushNotifications(safeNavRef, !!user);
   } catch (error) {
+    // Non-fatal — push notifications failing should never crash the app
     console.error('[RootNavigator] Push notifications error:', error);
   }
 
@@ -319,7 +321,7 @@ function RootNavigator({ navigationRef }) {
     console.log('[RootNavigator] Showing splash screen');
     return <SplashScreen />;
   }
-  
+
   console.log('[RootNavigator] Showing', user ? 'MainNavigator' : 'AuthNavigator');
   return user ? <MainNavigator /> : <AuthNavigator />;
 }

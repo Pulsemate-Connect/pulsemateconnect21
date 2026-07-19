@@ -15,15 +15,21 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = useCallback(async () => {
     console.log('[AuthProvider] signOut called');
+    // Run any registered callback (e.g. deregister push token)
     if (onSignOutRef.current) {
-      try { await onSignOutRef.current(); } catch (e) { console.error('[AuthProvider] signOut callback error:', e); }
+      try { await onSignOutRef.current(); } catch (e) {
+        console.error('[AuthProvider] signOut callback error:', e);
+      }
+      onSignOutRef.current = null; // clear so it only fires once
     }
+    // Clear tokens from secure storage
     try {
       await SecureStore.deleteItemAsync('accessToken');
+    } catch {}
+    try {
       await SecureStore.deleteItemAsync('refreshToken');
-    } catch (e) {
-      console.error('[AuthProvider] SecureStore delete error:', e);
-    }
+    } catch {}
+    // Clear state — this triggers RootNavigator re-render to show AuthNavigator
     setToken(null);
     setUser(null);
     console.log('[AuthProvider] signOut complete');

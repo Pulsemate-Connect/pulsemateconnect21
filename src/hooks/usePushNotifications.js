@@ -163,7 +163,10 @@ const usePushNotifications = (navigationRef, isAuthenticated = false) => {
     responseListener.current = N.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data || {};
       const target = getNavigationTarget(data);
-      if (!navigationRef?.current?.isReady?.()) return;
+      // Guard: navigationRef may be null/undefined during logout transition
+      if (!navigationRef?.current) return;
+      if (typeof navigationRef.current.isReady !== 'function') return;
+      if (!navigationRef.current.isReady()) return;
       try {
         if (target.params) {
           navigationRef.current.navigate(target.screen, target.params);

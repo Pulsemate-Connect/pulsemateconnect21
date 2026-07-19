@@ -452,9 +452,13 @@ export default function ProfileScreen({ navigation, route }) {
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: async () => {
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
           try { await logout(); } catch {}
-          signOut();
+          // signOut clears tokens + state → RootNavigator shows AuthNavigator
+          if (typeof signOut === 'function') signOut();
         },
       },
     ]);
@@ -471,8 +475,8 @@ export default function ProfileScreen({ navigation, route }) {
           style: 'destructive',
           onPress: () => {
             Alert.alert(
-              'Are you absolutely sure?',
-              'Type "DELETE" to confirm. This action is irreversible.',
+              'Final Confirmation',
+              'Are you absolutely sure? This action is irreversible.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -481,11 +485,13 @@ export default function ProfileScreen({ navigation, route }) {
                   onPress: async () => {
                     try {
                       await deleteAccount();
-                      await logout().catch(() => {});
-                      signOut();
                     } catch (err) {
-                      Alert.alert('Error', err.response?.data?.message || 'Failed to delete account. Please try again.');
+                      // Even if server delete fails, still sign out locally
+                      console.warn('[DeleteAccount] Server error:', err?.message);
                     }
+                    try { await logout(); } catch {}
+                    // Always sign out — clears local state and navigates to Auth
+                    if (typeof signOut === 'function') signOut();
                   },
                 },
               ]
