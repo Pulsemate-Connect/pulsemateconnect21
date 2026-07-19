@@ -105,10 +105,10 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file(System.getenv("KEYSTORE_PATH") ?: '../../credentials/android/keystore.jks')
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: '59f1eb1d193744c0ae6d420664f0c77b'
-            keyAlias System.getenv("KEY_ALIAS") ?: 'f1a185ee3a5ba7802fd6698297601ca8'
-            keyPassword System.getenv("KEY_PASSWORD") ?: '4850e619405a4963a749151ac3ed2f76'
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: 'release.keystore')
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: ''
+            keyAlias System.getenv("KEY_ALIAS") ?: ''
+            keyPassword System.getenv("KEY_PASSWORD") ?: ''
         }
     }
     buildTypes {
