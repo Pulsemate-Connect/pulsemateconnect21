@@ -30,8 +30,10 @@ const otpVerifyLimiter = createLimiter({
 
 const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   message: 'Too many login attempts. Please try again later.',
+  // Key by email/identifier so each user gets their own counter
+  keyGenerator: (req) => (req.body?.identifier || req.body?.email || req.ip).toLowerCase(),
 });
 
 const forgotPasswordLimiter = createLimiter({
