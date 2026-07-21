@@ -35,3 +35,10 @@ export const getAvailableSlots = (doctorId, params) =>
 
 export const getClinicSessions = (clinicId) =>
   api.get(`/clinics/${clinicId}/sessions`);
+
+// ── Follow-up eligibility + booking ──────────────────────────────────────────
+export const getFollowUpEligibility = () =>
+  api.get('/patient/follow-up/eligible');
+
+export const bookFollowUp = (data) =>
+  api.post('/patient/follow-up/book', data);

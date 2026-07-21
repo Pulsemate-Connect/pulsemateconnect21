@@ -166,7 +166,7 @@ const bookAppointment = async (req, res, next) => {
     const apptDate = new Date(appointmentDate);
 
     // Check clinic holiday
-    const holidayDay = new Date(apptDate); holidayDay.setUTCHours(0,0,0,0);
+    const holidayDay = new Date(apptDate); holidayDay.setUTCHours(0, 0, 0, 0);
     const holiday = await prisma.clinicHoliday.findFirst({
       where: { clinicId, date: holidayDay },
     });
@@ -183,8 +183,8 @@ const bookAppointment = async (req, res, next) => {
         where: {
           clinicId, doctorId, sessionId,
           appointmentDate: {
-            gte: new Date(new Date(appointmentDate).setUTCHours(0,0,0,0)),
-            lte: new Date(new Date(appointmentDate).setUTCHours(23,59,59,999)),
+            gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+            lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
           },
           status: { notIn: ['CANCELLED', 'NO_SHOW'] },
         },
@@ -200,8 +200,8 @@ const bookAppointment = async (req, res, next) => {
         where: {
           doctorId, clinicId, slotTime,
           appointmentDate: {
-            gte: new Date(new Date(appointmentDate).setUTCHours(0,0,0,0)),
-            lte: new Date(new Date(appointmentDate).setUTCHours(23,59,59,999)),
+            gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+            lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
           },
           status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
         },
@@ -239,67 +239,64 @@ const bookAppointment = async (req, res, next) => {
 
     let appointment;
     let estimatedAppointmentTime = null;
+    let queueInfo = null;
 
     if (appointmentType === 'OFFLINE') {
-      // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
-      const today = new Date(appointmentDate); today.setUTCHours(0, 0, 0, 0);
-      const queue = await getOrCreateQueue(clinicId, doctorId, today, sessionId || null);
-      if (queue.status === 'CLOSED') throw new Error('QUEUE_CLOSED');
-      const resolvedQueueId = queue.id;
+      const { addToQueue } = require('../services/queue.service');
 
-      // ── ATOMIC: assign queue number + create appointment ──────────────────
-      appointment = await prisma.$transaction(async (tx) => {
-        const allItems = await tx.queueItem.findMany({
-          where: { queueId: resolvedQueueId },
-          orderBy: { queueNumber: 'desc' },
-          take: 1,
-        });
-        const queueNumber = (allItems[0]?.queueNumber || 0) + 1;
+      // Resolve session ETA info
+      let avgMins = doctorClinic.avgConsultationMins || 15;
+      let sessionStartTime = null;
+      if (sessionId) {
+        const sess = await prisma.clinicSession.findUnique({ where: { id: sessionId } });
+        if (sess) { avgMins = sess.avgConsultationMins || avgMins; sessionStartTime = sess.startTime; }
+      }
 
-        const waitingCount = await tx.queueItem.count({
-          where: { queueId: resolvedQueueId, status: 'WAITING' },
-        });
-
-        const avgMins = doctorClinic.avgConsultationMins || 15;
-
-        const created = await tx.appointment.create({
-          data: {
-            patientId: req.user.id,
-            doctorId, clinicId,
-            ...(sessionId ? { sessionId } : {}),
-            appointmentType,
-            appointmentDate: new Date(appointmentDate),
-            slotTime: slotTime || null,
-            symptoms: symptoms || null,
-            status: 'BOOKED',
-            queueNumber,
-            estimatedWaitMinutes: waitingCount * avgMins,
-          },
-          include: {
-            doctor: { include: { user: { select: { id: true, name: true } } } },
-            clinic: { select: { id: true, name: true, address: true, city: true } },
-          },
-        });
-
-        await tx.queueItem.create({
-          data: {
-            queueId: resolvedQueueId,
-            appointmentId: created.id,
-            patientId: req.user.id,
-            queueNumber,
-            status: 'WAITING',
-            position: waitingCount + 1,
-          },
-        });
-
-        return created;
+      // Create appointment first (status BOOKED — queue number assigned next)
+      appointment = await prisma.appointment.create({
+        data: {
+          patientId: req.user.id,
+          doctorId, clinicId,
+          ...(sessionId ? { sessionId } : {}),
+          appointmentType,
+          appointmentDate: new Date(appointmentDate),
+          slotTime: slotTime || null,
+          symptoms: symptoms || null,
+          status: 'BOOKED',
+          estimatedWaitMinutes: 0,
+        },
+        include: {
+          doctor: { include: { user: { select: { id: true, name: true } } } },
+          clinic: { select: { id: true, name: true, address: true, city: true } },
+        },
       });
 
-      // Estimated appointment time = the booked slot (most accurate)
-      estimatedAppointmentTime = appointment.slotTime || null;
+      // Add to queue via shared engine (handles race conditions + follow-up priority)
+      queueInfo = await addToQueue({
+        clinicId, doctorId,
+        patientId: req.user.id,
+        appointmentId: appointment.id,
+        appointmentDate: new Date(appointmentDate),
+        sessionId: sessionId || null,
+        isFollowUp: false,
+        avgMins,
+        sessionStartTime,
+      });
+
+      // Update appointment with queue number
+      await prisma.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          queueNumber: queueInfo.queueNumber,
+          estimatedWaitMinutes: queueInfo.estimatedWaitMinutes,
+        },
+      });
+
+      appointment = { ...appointment, queueNumber: queueInfo.queueNumber };
+      estimatedAppointmentTime = queueInfo.estimatedAppointmentTime || slotTime || null;
 
     } else {
-      // Online appointment — no queue
+      // ONLINE appointment — no physical queue needed
       appointment = await prisma.appointment.create({
         data: {
           patientId: req.user.id,
@@ -319,14 +316,24 @@ const bookAppointment = async (req, res, next) => {
     }
 
     // Fire-and-forget notifications
-    notifyAppointmentBooked(req.user.id, appointment.doctor?.user?.name || 'the doctor', appointmentDate, appointment.queueNumber).catch(() => {});
+    notifyAppointmentBooked(req.user.id, appointment.doctor?.user?.name || 'the doctor', appointmentDate, appointment.queueNumber).catch(() => { });
     if (appointment.doctor?.user?.id) {
-      notifyDoctorNewBooking(appointment.doctor.user.id, req.user.name || 'A patient', appointmentDate).catch(() => {});
+      notifyDoctorNewBooking(appointment.doctor.user.id, req.user.name || 'A patient', appointmentDate).catch(() => { });
     }
 
-    return sendSuccess(res, { appointment, estimatedAppointmentTime }, 'Appointment booked successfully', 201);
+    return sendSuccess(res, {
+      appointment,
+      estimatedAppointmentTime,
+      ...(queueInfo ? {
+        queueNumber: queueInfo.queueNumber,
+        position: queueInfo.position,
+        estimatedWaitMinutes: queueInfo.estimatedWaitMinutes,
+        etaNote: 'This is an estimate. Actual time may vary based on live queue conditions. Please arrive 10–15 minutes before your estimated time and monitor the live queue.',
+      } : {}),
+    }, 'Appointment booked successfully', 201);
   } catch (error) {
     if (error.message === 'QUEUE_CLOSED') return sendError(res, 'The queue for this session is closed', 400);
+    if (error.status === 400) return sendError(res, error.message, 400);
     next(error);
   }
 };
@@ -353,6 +360,8 @@ const getMyAppointments = async (req, res, next) => {
           clinic: { select: { id: true, name: true, address: true, city: true, phone: true, clinicLogoUrl: true } },
           queueItem: true,
           payment: { select: { id: true, status: true, amount: true, method: true } },
+          // Include prescription to show follow-up recommendation to patient
+          prescriptions: { select: { id: true, requiresFollowUp: true, followUpDate: true, diagnosis: true } },
         },
         orderBy: { appointmentDate: 'desc' },
       }),
@@ -921,6 +930,223 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/patient/follow-up/eligible
+ * Check if the authenticated patient has any eligible follow-up appointments.
+ * Eligibility = prescription exists with requiresFollowUp: true, followUpDate in future,
+ * AND no follow-up has already been booked for that appointment.
+ * Doctor/clinic must have enabled follow-up (prescription set by doctor).
+ */
+const getFollowUpEligibility = async (req, res, next) => {
+  try {
+    const patientId = req.user.id;
+
+    // Find prescriptions for this patient where doctor marked follow-up required
+    const eligiblePrescriptions = await prisma.prescriptions.findMany({
+      where: {
+        patientId,
+        requiresFollowUp: true,
+        // Follow-up date not expired (either null = no deadline, or still in the future)
+        OR: [
+          { followUpDate: null },
+          { followUpDate: { gte: new Date() } },
+        ],
+      },
+      include: {
+        appointments: {
+          select: {
+            id: true,
+            clinicId: true,
+            doctorId: true,
+            sessionId: true,
+            appointmentDate: true,
+            status: true,
+            clinic: { select: { id: true, name: true, city: true, clinicLogoUrl: true, approvalStatus: true, isActive: true } },
+            doctor: { include: { user: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Filter: original appointment must be COMPLETED, clinic must be verified + active
+    const eligible = [];
+    for (const rx of eligiblePrescriptions) {
+      const appt = rx.appointments;
+      if (!appt) continue;
+      if (appt.status !== 'COMPLETED') continue;
+      if (!appt.clinic || appt.clinic.approvalStatus !== 'VERIFIED' || !appt.clinic.isActive) continue;
+
+      // Check if a follow-up has already been booked for this appointment
+      const existingFollowUp = await prisma.queueItem.findFirst({
+        where: { followUpOf: appt.id },
+      });
+      if (existingFollowUp) continue; // already used
+
+      eligible.push({
+        prescriptionId: rx.id,
+        originalAppointmentId: appt.id,
+        appointmentDate: appt.appointmentDate,
+        followUpDate: rx.followUpDate,
+        doctor: {
+          id: appt.doctorId,
+          name: appt.doctor?.user?.name,
+          specialization: appt.doctor?.specialization,
+        },
+        clinic: {
+          id: appt.clinicId,
+          name: appt.clinic.name,
+          city: appt.clinic.city,
+          logoUrl: appt.clinic.clinicLogoUrl,
+        },
+        sessionId: appt.sessionId,
+      });
+    }
+
+    return sendSuccess(res, {
+      isEligible: eligible.length > 0,
+      count: eligible.length,
+      followUps: eligible,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/patient/follow-up/book
+ * Patient books a follow-up appointment.
+ * Backend verifies eligibility — frontend cannot fake this.
+ */
+const bookFollowUp = async (req, res, next) => {
+  try {
+    const patientId = req.user.id;
+    const { originalAppointmentId, symptoms } = req.body;
+
+    if (!originalAppointmentId) {
+      return sendError(res, 'originalAppointmentId is required', 400);
+    }
+
+    // 1. Verify the original appointment belongs to this patient
+    const originalAppt = await prisma.appointment.findUnique({
+      where: { id: originalAppointmentId },
+      include: {
+        clinic: { select: { id: true, name: true, approvalStatus: true, isActive: true } },
+        doctor: {
+          include: { user: { select: { id: true, name: true } } },
+        },
+        prescriptions: true,
+      },
+    });
+
+    if (!originalAppt) return sendError(res, 'Appointment not found', 404);
+    if (originalAppt.patientId !== patientId) return sendError(res, 'Access denied', 403);
+    if (originalAppt.status !== 'COMPLETED') return sendError(res, 'Original appointment must be completed to book a follow-up', 400);
+    if (!originalAppt.clinic || originalAppt.clinic.approvalStatus !== 'VERIFIED' || !originalAppt.clinic.isActive) {
+      return sendError(res, 'Clinic is not available for booking', 400);
+    }
+
+    // 2. Verify prescription exists with requiresFollowUp: true
+    const prescription = originalAppt.prescriptions;
+    if (!prescription) return sendError(res, 'No prescription found for this appointment', 400);
+    if (!prescription.requiresFollowUp) return sendError(res, 'Doctor has not recommended a follow-up for this appointment', 400);
+
+    // 3. Check follow-up date validity
+    if (prescription.followUpDate && new Date(prescription.followUpDate) < new Date()) {
+      return sendError(res, 'Follow-up validity period has expired', 400);
+    }
+
+    // 4. Prevent duplicate follow-up
+    const existingFollowUp = await prisma.queueItem.findFirst({
+      where: { followUpOf: originalAppointmentId },
+    });
+    if (existingFollowUp) {
+      return sendError(res, 'A follow-up has already been booked for this appointment', 409);
+    }
+
+    const clinicId = originalAppt.clinicId;
+    const doctorId = originalAppt.doctorId;
+    const effectiveSessionId = originalAppt.sessionId || null;
+
+    // 5. Resolve session info
+    const { addToQueue, getQueueSessionInfo } = require('../services/queue.service');
+    const queueForSession = await require('../utils/getOrCreateQueue').getOrCreateQueue(
+      clinicId, doctorId, new Date(), effectiveSessionId
+    );
+    const { avgMins, sessionStartTime } = await getQueueSessionInfo(queueForSession);
+
+    // 6. Create follow-up appointment
+    const followUpAppt = await prisma.appointment.create({
+      data: {
+        patientId,
+        doctorId,
+        clinicId,
+        ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
+        appointmentType: 'OFFLINE',
+        appointmentDate: new Date(),
+        status: 'IN_QUEUE',
+        symptoms: symptoms || 'Follow-up visit',
+        estimatedWaitMinutes: 0,
+      },
+      include: {
+        doctor: { include: { user: { select: { id: true, name: true } } } },
+        clinic: { select: { id: true, name: true, city: true } },
+      },
+    });
+
+    // 7. Add to queue via shared engine with follow-up priority
+    const queueResult = await addToQueue({
+      clinicId, doctorId,
+      patientId,
+      appointmentId: followUpAppt.id,
+      appointmentDate: new Date(),
+      sessionId: effectiveSessionId,
+      isFollowUp: true,
+      followUpOf: originalAppointmentId,
+      avgMins,
+      sessionStartTime,
+    });
+
+    // 8. Update appointment with queue info
+    await prisma.appointment.update({
+      where: { id: followUpAppt.id },
+      data: {
+        queueNumber: queueResult.queueNumber,
+        estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
+      },
+    });
+
+    // 9. Socket update
+    const io = req.app.get('io');
+    if (io) {
+      const today = new Date().toISOString().split('T')[0];
+      io.to(`queue:${clinicId}:${doctorId}:${today}`).emit('queue:updated', {
+        type: 'FOLLOW_UP_ADDED',
+        queueItem: { ...queueResult.queueItem, isFollowUp: true },
+      });
+    }
+
+    // 10. Notify doctor
+    notifyDoctorNewBooking(
+      originalAppt.doctor?.user?.id,
+      req.user.name || 'Patient',
+      new Date()
+    ).catch(() => { });
+
+    return sendSuccess(res, {
+      appointment: { ...followUpAppt, queueNumber: queueResult.queueNumber },
+      queueNumber: queueResult.queueNumber,
+      position: queueResult.position,
+      estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
+      estimatedAppointmentTime: queueResult.estimatedAppointmentTime,
+      etaNote: 'This is an estimate. Actual time may vary based on live queue conditions. Please arrive 10–15 minutes before your estimated time.',
+    }, 'Follow-up booked successfully', 201);
+  } catch (error) {
+    if (error.status === 400) return sendError(res, error.message, 400);
+    next(error);
+  }
+};
+
 module.exports = {
   searchDoctors,
   getDoctorProfile,
@@ -933,4 +1159,6 @@ module.exports = {
   updateProfile,
   getNearby,
   deleteAccount,
+  getFollowUpEligibility,
+  bookFollowUp,
 };

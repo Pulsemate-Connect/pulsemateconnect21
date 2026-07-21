@@ -6,6 +6,7 @@ const logger = require('../config/logger');
 const { emitClinicUpdate } = require('../socket');
 const { getIo } = require('../config/socket');
 const { getOrCreateQueue } = require('../utils/getOrCreateQueue');
+const { addToQueue, getQueueSessionInfo } = require('../services/queue.service');
 
 // ─── Fixed platform booking fee ───────────────────────────────────────────────
 const BOOKING_FEE = 10; // ₹10
@@ -14,102 +15,72 @@ const BOOKING_FEE = 10; // ₹10
 
 /**
  * Assign queue number and create queue item for an appointment.
+/**
  * Called after payment confirmation OR immediately for free bookings.
+ * Now uses the shared queue engine for consistent queue assignment.
  */
 const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
-  const avgMins = doctorClinic?.avgConsultationMins || 10;
-
   if (appointment.appointmentType === 'OFFLINE') {
-    const day = new Date(appointment.appointmentDate);
-    day.setUTCHours(0, 0, 0, 0);
     const effectiveSessionId = appointment.sessionId || null;
-    const queueWhere = effectiveSessionId
-      ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
-      : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
 
-    // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
-    const q = await getOrCreateQueue(
-      appointment.clinicId, appointment.doctorId, day, effectiveSessionId
-    );
-    const resolvedQueueId = q.id;
+    // Get session ETA info
+    let avgMins = doctorClinic?.avgConsultationMins || 15;
+    let sessionStartTime = null;
+    if (effectiveSessionId) {
+      const sess = await prisma.clinicSession.findUnique({ where: { id: effectiveSessionId } });
+      if (sess) { avgMins = sess.avgConsultationMins || avgMins; sessionStartTime = sess.startTime; }
+    }
 
-    // ── ATOMIC: assign queue number + confirm appointment ─────────────────
-    const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
-      // Count ALL items to get monotonically increasing queue number
-      const allItems = await tx.queueItem.findMany({
-        where: { queueId: resolvedQueueId },
-        orderBy: { queueNumber: 'desc' },
-        take: 1,
-      });
-      const qNum = (allItems[0]?.queueNumber || 0) + 1;
-
-      const waitingCount = await tx.queueItem.count({
-        where: { queueId: resolvedQueueId, status: 'WAITING' },
-      });
-
-      const updatedAppt = await tx.appointment.update({
-        where: { id: appointment.id },
-        data: {
-          status: 'BOOKED',
-          queueNumber: qNum,
-          estimatedWaitMinutes: waitingCount * avgMins,
-        },
-        include: {
-          doctor: { include: { user: { select: { id: true, name: true } } } },
-          clinic: { select: { id: true, name: true, address: true, city: true } },
-        },
-      });
-
-      await tx.queueItem.create({
-        data: {
-          queueId: resolvedQueueId,
-          appointmentId: appointment.id,
-          patientId: appointment.patientId,
-          queueNumber: qNum,
-          status: 'WAITING',
-          position: waitingCount + 1,
-        },
-      });
-
-      return { confirmed: updatedAppt, queueNumber: qNum, queue: q };
+    // Add to queue via shared engine
+    const queueResult = await addToQueue({
+      clinicId: appointment.clinicId,
+      doctorId: appointment.doctorId,
+      patientId: appointment.patientId,
+      appointmentId: appointment.id,
+      appointmentDate: appointment.appointmentDate,
+      sessionId: effectiveSessionId,
+      isFollowUp: false,
+      avgMins,
+      sessionStartTime,
     });
 
-    if (io) {
-      const today = new Date(appointment.appointmentDate).toISOString().split('T')[0];
-      const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${today}`;
-      io.to(roomName).emit('queue:updated', {
-        type: 'APPOINTMENT_BOOKED',
-        appointmentId: appointment.id,
-        queueNumber,
-      });
-    }
+    // Confirm appointment with queue number
+    const confirmed = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        status: 'BOOKED',
+        queueNumber: queueResult.queueNumber,
+        estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
+      },
+      include: {
+        doctor: { include: { user: { select: { id: true, name: true } } } },
+        clinic: { select: { id: true, name: true, address: true, city: true } },
+      },
+    });
 
-    // Emit clinic-room events for dashboard real-time updates
+    // Socket events
     const ioInstance = io || getIo();
     if (ioInstance) {
+      const today = new Date(appointment.appointmentDate).toISOString().split('T')[0];
+      ioInstance.to(`queue:${appointment.clinicId}:${appointment.doctorId}:${today}`).emit('queue:updated', {
+        type: 'APPOINTMENT_BOOKED',
+        appointmentId: appointment.id,
+        queueNumber: queueResult.queueNumber,
+      });
       emitClinicUpdate(ioInstance, appointment.clinicId, {
         type: 'new-appointment',
-        appointment: {
-          id: confirmed.id,
-          patientId: confirmed.patientId,
-          doctorId: confirmed.doctorId,
-        },
+        appointment: { id: confirmed.id, patientId: confirmed.patientId, doctorId: confirmed.doctorId },
       });
-
-      // Count current waiting queue length for the queue-updated event
       const queueLength = await prisma.queueItem.count({
-        where: { queueId: queue.id, status: 'WAITING' },
+        where: { queueId: queueResult.queue.id, status: 'WAITING' },
       });
-      emitClinicUpdate(ioInstance, appointment.clinicId, {
-        type: 'queue-updated',
-        queueLength,
-      });
+      emitClinicUpdate(ioInstance, appointment.clinicId, { type: 'queue-updated', queueLength });
     }
 
-    return confirmed;
+    return { ...confirmed, _queueInfo: queueResult };
   }
 
-  // Online appointment — just confirm
+  // ONLINE appointment — just confirm, no physical queue
   return prisma.appointment.update({
     where: { id: appointment.id },
     data: { status: 'BOOKED' },
@@ -791,7 +762,7 @@ const razorpayWebhook = async (req, res) => {
           title: '✅ Payment Confirmed',
           body: 'Your appointment has been confirmed.',
           data: { type: 'APPOINTMENT_BOOKED', appointmentId: appointment.id },
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       return res.json({ success: true, message: 'payment.captured processed' });

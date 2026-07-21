@@ -13,6 +13,8 @@ const {
   updateProfile,
   getNearby,
   deleteAccount,
+  getFollowUpEligibility,
+  bookFollowUp,
 } = require('../controllers/patient.controller');
 const { validate, bookAppointmentSchema } = require('../validators/appointment.validator');
 
@@ -31,7 +33,11 @@ router.get('/queue/:appointmentId', authorize('PATIENT', 'DOCTOR'), getLiveQueue
 router.patch('/appointments/:id/cancel', authorize('PATIENT', 'DOCTOR'), cancelAppointment);
 router.get('/profile', authorize('PATIENT', 'DOCTOR'), getProfile);
 router.patch('/profile', authorize('PATIENT', 'DOCTOR'), updateProfile);
-// Google Play compliant account deletion
 router.delete('/account', authorize('PATIENT', 'DOCTOR'), deleteAccount);
+
+// ── Follow-up eligibility + booking ──────────────────────────────────────────
+// Eligibility is verified server-side — frontend cannot bypass
+router.get('/follow-up/eligible', authorize('PATIENT', 'DOCTOR'), getFollowUpEligibility);
+router.post('/follow-up/book', authorize('PATIENT', 'DOCTOR'), bookFollowUp);
 
 module.exports = router;

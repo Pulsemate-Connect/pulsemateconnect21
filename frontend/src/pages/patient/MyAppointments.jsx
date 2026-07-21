@@ -64,7 +64,7 @@ const QueueStrip = ({ appt }) => {
 };
 
 // ── Appointment Card ──────────────────────────────────────────────────────────
-const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain }) => {
+const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain, onFollowUp }) => {
   const navigate = useNavigate();
   const pay = appt.payment;
   const isFree     = pay?.status === 'PAID' && pay?.amount === 0;
@@ -76,6 +76,8 @@ const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain }
   const canCancel  = ['BOOKED','IN_QUEUE'].includes(appt.status);
   const canRebook  = isPast && appt.doctor?.id && appt.clinic?.id;
   const canRefund  = isPaid && !isRefunded && appt.status === 'COMPLETED';
+  // Show follow-up if doctor recommended it (prescription has requiresFollowUp)
+  const hasFollowUpRecommendation = appt.status === 'COMPLETED' && appt.prescriptions?.requiresFollowUp;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -194,6 +196,16 @@ const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain }
             </button>
           )}
 
+          {/* Follow-up — only when doctor recommended */}
+          {hasFollowUpRecommendation && onFollowUp && (
+            <button
+              onClick={() => onFollowUp(appt)}
+              className="flex items-center gap-1 text-xs font-semibold text-orange-600 border border-orange-300 py-2 px-3 rounded-lg hover:bg-orange-50 transition-colors"
+            >
+              🔄 Follow-up
+            </button>
+          )}
+
           {/* Request refund */}
           {canRefund && (
             <button onClick={() => onRefund(appt.id)}
@@ -214,7 +226,8 @@ const MyAppointments = () => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [cancellingId, setCancellingId] = useState(null);
   const [showAllPast, setShowAllPast] = useState(false);
-  const [rebookAppt, setRebookAppt] = useState(null); // appointment to rebook
+  const [rebookAppt, setRebookAppt] = useState(null);
+  const [followUpAppt, setFollowUpAppt] = useState(null); // appointment to follow up on
 
   const fetchAppointments = useCallback(async () => {
     setIsLoading(true);
@@ -312,7 +325,8 @@ const MyAppointments = () => {
                   {upcoming.map((appt) => (
                     <AppointmentCard key={appt.id} appt={appt}
                       onCancel={handleCancel} cancellingId={cancellingId}
-                      onRefund={handleRefund} onBookAgain={setRebookAppt} />
+                      onRefund={handleRefund} onBookAgain={setRebookAppt}
+                      onFollowUp={setFollowUpAppt} />
                   ))}
                 </div>
               </div>
@@ -338,7 +352,8 @@ const MyAppointments = () => {
                   {pastShown.map((appt) => (
                     <AppointmentCard key={appt.id} appt={appt}
                       onCancel={handleCancel} cancellingId={cancellingId}
-                      onRefund={handleRefund} onBookAgain={setRebookAppt} />
+                      onRefund={handleRefund} onBookAgain={setRebookAppt}
+                      onFollowUp={setFollowUpAppt} />
                   ))}
                 </div>
                 {!showAllPast && allPast.length > PAST_PREVIEW && (
@@ -361,6 +376,17 @@ const MyAppointments = () => {
           defaultType={rebookAppt.appointmentType || 'OFFLINE'}
           onClose={() => setRebookAppt(null)}
           onSuccess={() => { setRebookAppt(null); fetchAppointments(); toast.success('Appointment booked!'); }}
+        />
+      )}
+
+      {/* Follow-up modal — opens BookAppointmentModal which shows follow-up option automatically */}
+      {followUpAppt && (
+        <BookAppointmentModal
+          doctor={followUpAppt.doctor}
+          clinic={followUpAppt.clinic}
+          defaultType="OFFLINE"
+          onClose={() => setFollowUpAppt(null)}
+          onSuccess={() => { setFollowUpAppt(null); fetchAppointments(); toast.success('Follow-up booked!'); }}
         />
       )}
     </DashboardLayout>

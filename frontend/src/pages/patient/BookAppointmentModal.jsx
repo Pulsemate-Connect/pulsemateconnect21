@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
-import { getPatientProfile, getAvailableSlots, getClinicSessions } from '../../api/patient.api';
+import { getPatientProfile, getAvailableSlots, getClinicSessions, getFollowUpEligibility, bookFollowUp } from '../../api/patient.api';
 import { initiatePayment, verifyPayment, getBookingStatus } from '../../api/payment.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import ProfileSetupModal from './ProfileSetupModal';
@@ -57,6 +57,12 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
   const [isProcessing, setIsProcessing] = useState(false);
   const [successIsFree, setSuccessIsFree] = useState(false);
   const [bookedAppt, setBookedAppt] = useState(null);
+  const [bookedQueueInfo, setBookedQueueInfo] = useState(null);
+
+  // Follow-up state
+  const [followUpEligible, setFollowUpEligible] = useState([]);
+  const [selectedFollowUp, setSelectedFollowUp] = useState(null);
+  const [isBookingFollowUp, setIsBookingFollowUp] = useState(false);
 
   // Form state
   const [forWhom, setForWhom] = useState('myself');
@@ -75,19 +81,28 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
   const days = buildDays();
   const isFreeEligible = bookingStatus !== null && !bookingStatus.freeBookingUsed;
 
-  // Stage 1 — check profile + booking status
+  // Stage 1 — check profile + booking status + follow-up eligibility
   useEffect(() => {
     const check = async () => {
       try {
-        const [profileRes, statusRes, sessionsRes] = await Promise.all([
+        const [profileRes, statusRes, sessionsRes, followUpRes] = await Promise.all([
           getPatientProfile(),
           getBookingStatus().catch(() => null),
           getClinicSessions(clinic.id).catch(() => null),
+          getFollowUpEligibility().catch(() => null),
         ]);
         const user = profileRes.data.data.user;
         setPatientData(user);
         setBookingStatus(statusRes?.data?.data ?? { freeBookingUsed: false, bookingFee: 0 });
         setSessions(sessionsRes?.data?.data?.sessions || []);
+
+        // Only show follow-ups relevant to this doctor+clinic
+        const allFollowUps = followUpRes?.data?.data?.followUps || [];
+        const relevant = allFollowUps.filter(
+          (f) => f.clinic.id === clinic.id && f.doctor.id === doctor.id
+        );
+        setFollowUpEligible(relevant);
+
         setStage(isProfileComplete(user) ? 'booking_form' : 'profile_setup');
       } catch {
         setBookingStatus({ freeBookingUsed: false, bookingFee: 0 });
@@ -95,7 +110,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
       }
     };
     check();
-  }, [clinic.id]);
+  }, [clinic.id, doctor.id]);
 
   // Fetch slots when date changes
   useEffect(() => {
@@ -152,6 +167,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
       if (data.isFree) {
         setSuccessIsFree(true);
         setBookedAppt(data.appointment);
+        setBookedQueueInfo(data._queueInfo || null);
         setStage('success');
         toast.success('🎉 First booking confirmed for free!');
         setTimeout(() => onSuccess(data.appointment), 2200);
@@ -200,6 +216,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
       const appt = res.data.data.appointment;
       setSuccessIsFree(false);
       setBookedAppt(appt);
+      setBookedQueueInfo(res.data.data._queueInfo || null);
       setStage('success');
       setTimeout(() => onSuccess(appt), 2200);
     } catch (err) {
@@ -207,6 +224,28 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
       setStage('booking_form');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleBookFollowUp = async (followUp, symptoms) => {
+    setIsBookingFollowUp(true);
+    try {
+      const res = await bookFollowUp({
+        originalAppointmentId: followUp.originalAppointmentId,
+        symptoms: symptoms || '',
+      });
+      const appt = res.data.data.appointment;
+      setBookedAppt(appt);
+      setBookedQueueInfo(res.data.data);
+      setSuccessIsFree(false);
+      setSelectedFollowUp(null);
+      setStage('success');
+      toast.success('🔄 Follow-up booked with priority queue!');
+      setTimeout(() => onSuccess(appt), 2200);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to book follow-up');
+    } finally {
+      setIsBookingFollowUp(false);
     }
   };
 
@@ -255,11 +294,23 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
           <div className={`border rounded-xl p-4 w-full text-left text-sm space-y-1 ${successIsFree ? 'bg-emerald-50 border-emerald-200' : 'bg-green-50 border-green-200'}`}>
             <p className="font-semibold">🏥 {clinic.name}</p>
             <p>👨‍⚕️ Dr. {doctor.user?.name} — {doctor.specialization}</p>
-            <p>📅 {date ? new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : ''}</p>
+            <p>📅 {date ? new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Today'}</p>
             {selectedSlot && <p>🕐 {fmt12(selectedSlot)}</p>}
-            {bookedAppt?.queueNumber && <p>🎫 Queue #{bookedAppt.queueNumber}</p>}
+            {bookedAppt?.queueNumber && <p>🎫 Queue Token #{bookedAppt.queueNumber}</p>}
+            {bookedQueueInfo?.position && <p>📍 Position #{bookedQueueInfo.position} in queue</p>}
+            {bookedQueueInfo?.estimatedWaitMinutes > 0 && (
+              <p>⏱ Estimated wait: ~{bookedQueueInfo.estimatedWaitMinutes} min</p>
+            )}
+            {bookedQueueInfo?.estimatedAppointmentTime && (
+              <p>🕐 Estimated time: {fmt12(bookedQueueInfo.estimatedAppointmentTime)}</p>
+            )}
             {successIsFree && <p className="text-xs text-emerald-600 font-semibold pt-1">🎁 First booking benefit applied</p>}
           </div>
+          {bookedQueueInfo && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-left w-full">
+              ⚡ Queue runs on live arrival basis. ETA is an estimate — please arrive 10–15 min early and track your token live.
+            </p>
+          )}
           <p className="text-xs text-gray-400">Redirecting to appointments...</p>
         </div>
       </Modal>
@@ -289,6 +340,43 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
             <span className="ml-auto flex-shrink-0 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">🎉 FREE</span>
           )}
         </div>
+
+        {/* ── Follow-up section (only shown when eligible) ── */}
+        {followUpEligible.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <p className="text-sm font-bold text-orange-800 mb-3">🔄 Follow-up Available</p>
+            {followUpEligible.map((fu) => (
+              <div key={fu.originalAppointmentId} className="bg-white border border-orange-200 rounded-xl p-3 mb-2">
+                <p className="text-sm font-semibold text-gray-800">Dr. {fu.doctor.name}</p>
+                <p className="text-xs text-gray-500">{clinic.name}</p>
+                <p className="text-xs text-gray-500">
+                  Previous: {new Date(fu.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+                {fu.followUpDate && (
+                  <p className="text-xs text-orange-600 font-medium mt-1">
+                    Valid until: {new Date(fu.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
+                <p className="text-xs text-green-600 font-medium mt-1">✅ Follow-up recommended by doctor</p>
+                <button
+                  type="button"
+                  disabled={isBookingFollowUp}
+                  onClick={() => {
+                    setSelectedFollowUp(fu);
+                    handleBookFollowUp(fu, symptoms);
+                  }}
+                  className="mt-2 w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {isBookingFollowUp ? <LoadingSpinner size="sm" /> : '🔄 Book Follow-up (Priority Queue)'}
+                </button>
+              </div>
+            ))}
+            <p className="text-xs text-orange-600 mt-1">Follow-up patients get priority queue position.</p>
+            <div className="mt-2 border-t border-orange-200 pt-2">
+              <p className="text-xs text-gray-500">Or book a new appointment below ↓</p>
+            </div>
+          </div>
+        )}
 
         {/* For whom */}
         <div>
