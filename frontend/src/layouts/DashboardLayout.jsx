@@ -50,10 +50,11 @@ const NAV_ITEMS = {
     { path: '/doctor/profile',      label: 'Profile',      icon: Icon.User     },
   ],
   RECEPTIONIST: [
-    { path: '/receptionist/dashboard', label: 'Dashboard', icon: Icon.Chart },
-    { path: '/receptionist/queue', label: "Today's Queue", icon: Icon.Queue },
-    { path: '/receptionist/walk-in', label: 'Walk-in', icon: Icon.Walk },
-    { path: '/receptionist/follow-up', label: 'Follow-up', icon: Icon.Refresh },
+    { path: '/receptionist/dashboard',    label: 'Dashboard',     icon: Icon.Chart    },
+    { path: '/receptionist/appointments', label: 'Appointments',  icon: Icon.Calendar },
+    { path: '/receptionist/queue',        label: "Today's Queue", icon: Icon.Queue    },
+    { path: '/receptionist/walk-in',      label: 'Walk-in',       icon: Icon.Walk     },
+    { path: '/receptionist/follow-up',    label: 'Follow-up',     icon: Icon.Refresh  },
   ],
   PATIENT: [
     { path: '/patient/home',          label: 'Home',         icon: Icon.Home     },

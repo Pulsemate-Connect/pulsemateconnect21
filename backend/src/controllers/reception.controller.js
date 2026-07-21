@@ -79,7 +79,7 @@ const recalculatePositions = async (queueId, doctorAvgMins = 10) => {
       const adjustedMins = slotH * 60 + slotM + delayMins;
       const adjH = Math.floor(adjustedMins / 60);
       const adjM = adjustedMins % 60;
-      newEstimatedTime = `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')}`;
+      newEstimatedTime = `${String(adjH).padStart(2, '0')}:${String(adjM).padStart(2, '0')}`;
     }
 
     updates.push(
@@ -489,7 +489,141 @@ const addFollowUp = async (req, res, next) => {
 };
 
 /**
- * PATCH /api/reception/queue/:queueItemId/check-in - Check in booked patient
+ * PATCH /api/reception/appointments/:appointmentId/check-in
+ * Check in a booked patient by appointment ID (no UUID paste needed from frontend).
+ * - Validates appointment belongs to receptionist's clinic
+ * - Creates QueueItem if not already in queue (idempotent)
+ * - Updates appointment status to CHECKED_IN / IN_QUEUE
+ */
+const checkInByAppointment = async (req, res, next) => {
+  try {
+    const { appointmentId } = req.params;
+
+    // Resolve receptionist's clinic
+    let clinicId = req.body.clinicId || req.query.clinicId;
+    if (!clinicId && req.user.role === 'RECEPTIONIST') {
+      clinicId = req.user.receptionistProfile?.assignedClinicId;
+    }
+    if (!clinicId && req.user.role === 'CLINIC_OWNER') {
+      const ownerClinic = await prisma.clinic.findFirst({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      clinicId = ownerClinic?.id;
+    }
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        patient: { select: { id: true, name: true, mobile: true } },
+        doctor: { select: { id: true, avgConsultationMins: true, user: { select: { name: true } } } },
+        queueItem: true,
+      },
+    });
+
+    if (!appointment) return sendError(res, 'Appointment not found', 404);
+
+    // IDOR guard — must belong to receptionist's clinic
+    if (req.user.role !== 'SUPER_ADMIN' && appointment.clinicId !== clinicId) {
+      return sendError(res, 'Access denied', 403);
+    }
+
+    // Validate eligible statuses
+    const eligible = ['BOOKED', 'CHECKED_IN'];
+    if (!eligible.includes(appointment.status)) {
+      return sendError(res, `Cannot check in appointment with status ${appointment.status}`, 400);
+    }
+
+    // If already fully in queue, return existing data (idempotent)
+    if (appointment.queueItem) {
+      return sendSuccess(res, {
+        alreadyInQueue: true,
+        queueNumber: appointment.queueItem.queueNumber,
+        position: appointment.queueItem.position,
+        queueItemId: appointment.queueItem.id,
+      }, 'Patient is already in the queue');
+    }
+
+    // Get or create queue for this doctor + session
+    const effectiveSessionId = appointment.sessionId || null;
+    const queue = await getOrCreateQueue(appointment.clinicId, appointment.doctorId, effectiveSessionId);
+
+    if (queue.status === 'CLOSED') {
+      return sendError(res, 'Queue is closed for today', 400);
+    }
+
+    // Fetch session avgConsultationMins
+    let avgMins = appointment.doctor?.avgConsultationMins || 10;
+    if (effectiveSessionId) {
+      const sess = await prisma.clinicSession.findUnique({ where: { id: effectiveSessionId } });
+      if (sess?.avgConsultationMins) avgMins = sess.avgConsultationMins;
+    }
+
+    // Get next queue number and position
+    const [lastItem, waitingCount] = await Promise.all([
+      prisma.queueItem.findFirst({
+        where: { queueId: queue.id },
+        orderBy: { queueNumber: 'desc' },
+      }),
+      prisma.queueItem.count({ where: { queueId: queue.id, status: 'WAITING' } }),
+    ]);
+    const queueNumber = (lastItem?.queueNumber || 0) + 1;
+    const position = waitingCount + 1;
+
+    // Transactional update
+    const [updatedAppt, queueItem] = await prisma.$transaction([
+      prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: 'IN_QUEUE',
+          queueNumber,
+          estimatedWaitMinutes: position * avgMins,
+        },
+      }),
+      prisma.queueItem.create({
+        data: {
+          queueId: queue.id,
+          appointmentId,
+          patientId: appointment.patientId,
+          queueNumber,
+          status: 'WAITING',
+          position,
+          isFollowUp: false,
+        },
+      }),
+    ]);
+
+    // Socket update
+    const io = req.app.get('io');
+    if (io) {
+      const today = new Date().toISOString().split('T')[0];
+      const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${today}`;
+      io.to(roomName).emit('queue:updated', {
+        type: 'PATIENT_CHECKED_IN',
+        queueItem: {
+          ...queueItem,
+          patient: { name: appointment.patient.name, mobile: appointment.patient.mobile },
+        },
+      });
+      const queueLength = await prisma.queueItem.count({ where: { queueId: queue.id, status: 'WAITING' } });
+      emitClinicUpdate(io, appointment.clinicId, { type: 'queue-updated', queueLength });
+    }
+
+    return sendSuccess(res, {
+      alreadyInQueue: false,
+      queueNumber,
+      position,
+      queueItemId: queueItem.id,
+      estimatedWaitMinutes: position * avgMins,
+    }, 'Patient checked in and added to queue');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/reception/queue/:queueItemId/check-in - Check in booked patient (legacy)
  */
 const checkIn = async (req, res, next) => {
   try {
@@ -508,10 +642,13 @@ const checkIn = async (req, res, next) => {
       return sendError(res, 'Patient is not in waiting status', 400);
     }
 
-    await prisma.appointment.update({
-      where: { id: queueItem.appointmentId },
-      data: { status: 'CHECKED_IN' },
-    });
+    // Update both QueueItem and Appointment status
+    await prisma.$transaction([
+      prisma.appointment.update({
+        where: { id: queueItem.appointmentId },
+        data: { status: 'CHECKED_IN' },
+      }),
+    ]);
 
     const io = req.app.get('io');
     if (io) {
@@ -662,7 +799,7 @@ const callNext = async (req, res, next) => {
             title: '⏰ Doctor Running Late',
             body: `Your doctor is running approximately ${delayMins} minutes behind schedule. Your appointment time has been adjusted.`,
             data: { type: 'DOCTOR_RUNNING_LATE', queueId, delayMins: String(delayMins) },
-          }).catch(() => {});
+          }).catch(() => { });
         });
 
         // Emit delay update to socket room
@@ -727,7 +864,14 @@ const skipPatient = async (req, res, next) => {
 
     const queueItem = await prisma.queueItem.findUnique({
       where: { id },
-      include: { queue: true },
+      include: {
+        queue: {
+          include: {
+            session: { select: { avgConsultationMins: true } },
+            doctor: { select: { avgConsultationMins: true } },
+          },
+        },
+      },
     });
 
     if (!queueItem) {
@@ -746,7 +890,12 @@ const skipPatient = async (req, res, next) => {
       });
     }
 
-    const avgMins = 10;
+    // Use session avgConsultationMins if available, fall back to doctor's, then 15
+    const avgMins =
+      queueItem.queue?.session?.avgConsultationMins ||
+      queueItem.queue?.doctor?.avgConsultationMins ||
+      15;
+
     await recalculatePositions(queueItem.queueId, avgMins);
 
     const io = req.app.get('io');
@@ -954,11 +1103,11 @@ const getSessionQueueStats = async (req, res, next) => {
         select: { id: true, status: true, slotTime: true, estimatedWaitMinutes: true },
       });
 
-      const booked     = appointments.filter(a => ['BOOKED','CHECKED_IN','IN_QUEUE','CALLED','IN_CONSULTATION'].includes(a.status)).length;
-      const completed  = appointments.filter(a => a.status === 'COMPLETED').length;
-      const cancelled  = appointments.filter(a => ['CANCELLED','NO_SHOW'].includes(a.status)).length;
-      const walkIns    = appointments.filter(a => !a.slotTime).length; // walk-ins have no booked slot
-      const total      = booked + completed + cancelled;
+      const booked = appointments.filter(a => ['BOOKED', 'CHECKED_IN', 'IN_QUEUE', 'CALLED', 'IN_CONSULTATION'].includes(a.status)).length;
+      const completed = appointments.filter(a => a.status === 'COMPLETED').length;
+      const cancelled = appointments.filter(a => ['CANCELLED', 'NO_SHOW'].includes(a.status)).length;
+      const walkIns = appointments.filter(a => !a.slotTime).length; // walk-ins have no booked slot
+      const total = booked + completed + cancelled;
 
       // Average wait from completed appointments
       const completedWithWait = appointments.filter(a => a.status === 'COMPLETED' && a.estimatedWaitMinutes);
@@ -991,12 +1140,12 @@ const getSessionQueueStats = async (req, res, next) => {
       }
 
       return {
-        sessionId:    sess.id,
-        sessionName:  sess.name,
-        sessionType:  sess.sessionType,
-        startTime:    sess.startTime,
-        endTime:      sess.endTime,
-        maxPatients:  sess.maxPatients,
+        sessionId: sess.id,
+        sessionName: sess.name,
+        sessionType: sess.sessionType,
+        startTime: sess.startTime,
+        endTime: sess.endTime,
+        maxPatients: sess.maxPatients,
         avgConsultationMins: sess.avgConsultationMins,
         stats: {
           booked,
@@ -1022,15 +1171,316 @@ const getSessionQueueStats = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/reception/queue/:queueId/close - Close queue (end of session/day)
+ * Prevents further operations on a closed queue.
+ */
+const closeQueue = async (req, res, next) => {
+  try {
+    const { queueId } = req.params;
+
+    const queue = await prisma.queue.findUnique({
+      where: { id: queueId },
+      include: { clinic: { select: { id: true, ownerId: true } } },
+    });
+
+    if (!queue) return sendError(res, 'Queue not found', 404);
+
+    // IDOR guard
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const staff = await prisma.clinicStaff.findFirst({
+        where: { clinicId: queue.clinicId, userId: req.user.id, isActive: true },
+      });
+      if (!staff && queue.clinic.ownerId !== req.user.id) {
+        return sendError(res, 'Access denied', 403);
+      }
+    }
+
+    if (queue.status === 'CLOSED') {
+      return sendError(res, 'Queue is already closed', 400);
+    }
+
+    const updatedQueue = await prisma.queue.update({
+      where: { id: queueId },
+      data: { status: 'CLOSED' },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      const today = new Date().toISOString().split('T')[0];
+      io.to(`queue:${queue.clinicId}:${queue.doctorId}:${today}`).emit('queue:updated', {
+        type: 'QUEUE_CLOSED',
+        queueId,
+      });
+      emitClinicUpdate(io, queue.clinicId, { type: 'queue-closed', queueId });
+    }
+
+    return sendSuccess(res, { queue: updatedQueue }, 'Queue closed successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/reception/appointments/today
+ * Returns today's appointments for the receptionist's authorized clinic.
+ * Supports search (patient name, mobile) and status filter.
+ */
+const getTodaysAppointments = async (req, res, next) => {
+  try {
+    const { search, status, doctorId, sessionId } = req.query;
+
+    // Resolve clinic
+    let clinicId = req.query.clinicId;
+    if (!clinicId && req.user.role === 'RECEPTIONIST') {
+      clinicId = req.user.receptionistProfile?.assignedClinicId;
+    }
+    if (!clinicId && req.user.role === 'CLINIC_OWNER') {
+      const ownerClinic = await prisma.clinic.findFirst({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      clinicId = ownerClinic?.id;
+    }
+
+    if (!clinicId) return sendError(res, 'Clinic not found', 400);
+
+    // IDOR guard
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const staff = await prisma.clinicStaff.findFirst({
+        where: { clinicId, userId: req.user.id, isActive: true },
+      });
+      const isOwner = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!staff && !isOwner) return sendError(res, 'Access denied', 403);
+    }
+
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
+
+    const where = {
+      clinicId,
+      appointmentDate: { gte: today, lte: todayEnd },
+      status: { notIn: ['PENDING_PAYMENT'] },
+    };
+
+    if (status) where.status = status;
+    if (doctorId) where.doctorId = doctorId;
+    if (sessionId) where.sessionId = sessionId;
+
+    // Patient search
+    if (search) {
+      const trimmed = search.trim();
+      where.patient = {
+        OR: [
+          { name: { contains: trimmed, mode: 'insensitive' } },
+          { mobile: { contains: trimmed } },
+        ],
+      };
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      include: {
+        patient: { select: { id: true, name: true, mobile: true } },
+        doctor: { include: { user: { select: { id: true, name: true } } } },
+        queueItem: { select: { id: true, status: true, position: true, queueNumber: true, isFollowUp: true } },
+        payment: { select: { status: true, amount: true, method: true } },
+      },
+      orderBy: [{ slotTime: 'asc' }, { queueNumber: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return sendSuccess(res, { appointments, total: appointments.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/reception/patients/search
+ * Search patients by mobile or name.
+ * Returns patient + their recent appointments at the receptionist's clinic (for follow-up selection).
+ */
+const searchPatients = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return sendError(res, 'Search query must be at least 2 characters', 400);
+    }
+
+    // Resolve clinic
+    let clinicId = req.query.clinicId;
+    if (!clinicId && req.user.role === 'RECEPTIONIST') {
+      clinicId = req.user.receptionistProfile?.assignedClinicId;
+    }
+    if (!clinicId && req.user.role === 'CLINIC_OWNER') {
+      const ownerClinic = await prisma.clinic.findFirst({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      clinicId = ownerClinic?.id;
+    }
+    if (!clinicId) return sendError(res, 'Clinic not found', 400);
+
+    // IDOR guard
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const staff = await prisma.clinicStaff.findFirst({
+        where: { clinicId, userId: req.user.id, isActive: true },
+      });
+      const isOwner = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!staff && !isOwner) return sendError(res, 'Access denied', 403);
+    }
+
+    const trimmed = q.trim();
+
+    // Find patients who have had appointments at this clinic
+    const patients = await prisma.user.findMany({
+      where: {
+        role: 'PATIENT',
+        OR: [
+          { name: { contains: trimmed, mode: 'insensitive' } },
+          { mobile: { contains: trimmed } },
+        ],
+        appointments: {
+          some: { clinicId },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        mobile: true,
+        patientProfile: { select: { age: true, gender: true, bloodGroup: true } },
+      },
+      take: 10,
+    });
+
+    // For each patient, return their recent eligible appointments at this clinic
+    // (eligible = COMPLETED / IN_QUEUE / CHECKED_IN — makes sense as "original" for follow-up)
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
+
+    const results = await Promise.all(patients.map(async (patient) => {
+      const appointments = await prisma.appointment.findMany({
+        where: {
+          clinicId,
+          patientId: patient.id,
+          appointmentDate: { gte: today, lte: todayEnd },
+          status: { in: ['COMPLETED', 'IN_QUEUE', 'CHECKED_IN', 'CALLED', 'IN_CONSULTATION', 'BOOKED'] },
+        },
+        include: {
+          doctor: { include: { user: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
+      return { ...patient, appointments };
+    }));
+
+    return sendSuccess(res, { patients: results });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/reception/dashboard
+ * Returns today's operational stats for the reception dashboard.
+ */
+const getDashboardStats = async (req, res, next) => {
+  try {
+    // Resolve clinic
+    let clinicId = req.query.clinicId;
+    if (!clinicId && req.user.role === 'RECEPTIONIST') {
+      clinicId = req.user.receptionistProfile?.assignedClinicId;
+    }
+    if (!clinicId && req.user.role === 'CLINIC_OWNER') {
+      const ownerClinic = await prisma.clinic.findFirst({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      clinicId = ownerClinic?.id;
+    }
+    if (!clinicId) return sendError(res, 'Clinic not found', 400);
+
+    // IDOR guard
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const staff = await prisma.clinicStaff.findFirst({
+        where: { clinicId, userId: req.user.id, isActive: true },
+      });
+      const isOwner = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!staff && !isOwner) return sendError(res, 'Access denied', 403);
+    }
+
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setUTCHours(23, 59, 59, 999);
+
+    const [
+      totalToday,
+      checkedIn,
+      completed,
+      noShow,
+      waitingCount,
+      pendingPayments,
+      currentlyServing,
+    ] = await Promise.all([
+      prisma.appointment.count({
+        where: { clinicId, appointmentDate: { gte: today, lte: todayEnd }, status: { notIn: ['PENDING_PAYMENT'] } },
+      }),
+      prisma.appointment.count({
+        where: { clinicId, appointmentDate: { gte: today, lte: todayEnd }, status: { in: ['CHECKED_IN', 'IN_QUEUE', 'CALLED', 'IN_CONSULTATION'] } },
+      }),
+      prisma.appointment.count({
+        where: { clinicId, appointmentDate: { gte: today, lte: todayEnd }, status: 'COMPLETED' },
+      }),
+      prisma.appointment.count({
+        where: { clinicId, appointmentDate: { gte: today, lte: todayEnd }, status: 'NO_SHOW' },
+      }),
+      prisma.queueItem.count({
+        where: { queue: { clinicId, date: today }, status: 'WAITING' },
+      }),
+      prisma.payment.count({
+        where: { status: 'PENDING', appointment: { clinicId, appointmentDate: { gte: today, lte: todayEnd } } },
+      }),
+      prisma.queueItem.findFirst({
+        where: { queue: { clinicId, date: today }, status: { in: ['CALLED', 'IN_CONSULTATION'] } },
+        include: { patient: { select: { name: true } } },
+        orderBy: { calledAt: 'desc' },
+      }),
+    ]);
+
+    return sendSuccess(res, {
+      date: today,
+      totalToday,
+      checkedIn,
+      waiting: waitingCount,
+      completed,
+      noShow,
+      pendingPayments,
+      currentlyServing: currentlyServing
+        ? { patientName: currentlyServing.patient?.name, queueNumber: currentlyServing.queueNumber, status: currentlyServing.status }
+        : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getQueue,
   addWalkIn,
   addFollowUp,
   checkIn,
+  checkInByAppointment,
   callNext,
   skipPatient,
   completePatient,
   pauseQueue,
   resumeQueue,
+  closeQueue,
   getSessionQueueStats,
+  getTodaysAppointments,
+  searchPatients,
+  getDashboardStats,
 };

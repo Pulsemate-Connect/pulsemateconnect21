@@ -51,6 +51,7 @@ import ReceptionDashboard from './pages/receptionist/ReceptionDashboard';
 import TodayQueue from './pages/receptionist/TodayQueue';
 import WalkInBooking from './pages/receptionist/WalkInBooking';
 import FollowUpBooking from './pages/receptionist/FollowUpBooking';
+import TodaysAppointments from './pages/receptionist/TodaysAppointments';
 
 import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ClinicProfile from './pages/owner/ClinicProfile';
@@ -130,6 +131,7 @@ const AppRoutes = () => {
       <Route path="/reception/walk-in" element={<Navigate to="/receptionist/walk-in" replace />} />
       <Route path="/reception/follow-up" element={<Navigate to="/receptionist/follow-up" replace />} />
       <Route path="/receptionist/dashboard" element={<ProtectedRoute roles={['RECEPTIONIST']}><ReceptionDashboard /></ProtectedRoute>} />
+      <Route path="/receptionist/appointments" element={<ProtectedRoute roles={['RECEPTIONIST']}><TodaysAppointments /></ProtectedRoute>} />
       <Route path="/receptionist/queue" element={<ProtectedRoute roles={['RECEPTIONIST']}><TodayQueue /></ProtectedRoute>} />
       <Route path="/receptionist/walk-in" element={<ProtectedRoute roles={['RECEPTIONIST']}><WalkInBooking /></ProtectedRoute>} />
       <Route path="/receptionist/follow-up" element={<ProtectedRoute roles={['RECEPTIONIST']}><FollowUpBooking /></ProtectedRoute>} />

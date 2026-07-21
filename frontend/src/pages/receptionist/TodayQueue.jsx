@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
   getQueue, callNext, skipPatient, completePatient,
-  pauseQueue, resumeQueue, checkIn,
+  pauseQueue, resumeQueue, checkIn, closeQueue,
 } from '../../api/reception.api';
 import { markCashPayment } from '../../api/payment.api';
 import { getMe } from '../../api/auth.api';
@@ -15,12 +15,21 @@ import toast from 'react-hot-toast';
 
 const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+function formatTime12(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 const TodayQueue = () => {
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
-  const [selectedSession, setSelectedSession] = useState(null); // null = all (legacy)
+  const [selectedSession, setSelectedSession] = useState(null);
   const [queue, setQueue] = useState(null);
   const [queueItems, setQueueItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +38,7 @@ const TodayQueue = () => {
   const [payAmount, setPayAmount] = useState('');
   const [paying, setPaying] = useState(false);
   const [paidAppointments, setPaidAppointments] = useState(new Set());
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const { joinStaffQueueRoom, onEvent } = useSocket();
 
   // Load clinic + doctors + sessions on mount
@@ -37,7 +47,7 @@ const TodayQueue = () => {
       try {
         const meRes = await getMe();
         const staffClinics = meRes.data.data.user?.clinicStaff || [];
-        if (staffClinics.length === 0) { setIsLoading(false); return; }
+        if (!staffClinics.length) { setIsLoading(false); return; }
 
         const myClinic = staffClinics[0].clinic;
         setClinic(myClinic);
@@ -54,6 +64,7 @@ const TodayQueue = () => {
 
         const clinicSessions = sessionsRes.data.data.sessions || [];
         setSessions(clinicSessions);
+
         // Auto-select the current active session based on time
         const now = new Date();
         const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -64,8 +75,7 @@ const TodayQueue = () => {
         });
         if (activeSession) setSelectedSession(activeSession.id);
         else if (clinicSessions.length > 0) setSelectedSession(clinicSessions[0].id);
-      } catch (err) {
-        console.error('[TodayQueue] Error:', err);
+      } catch {
         toast.error('Failed to load clinic data');
       } finally {
         setIsLoading(false);
@@ -94,7 +104,7 @@ const TodayQueue = () => {
 
       const today = new Date().toISOString().split('T')[0];
       joinStaffQueueRoom({ clinicId: clinic.id, doctorId: doctorProfileId, date: today });
-    } catch (err) {
+    } catch {
       toast.error('Failed to load queue');
     }
   }, [selectedDoctor, clinic, selectedSession, joinStaffQueueRoom]);
@@ -109,6 +119,12 @@ const TodayQueue = () => {
   }, [onEvent, fetchQueue]);
 
   const handleAction = async (action, id) => {
+    // Guard: block all mutating actions on a CLOSED queue
+    if (queue?.status === 'CLOSED' && !['checkIn'].includes(action)) {
+      toast.error('Queue is closed. No further actions allowed.');
+      return;
+    }
+
     setActionLoading(id + action);
     try {
       const actions = {
@@ -132,6 +148,21 @@ const TodayQueue = () => {
       fetchQueue();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Action failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCloseQueue = async () => {
+    if (!queue) return;
+    setShowCloseConfirm(false);
+    setActionLoading(queue.id + 'close');
+    try {
+      await closeQueue(queue.id);
+      toast.success('Queue closed for this session');
+      fetchQueue();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to close queue');
     } finally {
       setActionLoading(null);
     }
@@ -171,6 +202,7 @@ const TodayQueue = () => {
   const waitingCount   = queueItems.filter((i) => i.status === 'WAITING').length;
   const completedCount = queueItems.filter((i) => i.status === 'COMPLETED').length;
   const currentItem    = queueItems.find((i) => ['CALLED', 'IN_CONSULTATION'].includes(i.status));
+  const isClosed       = queue?.status === 'CLOSED';
 
   if (isLoading) {
     return (
@@ -191,13 +223,15 @@ const TodayQueue = () => {
               {clinic?.name} • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <div className="w-2.5 h-2.5 bg-secondary-500 rounded-full" />
-              <div className="absolute inset-0 w-2.5 h-2.5 bg-secondary-500 rounded-full pulse-dot" />
+          {!isClosed && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <div className="w-2.5 h-2.5 bg-secondary-500 rounded-full" />
+                <div className="absolute inset-0 w-2.5 h-2.5 bg-secondary-500 rounded-full pulse-dot" />
+              </div>
+              <span className="text-xs font-medium text-secondary-600">Live</span>
             </div>
-            <span className="text-xs font-medium text-secondary-600">Live</span>
-          </div>
+          )}
         </div>
 
         {/* Session tabs */}
@@ -275,8 +309,19 @@ const TodayQueue = () => {
               </div>
             </div>
 
+            {/* ── CLOSED banner ── */}
+            {isClosed && (
+              <div className="bg-gray-100 border border-gray-300 rounded-xl p-5 mb-4 flex items-center gap-4">
+                <span className="text-3xl">🔒</span>
+                <div>
+                  <p className="font-bold text-gray-700 text-lg">Queue Closed</p>
+                  <p className="text-sm text-gray-500">This queue has been closed. No further patients can be added or called.</p>
+                </div>
+              </div>
+            )}
+
             {/* Currently serving */}
-            {currentItem && (
+            {currentItem && !isClosed && (
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">🩺</span>
@@ -299,18 +344,19 @@ const TodayQueue = () => {
               </div>
             )}
 
-            {/* Controls */}
-            {queue && (
-              <div className="flex gap-3 mb-6">
+            {/* Controls — hidden when CLOSED */}
+            {queue && !isClosed && (
+              <div className="flex gap-3 mb-6 flex-wrap">
                 <button
                   onClick={() => handleAction('callNext', queue.id)}
                   disabled={!!actionLoading || queue.status === 'PAUSED' || waitingCount === 0}
-                  className="btn-primary flex-1 py-3"
+                  className="btn-primary flex-1 py-3 min-w-[140px]"
                 >
                   {actionLoading === queue.id + 'callNext'
                     ? <LoadingSpinner size="sm" className="mx-auto" />
                     : '📢 Call Next Patient'}
                 </button>
+
                 {queue.status === 'ACTIVE' ? (
                   <button
                     onClick={() => handleAction('pause', queue.id)}
@@ -328,6 +374,16 @@ const TodayQueue = () => {
                     ▶️ Resume
                   </button>
                 )}
+
+                {/* Close Queue */}
+                <button
+                  onClick={() => setShowCloseConfirm(true)}
+                  disabled={!!actionLoading}
+                  className="px-4 py-2 rounded-xl text-sm font-medium border-2 border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                  title="Close queue for this session"
+                >
+                  🔒 Close
+                </button>
               </div>
             )}
 
@@ -344,6 +400,7 @@ const TodayQueue = () => {
                     actionLoading={actionLoading}
                     isPaid={paidAppointments.has(item.appointment?.id)}
                     onOpenPayModal={openPayModal}
+                    queueClosed={isClosed}
                   />
                 ))}
               </div>
@@ -351,6 +408,40 @@ const TodayQueue = () => {
           </>
         )}
       </div>
+
+      {/* Close Queue Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowCloseConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="text-center mb-4">
+              <span className="text-4xl">🔒</span>
+            </div>
+            <h2 className="text-lg font-bold text-text-primary mb-2 text-center">Close Queue?</h2>
+            <p className="text-sm text-text-muted text-center mb-2">
+              This is an end-of-session action.
+            </p>
+            <ul className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 mb-5 space-y-1">
+              <li>• No new patients can be added to this queue</li>
+              <li>• Call Next will be disabled</li>
+              <li>• {waitingCount > 0 ? `${waitingCount} patient(s) are still waiting` : 'No patients are currently waiting'}</li>
+              <li>• This action cannot be undone from the receptionist panel</li>
+            </ul>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCloseConfirm(false)} className="btn-outline flex-1">
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseQueue}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 px-4 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+              >
+                {actionLoading ? <LoadingSpinner size="sm" /> : '🔒 Close Queue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cash Payment Modal */}
       {payModal && (
@@ -380,7 +471,7 @@ const TodayQueue = () => {
                     className="text-primary-600 underline"
                     onClick={() => setPayAmount(String(payModal.consultationFee))}
                   >
-                    Use suggested amount
+                    Use suggested amount ₹{payModal.consultationFee}
                   </button>
                 </p>
               )}
@@ -403,16 +494,8 @@ const TodayQueue = () => {
   );
 };
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-function formatTime12(timeStr) {
-  if (!timeStr) return '';
-  const [h, m] = timeStr.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
-const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }) => {
+// ── QueueItemCard ─────────────────────────────────────────────────────────────
+const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal, queueClosed }) => {
   const isActive  = ['WAITING', 'CALLED', 'IN_CONSULTATION'].includes(item.status);
   const isCurrent = ['CALLED', 'IN_CONSULTATION'].includes(item.status);
   const isDone    = item.status === 'COMPLETED';
@@ -420,7 +503,7 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
   return (
     <div className={`card transition-all
       ${isCurrent ? 'border-l-4 border-l-purple-500' : ''}
-      ${item.isFollowUp ? 'border-l-4 border-l-orange-400' : ''}
+      ${item.isFollowUp && !isCurrent ? 'border-l-4 border-l-orange-400' : ''}
       ${!isActive && !isDone ? 'opacity-60' : ''}
     `}>
       <div className="flex items-center justify-between gap-4">
@@ -434,10 +517,10 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
             {item.isFollowUp ? '🔄' : `#${item.queueNumber}`}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-text-primary">{item.patient?.name || 'Patient'}</p>
               {item.isFollowUp && (
-                <span className="badge bg-orange-100 text-orange-700 text-xs">Follow-up</span>
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Follow-up</span>
               )}
             </div>
             <p className="text-sm text-text-muted">{item.patient?.mobile}</p>
@@ -450,12 +533,12 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
         </div>
         <div className="flex flex-col items-end gap-1">
           <StatusBadge status={item.status} />
-          {item.estimatedAppointmentTime && (
+          {item.estimatedAppointmentTime && !queueClosed && (
             <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
               🕐 {formatTime12(item.estimatedAppointmentTime)}
             </span>
           )}
-          {item.position > 0 && isActive && (
+          {item.position > 0 && isActive && !queueClosed && (
             <span className="text-xs text-text-muted">Pos {item.position}</span>
           )}
           {isDone && isPaid && (
@@ -464,8 +547,8 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
         </div>
       </div>
 
-      {/* Active item actions */}
-      {isActive && (
+      {/* Active item actions — disabled when queue closed */}
+      {isActive && !queueClosed && (
         <div className="mt-3 pt-3 border-t border-border flex gap-2 flex-wrap">
           {item.status === 'WAITING' && (
             <button
@@ -497,7 +580,7 @@ const QueueItemCard = ({ item, onAction, actionLoading, isPaid, onOpenPayModal }
         </div>
       )}
 
-      {/* Payment section for completed items */}
+      {/* Payment section for completed items — available even when queue closed */}
       {isDone && item.appointment?.id && (
         <div className="mt-2 pt-2 border-t border-border">
           {isPaid ? (

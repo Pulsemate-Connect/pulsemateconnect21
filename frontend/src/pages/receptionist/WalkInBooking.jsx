@@ -35,15 +35,11 @@ const WalkInBooking = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('[WalkIn] Fetching user data...');
         const meRes = await getMe();
-        console.log('[WalkIn] getMe response:', meRes.data);
-        
         const staffClinics = meRes.data.data.user?.clinicStaff || [];
-        console.log('[WalkIn] staffClinics length:', staffClinics.length);
-        
+
         if (staffClinics.length === 0) {
-          console.log('[WalkIn] No clinic staff entries found!');
+          setIsInitLoading(false);
           return;
         }
 
