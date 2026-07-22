@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView,
-  Dimensions, StatusBar, Modal, Animated,
+  Dimensions, StatusBar, Modal, Animated, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,6 +111,30 @@ const fs = StyleSheet.create({
 });
 
 // ── Doctor card ───────────────────────────────────────────────────────────────
+function DoctorCardAvatar({ doc, accent, accentBg }) {
+  const [broken, setBroken] = useState(false);
+  const photo   = doc.profilePhotoUrl || doc.profileImage || null;
+  const initial = doc.user?.name?.charAt(0)?.toUpperCase() || 'D';
+
+  return (
+    <View style={[dc.avatarRing, { borderColor: accent + '40' }]}>
+      {photo && !broken ? (
+        <Image
+          source={{ uri: photo }}
+          style={dc.avatarImg}
+          resizeMode="cover"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        <View style={[dc.avatar, { backgroundColor: accentBg }]}>
+          <Text style={[dc.avatarInitial, { color: accent }]}>{initial}</Text>
+        </View>
+      )}
+      <View style={dc.onlineDot} />
+    </View>
+  );
+}
+
 function DoctorCard({ doc, onViewProfile, onBook }) {
 
   const spec   = doc.specialization || 'General Physician';
@@ -118,7 +142,6 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
   const accent = cfg.color;
   const accentBg = cfg.bg;
   const clinic = doc.doctorClinics?.[0]?.clinic;
-  const initial = doc.user?.name?.charAt(0)?.toUpperCase() || 'D';
   const langs  = doc.languagesKnown?.slice(0, 3).join(', ') || 'English';
   const qual   = doc.qualification || 'MBBS';
   const exp    = doc.experienceYears || 0;
@@ -133,13 +156,7 @@ function DoctorCard({ doc, onViewProfile, onBook }) {
       <View style={dc.body}>
         {/* ── Left: avatar column ── */}
         <View style={dc.avatarCol}>
-          <View style={[dc.avatarRing, { borderColor: accent + '40' }]}>
-            <View style={[dc.avatar, { backgroundColor: accentBg }]}>
-              <Text style={[dc.avatarInitial, { color: accent }]}>{initial}</Text>
-            </View>
-            {/* Online indicator */}
-            <View style={dc.onlineDot} />
-          </View>
+          <DoctorCardAvatar doc={doc} accent={accent} accentBg={accentBg} />
           {/* Verified badge */}
           <View style={dc.verifiedBadge}>
             <Ionicons name="checkmark-circle" size={13} color={SKY5} />
@@ -460,6 +477,7 @@ const dc = StyleSheet.create({
   avatarCol:     { alignItems: 'center', gap: 6 },
   avatarRing:    { width: 76, height: 76, borderRadius: 38, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
   avatar:        { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
+  avatarImg:     { width: 68, height: 68, borderRadius: 34 },
   avatarInitial: { fontSize: 28, fontWeight: '800' },
   onlineDot:     { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#10B981', borderWidth: 2.5, borderColor: WHITE },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },

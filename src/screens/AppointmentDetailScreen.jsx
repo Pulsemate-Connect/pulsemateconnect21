@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppointmentDetail, cancelAppointment } from '../api/patient';
@@ -17,6 +17,27 @@ const openMaps = (lat, lng, name) => {
     Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`)
   );
 };
+
+// ── Doctor avatar — photo with initial fallback ───────────────────────────────
+function DoctorAvatarDetail({ photoUrl, name, size = 44 }) {
+  const [broken, setBroken] = useState(false);
+  const initial = name?.charAt(0)?.toUpperCase() || 'D';
+  if (photoUrl && !broken) {
+    return (
+      <Image
+        source={{ uri: photoUrl }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <View style={[s.docAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Text style={s.docAvatarText}>{initial}</Text>
+    </View>
+  );
+}
 
 export default function AppointmentDetailScreen({ route, navigation }) {
   const { id } = route.params;
@@ -108,9 +129,10 @@ export default function AppointmentDetailScreen({ route, navigation }) {
         <Card>
           <Text style={s.sectionTitle}>Doctor</Text>
           <View style={s.docRow}>
-            <View style={s.docAvatar}>
-              <Text style={s.docAvatarText}>{appt.doctor?.user?.name?.charAt(0) || 'D'}</Text>
-            </View>
+            <DoctorAvatarDetail
+              photoUrl={appt.doctor?.profilePhotoUrl || appt.doctor?.profileImage}
+              name={appt.doctor?.user?.name}
+            />
             <View style={s.docInfo}>
               <Text style={s.docName}>{appt.doctor?.user?.name}</Text>
               <Text style={s.docSpec}>{appt.doctor?.specialization}</Text>

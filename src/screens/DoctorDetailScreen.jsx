@@ -278,6 +278,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
     doctorName:     doctorName,
     clinicName:     dc?.clinic?.name || firstClinic?.clinic?.name,
     specialization: doctor.specialization,
+    doctorPhoto:    doctor.profilePhotoUrl || doctor.profileImage || null,
   });
 
   return (

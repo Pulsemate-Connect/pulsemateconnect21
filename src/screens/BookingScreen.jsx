@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Animated,
-  Dimensions, StatusBar, ToastAndroid, Platform,
+  Dimensions, StatusBar, ToastAndroid, Platform, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -156,7 +156,7 @@ const so = StyleSheet.create({
 
 // ── Main BookingScreen ────────────────────────────────────────────────────────
 export default function BookingScreen({ route, navigation }) {
-  const { doctorId, clinicId, doctorName, clinicName, fee, specialization } = route.params || {};
+  const { doctorId, clinicId, doctorName, clinicName, fee, specialization, doctorPhoto } = route.params || {};
   const insets = useSafeAreaInsets();
 
   // ── UI State ────────────────────────────────────────────────────────────────
@@ -465,6 +465,26 @@ export default function BookingScreen({ route, navigation }) {
 
   const consultFee = fee || 0;
   const initials   = (doctorName || 'D').charAt(0).toUpperCase();
+
+  // ── Doctor avatar — shows real photo if available ─────────────────────────
+  function BookingDoctorAvatar() {
+    const [broken, setBroken] = useState(false);
+    if (doctorPhoto && !broken) {
+      return (
+        <Image
+          source={{ uri: doctorPhoto }}
+          style={s.avatarImg}
+          resizeMode="cover"
+          onError={() => setBroken(true)}
+        />
+      );
+    }
+    return (
+      <View style={s.avatarCircle}>
+        <Text style={s.avatarText}>{initials}</Text>
+      </View>
+    );
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
