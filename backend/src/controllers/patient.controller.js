@@ -957,6 +957,8 @@ const getFollowUpEligibility = async (req, res, next) => {
 /**
  * POST /api/patient/follow-up/book
  * Patient books a follow-up based on a previous COMPLETED VISIT.
+ * Follow-up benefit: bypasses session maxPatients capacity limit.
+ * Queue position: same as regular (no priority — joins at the end).
  * Backend validates: visit belongs to patient, completed, follow-up enabled,
  * within validity period, no duplicate follow-up for same visit.
  */

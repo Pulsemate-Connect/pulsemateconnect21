@@ -106,18 +106,12 @@ const addToQueue = async ({
     let insertPosition;
 
     if (isFollowUp) {
-      // Follow-ups go BEFORE regular waiting patients
-      // Position = number of follow-ups already waiting + 1
-      const followUpWaiting = await tx.queueItem.count({
-        where: { queueId: queue.id, status: 'WAITING', isFollowUp: true },
+      // Follow-up patients join at the END of the queue like regular patients (no priority)
+      // Their benefit is bypassing session capacity limits, not queue position
+      const waitingCount = await tx.queueItem.count({
+        where: { queueId: queue.id, status: 'WAITING' },
       });
-      insertPosition = followUpWaiting + 1;
-
-      // Push all regular waiting patients down by 1
-      await tx.queueItem.updateMany({
-        where: { queueId: queue.id, status: 'WAITING', isFollowUp: false },
-        data: { position: { increment: 1 } },
-      });
+      insertPosition = waitingCount + 1;
     } else {
       // Regular patients go at the end of waiting list
       const waitingCount = await tx.queueItem.count({
@@ -163,13 +157,10 @@ const addToQueue = async ({
  * @param {string|null} [sessionStartTime=null]
  */
 const recalculatePositions = async (queueId, avgMins = 15, sessionStartTime = null) => {
-  // Fetch waiting items — follow-ups first, then by queue number
+  // Fetch waiting items — natural order by position (follow-ups no longer get priority)
   const waitingItems = await prisma.queueItem.findMany({
     where: { queueId, status: 'WAITING' },
-    orderBy: [
-      { isFollowUp: 'desc' },
-      { queueNumber: 'asc' },
-    ],
+    orderBy: { position: 'asc' },
     include: { appointment: { select: { slotTime: true } } },
   });
 

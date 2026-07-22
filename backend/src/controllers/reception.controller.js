@@ -606,13 +606,10 @@ const callNext = async (req, res, next) => {
       }
     }
 
-    // Get next WAITING patient — follow-ups first, then by position
+    // Get next WAITING patient — by position (no follow-up priority)
     const nextItem = await prisma.queueItem.findFirst({
       where: { queueId, status: 'WAITING' },
-      orderBy: [
-        { isFollowUp: 'desc' }, // follow-ups first
-        { position: 'asc' },
-      ],
+      orderBy: { position: 'asc' },
       include: {
         patient: { select: { id: true, name: true, mobile: true } },
         appointment: true,
