@@ -563,6 +563,16 @@ const callNext = async (req, res, next) => {
           data: { status: 'COMPLETED' },
         });
 
+        // If this appointment is a booked follow-up, mark the FollowUp record COMPLETED
+        const followUpRecord = await prisma.followUp.findFirst({
+          where: { bookedAppointmentId: currentConsultation.appointmentId },
+          select: { id: true },
+        });
+        if (followUpRecord) {
+          const { markFollowUpCompleted } = require('../services/followupManager.service');
+          await markFollowUpCompleted(followUpRecord.id, null).catch(() => { });
+        }
+
         // Emit appointment-completed to clinic dashboard
         const io = req.app.get('io');
         if (io) {
@@ -803,6 +813,16 @@ const completePatient = async (req, res, next) => {
         where: { id: queueItem.appointmentId },
         data: { status: 'COMPLETED' },
       });
+
+      // If this appointment is a booked follow-up, mark the FollowUp record as COMPLETED
+      const followUpRecord = await prisma.followUp.findFirst({
+        where: { bookedAppointmentId: queueItem.appointmentId },
+        select: { id: true },
+      });
+      if (followUpRecord) {
+        const { markFollowUpCompleted } = require('../services/followupManager.service');
+        await markFollowUpCompleted(followUpRecord.id, req.user.id).catch(() => { });
+      }
     }
 
     const io = req.app.get('io');

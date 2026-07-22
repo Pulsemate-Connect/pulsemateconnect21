@@ -88,6 +88,13 @@ const mockPrismaDb = {
   clinicVerificationLog: {
     create: jest.fn(), findMany: jest.fn(),
   },
+  followUp: {
+    findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(),
+    create: jest.fn(), update: jest.fn(), count: jest.fn(),
+  },
+  clinicFollowUpSettings: {
+    findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), upsert: jest.fn(),
+  },
   // Prisma transaction helper — default impl runs the callback with prismaMock as tx
   $transaction: jest.fn((fn) => {
     if (typeof fn === 'function') return fn(mockPrismaDb);

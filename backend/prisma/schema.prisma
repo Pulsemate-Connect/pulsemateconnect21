@@ -53,6 +53,10 @@ model User {
   refreshTokens            RefreshToken[]
   sessions                 Session[]
   dashboardWidgetPreference DashboardWidgetPreference?
+  followUps                FollowUp[]                  @relation("PatientFollowUps")
+  createdFollowUps         FollowUp[]                  @relation("FollowUpCreator")
+  updatedFollowUps         FollowUp[]                  @relation("FollowUpUpdater")
+  cancelledFollowUps       FollowUp[]                  @relation("FollowUpCanceller")
 
   @@map("users")
 }
@@ -156,6 +160,8 @@ model Clinic {
   sessions                           ClinicSession[]
   holidays                           ClinicHoliday[]
   dashboardWidgetPreferences         DashboardWidgetPreference[]
+  followUps                          FollowUp[]
+  followUpSettings                   ClinicFollowUpSettings?
 
   @@map("clinics")
 }
@@ -219,6 +225,7 @@ model DoctorProfile {
   user                      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   prescriptions             prescriptions[]
   queues                    Queue[]
+  followUps                 FollowUp[]
 
   @@map("doctor_profiles")
 }
@@ -307,6 +314,10 @@ model Appointment {
   followUpAppointments    Appointment[]     @relation("FollowUpChain")
   /// The original appointment this follows up on (self-relation)
   followUpOf              Appointment?      @relation("FollowUpChain", fields: [followUpOfAppointmentId], references: [id])
+  /// FollowUp records where this appointment IS the original visit
+  followUpRecords         FollowUp[]        @relation("OriginalVisitFollowUps")
+  /// FollowUp record where this appointment IS the booked follow-up appointment
+  bookedFollowUp          FollowUp?         @relation("BookedFollowUpAppointment")
 
   @@index([patientId, appointmentDate])
   @@index([doctorId, appointmentDate])
@@ -599,6 +610,17 @@ enum AppointmentKind {
   FOLLOW_UP
 }
 
+// ─── Follow-Up Status Lifecycle ──────────────────────────────────────────────
+enum FollowUpStatus {
+  PENDING    // Created, not yet due
+  UPCOMING   // Due soon (within 3 days)
+  DUE        // Due today
+  OVERDUE    // Past due date, not booked
+  BOOKED     // Patient has booked the follow-up appointment
+  COMPLETED  // Follow-up visit completed
+  CANCELLED  // Cancelled by doctor/receptionist/clinic
+}
+
 enum AppointmentStatus {
   PENDING_PAYMENT
   BOOKED
@@ -813,4 +835,68 @@ model DashboardWidgetPreference {
   @@index([userId])
   @@index([clinicId])
   @@map("dashboard_widget_preferences")
+}
+
+// ─── Clinic-level Follow-Up Settings ─────────────────────────────────────────
+model ClinicFollowUpSettings {
+  id                  String   @id @default(uuid())
+  clinicId            String   @unique
+  followUpEnabled     Boolean  @default(true)
+  /// Preset options available for doctors/receptionists
+  preset7DaysEnabled  Boolean  @default(true)
+  preset15DaysEnabled Boolean  @default(true)
+  preset30DaysEnabled Boolean  @default(true)
+  customDaysEnabled   Boolean  @default(true)
+  defaultFollowUpDays Int      @default(15)
+  /// Grace period after due date before OVERDUE (days)
+  gracePeriodDays     Int      @default(7)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  clinic              Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_followup_settings")
+}
+
+// ─── Follow-Up Record ────────────────────────────────────────────────────────
+// An explicit follow-up recommendation created by a doctor or receptionist.
+// Always linked to a specific completed visit (originalVisitId).
+model FollowUp {
+  id                String         @id @default(uuid())
+  patientId         String
+  clinicId          String
+  doctorId          String         // DoctorProfile.id
+  originalVisitId   String         // Appointment.id of the completed visit
+  followUpDays      Int
+  followUpDate      DateTime       // = originalVisit.appointmentDate + followUpDays
+  status            FollowUpStatus @default(PENDING)
+  note              String?
+  /// If patient books a follow-up appointment, link it here
+  bookedAppointmentId String?      @unique
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  /// Audit trail
+  createdByUserId   String
+  createdByRole     String
+  updatedByUserId   String?
+  cancelledByUserId String?
+  cancelledAt       DateTime?
+  cancellationReason String?
+
+  patient           User           @relation("PatientFollowUps", fields: [patientId], references: [id])
+  clinic            Clinic         @relation(fields: [clinicId], references: [id])
+  doctor            DoctorProfile  @relation(fields: [doctorId], references: [id])
+  originalVisit     Appointment    @relation("OriginalVisitFollowUps", fields: [originalVisitId], references: [id])
+  bookedAppointment Appointment?   @relation("BookedFollowUpAppointment", fields: [bookedAppointmentId], references: [id])
+  createdBy         User           @relation("FollowUpCreator", fields: [createdByUserId], references: [id])
+  updatedBy         User?          @relation("FollowUpUpdater", fields: [updatedByUserId], references: [id])
+  cancelledBy       User?          @relation("FollowUpCanceller", fields: [cancelledByUserId], references: [id])
+
+  @@index([patientId])
+  @@index([clinicId])
+  @@index([doctorId])
+  @@index([originalVisitId])
+  @@index([followUpDate])
+  @@index([status])
+  @@map("follow_ups")
 }

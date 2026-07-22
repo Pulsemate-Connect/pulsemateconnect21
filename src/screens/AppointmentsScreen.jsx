@@ -55,6 +55,32 @@ const fmtTime = (t) => {
   return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
 };
 
+// ── FollowUpBanner — quick link to follow-up screen shown on appointments page ─
+function FollowUpBanner({ navigation }) {
+  return (
+    <TouchableOpacity
+      style={fb.wrap}
+      onPress={() => navigation.navigate('FollowUps')}
+      activeOpacity={0.85}
+    >
+      <View style={fb.iconWrap}>
+        <Text style={{ fontSize: 22 }}>📋</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={fb.title}>Follow-up Visits</Text>
+        <Text style={fb.sub}>View doctor-recommended follow-ups</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+    </TouchableOpacity>
+  );
+}
+const fb = StyleSheet.create({
+  wrap:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EFF6FF', borderRadius: 14, padding: 14, marginHorizontal: 16, marginBottom: 14, borderWidth: 1, borderColor: '#BFDBFE' },
+  iconWrap:{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
+  title:   { fontSize: 13, fontWeight: '700', color: '#1D4ED8' },
+  sub:     { fontSize: 11, color: '#60A5FA', marginTop: 1 },
+});
+
 // ── DoctorAvatar — photo with graceful fallback to colour initial ─────────────
 function DoctorAvatar({ photoUrl, name, size = 48 }) {
   const [broken, setBroken] = useState(false);
@@ -374,6 +400,9 @@ export default function AppointmentsScreen({ navigation }) {
               })}
             </View>
           )}
+
+          {/* ── Follow-Up Banner ── */}
+          <FollowUpBanner navigation={navigation} followUps={appointments} />
 
           {/* ── Past ── */}
           {allPast.length > 0 && (

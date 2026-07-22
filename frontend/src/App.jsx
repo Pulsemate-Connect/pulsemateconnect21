@@ -51,7 +51,10 @@ import ReceptionDashboard from './pages/receptionist/ReceptionDashboard';
 import TodayQueue from './pages/receptionist/TodayQueue';
 import WalkInBooking from './pages/receptionist/WalkInBooking';
 import FollowUpBooking from './pages/receptionist/FollowUpBooking';
+import FollowUpManagement from './pages/receptionist/FollowUpManagement';
 import TodaysAppointments from './pages/receptionist/TodaysAppointments';
+
+import FollowUpSettings from './pages/owner/FollowUpSettings';
 
 import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ClinicProfile from './pages/owner/ClinicProfile';
@@ -135,6 +138,7 @@ const AppRoutes = () => {
       <Route path="/receptionist/queue" element={<ProtectedRoute roles={['RECEPTIONIST']}><TodayQueue /></ProtectedRoute>} />
       <Route path="/receptionist/walk-in" element={<ProtectedRoute roles={['RECEPTIONIST']}><WalkInBooking /></ProtectedRoute>} />
       <Route path="/receptionist/follow-up" element={<ProtectedRoute roles={['RECEPTIONIST']}><FollowUpBooking /></ProtectedRoute>} />
+      <Route path="/receptionist/follow-ups" element={<ProtectedRoute roles={['RECEPTIONIST', 'CLINIC_OWNER']}><FollowUpManagement /></ProtectedRoute>} />
 
       <Route path="/owner" element={<Navigate to="/clinic/dashboard" replace />} />
       <Route path="/owner/clinic" element={<Navigate to="/clinic/profile" replace />} />
@@ -152,6 +156,8 @@ const AppRoutes = () => {
       <Route path="/clinic/appointments" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerAppointments /></ProtectedRoute>} />
       <Route path="/clinic/queue" element={<ProtectedRoute roles={['CLINIC_OWNER']}><QueueOverview /></ProtectedRoute>} />
       <Route path="/clinic/sessions" element={<ProtectedRoute roles={['CLINIC_OWNER']}><SessionManagement /></ProtectedRoute>} />
+      <Route path="/clinic/follow-ups" element={<ProtectedRoute roles={['CLINIC_OWNER']}><FollowUpManagement /></ProtectedRoute>} />
+      <Route path="/clinic/follow-up-settings" element={<ProtectedRoute roles={['CLINIC_OWNER']}><FollowUpSettings /></ProtectedRoute>} />
 
       <Route path="/admin" element={<PublicRoute><AdminLoginPage /></PublicRoute>} />
       <Route path="/admin/dashboard" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><AdminDashboard /></ProtectedRoute>} />

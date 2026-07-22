@@ -485,11 +485,12 @@ const OwnerDashboard = () => {
         return (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { to: '/clinic/profile',       icon: '🏥', label: 'Manage Clinic',  color: 'bg-blue-50 text-blue-600'    },
-              { to: '/clinic/doctors',       icon: '👨‍⚕️', label: 'Doctors',       color: 'bg-green-50 text-green-600'  },
-              { to: '/clinic/receptionists', icon: '👩‍💼', label: 'Receptionists', color: 'bg-purple-50 text-purple-600' },
-              { to: '/clinic/appointments',  icon: '📅', label: 'Appointments',   color: 'bg-orange-50 text-orange-600' },
-              { to: '/clinic/queue',         icon: '🔢', label: 'Queue Overview', color: 'bg-red-50 text-red-600'       },
+              { to: '/clinic/profile',           icon: '🏥', label: 'Manage Clinic',  color: 'bg-blue-50 text-blue-600'    },
+              { to: '/clinic/doctors',           icon: '👨‍⚕️', label: 'Doctors',       color: 'bg-green-50 text-green-600'  },
+              { to: '/clinic/receptionists',     icon: '👩‍💼', label: 'Receptionists', color: 'bg-purple-50 text-purple-600' },
+              { to: '/clinic/appointments',      icon: '📅', label: 'Appointments',   color: 'bg-orange-50 text-orange-600' },
+              { to: '/clinic/queue',             icon: '🔢', label: 'Queue Overview', color: 'bg-red-50 text-red-600'       },
+              { to: '/clinic/follow-ups',        icon: '📋', label: 'Follow-Ups',     color: 'bg-teal-50 text-teal-600'    },
             ].map((a) => (
               <Link key={a.to} to={a.to} className="card-hover flex flex-col items-center gap-2 py-4 text-center">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${a.color}`}>{a.icon}</div>

@@ -14,6 +14,7 @@ import DoctorDetailScreen from '../screens/DoctorDetailScreen';
 import BookingScreen from '../screens/BookingScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
 import AppointmentDetail from '../screens/AppointmentDetailScreen';
+import FollowUpScreen from '../screens/FollowUpScreen';
 import LiveQueueScreen from '../screens/LiveQueueScreen';
 import PaymentsScreen from '../screens/PaymentsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -76,6 +77,7 @@ function AppointmentsStack() {
       <Stack.Screen name="Appointments" component={AppointmentsScreen} />
       <Stack.Screen name="AppointmentDetail" component={AppointmentDetail} />
       <Stack.Screen name="LiveQueue" component={LiveQueueScreen} />
+      <Stack.Screen name="FollowUps" component={FollowUpScreen} />
     </Stack.Navigator>
   );
 }

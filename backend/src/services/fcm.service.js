@@ -178,6 +178,40 @@ const notifyQueuePaused = async (patientIds, doctorName) => {
   );
 };
 
+// ─── Follow-Up Lifecycle Notifications ───────────────────────────────────────
+
+/** Notify patient that a follow-up was created for them. */
+const notifyFollowUpCreated = (userId, doctorName, followUpDate, followUpDays) =>
+  sendNotification(userId, {
+    title: '📋 Follow-up Scheduled',
+    body: `Dr. ${doctorName} recommends a follow-up in ${followUpDays} days (${new Date(followUpDate).toLocaleDateString('en-IN')}).`,
+    data: { type: 'FOLLOW_UP_CREATED', followUpDate: String(followUpDate) },
+  });
+
+/** Notify patient their follow-up is due soon. */
+const notifyFollowUpDueSoon = (userId, doctorName, followUpDate, daysLeft) =>
+  sendNotification(userId, {
+    title: `⏰ Follow-up Due in ${daysLeft} Day${daysLeft > 1 ? 's' : ''}`,
+    body: `Your follow-up with Dr. ${doctorName} is due on ${new Date(followUpDate).toLocaleDateString('en-IN')}. Book your appointment now.`,
+    data: { type: 'FOLLOW_UP_DUE_SOON', followUpDate: String(followUpDate) },
+  });
+
+/** Notify patient their follow-up is due today. */
+const notifyFollowUpDueToday = (userId, doctorName) =>
+  sendNotification(userId, {
+    title: '🔔 Follow-up Due Today',
+    body: `Your follow-up with Dr. ${doctorName} is due today. Book your appointment.`,
+    data: { type: 'FOLLOW_UP_DUE_TODAY' },
+  });
+
+/** Notify patient their follow-up is overdue. */
+const notifyFollowUpOverdue = (userId, doctorName, followUpDate) =>
+  sendNotification(userId, {
+    title: '⚠️ Follow-up Overdue',
+    body: `Your follow-up with Dr. ${doctorName} was due on ${new Date(followUpDate).toLocaleDateString('en-IN')}. Please book soon.`,
+    data: { type: 'FOLLOW_UP_OVERDUE', followUpDate: String(followUpDate) },
+  });
+
 module.exports = {
   saveFcmToken,
   removeFcmToken,
@@ -192,4 +226,8 @@ module.exports = {
   notifyDoctorNewBooking,
   notifyDoctorFollowUp,
   notifyReceptionistNewWalkIn,
+  notifyFollowUpCreated,
+  notifyFollowUpDueSoon,
+  notifyFollowUpDueToday,
+  notifyFollowUpOverdue,
 };

@@ -13,6 +13,7 @@ const { errorHandler, notFound } = require('./middleware/error.middleware');
 const { initializeSocket } = require('./socket');
 const { startReminderJob } = require('./jobs/appointmentReminder.job');
 const { startAccountDeletionJob } = require('./jobs/accountDeletion.job');
+const { startFollowUpReminderJob } = require('./jobs/followupReminder.job');
 const { initFirebase } = require('./config/firebase');
 
 // Routes
@@ -35,6 +36,7 @@ const clinicSessionRoutes = require('./routes/clinicSession.routes');
 const sessionAvailabilityRoutes = require('./routes/sessionAvailability.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const holidayRoutes = require('./routes/holiday.routes');
+const followUpRoutes = require('./routes/followup.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -291,6 +293,7 @@ app.use('/api/device-token', deviceTokenRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api', holidayRoutes);
+app.use('/api/follow-ups', followUpRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
@@ -327,6 +330,7 @@ if (process.env.NODE_ENV !== 'test') {
     // Start scheduled jobs
     startReminderJob();
     startAccountDeletionJob();
+    startFollowUpReminderJob();
   });
 }
 
