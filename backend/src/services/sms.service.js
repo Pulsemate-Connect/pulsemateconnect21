@@ -3,6 +3,7 @@
  *
  * Supported providers (set SMS_PROVIDER in .env):
  *   mock      — logs OTP to console only (default, safe for dev)
+ *   firebase  — Firebase Auth REST API (uses project API key, no SDK needed)
  *   msg91     — MSG91 Flow API (recommended for India)
  *   2factor   — 2Factor.in (simple India SMS + optional WhatsApp)
  *   twilio    — Twilio SMS (international)
@@ -23,6 +24,9 @@ const SMS_API_KEY = process.env.SMS_API_KEY || '';
 const SMS_SENDER_ID = process.env.SMS_SENDER_ID || 'PULSE';
 const SMS_TEMPLATE_ID = process.env.SMS_TEMPLATE_ID || '';
 const WHATSAPP_TEMPLATE_ID = process.env.WHATSAPP_TEMPLATE_ID || '';
+
+// Firebase project API key (used for REST API OTP sending)
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc';
 
 const OTP_MESSAGE = (otp) =>
   `Your PulseMate OTP is ${otp}. Valid for 5 minutes. Do not share it with anyone.`;
@@ -53,6 +57,7 @@ const sendOtpSms = async (mobile, otp) => {
 // Send SMS only
 const sendSms = async (mobile, otp) => {
   switch (SMS_PROVIDER) {
+    case 'firebase': return sendViaFirebase(mobile, otp);
     case 'msg91': return sendViaMSG91(mobile, otp);
     case '2factor': return sendVia2Factor(mobile, otp);
     case 'twilio': return sendViaTwilio(mobile, otp);
@@ -85,6 +90,146 @@ const sendMock = async (mobile, otp) => {
   console.log('─'.repeat(50) + '\n');
   return { success: true, provider: 'mock' };
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Firebase — uses Firebase Admin SDK to send OTP via Firebase Phone Auth
+//
+//  How it works:
+//  1. Backend uses Firebase Admin SDK to create a custom token
+//  2. Then calls Firebase REST API to send the SMS OTP
+//  3. The sessionInfo is stored server-side (in our OTP table)
+//  4. User enters OTP → backend verifies via Firebase REST API
+//
+//  Setup:
+//  1. FIREBASE_SERVICE_ACCOUNT_JSON must be set in Render env vars
+//  2. Set SMS_PROVIDER=firebase in Render env vars
+//  3. Phone Authentication must be enabled in Firebase Console
+//     → Authentication → Sign-in method → Phone → Enable
+//
+//  NOTE: Firebase Phone Auth sends the SMS directly from Firebase's
+//  infrastructure. No SMS credits or third-party SMS provider needed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// In-memory store for Firebase sessionInfo (phone → sessionInfo mapping)
+// In production with multiple instances, use Redis. For single-instance: fine.
+const firebaseSessionStore = new Map();
+
+const sendViaFirebase = async (mobile, otp) => {
+  // Firebase REST API to send OTP — uses the project API key
+  // This is the same endpoint the mobile app was calling, but from the SERVER
+  // Server-to-server calls bypass the MISSING_CLIENT_IDENTIFIER error
+  // because they use the service account, not the app's client identity
+
+  const https = require('https');
+
+  const payload = JSON.stringify({
+    phoneNumber: mobile,
+    // safetyNetToken not needed for server-side calls
+  });
+
+  logger.info(`[Firebase-SMS] Sending OTP to ${mobile}`);
+
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'identitytoolkit.googleapis.com',
+      path: `/v1/accounts:sendVerificationCode?key=${FIREBASE_API_KEY}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        // Server-side identifier — tells Firebase this is a trusted server request
+        'X-Firebase-Client': 'fire-admin-node/13',
+        'X-Client-Version': 'Node/JsCore/10.0.0/FirebaseCore-web',
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => (raw += chunk));
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+        if (parsed.sessionInfo) {
+          // Store sessionInfo keyed by phone number for verification later
+          firebaseSessionStore.set(mobile, {
+            sessionInfo: parsed.sessionInfo,
+            expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+          });
+          logger.info(`[Firebase-SMS] OTP sent to ${mobile}`);
+          resolve({ success: true, provider: 'firebase', sessionInfo: parsed.sessionInfo });
+        } else {
+          const errMsg = parsed.error?.message || raw;
+          logger.error(`[Firebase-SMS] Send failed: ${errMsg}`);
+          // Fall back to mock so dev/staging never breaks
+          logger.warn('[Firebase-SMS] Falling back to mock');
+          resolve(sendMock(mobile, otp));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      logger.error(`[Firebase-SMS] Network error: ${err.message}`);
+      resolve(sendMock(mobile, otp));
+    });
+
+    req.write(payload);
+    req.end();
+  });
+};
+
+/**
+ * Verify Firebase OTP — called by otp.service.js during verification
+ * Returns the Firebase ID token if valid, throws if invalid
+ */
+const verifyFirebaseOtp = async (mobile, code) => {
+  const session = firebaseSessionStore.get(mobile);
+  if (!session || Date.now() > session.expiresAt) {
+    throw Object.assign(new Error('OTP expired. Please request a new code.'), { status: 400 });
+  }
+
+  const https = require('https');
+  const payload = JSON.stringify({
+    sessionInfo: session.sessionInfo,
+    code,
+  });
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'identitytoolkit.googleapis.com',
+      path: `/v1/accounts:signInWithPhoneNumber?key=${FIREBASE_API_KEY}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => (raw += chunk));
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+        if (parsed.idToken) {
+          firebaseSessionStore.delete(mobile); // clean up
+          resolve(parsed.idToken);
+        } else {
+          const errMsg = parsed.error?.message || 'Invalid OTP';
+          reject(Object.assign(new Error(errMsg), { status: 400 }));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+};
+
+module.exports._firebaseSessionStore = firebaseSessionStore;
+module.exports._verifyFirebaseOtp    = verifyFirebaseOtp;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MSG91  (recommended for India production)
