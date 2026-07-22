@@ -238,6 +238,29 @@ const addFollowUp = async (req, res, next) => {
     const doctorProfile = await prisma.doctorProfile.findUnique({ where: { id: doctorId } });
     if (!doctorProfile) return sendError(res, 'Doctor not found', 404);
 
+    // Validate follow-up settings (enabled + within validity period)
+    const { getFollowUpSettings } = require('../services/followup.service');
+    const fuSettings = await getFollowUpSettings(doctorId, clinicId);
+    if (!fuSettings.followUpEnabled) {
+      return sendError(res, 'Follow-up is not enabled for this doctor/clinic', 400);
+    }
+    if (originalAppointment.status !== 'COMPLETED') {
+      return sendError(res, 'Previous appointment must be completed for a follow-up', 400);
+    }
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - fuSettings.followUpValidityDays);
+    if (new Date(originalAppointment.appointmentDate) < cutoffDate) {
+      return sendError(res, `Follow-up validity period has expired (${fuSettings.followUpValidityDays} days)`, 400);
+    }
+
+    // Prevent duplicate follow-up for the same previous visit
+    const existingFollowUp = await prisma.appointment.findFirst({
+      where: { followUpOfAppointmentId: originalAppointmentId, status: { notIn: ['CANCELLED', 'NO_SHOW'] } },
+    });
+    if (existingFollowUp) {
+      return sendError(res, 'A follow-up has already been booked for this visit', 409);
+    }
+
     const effectiveSessionId = sessionId || originalAppointment.sessionId || null;
 
     // Resolve session info for ETA
@@ -248,17 +271,18 @@ const addFollowUp = async (req, res, next) => {
       if (sess) { avgMins = sess.avgConsultationMins || avgMins; sessionStartTime = sess.startTime; }
     }
 
-    // Create follow-up appointment
+    // Create follow-up appointment linked to previous visit
     const followUpAppointment = await prisma.appointment.create({
       data: {
         patientId: originalAppointment.patientId,
-        doctorId,
-        clinicId,
+        doctorId, clinicId,
         ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
         appointmentType: 'OFFLINE',
         appointmentDate: new Date(),
         status: 'IN_QUEUE',
-        symptoms: symptoms || `Follow-up from appointment ${originalAppointmentId}`,
+        appointmentKind: 'FOLLOW_UP',
+        followUpOfAppointmentId: originalAppointmentId,
+        symptoms: symptoms || `Follow-up from ${new Date(originalAppointment.appointmentDate).toLocaleDateString('en-IN')}`,
         estimatedWaitMinutes: 0,
       },
     });

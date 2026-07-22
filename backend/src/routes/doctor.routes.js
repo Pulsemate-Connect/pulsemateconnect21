@@ -16,6 +16,8 @@ const {
   updateDoctorProfile,
   createPrescription,
   completeAppointment,
+  getFollowUpSettings,
+  updateFollowUpSettings,
 } = require('../controllers/doctor.controller');
 
 router.use(authenticate, authorize('DOCTOR', 'SUPER_ADMIN'));
@@ -33,5 +35,9 @@ router.get('/profile', getDoctorProfile);
 router.patch('/profile', updateDoctorProfile);
 router.post('/prescription', createPrescription);
 router.patch('/appointment/:id/complete', completeAppointment);
+
+// ── Follow-up settings (doctor configures per-clinic) ─────────────────────────
+router.get('/follow-up/settings', getFollowUpSettings);
+router.patch('/follow-up/settings', updateFollowUpSettings);
 
 module.exports = router;

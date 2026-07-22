@@ -76,8 +76,8 @@ const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain, 
   const canCancel  = ['BOOKED','IN_QUEUE'].includes(appt.status);
   const canRebook  = isPast && appt.doctor?.id && appt.clinic?.id;
   const canRefund  = isPaid && !isRefunded && appt.status === 'COMPLETED';
-  // Show follow-up if doctor recommended it (prescription has requiresFollowUp)
-  const hasFollowUpRecommendation = appt.status === 'COMPLETED' && appt.prescriptions?.requiresFollowUp;
+  // Show follow-up button if appointment is COMPLETED (server will verify actual eligibility when modal opens)
+  const canFollowUp = appt.status === 'COMPLETED' && appt.appointmentType === 'OFFLINE' && appt.doctor?.id && appt.clinic?.id;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -196,8 +196,8 @@ const AppointmentCard = ({ appt, onCancel, cancellingId, onRefund, onBookAgain, 
             </button>
           )}
 
-          {/* Follow-up — only when doctor recommended */}
-          {hasFollowUpRecommendation && onFollowUp && (
+          {/* Follow-up — available for completed offline visits */}
+          {canFollowUp && onFollowUp && (
             <button
               onClick={() => onFollowUp(appt)}
               className="flex items-center gap-1 text-xs font-semibold text-orange-600 border border-orange-300 py-2 px-3 rounded-lg hover:bg-orange-50 transition-colors"

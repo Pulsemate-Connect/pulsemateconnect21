@@ -33,6 +33,10 @@ const getTodayAppointments = async (req, res, next) => {
         },
         clinic: { select: { id: true, name: true } },
         queueItem: true,
+        // Include previous visit info for follow-up appointments
+        followUpOf: {
+          select: { id: true, appointmentDate: true, symptoms: true },
+        },
       },
       orderBy: [{ queueNumber: 'asc' }, { slotTime: 'asc' }],
     });
@@ -400,6 +404,62 @@ const completeAppointment = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/doctor/follow-up/settings
+ * Get follow-up settings for all clinics this doctor is associated with.
+ */
+const getFollowUpSettings = async (req, res, next) => {
+  try {
+    const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
+    if (!doctorProfile) return sendError(res, 'Doctor profile not found', 404);
+
+    const clinicSettings = await prisma.doctorClinic.findMany({
+      where: { doctorId: doctorProfile.id, isActive: true },
+      select: {
+        clinicId: true,
+        followUpEnabled: true,
+        followUpValidityDays: true,
+        clinic: { select: { id: true, name: true, city: true } },
+      },
+    });
+
+    return sendSuccess(res, { clinicSettings });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/doctor/follow-up/settings
+ * Doctor updates follow-up settings for a specific clinic.
+ * Body: { clinicId, followUpEnabled, followUpValidityDays }
+ */
+const updateFollowUpSettings = async (req, res, next) => {
+  try {
+    const doctorProfile = await prisma.doctorProfile.findUnique({ where: { userId: req.user.id } });
+    if (!doctorProfile) return sendError(res, 'Doctor profile not found', 404);
+
+    const { clinicId, followUpEnabled, followUpValidityDays } = req.body;
+    if (!clinicId) return sendError(res, 'clinicId is required', 400);
+
+    // Verify doctor belongs to this clinic
+    const dc = await prisma.doctorClinic.findUnique({
+      where: { doctorId_clinicId: { doctorId: doctorProfile.id, clinicId } },
+    });
+    if (!dc) return sendError(res, 'You are not associated with this clinic', 403);
+
+    const { updateFollowUpSettings: updateSettings } = require('../services/followup.service');
+    const updated = await updateSettings(doctorProfile.id, clinicId, {
+      followUpEnabled,
+      followUpValidityDays: followUpValidityDays ? parseInt(followUpValidityDays) : undefined,
+    });
+
+    return sendSuccess(res, { settings: updated }, 'Follow-up settings updated');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTodayAppointments,
   getAppointments,
@@ -410,4 +470,6 @@ module.exports = {
   updateDoctorProfile,
   createPrescription,
   completeAppointment,
+  getFollowUpSettings,
+  updateFollowUpSettings,
 };

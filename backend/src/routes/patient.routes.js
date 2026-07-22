@@ -36,7 +36,8 @@ router.patch('/profile', authorize('PATIENT', 'DOCTOR'), updateProfile);
 router.delete('/account', authorize('PATIENT', 'DOCTOR'), deleteAccount);
 
 // ── Follow-up eligibility + booking ──────────────────────────────────────────
-// Eligibility is verified server-side — frontend cannot bypass
+// Eligibility is based on previous completed visits — no prescription needed
+// ?doctorId= and ?clinicId= are optional filters
 router.get('/follow-up/eligible', authorize('PATIENT', 'DOCTOR'), getFollowUpEligibility);
 router.post('/follow-up/book', authorize('PATIENT', 'DOCTOR'), bookFollowUp);
 

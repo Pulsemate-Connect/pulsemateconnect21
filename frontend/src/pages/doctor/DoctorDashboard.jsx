@@ -276,8 +276,18 @@ const AppointmentCard = ({ appointment: appt, onRefresh }) => {
             #{appt.queueNumber || '—'}
           </div>
           <div>
-            <p className="font-semibold text-gray-900">{appt.patient?.name || 'Patient'}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-gray-900">{appt.patient?.name || 'Patient'}</p>
+              {appt.appointmentKind === 'FOLLOW_UP' && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">🔄 Follow-Up</span>
+              )}
+            </div>
             <p className="text-sm text-gray-400">{appt.patient?.mobile}</p>
+            {appt.appointmentKind === 'FOLLOW_UP' && appt.followUpOf && (
+              <p className="text-xs text-orange-500 mt-0.5">
+                Previous visit: {new Date(appt.followUpOf.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </p>
+            )}
             {appt.symptoms && (
               <p className="text-xs text-gray-400 mt-0.5 italic">"{appt.symptoms}"</p>
             )}

@@ -89,7 +89,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
           getPatientProfile(),
           getBookingStatus().catch(() => null),
           getClinicSessions(clinic.id).catch(() => null),
-          getFollowUpEligibility().catch(() => null),
+          getFollowUpEligibility({ doctorId: doctor.id, clinicId: clinic.id }).catch(() => null),
         ]);
         const user = profileRes.data.data.user;
         setPatientData(user);
@@ -231,7 +231,7 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
     setIsBookingFollowUp(true);
     try {
       const res = await bookFollowUp({
-        originalAppointmentId: followUp.originalAppointmentId,
+        previousAppointmentId: followUp.appointmentId,
         symptoms: symptoms || '',
       });
       const appt = res.data.data.appointment;
@@ -344,34 +344,35 @@ const BookAppointmentModal = ({ doctor, clinic, defaultType = 'OFFLINE', onClose
         {/* ── Follow-up section (only shown when eligible) ── */}
         {followUpEligible.length > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <p className="text-sm font-bold text-orange-800 mb-3">🔄 Follow-up Available</p>
-            {followUpEligible.map((fu) => (
-              <div key={fu.originalAppointmentId} className="bg-white border border-orange-200 rounded-xl p-3 mb-2">
-                <p className="text-sm font-semibold text-gray-800">Dr. {fu.doctor.name}</p>
-                <p className="text-xs text-gray-500">{clinic.name}</p>
-                <p className="text-xs text-gray-500">
-                  Previous: {new Date(fu.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
-                {fu.followUpDate && (
-                  <p className="text-xs text-orange-600 font-medium mt-1">
-                    Valid until: {new Date(fu.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                )}
-                <p className="text-xs text-green-600 font-medium mt-1">✅ Follow-up recommended by doctor</p>
-                <button
-                  type="button"
-                  disabled={isBookingFollowUp}
-                  onClick={() => {
-                    setSelectedFollowUp(fu);
-                    handleBookFollowUp(fu, symptoms);
-                  }}
-                  className="mt-2 w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {isBookingFollowUp ? <LoadingSpinner size="sm" /> : '🔄 Book Follow-up (Priority Queue)'}
-                </button>
-              </div>
-            ))}
-            <p className="text-xs text-orange-600 mt-1">Follow-up patients get priority queue position.</p>
+            <p className="text-sm font-bold text-orange-800 mb-1">🔄 Follow-Up Available</p>
+            <p className="text-xs text-orange-600 mb-3">Based on your previous completed visit</p>
+            {followUpEligible.map((fu) => {
+              const visitDate = new Date(fu.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+              const expiresDate = fu.followUpExpiresOn
+                ? new Date(fu.followUpExpiresOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                : null;
+              return (
+                <div key={fu.appointmentId} className="bg-white border border-orange-200 rounded-xl p-3 mb-2">
+                  <p className="text-sm font-semibold text-gray-800">Dr. {fu.doctor.name}</p>
+                  <p className="text-xs text-gray-500">{fu.clinic.name}</p>
+                  <p className="text-xs text-gray-500 mt-1">Previous consultation: {visitDate}</p>
+                  {expiresDate && (
+                    <p className="text-xs text-orange-600 font-medium mt-0.5">Follow-Up Expires On: {expiresDate}</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isBookingFollowUp}
+                    onClick={() => { setSelectedFollowUp(fu); handleBookFollowUp(fu, symptoms); }}
+                    className="mt-2 w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isBookingFollowUp && selectedFollowUp?.appointmentId === fu.appointmentId
+                      ? <LoadingSpinner size="sm" />
+                      : '🔄 Book Follow-up (Priority Queue)'}
+                  </button>
+                </div>
+              );
+            })}
+            <p className="text-xs text-orange-600 mt-1">Follow-up patients receive priority queue position.</p>
             <div className="mt-2 border-t border-orange-200 pt-2">
               <p className="text-xs text-gray-500">Or book a new appointment below ↓</p>
             </div>

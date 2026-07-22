@@ -266,6 +266,9 @@ model DoctorClinic {
   removedAt           DateTime?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+  /// Follow-up settings for this doctor at this clinic
+  followUpEnabled     Boolean            @default(true)
+  followUpValidityDays Int               @default(30)
   clinic              Clinic             @relation("MarketplaceClinic", fields: [clinicId], references: [id], onDelete: Cascade)
   doctor              DoctorProfile      @relation("MarketplaceDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
 
@@ -274,33 +277,42 @@ model DoctorClinic {
 }
 
 model Appointment {
-  id                   String            @id @default(uuid())
-  patientId            String
-  doctorId             String
-  clinicId             String
-  sessionId            String?
-  appointmentType      AppointmentType   @default(OFFLINE)
-  appointmentDate      DateTime
-  slotTime             String?
-  status               AppointmentStatus @default(BOOKED)
-  queueNumber          Int?
-  estimatedWaitMinutes Int?
-  symptoms             String?
-  notes                String?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  clinic               Clinic            @relation(fields: [clinicId], references: [id])
-  doctor               DoctorProfile     @relation(fields: [doctorId], references: [id])
-  patient              User              @relation("PatientAppointments", fields: [patientId], references: [id])
-  payment              Payment?
-  prescriptions        prescriptions?
-  queueItem            QueueItem?
-  reminders            ReminderSent[]
+  id                      String            @id @default(uuid())
+  patientId               String
+  doctorId                String
+  clinicId                String
+  sessionId               String?
+  appointmentType         AppointmentType   @default(OFFLINE)
+  appointmentDate         DateTime
+  slotTime                String?
+  status                  AppointmentStatus @default(BOOKED)
+  queueNumber             Int?
+  estimatedWaitMinutes    Int?
+  symptoms                String?
+  notes                   String?
+  /// NEW / FOLLOW_UP — whether this is a new consultation or follow-up
+  appointmentKind         AppointmentKind   @default(NEW)
+  /// For follow-up appointments: the previous completed appointment this follows up on
+  followUpOfAppointmentId String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  clinic                  Clinic            @relation(fields: [clinicId], references: [id])
+  doctor                  DoctorProfile     @relation(fields: [doctorId], references: [id])
+  patient                 User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  payment                 Payment?
+  prescriptions           prescriptions?
+  queueItem               QueueItem?
+  reminders               ReminderSent[]
+  /// Follow-up appointments that reference this appointment as their origin
+  followUpAppointments    Appointment[]     @relation("FollowUpChain")
+  /// The original appointment this follows up on (self-relation)
+  followUpOf              Appointment?      @relation("FollowUpChain", fields: [followUpOfAppointmentId], references: [id])
 
   @@index([patientId, appointmentDate])
   @@index([doctorId, appointmentDate])
   @@index([clinicId, status, appointmentDate])
   @@index([sessionId])
+  @@index([followUpOfAppointmentId])
   @@map("appointments")
 }
 
@@ -580,6 +592,11 @@ enum AdminLevel {
 enum AppointmentType {
   ONLINE
   OFFLINE
+}
+
+enum AppointmentKind {
+  NEW
+  FOLLOW_UP
 }
 
 enum AppointmentStatus {

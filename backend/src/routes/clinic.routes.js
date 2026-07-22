@@ -68,6 +68,39 @@ router.get('/:id/revenue', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireAppr
 router.get('/:id/booking-metrics', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, getClinicBookingMetrics);
 router.get('/:id/appointments', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST'), getClinicAppointments);
 
+// ── Follow-up settings per doctor at this clinic ──────────────────────────────
+router.get('/:clinicId/doctors/:doctorId/follow-up', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), async (req, res, next) => {
+  try {
+    const { clinicId, doctorId } = req.params;
+    const { getFollowUpSettings } = require('../services/followup.service');
+    const settings = await getFollowUpSettings(doctorId, clinicId);
+    const { sendSuccess } = require('../utils/response');
+    return sendSuccess(res, { settings });
+  } catch (err) { next(err); }
+});
+
+router.patch('/:clinicId/doctors/:doctorId/follow-up', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), async (req, res, next) => {
+  try {
+    const { clinicId, doctorId } = req.params;
+    const { followUpEnabled, followUpValidityDays } = req.body;
+
+    // Verify clinic ownership
+    const prisma = require('../config/database');
+    const { sendSuccess, sendError } = require('../utils/response');
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
+      if (!clinic) return sendError(res, 'Access denied', 403);
+    }
+
+    const { updateFollowUpSettings } = require('../services/followup.service');
+    const updated = await updateFollowUpSettings(doctorId, clinicId, {
+      followUpEnabled,
+      followUpValidityDays: followUpValidityDays ? parseInt(followUpValidityDays) : undefined,
+    });
+    return sendSuccess(res, { settings: updated }, 'Follow-up settings updated');
+  } catch (err) { next(err); }
+});
+
 // ── Clinic Session Management Routes (moved below /:id) — already registered above ── ───────────────────────────────────────────────
 router.post('/:id/bookings/stop', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), stopBookings);
 router.post('/:id/bookings/resume', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), resumeBookings);

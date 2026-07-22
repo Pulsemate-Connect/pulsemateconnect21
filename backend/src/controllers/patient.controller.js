@@ -933,80 +933,21 @@ const deleteAccount = async (req, res, next) => {
 /**
  * GET /api/patient/follow-up/eligible
  * Check if the authenticated patient has any eligible follow-up appointments.
- * Eligibility = prescription exists with requiresFollowUp: true, followUpDate in future,
- * AND no follow-up has already been booked for that appointment.
- * Doctor/clinic must have enabled follow-up (prescription set by doctor).
+ * Eligibility is based on PREVIOUS COMPLETED VISITS — no prescription required.
+ * Doctor/clinic must have follow-up ENABLED (configurable per doctor+clinic).
  */
 const getFollowUpEligibility = async (req, res, next) => {
   try {
     const patientId = req.user.id;
-
-    // Find prescriptions for this patient where doctor marked follow-up required
-    const eligiblePrescriptions = await prisma.prescriptions.findMany({
-      where: {
-        patientId,
-        requiresFollowUp: true,
-        // Follow-up date not expired (either null = no deadline, or still in the future)
-        OR: [
-          { followUpDate: null },
-          { followUpDate: { gte: new Date() } },
-        ],
-      },
-      include: {
-        appointments: {
-          select: {
-            id: true,
-            clinicId: true,
-            doctorId: true,
-            sessionId: true,
-            appointmentDate: true,
-            status: true,
-            clinic: { select: { id: true, name: true, city: true, clinicLogoUrl: true, approvalStatus: true, isActive: true } },
-            doctor: { include: { user: { select: { id: true, name: true } } } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // Filter: original appointment must be COMPLETED, clinic must be verified + active
-    const eligible = [];
-    for (const rx of eligiblePrescriptions) {
-      const appt = rx.appointments;
-      if (!appt) continue;
-      if (appt.status !== 'COMPLETED') continue;
-      if (!appt.clinic || appt.clinic.approvalStatus !== 'VERIFIED' || !appt.clinic.isActive) continue;
-
-      // Check if a follow-up has already been booked for this appointment
-      const existingFollowUp = await prisma.queueItem.findFirst({
-        where: { followUpOf: appt.id },
-      });
-      if (existingFollowUp) continue; // already used
-
-      eligible.push({
-        prescriptionId: rx.id,
-        originalAppointmentId: appt.id,
-        appointmentDate: appt.appointmentDate,
-        followUpDate: rx.followUpDate,
-        doctor: {
-          id: appt.doctorId,
-          name: appt.doctor?.user?.name,
-          specialization: appt.doctor?.specialization,
-        },
-        clinic: {
-          id: appt.clinicId,
-          name: appt.clinic.name,
-          city: appt.clinic.city,
-          logoUrl: appt.clinic.clinicLogoUrl,
-        },
-        sessionId: appt.sessionId,
-      });
-    }
-
+    const { doctorId, clinicId } = req.query;
+    const { checkFollowUpEligibility } = require('../services/followup.service');
+    const result = await checkFollowUpEligibility(patientId, doctorId || null, clinicId || null);
     return sendSuccess(res, {
-      isEligible: eligible.length > 0,
-      count: eligible.length,
-      followUps: eligible,
+      isEligible: result.isEligible,
+      count: result.eligibleVisits.length,
+      followUps: result.eligibleVisits,
+      settings: result.settings,
+      reason: result.reason,
     });
   } catch (error) {
     next(error);
@@ -1015,77 +956,48 @@ const getFollowUpEligibility = async (req, res, next) => {
 
 /**
  * POST /api/patient/follow-up/book
- * Patient books a follow-up appointment.
- * Backend verifies eligibility — frontend cannot fake this.
+ * Patient books a follow-up based on a previous COMPLETED VISIT.
+ * Backend validates: visit belongs to patient, completed, follow-up enabled,
+ * within validity period, no duplicate follow-up for same visit.
  */
 const bookFollowUp = async (req, res, next) => {
   try {
     const patientId = req.user.id;
-    const { originalAppointmentId, symptoms } = req.body;
+    const { previousAppointmentId, symptoms, appointmentDate, slotTime, sessionId } = req.body;
 
-    if (!originalAppointmentId) {
-      return sendError(res, 'originalAppointmentId is required', 400);
+    if (!previousAppointmentId) return sendError(res, 'previousAppointmentId is required', 400);
+
+    const { validateFollowUpBooking } = require('../services/followup.service');
+    const { addToQueue } = require('../services/queue.service');
+
+    // Backend validates all eligibility rules
+    const { previousAppt } = await validateFollowUpBooking(patientId, previousAppointmentId);
+
+    const clinicId = previousAppt.clinicId;
+    const doctorId = previousAppt.doctorId;
+    const effectiveSessionId = sessionId || previousAppt.sessionId || null;
+    const bookingDate = appointmentDate ? new Date(appointmentDate) : new Date();
+
+    // Resolve session ETA info
+    let avgMins = 15;
+    let sessionStartTime = null;
+    if (effectiveSessionId) {
+      const sess = await prisma.clinicSession.findUnique({ where: { id: effectiveSessionId } });
+      if (sess) { avgMins = sess.avgConsultationMins || avgMins; sessionStartTime = sess.startTime; }
     }
 
-    // 1. Verify the original appointment belongs to this patient
-    const originalAppt = await prisma.appointment.findUnique({
-      where: { id: originalAppointmentId },
-      include: {
-        clinic: { select: { id: true, name: true, approvalStatus: true, isActive: true } },
-        doctor: {
-          include: { user: { select: { id: true, name: true } } },
-        },
-        prescriptions: true,
-      },
-    });
-
-    if (!originalAppt) return sendError(res, 'Appointment not found', 404);
-    if (originalAppt.patientId !== patientId) return sendError(res, 'Access denied', 403);
-    if (originalAppt.status !== 'COMPLETED') return sendError(res, 'Original appointment must be completed to book a follow-up', 400);
-    if (!originalAppt.clinic || originalAppt.clinic.approvalStatus !== 'VERIFIED' || !originalAppt.clinic.isActive) {
-      return sendError(res, 'Clinic is not available for booking', 400);
-    }
-
-    // 2. Verify prescription exists with requiresFollowUp: true
-    const prescription = originalAppt.prescriptions;
-    if (!prescription) return sendError(res, 'No prescription found for this appointment', 400);
-    if (!prescription.requiresFollowUp) return sendError(res, 'Doctor has not recommended a follow-up for this appointment', 400);
-
-    // 3. Check follow-up date validity
-    if (prescription.followUpDate && new Date(prescription.followUpDate) < new Date()) {
-      return sendError(res, 'Follow-up validity period has expired', 400);
-    }
-
-    // 4. Prevent duplicate follow-up
-    const existingFollowUp = await prisma.queueItem.findFirst({
-      where: { followUpOf: originalAppointmentId },
-    });
-    if (existingFollowUp) {
-      return sendError(res, 'A follow-up has already been booked for this appointment', 409);
-    }
-
-    const clinicId = originalAppt.clinicId;
-    const doctorId = originalAppt.doctorId;
-    const effectiveSessionId = originalAppt.sessionId || null;
-
-    // 5. Resolve session info
-    const { addToQueue, getQueueSessionInfo } = require('../services/queue.service');
-    const queueForSession = await require('../utils/getOrCreateQueue').getOrCreateQueue(
-      clinicId, doctorId, new Date(), effectiveSessionId
-    );
-    const { avgMins, sessionStartTime } = await getQueueSessionInfo(queueForSession);
-
-    // 6. Create follow-up appointment
+    // Create follow-up appointment — linked to previous visit
     const followUpAppt = await prisma.appointment.create({
       data: {
-        patientId,
-        doctorId,
-        clinicId,
+        patientId, doctorId, clinicId,
         ...(effectiveSessionId ? { sessionId: effectiveSessionId } : {}),
         appointmentType: 'OFFLINE',
-        appointmentDate: new Date(),
-        status: 'IN_QUEUE',
+        appointmentDate: bookingDate,
+        slotTime: slotTime || null,
         symptoms: symptoms || 'Follow-up visit',
+        status: 'BOOKED',
+        appointmentKind: 'FOLLOW_UP',
+        followUpOfAppointmentId: previousAppointmentId,
         estimatedWaitMinutes: 0,
       },
       include: {
@@ -1094,55 +1006,45 @@ const bookFollowUp = async (req, res, next) => {
       },
     });
 
-    // 7. Add to queue via shared engine with follow-up priority
+    // Add to queue with follow-up priority
     const queueResult = await addToQueue({
-      clinicId, doctorId,
-      patientId,
+      clinicId, doctorId, patientId,
       appointmentId: followUpAppt.id,
-      appointmentDate: new Date(),
+      appointmentDate: bookingDate,
       sessionId: effectiveSessionId,
       isFollowUp: true,
-      followUpOf: originalAppointmentId,
-      avgMins,
-      sessionStartTime,
+      followUpOf: previousAppointmentId,
+      avgMins, sessionStartTime,
     });
 
-    // 8. Update appointment with queue info
     await prisma.appointment.update({
       where: { id: followUpAppt.id },
-      data: {
-        queueNumber: queueResult.queueNumber,
-        estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
-      },
+      data: { queueNumber: queueResult.queueNumber, estimatedWaitMinutes: queueResult.estimatedWaitMinutes },
     });
 
-    // 9. Socket update
+    // Socket update
     const io = req.app.get('io');
     if (io) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = bookingDate.toISOString().split('T')[0];
       io.to(`queue:${clinicId}:${doctorId}:${today}`).emit('queue:updated', {
         type: 'FOLLOW_UP_ADDED',
         queueItem: { ...queueResult.queueItem, isFollowUp: true },
       });
     }
 
-    // 10. Notify doctor
-    notifyDoctorNewBooking(
-      originalAppt.doctor?.user?.id,
-      req.user.name || 'Patient',
-      new Date()
-    ).catch(() => { });
+    notifyDoctorNewBooking(followUpAppt.doctor?.user?.id, req.user.name || 'Patient', bookingDate).catch(() => { });
 
     return sendSuccess(res, {
       appointment: { ...followUpAppt, queueNumber: queueResult.queueNumber },
+      previousAppointmentId,
       queueNumber: queueResult.queueNumber,
       position: queueResult.position,
       estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
       estimatedAppointmentTime: queueResult.estimatedAppointmentTime,
-      etaNote: 'This is an estimate. Actual time may vary based on live queue conditions. Please arrive 10–15 minutes before your estimated time.',
+      etaNote: 'ETA is an estimate. Please arrive 10–15 minutes early and monitor the live queue.',
     }, 'Follow-up booked successfully', 201);
   } catch (error) {
-    if (error.status === 400) return sendError(res, error.message, 400);
+    if (error.status) return sendError(res, error.message, error.status);
     next(error);
   }
 };
