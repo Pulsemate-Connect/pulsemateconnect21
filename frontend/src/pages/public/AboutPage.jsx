@@ -129,6 +129,45 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Founders */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold text-slate-900 border-l-4 border-blue-600 pl-4 mb-6">
+          Founders
+        </h2>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {/* Shubham */}
+          <div className="bg-gradient-to-br from-blue-50 to-sky-100 border border-blue-200 rounded-2xl p-6 flex items-start gap-4 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-2xl font-extrabold flex-shrink-0 shadow">
+              SK
+            </div>
+            <div>
+              <p className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-1">Co-Founder</p>
+              <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Shubham Kotharkar</h3>
+            </div>
+          </div>
+
+          {/* Sahil */}
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-100 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-extrabold flex-shrink-0 shadow">
+              SN
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-1">Co-Founder</p>
+              <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Sahil Naik</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Founder story */}
+        <div className="mt-5 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <p className="text-slate-700 leading-relaxed text-sm">
+            PulseMate Connect was founded by <strong>Shubham Kotharkar</strong> and{' '}
+            <strong>Sahil Naik</strong> to simplify healthcare by connecting patients, doctors,
+            and clinics through one digital platform.
+          </p>
+        </div>
+      </section>
+
       {/* Built In India */}
       <section className="mb-10">
         <h2 className="text-xl font-semibold text-slate-900 border-l-4 border-blue-600 pl-4 mb-4">

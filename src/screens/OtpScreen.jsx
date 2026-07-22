@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
-import { firebasePhoneLogin } from '../api/auth';
 import { useAuth } from '../store/authStore';
 
 const LOGO = require('../../assets/logo1.jpeg');
@@ -132,25 +131,25 @@ export default function OtpScreen({ route, navigation }) {
     if (code.length < 6 || !sessionInfo) return;
     setLoading(true);
     try {
-      // Step 1: Verify OTP with Firebase REST API → get Firebase ID token
-      const firebaseIdToken = await verifyPhoneOtp(sessionInfo, code);
+      // verifyPhoneOtp now calls backend directly — returns { accessToken, user, refreshToken }
+      const authData = await verifyPhoneOtp(sessionInfo, code);
 
-      // Step 2: Send Firebase ID token to our backend → get app JWT
-      const res = await firebasePhoneLogin(firebaseIdToken);
+      if (!authData?.accessToken || !authData?.user) {
+        throw new Error('Verification failed. Please try again.');
+      }
 
-      // Step 3: Store JWT, update auth state
       setStatus('success');
       Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
       setTimeout(() => signIn(
-        res.data.data.accessToken,
-        res.data.data.user,
-        res.data.data.refreshToken,   // persist refresh token for silent re-auth
+        authData.accessToken,
+        authData.user,
+        authData.refreshToken ?? null,
       ), 1600);
 
     } catch (err) {
       setStatus('error');
       triggerShake();
-      const msg = err.response?.data?.message || err.message || 'Verification failed. Please try again.';
+      const msg = err?.message || 'Verification failed. Please try again.';
       Alert.alert('Verification Failed', msg);
     } finally {
       setLoading(false);

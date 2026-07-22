@@ -29,7 +29,8 @@ out/
 *.key
 *.mobileprovision
 /ios
-/android
+# android is committed so EAS uses our custom build.gradle
+# /android
 
 # ── Metro ─────────────────────────────────────────────────────────────────────
 .metro-health-check*

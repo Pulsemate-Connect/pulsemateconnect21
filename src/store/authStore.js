@@ -1,9 +1,15 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMe } from '../api/auth';
 import { setGlobalSignOut } from '../api/axios';
 
 const AuthContext = createContext(null);
+
+// ── Shared flag so axios interceptor knows we are in the middle of signing out
+// Prevents re-entrant 401 → signOut loops
+let _isSigningOut = false;
+export const getIsSigningOut = () => _isSigningOut;
 
 export const AuthProvider = ({ children }) => {
   console.log('[AuthProvider] Initializing');
@@ -14,24 +20,45 @@ export const AuthProvider = ({ children }) => {
   const onSignOutRef = useRef(null);
 
   const signOut = useCallback(async () => {
+    // Prevent double-execution
+    if (_isSigningOut) {
+      console.log('[AuthProvider] signOut already in progress, skipping');
+      return;
+    }
+    _isSigningOut = true;
     console.log('[AuthProvider] signOut called');
+
     // Run any registered callback (e.g. deregister push token)
     if (onSignOutRef.current) {
       try { await onSignOutRef.current(); } catch (e) {
-        console.error('[AuthProvider] signOut callback error:', e);
+        console.warn('[AuthProvider] signOut callback error (non-fatal):', e?.message);
       }
-      onSignOutRef.current = null; // clear so it only fires once
+      onSignOutRef.current = null;
     }
-    // Clear tokens from secure storage
-    try {
-      await SecureStore.deleteItemAsync('accessToken');
-    } catch {}
-    try {
-      await SecureStore.deleteItemAsync('refreshToken');
-    } catch {}
-    // Clear state — this triggers RootNavigator re-render to show AuthNavigator
+
+    // Clear ALL storage — SecureStore tokens + any AsyncStorage cache
+    const clearStorage = async () => {
+      const secureKeys = ['accessToken', 'refreshToken'];
+      await Promise.allSettled(secureKeys.map(k => SecureStore.deleteItemAsync(k)));
+
+      // Clear AsyncStorage cache (React Query, socket token, misc)
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        if (allKeys?.length) await AsyncStorage.multiRemove(allKeys);
+      } catch (e) {
+        console.warn('[AuthProvider] AsyncStorage clear error (non-fatal):', e?.message);
+      }
+    };
+
+    try { await clearStorage(); } catch {}
+
+    // Clear React state — this triggers RootNavigator to switch to AuthNavigator
     setToken(null);
     setUser(null);
+
+    // Reset flag after a short delay so any in-flight requests can drain
+    setTimeout(() => { _isSigningOut = false; }, 1000);
+
     console.log('[AuthProvider] signOut complete');
   }, []);
 
@@ -86,6 +113,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signIn = async (accessToken, userData, refreshToken) => {
+    _isSigningOut = false; // reset flag on new sign-in
     await SecureStore.setItemAsync('accessToken', accessToken);
     if (refreshToken) {
       await SecureStore.setItemAsync('refreshToken', refreshToken);
@@ -94,7 +122,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
-  const updateUser = (updates) => setUser((u) => ({ ...u, ...updates }));
+  const updateUser = (updates) => setUser((u) => u ? { ...u, ...updates } : u);
 
   const registerSignOutCallback = useCallback((fn) => {
     onSignOutRef.current = fn;

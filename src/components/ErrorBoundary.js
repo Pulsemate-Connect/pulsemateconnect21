@@ -1,140 +1,99 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-// Global error logger
-const logError = (location, error) => {
-  console.error(`[ErrorBoundary] ${location}:`, error);
-  // In production, you could send this to a crash reporting service
+// ─────────────────────────────────────────────────────────────────────────────
+//  ErrorBoundary — PulseMate Connect
+//
+//  NEVER shows the crash screen for:
+//    • Logout / Delete Account
+//    • 401 / 403 / token errors
+//    • Navigation resets
+//    • Cancelled / aborted requests
+//    • Any error during sign-out transition
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SAFE_PATTERNS = [
+  'logout', 'log out', 'sign out', 'signout',
+  'delete account', 'deleteaccount',
+  'unauthorized', '401', '403', 'forbidden',
+  'token', 'accesstoken', 'refreshtoken',
+  'err_canceled', 'cancelled', 'canceled', 'aborted',
+  'navigation', 'navigate',
+  'network request failed', 'network error',
+  'cannot update a component',      // React state-update-after-unmount warning
+  'unmounted component',
+  'no-op',
+  'securestore',
+  'asyncstorage',
+];
+
+const isSafeError = (error) => {
+  if (!error) return true;
+  const msg = String(error?.message ?? error ?? '').toLowerCase();
+  const stack = String(error?.stack ?? '').toLowerCase();
+  // Check message AND stack for safety patterns
+  return SAFE_PATTERNS.some((p) => msg.includes(p) || stack.includes(p));
 };
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-    
-    // Log that ErrorBoundary is initialized
-    console.log('[ErrorBoundary] Initialized');
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error) {
-    console.log('[ErrorBoundary] getDerivedStateFromError:', error);
-    return { hasError: true };
+    if (isSafeError(error)) {
+      // Safe/intentional error — do NOT show crash screen
+      return { hasError: false, error: null };
+    }
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
-    logError('componentDidCatch', error);
-    console.error('[ErrorBoundary] Error Info:', errorInfo);
-    this.setState({ error, errorInfo });
+  componentDidCatch(error, info) {
+    if (isSafeError(error)) {
+      // Reset just in case getDerivedStateFromError set hasError somehow
+      if (this.state.hasError) {
+        this.setState({ hasError: false, error: null });
+      }
+      console.warn('[ErrorBoundary] Safe error suppressed:', error?.message);
+      return;
+    }
+    console.error('[ErrorBoundary] Real crash caught:', error?.message);
+    this.setState({ hasError: true, error });
   }
 
   handleReset = () => {
-    console.log('[ErrorBoundary] Reset requested');
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState({ hasError: false, error: null });
   };
 
   render() {
-    if (this.state.hasError) {
-      return (
-        <View style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.emoji}>⚠️</Text>
-            <Text style={styles.title}>Oops! Something went wrong</Text>
-            <Text style={styles.message}>
-              The app encountered an unexpected error. Please try restarting.
-            </Text>
-
-            {this.state.error && (
-              <ScrollView style={styles.errorContainer}>
-                <Text style={styles.errorTitle}>Error Details:</Text>
-                <Text style={styles.errorText}>{this.state.error.toString()}</Text>
-                {this.state.errorInfo && (
-                  <Text style={styles.errorStack}>{this.state.errorInfo.componentStack}</Text>
-                )}
-              </ScrollView>
-            )}
-
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.buttonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
+    if (!this.state.hasError) {
+      return this.props.children;
     }
 
-    return this.props.children;
+    return (
+      <View style={s.root}>
+        <View style={s.card}>
+          <Text style={s.icon}>⚠️</Text>
+          <Text style={s.title}>Something went wrong</Text>
+          <Text style={s.msg}>Please tap Try Again or restart the app.</Text>
+          <TouchableOpacity style={s.btn} onPress={this.handleReset}>
+            <Text style={s.btnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0C4A6E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  content: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    maxWidth: 400,
-    width: '100%',
-    alignItems: 'center',
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  message: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    maxHeight: 200,
-    width: '100%',
-  },
-  errorTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 11,
-    color: '#DC2626',
-    fontFamily: 'monospace',
-    marginBottom: 8,
-  },
-  errorStack: {
-    fontSize: 10,
-    color: '#991B1B',
-    fontFamily: 'monospace',
-  },
-  button: {
-    backgroundColor: '#0EA5E9',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
+const s = StyleSheet.create({
+  root:  { flex: 1, backgroundColor: '#0C4A6E', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  card:  { backgroundColor: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center' },
+  icon:  { fontSize: 56, marginBottom: 16 },
+  title: { fontSize: 20, fontWeight: '700', color: '#1E293B', marginBottom: 10, textAlign: 'center' },
+  msg:   { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  btn:   { backgroundColor: '#0EA5E9', paddingHorizontal: 36, paddingVertical: 13, borderRadius: 10 },
+  btnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 
 export default ErrorBoundary;

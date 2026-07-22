@@ -419,6 +419,13 @@ export default function ProfileScreen({ navigation, route }) {
   const [appointments, setAppointments] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [editSheet,    setEditSheet]    = useState(false);
+  const [signingOut,   setSigningOut]   = useState(false);  // loading state for logout/delete
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -450,56 +457,97 @@ export default function ProfileScreen({ navigation, route }) {
   }, [navigation, route?.params?.openEdit]);
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try { await logout(); } catch {}
-          // signOut clears tokens + state → RootNavigator shows AuthNavigator
-          if (typeof signOut === 'function') signOut();
-        },
-      },
-    ]);
-  };
-
-  const handleDeleteAccount = () => {
+    if (signingOut) return;
     Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all personal data. Your appointment history will be anonymized. This cannot be undone.',
+      'Logout',
+      'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete My Account',
+          text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Final Confirmation',
-              'Are you absolutely sure? This action is irreversible.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Yes, Delete Everything',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await deleteAccount();
-                    } catch (err) {
-                      // Even if server delete fails, still sign out locally
-                      console.warn('[DeleteAccount] Server error:', err?.message);
-                    }
-                    try { await logout(); } catch {}
-                    // Always sign out — clears local state and navigates to Auth
-                    if (typeof signOut === 'function') signOut();
-                  },
-                },
-              ]
-            );
-          },
+          onPress: performLogout,
         },
       ]
     );
+  };
+
+  const performLogout = async () => {
+    if (signingOut) return;
+    if (mountedRef.current) setSigningOut(true);
+    try {
+      // 1. Disconnect socket
+      try {
+        const socketService = require('../services/socket.service').default;
+        socketService.disconnect();
+      } catch {}
+
+      // 2. Call backend logout (fire-and-forget — don't let failure block sign-out)
+      try { await logout(); } catch {}
+
+      // 3. signOut clears all tokens + AsyncStorage + state
+      //    RootNavigator will switch to AuthNavigator automatically
+      if (typeof signOut === 'function') await signOut();
+    } catch (err) {
+      // Never let logout throw — always complete sign-out locally
+      console.warn('[ProfileScreen] performLogout non-fatal error:', err?.message);
+      try { if (typeof signOut === 'function') await signOut(); } catch {}
+    } finally {
+      // Component may already be unmounted by now (navigation switched) — that's fine
+      if (mountedRef.current) setSigningOut(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (signingOut) return;
+    Alert.alert(
+      'Delete Account?',
+      'This action is permanent.\nYour profile, appointments, and account data will be removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: performDeleteAccount,
+        },
+      ]
+    );
+  };
+
+  const performDeleteAccount = async () => {
+    if (signingOut) return;
+    if (mountedRef.current) setSigningOut(true);
+    try {
+      // 1. Disconnect socket first
+      try {
+        const socketService = require('../services/socket.service').default;
+        socketService.disconnect();
+      } catch {}
+
+      // 2. Call DELETE /api/patient/account
+      try {
+        await deleteAccount();
+      } catch (err) {
+        // If 401/404 (already deleted or token expired), still proceed
+        const status = err?.response?.status;
+        if (status !== 401 && status !== 404 && status !== 403) {
+          // Real server error — inform user but still clean up locally
+          console.warn('[ProfileScreen] deleteAccount server error:', err?.message);
+        }
+      }
+
+      // 3. Call backend logout (best-effort)
+      try { await logout(); } catch {}
+
+      // 4. signOut clears all local tokens + state
+      if (typeof signOut === 'function') await signOut();
+
+    } catch (err) {
+      console.warn('[ProfileScreen] performDeleteAccount non-fatal error:', err?.message);
+      try { if (typeof signOut === 'function') await signOut(); } catch {}
+    } finally {
+      if (mountedRef.current) setSigningOut(false);
+    }
   };
 
   const handleProfileSaved = (updatedUser) => {
@@ -766,21 +814,34 @@ export default function ProfileScreen({ navigation, route }) {
         </View>
 
         {/* ── Logout ── */}
-        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[s.logoutBtn, signingOut && { opacity: 0.55 }]}
+          onPress={handleLogout}
+          activeOpacity={0.85}
+          disabled={signingOut}
+        >
           <View style={s.logoutIconWrap}>
-            <Ionicons name="log-out-outline" size={18} color={RED} />
+            {signingOut
+              ? <ActivityIndicator size="small" color={RED} />
+              : <Ionicons name="log-out-outline" size={18} color={RED} />
+            }
           </View>
-          <Text style={s.logoutText}>Logout</Text>
-          <Ionicons name="chevron-forward" size={15} color={RED} style={{ marginLeft: 'auto' }} />
+          <Text style={s.logoutText}>{signingOut ? 'Logging out…' : 'Logout'}</Text>
+          {!signingOut && <Ionicons name="chevron-forward" size={15} color={RED} style={{ marginLeft: 'auto' }} />}
         </TouchableOpacity>
 
         {/* ── Delete Account (Google Play required) ── */}
-        <TouchableOpacity style={s.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[s.deleteBtn, signingOut && { opacity: 0.55 }]}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.85}
+          disabled={signingOut}
+        >
           <View style={s.deleteIconWrap}>
             <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
           </View>
           <Text style={s.deleteText}>Delete Account</Text>
-          <Ionicons name="chevron-forward" size={13} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
+          {!signingOut && <Ionicons name="chevron-forward" size={13} color="#9CA3AF" style={{ marginLeft: 'auto' }} />}
         </TouchableOpacity>
         <Text style={s.deleteHint}>Permanently deletes your account and all personal data.</Text>
 

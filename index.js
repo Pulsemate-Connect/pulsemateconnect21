@@ -1,29 +1,31 @@
 import { registerRootComponent } from 'expo';
 import App from './App';
 
-// Global error handlers to prevent crashes
-console.log('[Index] Setting up global error handlers');
+// ── Suppress known-safe errors from crashing the app ──────────────────────────
+const SAFE_PATTERNS = [
+  'logout', 'sign out', 'signout',
+  'delete account',
+  'unauthorized', 'token',
+  'err_canceled', 'cancelled', 'canceled', 'aborted',
+  'navigation', 'cannot update a component', 'unmounted',
+  'network request failed',
+  'securestore', 'asyncstorage',
+  'no-op',
+];
 
-// Catch unhandled promise rejections
-if (typeof global.Promise !== 'undefined') {
-  const originalPromiseReject = Promise.reject;
-  Promise.reject = function (reason) {
-    console.error('[Index] Unhandled Promise Rejection:', reason);
-    return originalPromiseReject.call(this, reason);
-  };
-}
+const isSafeError = (err) => {
+  const msg = String(err?.message ?? err ?? '').toLowerCase();
+  return SAFE_PATTERNS.some((p) => msg.includes(p));
+};
 
-// Catch global errors
+// Global handler — catches uncaught JS errors
 ErrorUtils.setGlobalHandler((error, isFatal) => {
-  console.error('[Index] Global Error:', error);
-  console.error('[Index] Is Fatal:', isFatal);
-  console.error('[Index] Stack:', error.stack);
-  
-  if (isFatal) {
-    console.error('[Index] FATAL ERROR - App will crash');
+  if (isSafeError(error)) {
+    // Safe/expected error during logout or navigation transition — suppress it
+    console.warn('[GlobalHandler] Suppressed safe error:', error?.message);
+    return;
   }
+  console.error('[GlobalHandler] Unhandled error (fatal=' + isFatal + '):', error?.message);
 });
 
-console.log('[Index] Registering root component');
 registerRootComponent(App);
-console.log('[Index] Root component registered');

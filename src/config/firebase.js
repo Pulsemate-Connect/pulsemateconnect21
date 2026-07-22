@@ -1,85 +1,90 @@
 /**
- * Firebase Phone Auth for React Native (Production build)
+ * Firebase Phone Auth — PulseMate Connect
  *
- * Uses Firebase REST API directly — no Firebase SDK or reCAPTCHA package needed.
- * For production Android builds, Firebase verifies the app using:
- *   - google-services.json (app registration)
- *   - SHA-1 fingerprint (keystore signature)
+ * ── Why this changed ────────────────────────────────────────────────────────
+ * The Firebase REST API endpoint `sendVerificationCode` requires one of:
+ *   • A reCAPTCHA token (web only)
+ *   • A SafetyNet / Play Integrity token  (Android production builds)
+ *   • An App Check token
  *
- * ── Setup complete ─────────────────────────────────────────────────────────
- * ✅ 1. Android app registered in Firebase Console (package: in.pulsemateconnect.app)
- * ✅ 2. Android App ID configured below
- * ✅ 3. API key configured below
- * ✅ 4. SHA-1 fingerprint added to Firebase Console
- * ✅ 5. google-services.json at repository root
+ * Without these, Firebase returns MISSING_CLIENT_IDENTIFIER.
+ *
+ * ── Solution ────────────────────────────────────────────────────────────────
+ * OTP send + verify are handled entirely by the PulseMate backend:
+ *   POST /auth/send-otp   → backend sends SMS via its own OTP service
+ *   POST /auth/verify-otp → backend verifies OTP and issues app JWT
+ *
+ * No Firebase REST API calls are needed for the OTP flow.
+ * No Google Sign-In is initialized on startup.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
+import api from '../api/axios';
+
+// ── Firebase project config (kept for reference / future use) ────────────────
 export const firebaseConfig = {
   apiKey:            'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc',
   authDomain:        'pulsemateconnect.firebaseapp.com',
   projectId:         'pulsemateconnect',
   messagingSenderId: '157620382332',
-  // Android App ID from Firebase Console (package: in.pulsemateconnect.app)
-  appId:             '1:157620382332:android:a13dffbc9a712ac2e6b7f9',
+  appId:             '1:157620382332:android:063dba90b53a1c81e6b7f9', // in.pulsemateconnect.patient
 };
 
-const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';
-
 /**
- * Send OTP via Firebase Phone Auth REST API
+ * Send OTP via backend SMS service.
+ * Routes through POST /auth/send-otp — no Firebase REST call.
+ *
  * @param {string} phoneNumber  E.164 format e.g. "+917022818878"
- * @returns {Promise<string>} sessionInfo
+ * @returns {Promise<string>} A session token (the phone number) to pass to verifyOtp
  */
 export const sendOtpToPhone = async (phoneNumber) => {
-  const response = await fetch(
-    `${FIREBASE_AUTH_API}/accounts:sendVerificationCode?key=${firebaseConfig.apiKey}`,
-    {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phoneNumber }),
-    }
-  );
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(friendlyError(data.error?.message || 'Failed to send OTP'));
+  try {
+    await api.post('/auth/send-otp', { mobile: phoneNumber });
+    // Return the phone number as the "session" — backend uses it as the key
+    return phoneNumber;
+  } catch (err) {
+    // Surface a clean error message
+    const serverMsg = err?.response?.data?.message;
+    throw new Error(friendlyError(serverMsg || err?.message || 'Failed to send OTP. Please try again.'));
   }
-  return data.sessionInfo;
 };
 
 /**
- * Verify OTP and return Firebase ID token
- * @param {string} sessionInfo  From sendOtpToPhone
+ * Verify OTP via backend.
+ * Routes through POST /auth/verify-otp — returns app JWT directly.
+ *
+ * @param {string} sessionInfo  The phone number returned from sendOtpToPhone
  * @param {string} code         6-digit OTP
- * @returns {Promise<string>} Firebase ID token
+ * @param {string} [name]       Optional name for new users
+ * @returns {Promise<{ accessToken: string, refreshToken?: string, user: object }>}
  */
-export const verifyPhoneOtp = async (sessionInfo, code) => {
-  const response = await fetch(
-    `${FIREBASE_AUTH_API}/accounts:signInWithPhoneNumber?key=${firebaseConfig.apiKey}`,
-    {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sessionInfo, code }),
-    }
-  );
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(friendlyError(data.error?.message || 'Invalid OTP'));
+export const verifyPhoneOtp = async (sessionInfo, code, name) => {
+  try {
+    const res = await api.post('/auth/verify-otp', {
+      mobile: sessionInfo,
+      otp: code,
+      ...(name ? { name } : {}),
+    });
+    // Backend returns { data: { accessToken, user, refreshToken? } }
+    return res.data?.data ?? res.data;
+  } catch (err) {
+    const serverMsg = err?.response?.data?.message;
+    throw new Error(friendlyError(serverMsg || err?.message || 'Verification failed. Please try again.'));
   }
-  return data.idToken;
 };
 
-const friendlyError = (message) => {
-  const map = {
-    INVALID_PHONE_NUMBER:       'Invalid phone number. Enter a valid 10-digit number.',
-    TOO_MANY_ATTEMPTS_TRY_LATER:'Too many attempts. Please wait a few minutes.',
-    QUOTA_EXCEEDED:             'SMS quota exceeded. Try again later.',
-    INVALID_CODE:               'Invalid OTP. Please check the code and try again.',
-    SESSION_EXPIRED:            'OTP expired. Please request a new code.',
-    MISSING_CODE:               'Please enter the OTP code.',
-    CAPTCHA_CHECK_FAILED:       'reCAPTCHA failed. Please try again.',
-  };
-  for (const [key, value] of Object.entries(map)) {
-    if (message.includes(key)) return value;
-  }
+// ── Error message mapping ─────────────────────────────────────────────────────
+const friendlyError = (message = '') => {
+  const m = message.toUpperCase();
+  if (m.includes('INVALID_PHONE_NUMBER'))        return 'Invalid phone number. Enter a valid 10-digit number.';
+  if (m.includes('TOO_MANY_ATTEMPTS'))            return 'Too many attempts. Please wait a few minutes.';
+  if (m.includes('QUOTA_EXCEEDED'))               return 'SMS quota exceeded. Try again later.';
+  if (m.includes('INVALID_CODE') ||
+      m.includes('INVALID OTP'))                  return 'Invalid OTP. Please check the code and try again.';
+  if (m.includes('SESSION_EXPIRED') ||
+      m.includes('OTP EXPIRED'))                  return 'OTP expired. Please request a new code.';
+  if (m.includes('MISSING_CODE'))                 return 'Please enter the OTP code.';
+  if (m.includes('MISSING_CLIENT_IDENTIFIER'))    return 'Configuration error. Please restart the app and try again.';
+  if (m.includes('WAIT') || m.includes('WAIT ')) return message; // keep "wait X seconds" messages as-is
   return message;
 };

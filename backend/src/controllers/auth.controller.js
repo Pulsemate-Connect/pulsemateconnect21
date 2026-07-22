@@ -442,6 +442,9 @@ const patientVerifyOtpHandler = async (req, res, next) => {
       res,
       {
         accessToken: tokens.accessToken,
+        // Include refreshToken in body so mobile clients (React Native / Expo)
+        // can store it in SecureStore for silent token rotation.
+        refreshToken: tokens.refreshToken,
         user: { ...toAuthUser(user), isNewUser },
       },
       isNewUser ? 'Patient account created successfully' : 'Login successful'

@@ -303,27 +303,26 @@ function SplashScreen() {
 
 // ─── Root navigator ───────────────────────────────────────────────────────────
 function RootNavigator({ navigationRef }) {
-  console.log('[RootNavigator] Rendering');
   const { user, loading } = useAuth();
-  console.log('[RootNavigator] Auth state - loading:', loading, 'user:', !!user);
 
   // usePushNotifications must be called unconditionally (Rules of Hooks).
-  // Pass null-safe navigationRef — the hook itself guards against undefined.
   const safeNavRef = navigationRef ?? { current: null };
   try {
     usePushNotifications(safeNavRef, !!user);
   } catch (error) {
-    // Non-fatal — push notifications failing should never crash the app
-    console.error('[RootNavigator] Push notifications error:', error);
+    console.warn('[RootNavigator] Push notifications error (non-fatal):', error?.message);
   }
 
-  if (loading) {
-    console.log('[RootNavigator] Showing splash screen');
-    return <SplashScreen />;
-  }
+  if (loading) return <SplashScreen />;
 
-  console.log('[RootNavigator] Showing', user ? 'MainNavigator' : 'AuthNavigator');
-  return user ? <MainNavigator /> : <AuthNavigator />;
+  // When user becomes null (logout/delete), always show AuthNavigator — never crash
+  try {
+    return user ? <MainNavigator /> : <AuthNavigator />;
+  } catch (error) {
+    // Navigation transition error — just show auth screen
+    console.warn('[RootNavigator] Navigation render error (non-fatal):', error?.message);
+    return <AuthNavigator />;
+  }
 }
 
 export default function App() {
