@@ -1,5 +1,5 @@
 /**
- * PulsemateLogo — uses the official app_ion logo image
+ * PulsemateLogo — official app_ion logo + brand name
  *
  * Props:
  *   size        — 'sm' | 'md' | 'lg' | 'xl'
@@ -7,30 +7,32 @@
  *   showTagline — boolean
  */
 
+// Use explicit pixel sizes to avoid Tailwind purge / non-standard class issues
 const sizes = {
-  sm: { img: 'h-8 w-8',   name: 'text-base',   sub: 'text-[10px]' },
-  md: { img: 'h-10 w-10', name: 'text-lg',     sub: 'text-[11px]' },
-  lg: { img: 'h-13 w-13', name: 'text-xl',     sub: 'text-sm'     },
-  xl: { img: 'h-16 w-16', name: 'text-2xl',    sub: 'text-base'   },
+  sm: { imgPx: 28, name: 'text-sm',   sub: 'text-[10px]' },
+  md: { imgPx: 36, name: 'text-base', sub: 'text-[11px]' },
+  lg: { imgPx: 44, name: 'text-lg',   sub: 'text-xs'     },
+  xl: { imgPx: 56, name: 'text-xl',   sub: 'text-sm'     },
 };
 
 const PulsemateLogo = ({ size = 'md', theme = 'dark', showTagline = false, className = '' }) => {
   const s = sizes[size] || sizes.md;
-  const nameColor  = theme === 'dark' ? 'text-white'      : 'text-slate-900';
-  const accentColor= theme === 'dark' ? 'text-blue-300'   : 'text-blue-600';
-  const subColor   = theme === 'dark' ? 'text-blue-300'   : 'text-blue-500';
+  const nameColor   = theme === 'dark' ? 'text-white'    : 'text-slate-900';
+  const accentColor = theme === 'dark' ? 'text-blue-300' : 'text-blue-600';
+  const subColor    = theme === 'dark' ? 'text-blue-300' : 'text-blue-500';
 
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      {/* Logo image */}
+    <div className={`flex items-center gap-2 ${className}`}>
+      {/* Logo image — fixed pixel size, no stretching */}
       <img
         src="/logo.png"
-        alt="PulseMate Connect"
-        className={`${s.img} rounded-xl object-cover flex-shrink-0 shadow-sm`}
+        alt="PulseMate"
+        style={{ width: s.imgPx, height: s.imgPx, flexShrink: 0 }}
+        className="rounded-lg object-cover"
         draggable={false}
       />
 
-      {/* Name + tagline */}
+      {/* Brand name + optional tagline */}
       <div className="flex flex-col leading-none">
         <span className={`${s.name} font-extrabold tracking-tight ${nameColor}`}>
           PulseMate <span className={accentColor}>Connect</span>
