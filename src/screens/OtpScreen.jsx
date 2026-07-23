@@ -17,7 +17,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
 import { useAuth } from '../store/authStore';
-
 const LOGO = require('../../assets/logo1.jpeg');
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
