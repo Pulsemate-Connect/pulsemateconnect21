@@ -16,6 +16,11 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+// Firebase App Check — Play Integrity provider
+import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
@@ -46,6 +51,16 @@ class MainApplication : Application(), ReactApplication {
       ReleaseLevel.STABLE
     }
     loadReactNative(this)
+
+    // Initialize Firebase App Check with Play Integrity
+    // This automatically attaches a Play Integrity token to all Firebase requests
+    // including Phone Auth sendVerificationCode — fixes MISSING_CLIENT_IDENTIFIER
+    FirebaseApp.initializeApp(this)
+    val firebaseAppCheck = FirebaseAppCheck.getInstance()
+    firebaseAppCheck.installAppCheckProviderFactory(
+      PlayIntegrityAppCheckProviderFactory.getInstance()
+    )
+
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }
 
