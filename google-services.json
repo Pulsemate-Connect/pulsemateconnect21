@@ -31,7 +31,16 @@
           "package_name": "in.pulsemateconnect.patient"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "157620382332-pcpk95ckvrgssh7al53tlqsp2l5rfbpp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.pulsemateconnect.patient",
+            "certificate_hash": "0b84891144b1b8dbc49b4d05edaa83770f30434f"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc"
