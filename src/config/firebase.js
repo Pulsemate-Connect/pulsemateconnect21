@@ -312,28 +312,6 @@ const friendlyBackendError = (msg) => {
   return msg || 'Authentication failed. Please try again.';
 };
 
-export { initializeFirebaseAuth, sendOtpToPhone, verifyPhoneOtp, resendOtp, loginWithFirebaseToken, setupRecaptchaVerifier };
-
-// ── User-friendly error messages ──────────────────────────────────────────────
-const friendlyError = (code) => {
-  const map = {
-    'auth/invalid-phone-number':      'Invalid phone number. Enter a valid 10-digit number.',
-    'auth/too-many-requests':         'Too many attempts. Please wait a few minutes.',
-    'auth/quota-exceeded':            'SMS quota exceeded. Try again later.',
-    'auth/invalid-verification-code': 'Invalid OTP. Please check the code and try again.',
-    'auth/code-expired':              'OTP expired. Please request a new code.',
-    'auth/session-expired':           'OTP expired. Please request a new code.',
-    'auth/missing-verification-code': 'Please enter the OTP code.',
-    'auth/network-request-failed':    'Network error. Check your internet connection.',
-    'auth/captcha-check-failed':      'reCAPTCHA failed. Please try again.',
-    'auth/web-storage-unsupported':   'Please enable cookies/storage in your browser.',
-    'auth/operation-not-allowed':     'Phone auth is not enabled. Contact support.',
-    'auth/internal-error':            'Firebase error. Please try again.',
-  };
-  const key = String(code).split(' ')[0];
-  return map[key] || `Error: ${code}`;
-};
-
 // ── User-friendly error messages ──────────────────────────────────────────────
 const friendlyError = (code) => {
   const map = {
