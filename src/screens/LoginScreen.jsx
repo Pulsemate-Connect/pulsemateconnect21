@@ -2,18 +2,20 @@
  * LoginScreen — Firebase Phone Authentication
  *
  * Flow:
- *   1. User enters 10-digit mobile number and taps Send OTP
- *   2. Firebase REST API sends SMS OTP (no reCAPTCHA needed for production)
- *   3. Navigate to OtpScreen with { mobile, sessionInfo }
+ *   1. Initialize Firebase Auth on mount
+ *   2. User enters 10-digit mobile number and taps Send OTP
+ *   3. Firebase SDK sends real SMS OTP via Google's infrastructure
+ *   4. Navigate to OtpScreen with { mobile, confirmationResult }
+ *   5. User verifies OTP on next screen
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { sendOtpToPhone } from '../config/firebase';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -56,26 +58,62 @@ export default function LoginScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [firebaseReady, setFirebaseReady] = useState(false);
+
+  // Initialize Firebase on mount (one-time)
+  useEffect(() => {
+    const init = async () => {
+      try {
+        console.log('[LoginScreen] Initializing Firebase Auth...');
+        await initializeFirebaseAuth();
+        setFirebaseReady(true);
+        console.log('[LoginScreen] Firebase Auth ready');
+      } catch (error) {
+        console.error('[LoginScreen] Firebase initialization failed:', error);
+        Alert.alert(
+          'Initialization Error',
+          'Failed to initialize Firebase. Please restart the app.',
+          [{ text: 'OK' }]
+        );
+      }
+    };
+
+    init();
+  }, []);
 
   const handleSendOtp = async () => {
+    if (!firebaseReady) {
+      Alert.alert('Error', 'App is not ready. Please wait a moment and try again.');
+      return;
+    }
+
     const trimmed = mobile.trim();
     if (trimmed.length < 10) {
       Alert.alert('Invalid Number', 'Enter a valid 10-digit mobile number.');
       return;
     }
+
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
+
     try {
-      const sessionInfo = await sendOtpToPhone(fullNumber);
-      navigation.navigate('Otp', { mobile: fullNumber, sessionInfo });
+      console.log('[LoginScreen] Sending OTP to', fullNumber);
+      const result = await sendOtpToPhone(fullNumber);
+
+      // Navigate to OTP screen with confirmationResult
+      navigation.navigate('Otp', {
+        mobile: fullNumber,
+        confirmationResult: result.confirmationResult,
+      });
     } catch (err) {
+      console.error('[LoginScreen] Send OTP error:', err);
       Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const canSend = mobile.trim().length >= 10 && !loading;
+  const canSend = firebaseReady && mobile.trim().length >= 10 && !loading;
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

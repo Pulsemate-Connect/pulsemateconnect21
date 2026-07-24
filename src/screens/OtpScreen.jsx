@@ -1,12 +1,18 @@
 /**
  * OtpScreen — Firebase Phone Auth OTP verification
  *
- * Receives: mobile (E.164), sessionInfo (from Firebase sendVerificationCode)
+ * Receives: mobile (E.164), confirmationResult (from Firebase sendOtpToPhone)
  * Flow:
- *   1. User enters 6-digit OTP
- *   2. verifyPhoneOtp(sessionInfo, code) → Firebase REST API returns idToken
- *   3. firebasePhoneLogin(idToken) → our backend verifies & returns app JWT
- *   4. signIn(jwt, user) → user is logged in
+ *   1. User enters 6-digit OTP from SMS
+ *   2. verifyPhoneOtp(confirmationResult, code) → Firebase verifies locally, returns idToken
+ *   3. loginWithFirebaseToken(idToken) → Backend verifies Firebase token, returns app JWT
+ *   4. signIn(accessToken, user) → User logged in ✅
+ *
+ * KEY POINTS:
+ *   - Firebase SDK handles SMS delivery (real SMS via Google infrastructure)
+ *   - OTP verification happens on client (no server call)
+ *   - Backend only verifies the Firebase ID Token after successful verification
+ *   - No mock OTP logging or generation
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -15,7 +21,7 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifyPhoneOtp, sendOtpToPhone } from '../config/firebase';
+import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase';
 import { useAuth } from '../store/authStore';
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -67,7 +73,7 @@ const sr = StyleSheet.create({
 });
 
 export default function OtpScreen({ route, navigation }) {
-  const { mobile, sessionInfo: initialSession } = route.params;
+  const { mobile, confirmationResult } = route.params;
   const { signIn } = useAuth();
 
   const [digits,      setDigits]      = useState(['', '', '', '', '', '']);
@@ -75,7 +81,6 @@ export default function OtpScreen({ route, navigation }) {
   const [status,      setStatus]      = useState('idle');
   const [cooldown,    setCooldown]    = useState(60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
-  const [sessionInfo, setSessionInfo] = useState(initialSession);
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
@@ -127,18 +132,37 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleVerify = async () => {
     const code = digits.join('');
-    if (code.length < 6 || !sessionInfo) return;
+    if (code.length < 6 || !confirmationResult) return;
+
     setLoading(true);
+
     try {
-      // verifyPhoneOtp now calls backend directly — returns { accessToken, user, refreshToken }
-      const authData = await verifyPhoneOtp(sessionInfo, code);
+      console.log('[OtpScreen] Verifying OTP with Firebase...');
+
+      // Step 1: Verify OTP with Firebase SDK (local verification, no network call)
+      const firebaseResult = await verifyPhoneOtp(confirmationResult, code);
+
+      if (!firebaseResult?.idToken) {
+        throw new Error('Failed to get Firebase token. Please try again.');
+      }
+
+      console.log('[OtpScreen] Firebase verification successful, sending to backend...');
+
+      // Step 2: Send Firebase ID Token to backend
+      // Backend will verify the token using Firebase Admin SDK
+      // and return application JWT tokens
+      const authData = await loginWithFirebaseToken(firebaseResult.idToken);
 
       if (!authData?.accessToken || !authData?.user) {
-        throw new Error('Verification failed. Please try again.');
+        throw new Error('Backend authentication failed. Please try again.');
       }
+
+      console.log('[OtpScreen] Backend authentication successful');
 
       setStatus('success');
       Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
+
+      // Sign in after showing success animation
       setTimeout(() => signIn(
         authData.accessToken,
         authData.user,
@@ -146,6 +170,7 @@ export default function OtpScreen({ route, navigation }) {
       ), 1600);
 
     } catch (err) {
+      console.error('[OtpScreen] Verification error:', err);
       setStatus('error');
       triggerShake();
       const msg = err?.message || 'Verification failed. Please try again.';
@@ -157,13 +182,20 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleResend = async () => {
     try {
-      const newSession = await sendOtpToPhone(mobile);
-      setSessionInfo(newSession);
+      console.log('[OtpScreen] Resending OTP...');
+      const result = await resendOtp(mobile);
+
+      // Update confirmationResult in route params for next attempt
+      route.params.confirmationResult = result.confirmationResult;
+
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
       startCooldown(60);
       setTimeout(() => refs[0].current?.focus(), 100);
+
+      Alert.alert('OTP Resent', 'New OTP sent to your phone.');
     } catch (err) {
+      console.error('[OtpScreen] Resend error:', err);
       Alert.alert('Error', err.message || 'Failed to resend OTP.');
     }
   };
@@ -177,7 +209,7 @@ export default function OtpScreen({ route, navigation }) {
     return [os.box];
   };
 
-  const canVerify = digits.join('').length === 6 && !loading && !!sessionInfo;
+  const canVerify = digits.join('').length === 6 && !loading && !!confirmationResult;
 
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

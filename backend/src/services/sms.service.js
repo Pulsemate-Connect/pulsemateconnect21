@@ -1,12 +1,22 @@
 /**
  * SMS / OTP delivery service — PulseMate Connect
  *
- * SMS_PROVIDER options (set in Render env vars):
- *   firebase  — Firebase Admin SDK generates + sends OTP via Firebase Phone Auth
+ * IMPORTANT: This service is DEPRECATED for patient login.
+ * Patient login now uses Firebase Phone Authentication on the client.
+ * Firebase sends real SMS directly via Google infrastructure.
+ *
+ * This service is kept ONLY for:
+ *   - Legacy backward compatibility with old app versions
+ *   - Staff/clinic owner OTP flows (not patient login)
+ *   - Email verification codes
+ *
+ * SMS_PROVIDER options (for legacy flows only):
+ *   2factor   — 2Factor.in (India, recommended for testing)
  *   msg91     — MSG91 Flow API (India, recommended for production)
- *   2factor   — 2Factor.in (India, simple + cheap)
  *   twilio    — Twilio SMS (international)
  *   mock      — Console log only (development default)
+ *
+ * DO NOT USE FOR PATIENT LOGIN — Use Firebase Phone Auth instead.
  */
 const logger = require('../config/logger');
 
@@ -16,7 +26,6 @@ const SMS_API_KEY        = process.env.SMS_API_KEY           || '';
 const SMS_SENDER_ID      = process.env.SMS_SENDER_ID         || 'PULSE';
 const SMS_TEMPLATE_ID    = process.env.SMS_TEMPLATE_ID       || '';
 const WHATSAPP_TEMPLATE_ID = process.env.WHATSAPP_TEMPLATE_ID || '';
-const FIREBASE_API_KEY   = process.env.FIREBASE_API_KEY      || 'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc';
 
 const OTP_MESSAGE = (otp) =>
   `Your PulseMate OTP is ${otp}. Valid for 5 minutes. Do not share it with anyone. -PULSE`;
@@ -34,7 +43,6 @@ const sendOtpSms = async (mobile, otp) => {
 
 const sendSms = async (mobile, otp) => {
   switch (SMS_PROVIDER) {
-    case 'firebase': return sendViaFirebase(mobile, otp);
     case 'msg91':    return sendViaMSG91(mobile, otp);
     case '2factor':  return sendVia2Factor(mobile, otp);
     case 'twilio':   return sendViaTwilio(mobile, otp);
@@ -45,64 +53,9 @@ const sendSms = async (mobile, otp) => {
 
 // ── Mock (dev only) ───────────────────────────────────────────────────────────
 const sendMock = async (mobile, otp) => {
-  logger.info(`[SMS-MOCK] To: ${mobile} | OTP: ${otp}`);
-  console.log('\n' + '─'.repeat(50));
-  console.log(`  📱 DEV OTP  →  ${mobile}`);
-  console.log(`  Code: ${otp}`);
-  console.log('─'.repeat(50) + '\n');
+  logger.warn(`[SMS-MOCK] Sent to ${mobile} (mock SMS, for testing only)`);
   return { success: true, provider: 'mock' };
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Firebase Phone Auth — server-side OTP via Admin SDK
-//
-//  Firebase Admin SDK cannot send SMS directly from backend.
-//  For production, use a dedicated SMS provider like 2Factor or MSG91.
-//
-//  This function is kept for reference/future use if implementing Firebase
-//  Cloud Messaging or REST API integration.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// In-memory map: phone → { sessionInfo, expiresAt }
-const firebaseSessionStore = new Map();
-
-const sendViaFirebase = async (mobile, otp) => {
-  logger.warn('[Firebase] ⚠️  Firebase Admin SDK cannot send SMS from backend.');
-  logger.warn('[Firebase] For production, use 2Factor.in or MSG91 (configured in SMS_PROVIDER env var).');
-  
-  // Store OTP for verification
-  firebaseSessionStore.set(mobile, {
-    otp: otp,
-    sessionInfo: `backend-otp-${otp}`,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  });
-  
-  logger.info(`[Firebase] OTP stored for ${mobile} (expires in 5 min)`);
-  return { 
-    success: true, 
-    provider: 'firebase',
-    message: 'OTP stored (Firebase Admin SDK - use 2Factor for SMS)',
-  };
-};
-
-// Exported so otp.service.js can verify the Firebase OTP
-const verifyFirebaseOtp = async (mobile, code) => {
-  const session = firebaseSessionStore.get(mobile);
-  if (!session || Date.now() > session.expiresAt) {
-    throw Object.assign(new Error('OTP expired. Please request a new code.'), { status: 400 });
-  }
-
-  if (code === session.otp) {
-    logger.info(`[Firebase] ✓ OTP verified for ${mobile}`);
-    firebaseSessionStore.delete(mobile);
-    return { success: true, message: 'OTP verified' };
-  } else {
-    throw Object.assign(new Error('Invalid OTP. Please check and try again.'), { status: 400 });
-  }
-};
-
-module.exports._firebaseSessionStore = firebaseSessionStore;
-module.exports._verifyFirebaseOtp    = verifyFirebaseOtp;
 
 // ── MSG91 ─────────────────────────────────────────────────────────────────────
 const sendViaMSG91 = async (mobile, otp) => {

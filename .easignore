@@ -36,3 +36,20 @@ android/.gradle
 android/app/.cxx
 android/app/build
 android/build
+
+# Expo web cache (large, not needed for Android build)
+.expo/web/cache
+
+# Backend source (not needed for mobile build)
+backend/src
+backend/prisma
+backend/uploads
+
+# Build artifacts and base64 encoded files
+*.base64
+*.aab
+*.apk
+
+# Misc large files
+*.jpeg.bak
+google-play-key.json

@@ -1,3 +1,17 @@
+/**
+ * OTP Service — PulseMate Connect
+ *
+ * IMPORTANT: This service is DEPRECATED for patient login.
+ * Patient login now uses Firebase Phone Authentication on the client.
+ *
+ * This service is kept ONLY for backward compatibility with:
+ *   - Clinic owner phone OTP verification (legacy path)
+ *   - Staff phone OTP verification (legacy path)
+ *   - Legacy app versions
+ *
+ * DO NOT USE FOR NEW PATIENT LOGIN FLOWS.
+ * Use Firebase Phone Auth on the client instead.
+ */
 const otpRepository = require('../repositories/otp.repository');
 const logger = require('../config/logger');
 const { generateOtp, hashOtp, verifyOtpHash } = require('../utils/hash');
@@ -6,8 +20,6 @@ const { sendOtpSms } = require('./sms.service');
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
 const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10);
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
-
-const SMS_PROVIDER = (process.env.SMS_PROVIDER || 'mock').toLowerCase().trim();
 
 const dispatchOtp = async (mobile, otp) => {
   try {
@@ -36,13 +48,11 @@ const sendOtp = async (mobile, purpose = 'LOGIN') => {
 
   const otp = generateOtp(6);
 
-  // When using Firebase provider, Firebase generates and sends its own OTP code.
-  // We still store a record in DB for rate-limiting/cooldown tracking,
-  // but the actual OTP hash is not used for verification (Firebase handles that).
+  // Store OTP record for rate-limiting and cooldown tracking
   await otpRepository.create({
     mobile,
     purpose,
-    otpHash: await hashOtp(otp), // stored but only used for non-Firebase providers
+    otpHash: await hashOtp(otp),
     expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     maxAttempts: OTP_MAX_ATTEMPTS,
   });
