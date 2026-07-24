@@ -63,9 +63,27 @@ const {
 
 const router = express.Router();
 
-// ── Patient OTP (legacy — kept for older app versions) ────────────────────────
-router.post('/patient/send-otp', otpSendLimiter, validateRequest(patientSendOtpSchema), patientSendOtpHandler);
-router.post('/patient/verify-otp', otpVerifyLimiter, validateRequest(patientVerifyOtpSchema), patientVerifyOtpHandler);
+// ──────────────────────────────────────────────────────────────────────────────
+// FIREBASE PHONE AUTHENTICATION — PRODUCTION IMPLEMENTATION
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// OTP Generation & Delivery: Handled entirely by Firebase SDK
+// - No backend OTP generation
+// - No console logging of OTPs
+// - Real SMS delivery via Firebase infrastructure
+//
+// Backend Responsibilities:
+// 1. Verify Firebase ID Token using Firebase Admin SDK
+// 2. Create/update user in database
+// 3. Return application JWT tokens
+//
+// Removed Endpoints:
+// - /patient/send-otp-expo (no longer needed)
+// - /patient/verify-otp-expo (no longer needed)
+// - /patient/firebase-send-otp (Firebase SDK handles this)
+// - /patient/firebase-verify-otp (Firebase SDK handles this)
+//
+// ──────────────────────────────────────────────────────────────────────────────
 
 // ── Patient Firebase Phone Auth (primary) ─────────────────────────────────────
 router.post(
