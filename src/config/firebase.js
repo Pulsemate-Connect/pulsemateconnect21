@@ -28,7 +28,14 @@
  *   ✅ Production-ready for Google Play Store
  */
 
-import auth from '@react-native-firebase/auth';
+import { initializeApp } from 'firebase/app';
+import {
+  initializeAuth,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+} from 'firebase/auth';
+import { getReactNativePersistence } from 'firebase/auth/react-native';
+import * as SecureStore from 'expo-secure-store';
 import api from '../api/axios';
 
 // Firebase configuration
@@ -41,20 +48,25 @@ const firebaseConfig = {
   appId: '1:157620382332:web:e4156f49d8616a4ee6b7f9',
 };
 
-// Note: React Native Firebase auto-initializes from google-services.json
-// No manual initialization needed
-
+let firebaseApp = null;
+let firebaseAuth = null;
 let confirmationResult = null;
 
 /**
- * Initialize Firebase Auth
- * React Native Firebase auto-initializes from google-services.json
- * This function is kept for API compatibility
+ * Initialize Firebase Auth on app startup
  */
 export const initializeFirebaseAuth = async () => {
+  if (firebaseApp) return firebaseAuth;
+
   try {
-    console.log('[Firebase] Auth initialized from google-services.json');
-    return auth();
+    firebaseApp = initializeApp(firebaseConfig);
+
+    firebaseAuth = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(SecureStore),
+    });
+
+    console.log('[Firebase] Auth initialized successfully');
+    return firebaseAuth;
   } catch (error) {
     console.error('[Firebase] Initialization error:', error);
     throw new Error('Firebase initialization failed. Please restart the app.');
@@ -71,6 +83,10 @@ export const initializeFirebaseAuth = async () => {
  * @throws Error on invalid phone, too many requests, network issues
  */
 export const sendOtpToPhone = async (phoneNumber) => {
+  if (!firebaseAuth) {
+    throw new Error('Firebase Auth not initialized. Call initializeFirebaseAuth() first.');
+  }
+
   // Validate phone format
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
     throw new Error('Invalid phone number. Use E.164 format (+91...)');
@@ -79,8 +95,8 @@ export const sendOtpToPhone = async (phoneNumber) => {
   try {
     console.log('[Firebase] Sending OTP to', phoneNumber);
 
-    // Firebase Phone Auth - sends real SMS
-    const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
+    // Firebase sends real SMS - no reCAPTCHA needed in Expo
+    const confirmation = await signInWithPhoneNumber(firebaseAuth, phoneNumber);
 
     console.log('[Firebase] OTP sent successfully');
 
@@ -114,7 +130,7 @@ export const verifyPhoneOtp = async (confirmationObj, code) => {
   try {
     console.log('[Firebase] Verifying OTP...');
 
-    // Confirm the OTP
+    // Confirm the OTP using Firebase SDK
     const userCredential = await confirmationObj.confirm(code);
 
     console.log('[Firebase] OTP verified successfully');
