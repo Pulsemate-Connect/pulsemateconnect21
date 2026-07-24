@@ -28,20 +28,10 @@
  *   ✅ Production-ready for Google Play Store
  */
 
-import { initializeApp } from 'firebase/app';
-import {
-  initializeAuth,
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  PhoneAuthProvider,
-  signInWithCredential,
-} from 'firebase/auth';
-import { getReactNativePersistence } from 'firebase/auth/react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import auth from '@react-native-firebase/auth';
 import api from '../api/axios';
 
-// Firebase configuration (public, safe to expose)
-// These are the same values in Render frontend and app
+// Firebase configuration
 const firebaseConfig = {
   apiKey: 'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc',
   authDomain: 'pulsemateconnect.firebaseapp.com',
@@ -51,56 +41,23 @@ const firebaseConfig = {
   appId: '1:157620382332:web:e4156f49d8616a4ee6b7f9',
 };
 
-let firebaseApp = null;
-let firebaseAuth = null;
-let recaptchaVerifier = null;
+// Note: React Native Firebase auto-initializes from google-services.json
+// No manual initialization needed
+
+let confirmationResult = null;
 
 /**
- * Initialize Firebase on app startup (call once in app entry)
+ * Initialize Firebase Auth
+ * React Native Firebase auto-initializes from google-services.json
+ * This function is kept for API compatibility
  */
 export const initializeFirebaseAuth = async () => {
-  if (firebaseApp) return firebaseAuth;
-
   try {
-    firebaseApp = initializeApp(firebaseConfig);
-
-    firebaseAuth = initializeAuth(firebaseApp, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-
-    console.log('[Firebase] Auth initialized successfully');
-    return firebaseAuth;
+    console.log('[Firebase] Auth initialized from google-services.json');
+    return auth();
   } catch (error) {
     console.error('[Firebase] Initialization error:', error);
     throw new Error('Firebase initialization failed. Please restart the app.');
-  }
-};
-
-/**
- * Setup reCAPTCHA verifier (required by Firebase Phone Auth)
- * This should be called before sending OTP
- */
-export const setupRecaptchaVerifier = (containerOrCallback) => {
-  if (!firebaseAuth) {
-    throw new Error('Firebase Auth not initialized');
-  }
-
-  try {
-    // For React Native, we use callback-based verification
-    recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, containerOrCallback || 'recaptcha-container', {
-      size: 'invisible', // invisible for better UX in mobile
-      callback: () => {
-        // reCAPTCHA solved
-      },
-      'expired-callback': () => {
-        recaptchaVerifier = null;
-      },
-    });
-
-    return recaptchaVerifier;
-  } catch (error) {
-    console.error('[Firebase] reCAPTCHA setup error:', error);
-    throw error;
   }
 };
 
@@ -114,36 +71,24 @@ export const setupRecaptchaVerifier = (containerOrCallback) => {
  * @throws Error on invalid phone, too many requests, network issues
  */
 export const sendOtpToPhone = async (phoneNumber) => {
-  if (!firebaseAuth) {
-    throw new Error('Firebase Auth not initialized. Call initializeFirebaseAuth() first.');
-  }
-
   // Validate phone format
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
     throw new Error('Invalid phone number. Use E.164 format (+91...)');
   }
 
   try {
-    // Setup reCAPTCHA if not already done
-    if (!recaptchaVerifier) {
-      setupRecaptchaVerifier();
-    }
-
     console.log('[Firebase] Sending OTP to', phoneNumber);
 
-    // Firebase sends real SMS
-    const confirmationResult = await signInWithPhoneNumber(firebaseAuth, phoneNumber, recaptchaVerifier);
+    // Firebase Phone Auth - sends real SMS
+    const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
 
     console.log('[Firebase] OTP sent successfully');
 
     return {
-      verificationId: confirmationResult.verificationId,
-      confirmationResult: confirmationResult,
+      confirmationResult: confirmation,
     };
   } catch (error) {
     console.error('[Firebase] Phone auth error:', error.code, error.message);
-    recaptchaVerifier = null; // Reset on error
-
     throw new Error(friendlyPhoneAuthError(error.code || error.message));
   }
 };
@@ -157,8 +102,8 @@ export const sendOtpToPhone = async (phoneNumber) => {
  *
  * @throws Error on invalid OTP, expired OTP, network issues
  */
-export const verifyPhoneOtp = async (confirmationResult, code) => {
-  if (!confirmationResult || !confirmationResult.confirm) {
+export const verifyPhoneOtp = async (confirmationObj, code) => {
+  if (!confirmationObj) {
     throw new Error('Invalid confirmation result. Please request a new OTP.');
   }
 
@@ -169,8 +114,8 @@ export const verifyPhoneOtp = async (confirmationResult, code) => {
   try {
     console.log('[Firebase] Verifying OTP...');
 
-    // Firebase verifies OTP locally (no network call)
-    const userCredential = await confirmationResult.confirm(code);
+    // Confirm the OTP
+    const userCredential = await confirmationObj.confirm(code);
 
     console.log('[Firebase] OTP verified successfully');
 
@@ -179,13 +124,11 @@ export const verifyPhoneOtp = async (confirmationResult, code) => {
 
     return {
       user: userCredential.user,
-      credential: userCredential.credential,
       idToken: idToken,
       phoneNumber: userCredential.user.phoneNumber,
     };
   } catch (error) {
     console.error('[Firebase] OTP verification error:', error.code, error.message);
-
     throw new Error(friendlyOtpVerificationError(error.code || error.message));
   }
 };
