@@ -38,7 +38,7 @@ services:
       - key: RESEND_FROM_EMAIL
         value: "PulseMate <noreply@pulsemateconnect.in>"
       - key: SMS_PROVIDER
-        value: firebase
+        value: 2factor
       - key: FIREBASE_API_KEY
         value: AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc
       - key: OTP_PROVIDER
