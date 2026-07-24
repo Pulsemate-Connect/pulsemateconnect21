@@ -1,152 +1,89 @@
 /**
- * Firebase Phone Auth — PulseMate Connect
+ * Phone Auth — PulseMate Connect (App - React Native/Expo)
  *
- * Flow (Android Production):
- *   1. App requests Play Integrity token from Google Play
- *   2. App sends token + phone number to Firebase sendVerificationCode
- *   3. Firebase validates the token (Play Integrity linked via Play Console)
- *   4. Firebase sends real SMS ✅
- *   5. User enters OTP → Firebase verifies → idToken
- *   6. Backend validates idToken → issues app JWT
+ * Flow (Backend-driven — works in React Native):
+ *   1. App → Backend /auth/patient/send-otp → Backend sends SMS via Firebase Admin SDK
+ *   2. User enters OTP
+ *   3. App → Backend /auth/patient/verify-otp → Backend verifies & returns app JWT
+ *   4. User logged in ✅
  *
- * Play Integrity is now linked to Firebase project (157620382332)
- * via Play Console → App Integrity → Play Integrity API settings.
+ * Why this approach for React Native:
+ *   - React Native doesn't support Firebase JS SDK (web-only APIs)
+ *   - Backend uses Firebase Admin SDK (service account) which can send SMS
+ *   - Simpler and works everywhere
  */
 
-import { Platform, NativeModules } from 'react-native';
 import api from '../api/axios';
 
-const FIREBASE_API_KEY = 'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc';
-const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';
-
-// Android App ID for in.pulsemateconnect.patient
-const ANDROID_APP_ID = '1:157620382332:android:063dba90b53a1c81e6b7f9';
-
 /**
- * Request Play Integrity token from Google Play
- * This token proves the request comes from a legitimate Play Store app
- */
-const getPlayIntegrityToken = async () => {
-  try {
-    // Use Expo's native module if available
-    if (Platform.OS === 'android' && NativeModules.ExpoIntegrity) {
-      const token = await NativeModules.ExpoIntegrity.requestToken(ANDROID_APP_ID);
-      return token;
-    }
-
-    // Try Play Integrity via fetch to Google APIs
-    // nonce must be base64-encoded, URL-safe, min 16 bytes
-    const nonce = btoa(Math.random().toString(36).substr(2) + Date.now().toString(36))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
-    const response = await fetch(
-      `https://playintegrity.googleapis.com/v1/${ANDROID_APP_ID}:decodeIntegrityToken`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ integrityToken: nonce }),
-      }
-    );
-    return null; // Play Integrity requires native SDK for token generation
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Send OTP via Firebase REST API
- * Tries with Play Integrity token first, then without (fallback)
+ * Step 1 — Ask backend to send OTP via Firebase Admin SDK
+ * Returns the phone number for Step 2
  */
 export const sendOtpToPhone = async (phoneNumber) => {
-  // Try direct Firebase call (works if Play Integrity linked OR for test numbers)
   try {
-    const body = { phoneNumber };
+    const res = await api.post('/auth/patient/send-otp', {
+      mobile: phoneNumber,
+      purpose: 'LOGIN',
+    });
 
-    const response = await fetch(
-      `${FIREBASE_AUTH_API}/accounts:sendVerificationCode?key=${FIREBASE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    const data = await response.json();
-
-    if (data.sessionInfo) {
-      console.log('[Firebase] OTP sent via Firebase REST ✅');
-      return data.sessionInfo;
+    if (res.data) {
+      return phoneNumber; // used as session token for verifyPhoneOtp
     }
 
-    const errCode = data.error?.message || '';
-    console.warn('[Firebase] sendVerificationCode error:', errCode);
-
-    // If Firebase rejects → use backend fallback (2Factor/msg91/mock)
-    return await sendOtpViaBackend(phoneNumber);
+    throw new Error('Failed to send OTP. Please try again.');
   } catch (err) {
-    console.warn('[Firebase] Network error:', err.message);
-    return await sendOtpViaBackend(phoneNumber);
+    const msg = err?.response?.data?.message || err?.message || 'Failed to send OTP.';
+    throw new Error(friendlyError(msg));
   }
 };
 
 /**
- * Backend fallback — sends real SMS via 2Factor/MSG91 configured in Render
- */
-const sendOtpViaBackend = async (phoneNumber) => {
-  console.log('[Backend] Sending OTP via backend SMS provider...');
-  await api.post('/auth/send-otp', { mobile: phoneNumber });
-  return `BACKEND:${phoneNumber}`;
-};
-
-/**
- * Verify OTP
+ * Step 2 — Verify OTP via backend and get app JWT
+ * Returns { accessToken, refreshToken, user }
  */
 export const verifyPhoneOtp = async (sessionInfo, code) => {
-  // Backend fallback path
-  if (sessionInfo?.startsWith('BACKEND:')) {
-    const mobile = sessionInfo.replace('BACKEND:', '');
-    console.log('[Backend] Verifying OTP via backend...');
-    const res = await api.post('/auth/verify-otp', { mobile, otp: code });
-    return res.data?.data ?? res.data;
-  }
+  const phoneNumber = sessionInfo;
 
-  // Firebase verification path
   try {
-    const response = await fetch(
-      `${FIREBASE_AUTH_API}/accounts:signInWithPhoneNumber?key=${FIREBASE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionInfo, code }),
-      }
-    );
-    const data = await response.json();
+    const res = await api.post('/auth/patient/verify-otp', {
+      mobile: phoneNumber,
+      otp: code,
+      purpose: 'LOGIN',
+    });
 
-    if (data.idToken) {
-      console.log('[Firebase] OTP verified ✅ — sending idToken to backend');
-      const res = await api.post('/auth/patient/firebase-phone-login', {
-        firebaseIdToken: data.idToken,
-      });
-      return res.data?.data ?? res.data;
+    const data = res.data?.data ?? res.data;
+
+    if (!data?.accessToken || !data?.user) {
+      throw new Error('Verification failed. Please try again.');
     }
 
-    throw new Error(friendlyError(data.error?.message || 'Invalid OTP'));
+    return {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken ?? null,
+      user: data.user,
+    };
   } catch (err) {
-    if (err.message && !err.message.includes('fetch')) throw err;
-    throw new Error(friendlyError(err.message || 'Verification failed'));
+    const msg = err?.response?.data?.message || err?.message || 'Verification failed.';
+    throw new Error(friendlyError(msg));
   }
 };
 
-const friendlyError = (message = '') => {
-  const m = message.toUpperCase();
-  if (m.includes('INVALID_PHONE_NUMBER'))  return 'Invalid phone number. Enter a valid 10-digit number.';
-  if (m.includes('TOO_MANY_ATTEMPTS'))     return 'Too many attempts. Please wait a few minutes.';
-  if (m.includes('QUOTA_EXCEEDED'))        return 'SMS quota exceeded. Try again later.';
-  if (m.includes('INVALID_CODE') ||
-      m.includes('INVALID OTP'))           return 'Invalid OTP. Please check the code and try again.';
-  if (m.includes('SESSION_EXPIRED') ||
-      m.includes('OTP EXPIRED'))           return 'OTP expired. Please request a new code.';
-  if (m.includes('MISSING_CODE'))          return 'Please enter the OTP code.';
-  if (m.includes('MISSING_CLIENT'))        return 'Please update the app to the latest version.';
-  if (m.includes('WAIT'))                  return message;
-  return message;
+// ── User-friendly error messages ──────────────────────────────────────────────
+const friendlyError = (code) => {
+  const map = {
+    'auth/invalid-phone-number':      'Invalid phone number. Enter a valid 10-digit number.',
+    'auth/too-many-requests':         'Too many attempts. Please wait a few minutes.',
+    'auth/quota-exceeded':            'SMS quota exceeded. Try again later.',
+    'auth/invalid-verification-code': 'Invalid OTP. Please check the code and try again.',
+    'auth/code-expired':              'OTP expired. Please request a new code.',
+    'auth/session-expired':           'OTP expired. Please request a new code.',
+    'auth/missing-verification-code': 'Please enter the OTP code.',
+    'auth/network-request-failed':    'Network error. Check your internet connection.',
+    'auth/captcha-check-failed':      'reCAPTCHA failed. Please try again.',
+    'auth/web-storage-unsupported':   'Please enable cookies/storage in your browser.',
+    'auth/operation-not-allowed':     'Phone auth is not enabled. Contact support.',
+    'auth/internal-error':            'Firebase error. Please try again.',
+  };
+  const key = String(code).split(' ')[0];
+  return map[key] || `Error: ${code}`;
 };

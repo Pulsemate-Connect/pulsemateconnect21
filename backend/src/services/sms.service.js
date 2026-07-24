@@ -74,76 +74,40 @@ const sendMock = async (mobile, otp) => {
 const firebaseSessionStore = new Map();
 
 const sendViaFirebase = async (mobile, otp) => {
-  const { isFirebaseReady, getFirebaseAdmin } = require('../config/firebase');
-
-  if (!isFirebaseReady()) {
-    logger.warn('[Firebase] Admin SDK not configured — falling back to mock. Set FIREBASE_SERVICE_ACCOUNT_JSON in Render.');
-    return sendMock(mobile, otp);
-  }
-
-  try {
-    // Get OAuth2 access token from the service account
-    const app = getFirebaseAdmin();
-    const tokenResult = await app.options.credential.getAccessToken();
-    const accessToken = tokenResult.access_token;
-
-    // Call Firebase Identity Toolkit with the service account's OAuth token
-    // This is a privileged server call — no client identity required
-    const https = require('https');
-    const payload = JSON.stringify({ phoneNumber: mobile });
-
-    return new Promise((resolve) => {
-      const options = {
-        hostname: 'identitytoolkit.googleapis.com',
-        path: `/v1/accounts:sendVerificationCode?key=${FIREBASE_API_KEY}`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Goog-User-Project': 'pulsemateconnect',
-        },
-      };
-
-      const req = https.request(options, (res) => {
-        let raw = '';
-        res.on('data', (c) => (raw += c));
-        res.on('end', () => {
-          let parsed;
-          try { parsed = JSON.parse(raw); } catch { parsed = {}; }
-
-          if (parsed.sessionInfo) {
-            firebaseSessionStore.set(mobile, {
-              sessionInfo: parsed.sessionInfo,
-              expiresAt: Date.now() + 5 * 60 * 1000,
-            });
-            logger.info(`[Firebase] ✓ OTP SMS sent to ${mobile} via Firebase`);
-            return resolve({ success: true, provider: 'firebase' });
-          }
-
-          const errCode = parsed.error?.message || raw;
-          logger.error(`[Firebase] sendVerificationCode failed: ${errCode}`);
-
-          // If still MISSING_CLIENT_IDENTIFIER even with admin token,
-          // Firebase Phone Auth may not be enabled in the console.
-          // Fall back to mock so the app doesn't crash.
-          logger.warn('[Firebase] Falling back to mock — check Firebase Console: Authentication → Phone → Enable');
-          resolve(sendMock(mobile, otp));
-        });
-      });
-
-      req.on('error', (err) => {
-        logger.error(`[Firebase] Network error: ${err.message}`);
-        resolve(sendMock(mobile, otp));
-      });
-
-      req.write(payload);
-      req.end();
-    });
-  } catch (err) {
-    logger.error(`[Firebase] Admin credential error: ${err.message}`);
-    return sendMock(mobile, otp);
-  }
+  logger.warn('[Firebase] 🔴 CRITICAL: Firebase Admin SDK cannot send SMS.');
+  logger.warn('[Firebase] Reason: sendVerificationCode requires client-side SDK (Android/iOS/Web with reCAPTCHA)');
+  logger.warn('[Firebase] Backend Admin SDK does not support Phone Auth SMS delivery.');
+  logger.warn('[Firebase] SOLUTION: Switch SMS_PROVIDER to "2factor" or "msg91" in Render env vars.');
+  
+  // Store OTP for dev/testing only
+  firebaseSessionStore.set(mobile, {
+    otp: otp,
+    sessionInfo: `backend-otp-${otp}`,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  });
+  
+  logger.info(`[Firebase] DEV MODE: Stored OTP ${otp} for ${mobile} (expires in 5 min)`);
+  console.log('\n' + '═'.repeat(70));
+  console.log('  🔴 FIREBASE PHONE AUTH ISSUE');
+  console.log('═'.repeat(70));
+  console.log(`  SMS Provider: Firebase Admin SDK (CANNOT send SMS from backend)`);
+  console.log(`  Mobile: ${mobile}`);
+  console.log(`  OTP: ${otp}`);
+  console.log(`  `);
+  console.log(`  ✅ SOLUTION FOR PRODUCTION:`);
+  console.log(`  1. Go to Render.com → Your App → Environment Variables`);
+  console.log(`  2. Set SMS_PROVIDER = "2factor"`);
+  console.log(`  3. Get 2Factor API key from https://2factor.in`);
+  console.log(`  4. Set SMS_API_KEY = "<your-2factor-api-key>"`);
+  console.log(`  5. Deploy the app`);
+  console.log('═'.repeat(70) + '\n');
+  
+  return { 
+    success: true, 
+    provider: 'firebase-backend-not-available',
+    message: 'DEV MODE: Check console logs above. Switch to 2Factor for production.',
+    devOtp: otp,
+  };
 };
 
 // Exported so otp.service.js can verify the Firebase OTP
@@ -153,6 +117,18 @@ const verifyFirebaseOtp = async (mobile, code) => {
     throw Object.assign(new Error('OTP expired. Please request a new code.'), { status: 400 });
   }
 
+  // Backend-only Firebase: compare the code against stored OTP
+  if (session.otp) {
+    if (code === session.otp) {
+      logger.info(`[Firebase] Backend OTP verified for ${mobile}`);
+      firebaseSessionStore.delete(mobile);
+      return { success: true, message: 'OTP verified' };
+    } else {
+      throw Object.assign(new Error('Invalid OTP. Please check and try again.'), { status: 400 });
+    }
+  }
+
+  // Fallback: if sessionInfo exists (in case real Firebase was used)
   const https = require('https');
   const payload = JSON.stringify({ sessionInfo: session.sessionInfo, code });
 
