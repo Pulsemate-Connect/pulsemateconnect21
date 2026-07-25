@@ -5,6 +5,10 @@ node_modules
 backend/node_modules
 backend/.env
 
+# Native directories — let EAS generate these via expo prebuild
+android
+ios
+
 # Git
 .git
 
