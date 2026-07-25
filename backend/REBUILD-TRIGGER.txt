@@ -1,0 +1,3 @@
+Database table clinic_owner_profiles created manually in Supabase.
+This file triggers a Render rebuild to regenerate Prisma Client.
+Timestamp: 2026-07-25T16:30:00Z
