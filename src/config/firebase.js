@@ -1,124 +1,85 @@
 /**
- * Firebase Phone Auth for React Native — PulseMate Connect
+ * Firebase Phone Auth — PulseMate Connect
  *
- * Uses the Firebase JS SDK (v9+ modular API) instead of raw REST calls.
+ * Uses Firebase REST API (Identity Toolkit v1).
+ * App verification for real numbers on Android production builds is handled
+ * automatically by Firebase using:
+ *   - google-services.json (with certificate_hash — Play Store SHA-1)
+ *   - The SHA-1 registered in Firebase Console
  *
- * WHY: The raw REST API requires a SafetyNet / Play Integrity token to send
- * OTPs to REAL phone numbers on Android production builds. The Firebase JS SDK
- * handles this verification automatically — it:
- *   1. Uses the google-services.json / SHA-1 fingerprint to verify the app.
- *   2. Passes the app attestation silently to Firebase servers.
- *   3. Returns a ConfirmationResult that you call .confirm(code) on.
- *
- * Setup confirmed:
- *   ✅ google-services.json at repo root (app.json → android.googleServicesFile)
- *   ✅ Package: in.pulsemateconnect.patient
- *   ✅ SHA-1 fingerprint added to Firebase Console (Play Store key)
- *   ✅ Firebase project: pulsemateconnect
- *   ✅ Blaze billing enabled (required for real SMS)
- *   ✅ Test phone numbers removed from Firebase Console
+ * No Firebase JS SDK needed — the REST API works for production builds
+ * when the google-services.json and SHA-1 fingerprint are correctly configured.
  */
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getAuth,
-  signInWithPhoneNumber,
-  initializeAuth,
-  getReactNativePersistence,
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ── Firebase project config ───────────────────────────────────────────────────
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: 'AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc',
   authDomain: 'pulsemateconnect.firebaseapp.com',
   projectId: 'pulsemateconnect',
-  storageBucket: 'pulsemateconnect.appspot.com',
+  storageBucket: 'pulsemateconnect.firebasestorage.app',
   messagingSenderId: '157620382332',
-  appId: '1:157620382332:android:a13dffbc9a712ac2e6b7f9',
+  appId: '1:157620382332:android:063dba90b53a1c81e6b7f9',
 };
 
-// ── Initialize Firebase app (singleton) ──────────────────────────────────────
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// ── Initialize Auth with AsyncStorage persistence ────────────────────────────
-// initializeAuth is idempotent — safe to call every time this module loads.
-let auth;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch (e) {
-  // Already initialized — getAuth returns the existing instance
-  auth = getAuth(app);
-}
+const FIREBASE_AUTH_API = 'https://identitytoolkit.googleapis.com/v1';
 
 /**
- * Send OTP to a real phone number via Firebase Phone Auth SDK.
- *
- * The SDK automatically handles SafetyNet / Play Integrity attestation on
- * Android production builds — no reCAPTCHA or manual token needed.
- *
+ * Send OTP via Firebase Phone Auth REST API.
  * @param {string} phoneNumber  E.164 format — e.g. "+917022818878"
- * @returns {Promise<import('firebase/auth').ConfirmationResult>} confirmationResult
- *
- * Usage:
- *   const confirmationResult = await sendOtpToPhone('+917022818878');
- *   // user enters OTP → call verifyPhoneOtp(confirmationResult, '123456')
+ * @returns {Promise<string>} sessionInfo token
  */
 export const sendOtpToPhone = async (phoneNumber) => {
-  try {
-    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber);
-    return confirmationResult;
-  } catch (error) {
-    throw new Error(friendlyError(error.code || error.message || 'Failed to send OTP'));
+  const response = await fetch(
+    `${FIREBASE_AUTH_API}/accounts:sendVerificationCode?key=${firebaseConfig.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumber }),
+    }
+  );
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(friendlyError(data.error?.message || 'Failed to send OTP'));
   }
+  return data.sessionInfo;
 };
 
 /**
- * Verify the OTP entered by the user and get a Firebase ID token.
- *
- * @param {import('firebase/auth').ConfirmationResult} confirmationResult
- *   Returned by sendOtpToPhone()
- * @param {string} code  6-digit OTP entered by the user
- * @returns {Promise<string>} Firebase ID token — send this to your backend
+ * Verify OTP and return Firebase ID token.
+ * @param {string} sessionInfo  From sendOtpToPhone()
+ * @param {string} code         6-digit OTP
+ * @returns {Promise<string>} Firebase ID token — send to backend
  */
-export const verifyPhoneOtp = async (confirmationResult, code) => {
-  try {
-    const userCredential = await confirmationResult.confirm(code);
-    const idToken = await userCredential.user.getIdToken();
-    return idToken;
-  } catch (error) {
-    throw new Error(friendlyError(error.code || error.message || 'Invalid OTP'));
+export const verifyPhoneOtp = async (sessionInfo, code) => {
+  const response = await fetch(
+    `${FIREBASE_AUTH_API}/accounts:signInWithPhoneNumber?key=${firebaseConfig.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionInfo, code }),
+    }
+  );
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(friendlyError(data.error?.message || 'Invalid OTP'));
   }
+  return data.idToken;
 };
 
-// ── Human-readable error messages ────────────────────────────────────────────
-const friendlyError = (code) => {
+const friendlyError = (message) => {
   const map = {
-    // Firebase Auth error codes
-    'auth/invalid-phone-number': 'Invalid phone number. Enter a valid 10-digit number.',
-    'auth/too-many-requests': 'Too many attempts. Please wait a few minutes and try again.',
-    'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-    'auth/invalid-verification-code': 'Invalid OTP. Please check the code and try again.',
-    'auth/code-expired': 'OTP expired. Please request a new code.',
-    'auth/missing-verification-code': 'Please enter the OTP code.',
-    'auth/app-not-authorized': 'App not authorized. Please update the app and try again.',
-    'auth/captcha-check-failed': 'Verification failed. Please try again.',
-    'auth/missing-phone-number': 'Phone number is required.',
-    'auth/user-disabled': 'This account has been disabled.',
-    'auth/network-request-failed': 'Network error. Check your internet connection.',
-    // Legacy REST API error strings (kept for safety)
-    'INVALID_PHONE_NUMBER': 'Invalid phone number. Enter a valid 10-digit number.',
-    'TOO_MANY_ATTEMPTS_TRY_LATER': 'Too many attempts. Please wait a few minutes.',
-    'QUOTA_EXCEEDED': 'SMS quota exceeded. Try again later.',
-    'INVALID_CODE': 'Invalid OTP. Please check the code and try again.',
-    'SESSION_EXPIRED': 'OTP expired. Please request a new code.',
-    'CAPTCHA_CHECK_FAILED': 'Verification failed. Please try again.',
+    INVALID_PHONE_NUMBER: 'Invalid phone number. Enter a valid 10-digit number.',
+    TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many attempts. Please wait a few minutes.',
+    QUOTA_EXCEEDED: 'SMS quota exceeded. Try again later.',
+    INVALID_CODE: 'Invalid OTP. Please check the code and try again.',
+    SESSION_EXPIRED: 'OTP expired. Please request a new code.',
+    MISSING_CODE: 'Please enter the OTP code.',
+    CAPTCHA_CHECK_FAILED: 'Verification failed. Please try again.',
+    APP_NOT_AUTHORIZED: 'App verification failed. Please update the app.',
+    INVALID_APP_CREDENTIAL: 'App credential invalid. Please update the app.',
+    BILLING_NOT_ENABLED: 'SMS service not enabled. Contact support.',
   };
-
   for (const [key, value] of Object.entries(map)) {
-    if (code.includes(key)) return value;
+    if (message.includes(key)) return value;
   }
-  return typeof code === 'string' && code.length < 120 ? code : 'Something went wrong. Please try again.';
+  return message;
 };
