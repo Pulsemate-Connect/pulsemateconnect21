@@ -51,6 +51,7 @@ const baseUserInclude = {
       assignedClinic: true,
     },
   },
+  clinicOwnerProfile: true,
   ownedClinics: true,
   patientProfile: true,
 };
@@ -68,6 +69,8 @@ const toAuthUser = (user) => ({
   suspendedReason: user.suspendedReason,
   doctorProfile: user.doctorProfile || null,
   receptionistProfile: user.receptionistProfile || null,
+  clinicOwnerProfile: user.clinicOwnerProfile || null,
+  patientProfile: user.patientProfile || null,
   ownedClinics: user.ownedClinics || [],
   adminLevel: user.adminProfile?.level || null,
   clinicStaff: user.clinicStaff || [],
@@ -650,7 +653,19 @@ const registerClinicOwnerHandler = async (req, res, next) => {
         },
       });
 
-      return { user, clinic };
+      // Create clinic owner profile
+      const ownerProfile = await tx.clinicOwnerProfile.create({
+        data: {
+          userId: user.id,
+          primaryClinicId: clinic.id,
+          businessName: clinicName,
+          gstNumber: gstNumber || null,
+          panNumber: panNumber || null,
+          profileCompleted: false,
+        },
+      });
+
+      return { user, clinic, ownerProfile };
     });
 
     await createAuditLog({
