@@ -35,8 +35,9 @@ const sendOtp = async (mobile) => {
   try {
     logger.info(`[2Factor] Sending OTP to ${normalizedMobile}`);
 
-    // 2Factor API sends auto-generated OTP
-    const response = await axios.get(`${BASE_URL}/${API_KEY}/SMS/${normalizedMobile}/AUTOGEN/OTP1`);
+    // 2Factor API sends auto-generated OTP using your template
+    // Replace 'OTP1' with your template name after creating it (e.g., 'PULSEMATE_LOGIN')
+    const response = await axios.get(`${BASE_URL}/${API_KEY}/SMS/${normalizedMobile}/AUTOGEN/PULSEMATE_LOGIN`);
 
     if (response.data.Status === 'Success') {
       logger.info(`[2Factor] OTP sent successfully. Session: ${response.data.Details}`);
@@ -126,7 +127,7 @@ const sendCustomOtp = async (mobile, otp) => {
   try {
     logger.info(`[2Factor] Sending custom OTP to ${normalizedMobile}`);
 
-    const response = await axios.get(`${BASE_URL}/${API_KEY}/SMS/${normalizedMobile}/${otp}/OTP1`);
+    const response = await axios.get(`${BASE_URL}/${API_KEY}/SMS/${normalizedMobile}/${otp}/PULSEMATE_LOGIN`);
 
     if (response.data.Status === 'Success') {
       return {
