@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../api/axios';
-import { setAccessToken } from '../utils/storage';
+import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';
 const WHITE = '#FFFFFF';
@@ -16,11 +16,32 @@ const GRAY  = '#6B7280';
 const DARK  = '#111827';
 
 export default function Otp2FactorScreen({ route, navigation }) {
-  const { mobile, sessionId } = route.params;
+  const { mobile, sessionId } = route?.params || {};
+  const { signIn } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const inputRefs = useRef([]);
+
+  // Validate required params on mount
+  useEffect(() => {
+    console.log('[Otp2Factor] Screen mounted');
+    console.log('[Otp2Factor] Mobile:', mobile);
+    console.log('[Otp2Factor] SessionId:', sessionId);
+    
+    if (!mobile || !sessionId) {
+      Alert.alert(
+        'Verification Failed',
+        'Session ID is required',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    }
+  }, [mobile, sessionId, navigation]);
 
   const handleOtpChange = (value, index) => {
     if (!/^\d*$/.test(value)) return;
@@ -64,15 +85,12 @@ export default function Otp2FactorScreen({ route, navigation }) {
         throw new Error('Invalid response from server');
       }
 
-      // Store tokens
-      await setAccessToken(accessToken);
-      if (refreshToken) {
-        // Store refresh token if using SecureStore
-      }
+      // Store tokens and user data using authStore
+      await signIn(accessToken, user, refreshToken);
 
       console.log('[Otp2Factor] Login successful');
       
-      // Navigate to main app
+      // Navigate to main app (navigation will auto-update via authStore)
       navigation.reset({
         index: 0,
         routes: [{ name: 'Main' }],

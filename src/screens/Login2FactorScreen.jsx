@@ -40,13 +40,20 @@ export default function Login2FactorScreen({ navigation }) {
       console.log('[Login2Factor] Sending OTP to', fullNumber);
       const response = await api.post('/auth/patient/send-otp', { phone: fullNumber });
       
+      console.log('[Login2Factor] Full API Response:', JSON.stringify(response.data, null, 2));
+      
       const sessionId = response.data?.data?.sessionId;
       
+      console.log('[Login2Factor] Extracted sessionId:', sessionId);
+      console.log('[Login2Factor] SessionId type:', typeof sessionId);
+      
       if (!sessionId) {
+        console.error('[Login2Factor] No session ID in response. Full data:', response.data);
         throw new Error('No session ID received from server');
       }
 
       console.log('[Login2Factor] OTP sent, session:', sessionId);
+      console.log('[Login2Factor] Navigating with params:', { mobile: fullNumber, sessionId });
 
       // Navigate to OTP screen
       navigation.navigate('Otp2Factor', {

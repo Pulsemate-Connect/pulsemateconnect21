@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:157620382332:android:a13dffbc9a712ac2e6b7f9",
+        "android_client_info": {
+          "package_name": "in.pulsemateconnect.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:157620382332:android:063dba90b53a1c81e6b7f9",
         "android_client_info": {
           "package_name": "in.pulsemateconnect.patient"
