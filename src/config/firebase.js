@@ -32,11 +32,11 @@ export const initializeFirebaseAuth = async () => {
     firebaseApp = initializeApp(firebaseConfig);
     firebaseAuth = getAuth(firebaseApp);
     
-    // Critical: Disable reCAPTCHA for Expo/mobile
-    if (typeof window === 'undefined' || !window.document) {
-      firebaseAuth.settings = firebaseAuth.settings || {};
-      firebaseAuth.settings.appVerificationDisabledForTesting = true;
-    }
+    // Note: appVerificationDisabledForTesting should ONLY be used in development
+    // For production, Firebase Phone Auth requires:
+    // 1. Android: SHA-256 certificate fingerprint registered in Firebase Console
+    // 2. Real device (not emulator) for SMS
+    // 3. Phone number NOT in Firebase testing numbers
     
     console.log('[Auth] Firebase initialized for Expo');
     return firebaseAuth;
