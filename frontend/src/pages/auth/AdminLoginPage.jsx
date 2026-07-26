@@ -51,12 +51,12 @@ const AdminLoginPage = () => {
         <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <section className="hidden rounded-[2rem] border border-white/10 bg-white/5 p-10 text-white shadow-2xl shadow-black/30 backdrop-blur lg:flex lg:flex-col">
             <PulsemateLogo size="lg" theme="dark" showTagline={true} />
-            <p className="mt-10 text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">PulseMate Internal</p>
+            <p className="mt-10 text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">PulseMate Connect</p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight">
               Secure access for platform administration
             </h1>
             <p className="mt-5 text-base leading-7 text-slate-300">
-              This environment is reserved for authorized PulseMate super administrators handling approvals, governance and platform-wide operations.
+              This environment is reserved for authorized PulseMate Connect administrators handling approvals, governance and platform-wide operations.
             </p>
 
             <div className="mt-10 space-y-4">
