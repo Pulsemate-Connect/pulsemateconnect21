@@ -1,7 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import WelcomeScreen from '../screens/WelcomeScreen';
-import LoginScreen from '../screens/LoginScreen';
-import OtpScreen from '../screens/OtpScreen';
+import Login2FactorScreen from '../screens/Login2FactorScreen';
+import Otp2FactorScreen from '../screens/Otp2FactorScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -14,8 +14,8 @@ export default function AuthNavigator() {
       }}
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Otp" component={OtpScreen} />
+      <Stack.Screen name="Login" component={Login2FactorScreen} />
+      <Stack.Screen name="Otp2Factor" component={Otp2FactorScreen} />
     </Stack.Navigator>
   );
 }
