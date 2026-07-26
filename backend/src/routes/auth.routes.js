@@ -93,6 +93,10 @@ router.post(
   patientFirebasePhoneLoginHandler
 );
 
+// ── Patient 2Factor SMS OTP (alternative for Indian users) ────────────────────
+router.post('/patient/send-otp', otpSendLimiter, patientSendOtpHandler);
+router.post('/patient/verify-otp', otpVerifyLimiter, patientVerifyOtpHandler);
+
 // ── Clinic owner phone verification — Firebase Phone Auth (primary) ───────────
 router.post(
   '/clinic-owner/verify-firebase-phone',

@@ -140,10 +140,26 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
   return null;
 };
 
+/**
+ * POST /api/auth/patient/send-otp
+ * 
+ * Send OTP via 2Factor SMS (Indian patients)
+ */
 const patientSendOtpHandler = async (req, res, next) => {
   try {
-    const result = await sendOtp(req.body.phone || req.body.mobile, 'LOGIN');
-    return sendSuccess(res, result, 'OTP sent successfully');
+    const twoFactorService = require('../services/twofactor.service');
+    const mobile = req.body.phone || req.body.mobile;
+    
+    if (!mobile) {
+      return sendError(res, 'Mobile number is required', 400);
+    }
+    
+    const result = await twoFactorService.sendOtp(mobile);
+    
+    return sendSuccess(res, {
+      sessionId: result.sessionId,
+      message: 'OTP sent successfully to your mobile',
+    }, 'OTP sent successfully');
   } catch (error) {
     next(error);
   }
@@ -393,12 +409,29 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/patient/verify-otp
+ * 
+ * Verify OTP via 2Factor and login/register patient
+ */
 const patientVerifyOtpHandler = async (req, res, next) => {
   try {
-    const { phone, mobile, otp, name } = req.body;
+    const twoFactorService = require('../services/twofactor.service');
+    const { phone, mobile, otp, name, sessionId } = req.body;
     const mobileNumber = phone || mobile;
-    await verifyOtp(mobileNumber, otp, 'LOGIN');
+    
+    if (!sessionId) {
+      return sendError(res, 'Session ID is required', 400);
+    }
+    
+    if (!otp) {
+      return sendError(res, 'OTP is required', 400);
+    }
+    
+    // Verify OTP with 2Factor
+    await twoFactorService.verifyOtp(sessionId, otp);
 
+    // OTP verified, now find or create user
     let user = await prisma.user.findUnique({
       where: { mobile: mobileNumber },
       include: baseUserInclude,
@@ -413,6 +446,7 @@ const patientVerifyOtpHandler = async (req, res, next) => {
           role: 'PATIENT',
           approvalStatus: 'VERIFIED',
           isPhoneVerified: true,
+          authProvider: 'TWOFACTOR_SMS',
           patientProfile: { create: {} },
         },
         include: baseUserInclude,
@@ -445,8 +479,6 @@ const patientVerifyOtpHandler = async (req, res, next) => {
       res,
       {
         accessToken: tokens.accessToken,
-        // Include refreshToken in body so mobile clients (React Native / Expo)
-        // can store it in SecureStore for silent token rotation.
         refreshToken: tokens.refreshToken,
         user: { ...toAuthUser(user), isNewUser },
       },
