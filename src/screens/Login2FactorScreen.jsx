@@ -101,14 +101,6 @@ export default function Login2FactorScreen({ navigation }) {
         <Text style={s.headline}>PulseMate <Text style={s.headlineBlue}>Connect</Text></Text>
         <Text style={s.headlineSub}>Healthcare Platform</Text>
 
-        {/* Heart Icon */}
-        <View style={s.heartContainer}>
-          <Ionicons name="heart-outline" size={20} color="#E8B4D9" />
-        </View>
-
-        {/* Tagline */}
-        <Text style={s.tagline}>Your Health, Our Priority</Text>
-
         {/* Form Card */}
         <View style={s.formCard}>
           <View style={s.formHeader}>
@@ -246,13 +238,7 @@ const s = StyleSheet.create({
   // Title
   headline:     { fontSize: 28, fontWeight: '900', color: DARK, textAlign: 'center', marginBottom: 4 },
   headlineBlue: { color: BLUE },
-  headlineSub:  { fontSize: 14, color: LIGHT_GRAY, textAlign: 'center', marginBottom: 12 },
-
-  // Heart
-  heartContainer: { alignItems: 'center', marginBottom: 8 },
-
-  // Tagline
-  tagline: { fontSize: 16, color: BLUE, textAlign: 'center', fontWeight: '600', marginBottom: 32 },
+  headlineSub:  { fontSize: 14, color: LIGHT_GRAY, textAlign: 'center', marginBottom: 32 },
 
   // Form Card
   formCard:   { backgroundColor: WHITE, borderRadius: 24, padding: 24, marginBottom: 24, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 12 },
