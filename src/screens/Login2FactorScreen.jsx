@@ -4,7 +4,7 @@
  * Simpler alternative to Firebase Phone Auth
  * Uses 2Factor API for Indian phone numbers
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -26,6 +26,7 @@ export default function Login2FactorScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
 
   const handleSendOtp = async () => {
     const trimmed = mobile.trim();
@@ -44,6 +45,7 @@ export default function Login2FactorScreen({ navigation }) {
       console.log('[Login2Factor] Full API Response:', JSON.stringify(response.data, null, 2));
       
       const sessionId = response.data?.data?.sessionId;
+      const devOtp = response.data?.data?.devOtp; // OTP in development mode
       
       console.log('[Login2Factor] Extracted sessionId:', sessionId);
       console.log('[Login2Factor] SessionId type:', typeof sessionId);
@@ -54,12 +56,30 @@ export default function Login2FactorScreen({ navigation }) {
       }
 
       console.log('[Login2Factor] OTP sent, session:', sessionId);
+      
+      // Show OTP in development mode
+      if (devOtp) {
+        console.log('\n' + '='.repeat(60));
+        console.log('🔑 DEVELOPMENT OTP');
+        console.log('='.repeat(60));
+        console.log('OTP:', devOtp);
+        console.log('Phone:', fullNumber);
+        console.log('='.repeat(60) + '\n');
+        
+        Alert.alert(
+          '🚀 Development Mode',
+          `Your OTP is: ${devOtp}\n\n(This only shows in Expo Go)`,
+          [{ text: 'OK' }]
+        );
+      }
+      
       console.log('[Login2Factor] Navigating with params:', { mobile: fullNumber, sessionId });
 
       // Navigate to OTP screen
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
         sessionId: sessionId,
+        devOtp: devOtp, // Pass OTP to next screen for easy testing
       });
     } catch (err) {
       console.error('[Login2Factor] Send OTP error:', err);
@@ -114,14 +134,19 @@ export default function Login2FactorScreen({ navigation }) {
           </View>
 
           {/* Phone Input */}
-          <View style={[s.inputRow, focused && s.inputRowFocused]}>
-            <View style={s.country}>
+          <TouchableOpacity 
+            activeOpacity={1} 
+            onPress={() => inputRef.current?.focus()}
+            style={[s.inputRow, focused && s.inputRowFocused]}
+          >
+            <View style={s.country} pointerEvents="none">
               <Text style={s.flag}>🇮🇳</Text>
               <Text style={s.dialCode}>+91</Text>
               <Ionicons name="chevron-down" size={16} color={GRAY} />
             </View>
-            <View style={s.inputDivider} />
+            <View style={s.inputDivider} pointerEvents="none" />
             <TextInput
+              ref={inputRef}
               style={s.phoneInput}
               placeholder="98765 43210"
               keyboardType="phone-pad"
@@ -134,10 +159,8 @@ export default function Login2FactorScreen({ navigation }) {
               returnKeyType="done"
               onSubmitEditing={canSend ? handleSendOtp : undefined}
               editable={true}
-              autoFocus={false}
-              pointerEvents="auto"
             />
-          </View>
+          </TouchableOpacity>
 
           {/* Send OTP Button */}
           <TouchableOpacity

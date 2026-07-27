@@ -120,12 +120,14 @@ const format2FactorPhone = (mobile) => {
  * Send OTP via 2Factor SMS API
  *
  * @param {string} mobile - Phone number in E.164 format (+919876543210)
- * @returns {Promise<{sessionId: string}>} Session ID for OTP verification
+ * @returns {Promise<{sessionId: string, devOtp?: string}>} Session ID for OTP verification (and OTP in dev mode)
  * @throws {Error} If API call fails or rate limit exceeded
  */
 const sendOtp = async (mobile) => {
   // ── 1. Validate configuration ──────────────────────────────────────────
-  if (!isConfigured()) {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  if (!isDevelopment && !isConfigured()) {
     const error = new Error('2Factor SMS service is not configured. Please try again later.');
     error.status = 503;
     throw error;
@@ -140,8 +142,10 @@ const sendOtp = async (mobile) => {
     throw error;
   }
 
-  // ── 3. Check rate limit ────────────────────────────────────────────────
-  checkRateLimit(normalizedMobile);
+  // ── 3. Check rate limit (skip in development) ─────────────────────────
+  if (!isDevelopment) {
+    checkRateLimit(normalizedMobile);
+  }
 
   // ── 4. Clean up old sessions ───────────────────────────────────────────
   cleanupExpiredSessions();
@@ -154,6 +158,39 @@ const sendOtp = async (mobile) => {
     }
   }
 
+  // ── DEVELOPMENT MODE: Generate fake OTP ────────────────────────────────
+  if (isDevelopment) {
+    const devOtp = '123456'; // Fixed OTP for development
+    const sessionId = generateSessionId();
+    const expiresAt = Date.now() + (OTP_VALIDITY_SECONDS * 1000);
+    
+    otpSessions.set(sessionId, {
+      mobile: normalizedMobile,
+      twoFactorSessionId: 'dev_session',
+      devOtp, // Store OTP for verification
+      expiresAt,
+      attempts: 0,
+      createdAt: Date.now(),
+    });
+
+    logger.info(`\n${'='.repeat(60)}`);
+    logger.info(`🚀 DEVELOPMENT MODE - OTP GENERATED`);
+    logger.info(`${'='.repeat(60)}`);
+    logger.info(`📱 Phone: ${normalizedMobile}`);
+    logger.info(`🔑 OTP: ${devOtp}`);
+    logger.info(`⏰ Valid for: ${OTP_VALIDITY_SECONDS} seconds`);
+    logger.info(`🆔 Session: ${sessionId}`);
+    logger.info(`${'='.repeat(60)}\n`);
+    
+    return {
+      sessionId,
+      devOtp, // Return OTP in response for Expo Go testing
+      message: 'OTP generated (DEV MODE)',
+      expiresIn: OTP_VALIDITY_SECONDS,
+    };
+  }
+
+  // ── PRODUCTION MODE: Call 2Factor API ──────────────────────────────────
   try {
     // ── 6. Call 2Factor API ──────────────────────────────────────────────
     const phoneWithoutPlus = normalizedMobile.replace('+', ''); // Remove + for 2Factor API
@@ -240,7 +277,7 @@ const sendOtp = async (mobile) => {
 };
 
 /**
- * Verify OTP using 2Factor API
+ * Verify OTP using 2Factor API (or dev OTP in development mode)
  *
  * @param {string} sessionId - Session ID returned from sendOtp
  * @param {string} otp - 6-digit OTP entered by user
@@ -248,8 +285,10 @@ const sendOtp = async (mobile) => {
  * @throws {Error} If verification fails
  */
 const verifyOtp = async (sessionId, otp) => {
-  // ── 1. Validate configuration ──────────────────────────────────────────
-  if (!isConfigured()) {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // ── 1. Validate configuration (skip in dev mode) ───────────────────────
+  if (!isDevelopment && !isConfigured()) {
     const error = new Error('2Factor SMS service is not configured. Please try again later.');
     error.status = 503;
     throw error;
@@ -293,6 +332,43 @@ const verifyOtp = async (sessionId, otp) => {
   session.attempts += 1;
   otpSessions.set(sessionId, session);
 
+  // ── DEVELOPMENT MODE: Verify against stored dev OTP ────────────────────
+  if (isDevelopment && session.devOtp) {
+    if (otp === session.devOtp) {
+      otpSessions.delete(sessionId);
+      
+      logger.info(`\n${'='.repeat(60)}`);
+      logger.info(`✅ DEVELOPMENT MODE - OTP VERIFIED`);
+      logger.info(`${'='.repeat(60)}`);
+      logger.info(`📱 Phone: ${session.mobile}`);
+      logger.info(`🔑 OTP: ${otp}`);
+      logger.info(`${'='.repeat(60)}\n`);
+      
+      return {
+        mobile: session.mobile,
+        verified: true,
+      };
+    } else {
+      const remainingAttempts = MAX_ATTEMPTS - session.attempts;
+      
+      logger.warn(`[2Factor] DEV MODE - Invalid OTP. ${remainingAttempts} attempts remaining.`);
+      
+      const error = new Error(
+        remainingAttempts > 0
+          ? `Invalid OTP. ${remainingAttempts} attempts remaining. (Dev OTP is: ${session.devOtp})`
+          : 'Maximum verification attempts exceeded. Please request a new OTP.'
+      );
+      error.status = 400;
+      
+      if (remainingAttempts === 0) {
+        otpSessions.delete(sessionId);
+      }
+      
+      throw error;
+    }
+  }
+
+  // ── PRODUCTION MODE: Verify with 2Factor API ───────────────────────────
   try {
     // ── 7. Verify with 2Factor API ──────────────────────────────────────
     const url = `${TWO_FACTOR_BASE_URL}/${TWO_FACTOR_API_KEY}/SMS/VERIFY/${session.twoFactorSessionId}/${otp}`;
