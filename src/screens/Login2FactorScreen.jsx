@@ -82,7 +82,7 @@ export default function Login2FactorScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Decorative Background Pattern */}
-        <View style={s.bgPattern}>
+        <View style={s.bgPattern} pointerEvents="none">
           <View style={[s.bgDot, { top: 60, left: 20 }]} />
           <View style={[s.bgDot, { top: 80, left: 40 }]} />
           <View style={[s.bgDot, { top: 100, left: 30 }]} />
@@ -133,6 +133,9 @@ export default function Login2FactorScreen({ navigation }) {
               onBlur={() => setFocused(false)}
               returnKeyType="done"
               onSubmitEditing={canSend ? handleSendOtp : undefined}
+              editable={true}
+              autoFocus={false}
+              pointerEvents="auto"
             />
           </View>
 
