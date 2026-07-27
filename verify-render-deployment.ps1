@@ -114,7 +114,7 @@ try {
             Write-Host "  ✓ Local code matches remote (GitHub)" -ForegroundColor Green
             Write-Host "  ✓ Latest code should be deployed on Render" -ForegroundColor Green
         } else {
-            Write-Host "  ⚠️  Local and remote commits don't match" -ForegroundColor Yellow
+            Write-Host "  ⚠️  Local and remote commits do not match" -ForegroundColor Yellow
             Write-Host "    Run 'git push origin main' to deploy latest" -ForegroundColor Yellow
         }
     } else {
