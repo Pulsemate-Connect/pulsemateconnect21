@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { requirePaymentOwnership } = require('../middleware/ownership.middleware'); // ✅ SECURITY FIX
 const {
   initiatePayment,
   verifyPayment,
@@ -30,9 +31,10 @@ router.get('/status/:orderId',
 // Staff routes
 router.post('/cash', authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'), markCashPayment);
 
-// Shared — by appointmentId
+// ✅ SECURITY FIX: Add ownership validation to payment endpoints
 router.get('/appointment/:appointmentId',
   authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
+  requirePaymentOwnership,
   getPaymentStatus
 );
 

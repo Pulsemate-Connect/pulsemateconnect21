@@ -110,10 +110,33 @@ const verifyFirebaseToken = async (idToken) => {
   }
 
   const admin = require('firebase-admin');
-  // checkRevoked: false — revocation check requires an extra network round-trip;
-  // fine to skip for phone auth since tokens are short-lived (1 hour).
-  const decoded = await admin.auth().verifyIdToken(idToken, false);
-  return decoded;
+  
+  try {
+    // ✅ SECURITY FIX: Enable revocation check to prevent deleted users from authenticating
+    const decoded = await admin.auth().verifyIdToken(idToken, true); // checkRevoked: true
+    
+    // ✅ SECURITY: Validate token is recent (prevent replay attacks)
+    const tokenAge = Date.now() / 1000 - decoded.auth_time;
+    const MAX_TOKEN_AGE = 3600; // 1 hour
+    if (tokenAge > MAX_TOKEN_AGE) {
+      throw new Error('Token expired. Please re-authenticate.');
+    }
+    
+    // ✅ SECURITY: Validate phone_number exists
+    if (!decoded.phone_number) {
+      throw new Error('Phone number not verified in token');
+    }
+    
+    return decoded;
+  } catch (error) {
+    if (error.code === 'auth/id-token-revoked') {
+      throw new Error('Token has been revoked. Please login again.');
+    }
+    if (error.code === 'auth/user-disabled') {
+      throw new Error('User account has been disabled.');
+    }
+    throw error;
+  }
 };
 
 module.exports = { initFirebase, getFirebaseAdmin, isFirebaseReady, verifyFirebaseToken };

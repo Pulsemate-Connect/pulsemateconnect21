@@ -62,8 +62,43 @@ app.set('io', io); // Make io accessible in controllers via req.app.get('io')
 require('./config/socket').setIo(io);
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
+// ✅ SECURITY FIX: Force HTTPS in production
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    // Railway/Render use x-forwarded-proto header
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+  }
+  next();
+});
+
+// ✅ SECURITY FIX: Enhanced Helmet configuration
 app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+      connectSrc: ["'self'", "https://api.pulsemateconnect.in", "wss://api.pulsemateconnect.in"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: [], // Force HTTPS
+    },
+  },
   crossOriginEmbedderPolicy: false,
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
 }));
 
 const allowedOrigins = [
@@ -102,11 +137,11 @@ app.use(cors({
 // Global rate limiter — generous limits for dev/clinic use
 const globalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 500,                 // 500 requests per minute per IP
+  max: 100,                 // ✅ SECURITY: Reduced from 500 to 100 requests per minute
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
-  skip: () => process.env.NODE_ENV === 'development', // skip entirely in dev
+  skip: () => false, // ✅ SECURITY: Never skip, even in development
 });
 app.use(globalLimiter);
 

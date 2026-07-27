@@ -5,10 +5,32 @@ node_modules/
 
 # ── Environment files — NEVER commit ──────────────────────────────────────────
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 .env.production
+.env.development
 backend/.env
+backend/.env.*
+!backend/.env.example
+
+# ── Security - Secrets & Credentials ──────────────────────────────────────────
+credentials/
+secrets/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+firebase-admin-sdk.json
+google-services.json.secret
+service-account.json
+KEYSTORE-CREDENTIALS.md
+@shubhamskkk__pulsemate-app.jks
+google-play-key.json
 
 # ── Expo ──────────────────────────────────────────────────────────────────────
 .expo/

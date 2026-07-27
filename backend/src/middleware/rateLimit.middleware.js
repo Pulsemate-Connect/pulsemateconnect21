@@ -1,12 +1,11 @@
 const rateLimit = require('express-rate-limit');
 
-const isDev = process.env.NODE_ENV === 'development';
-
+// ✅ SECURITY FIX: Never skip rate limiting, even in development
 const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
   rateLimit({
     windowMs,
-    max: isDev ? 1000 : max,
-    skip: () => isDev,
+    max,
+    skip: () => false, // ✅ CRITICAL: Never skip rate limiting
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: keyGenerator || ((req) => req.ip),
@@ -17,20 +16,20 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
   });
 
 const otpSendLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // ✅ SECURITY: Only 3 OTP requests per hour
   message: 'Too many OTP requests. Please try again later.',
 });
 
 const otpVerifyLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 5, // ✅ SECURITY: Reduced from 10 to 5 attempts
   message: 'Too many OTP verification attempts. Please try again later.',
 });
 
 const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 5, // ✅ SECURITY: Reduced from 20 to 5 attempts
   message: 'Too many login attempts. Please try again later.',
   // Key by email/identifier so each user gets their own counter
   keyGenerator: (req) => (req.body?.identifier || req.body?.email || req.ip).toLowerCase(),
@@ -69,8 +68,8 @@ const resetPasswordLimiter = createLimiter({
  * already time-limited (1 hour), so we only need to prevent bulk abuse.
  */
 const firebasePhoneLoginLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 60 * 60 * 1000, // ✅ SECURITY: Changed to 1 hour
+  max: 10, // ✅ SECURITY: Reduced from 20 to 10
   message: 'Too many login attempts. Please try again later.',
 });
 
@@ -81,8 +80,8 @@ const firebasePhoneLoginLimiter = createLimiter({
  * only concern — 10 attempts per 15 min window is generous but safe.
  */
 const firebasePhoneVerifyLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 60 * 60 * 1000, // ✅ SECURITY: Changed to 1 hour
+  max: 5, // ✅ SECURITY: Reduced from 10 to 5
   message: 'Too many phone verification attempts. Please try again later.',
 });
 

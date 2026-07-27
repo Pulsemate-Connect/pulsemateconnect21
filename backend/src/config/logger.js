@@ -11,6 +11,77 @@ try {
 
 const logDir = path.join(__dirname, '../../logs');
 
+// ✅ SECURITY FIX: Sensitive fields that must NEVER be logged
+const SENSITIVE_FIELDS = [
+  'password', 'passwordHash', 'passwordConfirm', 'newPassword', 'oldPassword', 'currentPassword',
+  'token', 'accessToken', 'refreshToken', 'idToken', 'firebaseIdToken', 'firebaseUid',
+  'otp', 'otpCode', 'otpHash', 'verificationCode', 'code',
+  'secret', 'apiKey', 'apiSecret', 'privateKey', 'private_key', 'serviceAccount',
+  'razorpayKey', 'razorpaySecret', 'razorpaySignature',
+  'cvv', 'cardNumber', 'card_number', 'pin', 'ssn', 'social_security',
+  'authorization', 'cookie', 'x-api-key',
+];
+
+// ✅ SECURITY FIX: PII fields that should be masked
+const PII_FIELDS = [
+  'email', 'mobile', 'phone', 'phoneNumber',
+  'address', 'dob', 'dateOfBirth', 'birthDate',
+  'bloodGroup', 'allergies', 'existingDiseases',
+  'symptoms', 'medicalNotes', 'diagnosis', 'prescription',
+];
+
+// ✅ SECURITY: Masking helpers
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return '[MASKED]';
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '[MASKED]';
+  return `${local[0]}***@${domain}`;
+};
+
+const maskPhone = (phone) => {
+  if (!phone || typeof phone !== 'string') return '[MASKED]';
+  return phone.slice(0, 3) + '****' + phone.slice(-4);
+};
+
+// ✅ SECURITY FIX: Redaction format to remove sensitive data
+const redactSensitive = winston.format((info) => {
+  const redact = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    for (const key of Object.keys(obj)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Remove sensitive fields completely
+      if (SENSITIVE_FIELDS.some(s => lowerKey.includes(s.toLowerCase()))) {
+        obj[key] = '[REDACTED]';
+      }
+      // Mask PII fields
+      else if (PII_FIELDS.some(p => lowerKey.includes(p.toLowerCase()))) {
+        if (typeof obj[key] === 'string') {
+          if (lowerKey.includes('email')) {
+            obj[key] = maskEmail(obj[key]);
+          } else if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
+            obj[key] = maskPhone(obj[key]);
+          } else {
+            obj[key] = '[MASKED]';
+          }
+        } else {
+          obj[key] = '[MASKED]';
+        }
+      }
+      // Recursively redact nested objects
+      else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        redact(obj[key]);
+      }
+    }
+    
+    return obj;
+  };
+  
+  redact(info);
+  return info;
+});
+
 const transports = [];
 
 // ── Console transport (always on in non-production) ───────────────────────────
@@ -74,6 +145,7 @@ const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),
+    redactSensitive(), // ✅ SECURITY: Redact sensitive data before logging
     winston.format.json()
   ),
   defaultMeta: { service: 'pulsemate-api' },

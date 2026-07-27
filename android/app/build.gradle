@@ -92,8 +92,8 @@ android {
         applicationId 'in.pulsemateconnect.patient'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 48
-        versionName "1.2.8"
+        versionCode 51
+        versionName "1.3.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -105,10 +105,12 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('../../credentials/android/keystore.jks')
-            storePassword '59f1eb1d193744c0ae6d420664f0c77b'
-            keyAlias 'f1a185ee3a5ba7802fd6698297601ca8'
-            keyPassword '4850e619405a4963a749151ac3ed2f76'
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            }
         }
     }
     buildTypes {
@@ -116,6 +118,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
