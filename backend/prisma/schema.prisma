@@ -43,6 +43,8 @@ model User {
   fcmTokens                FcmToken[]
   notificationReads        NotificationRead[]
   userNotifications        UserNotification[]
+  notifications            Notification[]              @relation("UserNotificationsNew")
+  notificationPreferences  NotificationPreference?
   passwordResetTokens      PasswordResetToken[]
   patientProfile           PatientProfile?
   payments                 Payment[]                   @relation("PatientPayments")
@@ -298,6 +300,7 @@ model Appointment {
   prescriptions        prescriptions?
   queueItem            QueueItem?
   reminders            ReminderSent[]
+  scheduledNotifications ScheduledNotification[]
 
   @@index([patientId, appointmentDate])
   @@index([doctorId, appointmentDate])
@@ -828,4 +831,180 @@ model ClinicOwnerProfile {
   @@index([userId])
   @@index([primaryClinicId])
   @@map("clinic_owner_profiles")
+}
+
+// ─── Enhanced Notification System ────────────────────────────────────────────
+model Notification {
+  id              String              @id @default(uuid())
+  userId          String
+  title           String
+  body            String
+  type            NotificationType
+  referenceType   String?
+  referenceId     String?
+  priority        NotificationPriority @default(NORMAL)
+  isRead          Boolean             @default(false)
+  readAt          DateTime?
+  sentAt          DateTime?
+  deliveryStatus  DeliveryStatus      @default(PENDING)
+  fcmMessageId    String?
+  errorMessage    String?
+  retryCount      Int                 @default(0)
+  maxRetries      Int                 @default(3)
+  scheduledFor    DateTime?
+  expiresAt       DateTime?
+  data            Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  user            User                @relation("UserNotificationsNew", fields: [userId], references: [id], onDelete: Cascade)
+  deliveryLogs    NotificationDeliveryLog[]
+  
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([sentAt])
+  @@index([deliveryStatus])
+  @@index([scheduledFor])
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([deliveryStatus, scheduledFor])
+  @@index([referenceType, referenceId])
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id              String   @id @default(uuid())
+  type            String   @unique
+  titleTemplate   String
+  bodyTemplate    String
+  defaultPriority String   @default("NORMAL")
+  icon            String?
+  sound           String?
+  variables       Json?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("notification_templates")
+}
+
+model NotificationPreference {
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  pushEnabled           Boolean   @default(true)
+  inAppEnabled          Boolean   @default(true)
+  appointmentReminders  Boolean   @default(true)
+  queueUpdates          Boolean   @default(true)
+  prescriptionAlerts    Boolean   @default(true)
+  paymentAlerts         Boolean   @default(true)
+  marketingEnabled      Boolean   @default(false)
+  quietHoursStart       String?
+  quietHoursEnd         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notification_preferences")
+}
+
+model ScheduledNotification {
+  id             String   @id @default(uuid())
+  appointmentId  String
+  reminderType   String
+  scheduledFor   DateTime
+  status         String   @default("PENDING")
+  sentAt         DateTime?
+  notificationId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  
+  @@unique([appointmentId, reminderType])
+  @@index([appointmentId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@map("scheduled_notifications")
+}
+
+model NotificationDeliveryLog {
+  id              String   @id @default(uuid())
+  notificationId  String
+  attemptNumber   Int
+  deliveryChannel String
+  status          String
+  fcmMessageId    String?
+  errorMessage    String?
+  deviceToken     String?
+  sentAt          DateTime @default(now())
+  
+  notification    Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  @@index([notificationId])
+  @@index([status])
+  @@map("notification_delivery_log")
+}
+
+model BroadcastNotification {
+  id                 String    @id @default(uuid())
+  title              String
+  body               String
+  targetAudience     String    @default("ALL")
+  targetFilter       Json?
+  priority           String    @default("NORMAL")
+  createdByAdminId   String?
+  scheduledFor       DateTime?
+  status             String    @default("DRAFT")
+  sentCount          Int       @default(0)
+  totalTargets       Int       @default(0)
+  sentAt             DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("broadcast_notifications")
+}
+
+enum NotificationType {
+  APPOINTMENT_BOOKED
+  APPOINTMENT_REMINDER_24H
+  APPOINTMENT_REMINDER_2H
+  APPOINTMENT_REMINDER_30M
+  QUEUE_UPDATE
+  QUEUE_ALMOST_YOUR_TURN
+  QUEUE_YOUR_TURN
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULED
+  PAYMENT_SUCCESS
+  PRESCRIPTION_READY
+  FOLLOW_UP_REMINDER
+  DOCTOR_NEW_APPOINTMENT
+  DOCTOR_APPOINTMENT_CANCELLED
+  DOCTOR_PATIENT_CHECKED_IN
+  DOCTOR_PRESCRIPTION_VIEWED
+  RECEPTIONIST_PATIENT_ARRIVED
+  RECEPTIONIST_WALK_IN_ADDED
+  OWNER_DAILY_SUMMARY
+  OWNER_HIGH_QUEUE
+  ADMIN_EMERGENCY
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRY
+  EXPIRED
 }
