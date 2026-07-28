@@ -20,7 +20,7 @@
  */
 
 const axios = require('axios');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const logger = require('../config/logger');
 const { normalizeMobileNumber } = require('../utils/mobile');
