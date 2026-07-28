@@ -20,11 +20,12 @@
  */
 const logger = require('../config/logger');
 
-const SMS_PROVIDER       = (process.env.SMS_PROVIDER        || 'mock').toLowerCase().trim();
-const WHATSAPP_PROVIDER  = (process.env.WHATSAPP_PROVIDER   || '').toLowerCase().trim();
-const SMS_API_KEY        = process.env.SMS_API_KEY           || '';
-const SMS_SENDER_ID      = process.env.SMS_SENDER_ID         || 'PULSE';
-const SMS_TEMPLATE_ID    = process.env.SMS_TEMPLATE_ID       || '';
+const SMS_PROVIDER = (process.env.SMS_PROVIDER || 'mock').toLowerCase().trim();
+const WHATSAPP_PROVIDER = (process.env.WHATSAPP_PROVIDER || '').toLowerCase().trim();
+// Support both SMS_API_KEY and TWOFACTOR_API_KEY for 2Factor provider
+const SMS_API_KEY = process.env.SMS_API_KEY || process.env.TWOFACTOR_API_KEY || '';
+const SMS_SENDER_ID = process.env.SMS_SENDER_ID || 'PULSE';
+const SMS_TEMPLATE_ID = process.env.SMS_TEMPLATE_ID || process.env.TWOFACTOR_TEMPLATE_NAME || '';
 const WHATSAPP_TEMPLATE_ID = process.env.WHATSAPP_TEMPLATE_ID || '';
 
 const OTP_MESSAGE = (otp) =>
@@ -43,11 +44,12 @@ const sendOtpSms = async (mobile, otp) => {
 
 const sendSms = async (mobile, otp) => {
   switch (SMS_PROVIDER) {
-    case 'msg91':    return sendViaMSG91(mobile, otp);
-    case '2factor':  return sendVia2Factor(mobile, otp);
-    case 'twilio':   return sendViaTwilio(mobile, otp);
+    case 'msg91': return sendViaMSG91(mobile, otp);
+    case '2factor':
+    case 'twofactor': return sendVia2Factor(mobile, otp);
+    case 'twilio': return sendViaTwilio(mobile, otp);
     case 'mock':
-    default:         return sendMock(mobile, otp);
+    default: return sendMock(mobile, otp);
   }
 };
 
@@ -88,8 +90,8 @@ const sendViaMSG91 = async (mobile, otp) => {
 const sendVia2Factor = async (mobile, otp) => {
   if (!SMS_API_KEY) { logger.warn('[2Factor] No API key'); return sendMock(mobile, otp); }
   const clean = mobile.replace(/^\+91/, '').replace(/^\+/, '');
-  const tmpl  = SMS_TEMPLATE_ID ? `/${encodeURIComponent(SMS_TEMPLATE_ID)}` : '';
-  const path  = `/API/V1/${SMS_API_KEY}/SMS/${clean}/${otp}${tmpl}`;
+  const tmpl = SMS_TEMPLATE_ID ? `/${encodeURIComponent(SMS_TEMPLATE_ID)}` : '';
+  const path = `/API/V1/${SMS_API_KEY}/SMS/${clean}/${otp}${tmpl}`;
   logger.info(`[2Factor] Sending OTP to ${clean}`);
   return new Promise((resolve, reject) => {
     const https = require('https');
@@ -125,14 +127,14 @@ const sendViaTwilio = async (mobile, otp) => {
 // ── WhatsApp ──────────────────────────────────────────────────────────────────
 const sendWhatsApp = async (mobile, otp) => {
   if (WHATSAPP_PROVIDER === '2factor') return sendVia2FactorWhatsApp(mobile, otp);
-  if (WHATSAPP_PROVIDER === 'twilio')  return sendViaTwilioWhatsApp(mobile, otp);
+  if (WHATSAPP_PROVIDER === 'twilio') return sendViaTwilioWhatsApp(mobile, otp);
   return null;
 };
 
 const sendVia2FactorWhatsApp = async (mobile, otp) => {
   if (!SMS_API_KEY) return null;
   const clean = mobile.replace(/^\+91/, '').replace(/^\+/, '');
-  const tmpl  = WHATSAPP_TEMPLATE_ID ? `/${encodeURIComponent(WHATSAPP_TEMPLATE_ID)}` : '';
+  const tmpl = WHATSAPP_TEMPLATE_ID ? `/${encodeURIComponent(WHATSAPP_TEMPLATE_ID)}` : '';
   return new Promise((resolve) => {
     const https = require('https');
     const req = https.request({ hostname: '2factor.in', path: `/API/V1/${SMS_API_KEY}/WHATSAPP/${clean}/${otp}${tmpl}`, method: 'GET' }, (res) => {
@@ -149,7 +151,7 @@ const sendViaTwilioWhatsApp = async (mobile, otp) => {
   try {
     const client = require('twilio')(sid, token);
     const from = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
-    const to   = mobile.startsWith('whatsapp:') ? mobile : `whatsapp:${mobile}`;
+    const to = mobile.startsWith('whatsapp:') ? mobile : `whatsapp:${mobile}`;
     await client.messages.create({ body: OTP_MESSAGE(otp), from, to });
     return null;
   } catch { return null; }
