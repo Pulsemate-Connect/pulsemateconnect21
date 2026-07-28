@@ -6,11 +6,11 @@
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth.middleware');
+const { authenticateUser } = require('../middleware/auth.middleware');
 const notificationController = require('../controllers/notification-enhanced.controller');
 
 // ── All routes require authentication ────────────────────────────────────────
-router.use(protect);
+router.use(authenticateUser);
 
 // ── Notification Management ──────────────────────────────────────────────────
 router.get('/', notificationController.getNotifications);
