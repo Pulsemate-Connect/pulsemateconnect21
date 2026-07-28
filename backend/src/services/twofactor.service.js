@@ -38,7 +38,7 @@ const OTP_VALIDITY_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
 
 // Security Constants
 const MAX_VERIFICATION_ATTEMPTS = 5;
-const MAX_OTP_REQUESTS = 3;
+const MAX_OTP_REQUESTS = 10;             // relaxed for testing — increase if abused
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const BCRYPT_ROUNDS = 10;
 
@@ -190,8 +190,8 @@ const checkIpRateLimit = (ipAddress) => {
 
   const validTimestamps = timestamps.filter(ts => (now - ts) < RATE_LIMIT_WINDOW_MS);
 
-  // Allow more requests per IP (3x phone limit) to account for multiple users
-  const IP_MAX_REQUESTS = MAX_OTP_REQUESTS * 3;
+  // Allow more requests per IP (5x phone limit) to account for multiple users
+  const IP_MAX_REQUESTS = MAX_OTP_REQUESTS * 5;
 
   if (validTimestamps.length >= IP_MAX_REQUESTS) {
     logger.warn(`[2Factor] IP rate limit exceeded: ${ipAddress}`);
@@ -285,9 +285,13 @@ const sendOtp = async (mobile, ipAddress = null) => {
   // ── 6. Call 2Factor API to send SMS ────────────────────────────────────
   try {
     const phoneWithoutPlus = normalizedMobile.replace('+', '');
-    const url = `${TWO_FACTOR_BASE_URL}/${TWO_FACTOR_API_KEY}/SMS/${phoneWithoutPlus}/AUTOGEN/${TWO_FACTOR_TEMPLATE}`;
 
-    logger.info(`[2Factor] Sending OTP to ${normalizedMobile.substring(0, 6)}*** via 2Factor API`);
+    // Correct 2Factor SMS URL format:
+    // /API/V1/{apikey}/SMS/{phone}/AUTOGEN
+    // Adding a template name AFTER AUTOGEN triggers a voice call — DO NOT do that
+    const url = `${TWO_FACTOR_BASE_URL}/${TWO_FACTOR_API_KEY}/SMS/${phoneWithoutPlus}/AUTOGEN`;
+
+    logger.info(`[2Factor] Sending SMS OTP to ${normalizedMobile.substring(0, 6)}*** via 2Factor API`);
 
     const response = await axios.get(url, {
       timeout: 15000, // 15 second timeout
