@@ -1,0 +1,76 @@
+name: Build Android AAB
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build Android AAB
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: 🏗 Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🏗 Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Run Expo Prebuild
+        run: npx expo prebuild --platform android --clean
+
+      - name: 🔨 Build Android AAB
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - name: 📝 Get version info
+        id: version
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          VERSION_CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "filename=pulsemate-v${VERSION}-vc${VERSION_CODE}-$(date +%Y%m%d-%H%M).aab" >> $GITHUB_OUTPUT
+
+      - name: 📦 Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.filename }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: 📦 Copy AAB to root (for easy download)
+        run: |
+          cp android/app/build/outputs/bundle/release/app-release.aab ./${{ steps.version.outputs.filename }}
+
+      - name: ✅ Build Complete
+        run: |
+          echo "✅ AAB built successfully!"
+          echo "📦 Version: ${{ steps.version.outputs.version }}"
+          echo "🔢 Version Code: ${{ steps.version.outputs.version_code }}"
+          echo "📁 Filename: ${{ steps.version.outputs.filename }}"
+          echo ""
+          echo "Download from the 'Artifacts' section in this workflow run!"

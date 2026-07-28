@@ -1,320 +1,420 @@
-# 🚀 Render Deployment Guide - PulseMate Connect
+# 🚀 Render Deployment Guide
 
-## Prerequisites Checklist
-- ✅ GitHub repository: https://github.com/Pulsemate-Connect/pulsemateconnect21.git
-- ✅ Render account: https://render.com (sign up with GitHub)
-- ✅ Firebase project configured
-- ✅ 2Factor API key ready
-- ✅ Razorpay credentials ready
-- ✅ Cloudinary credentials ready
+## 📦 What's Being Deployed
+
+### Backend (Node.js API)
+- **Service**: `pulsemate-backend`
+- **URL**: https://api.pulsemateconnect.in
+- **Runtime**: Node.js
+- **Location**: `backend/` folder
+- **Database**: PostgreSQL (Render)
+
+### Frontend (React Web)
+- **Service**: `pulsemate-frontend`
+- **URL**: https://www.pulsemateconnect.in
+- **Runtime**: Static Site
+- **Location**: `frontend/` folder
 
 ---
 
-## Step 1: Push Code to GitHub
+## ✅ What's Already Configured
+
+Your `render.yaml` file is already set up with:
+
+✅ Backend API configuration  
+✅ Frontend web configuration  
+✅ PostgreSQL database  
+✅ Environment variables  
+✅ Build commands  
+✅ Health check endpoint  
+✅ **NEW: 2Factor SMS API keys** 🎉
+
+---
+
+## 🔄 How to Deploy
+
+### Method 1: Automatic Deployment (Recommended)
+
+Render automatically deploys when you push to GitHub:
 
 ```bash
-cd C:\Users\shubh\Desktop\pulsemateconnect123\pulsemateconnect21
-
-# Add all changes
+# Stage all changes
 git add .
 
-# Commit changes
-git commit -m "feat: Add production-ready dual OTP authentication system
-
-- Implement Firebase Phone Auth for web with invisible reCAPTCHA
-- Implement 2Factor SMS API for mobile
-- Add JWT authentication with HttpOnly cookies and SecureStore
-- Add comprehensive authentication middleware
-- Add rate limiting and error handling
-- Update backend routes and controllers
-- Add frontend login UI and protected routes
-- Add complete documentation"
+# Commit with a descriptive message
+git commit -m "Deploy v1.3.3: Add production 2Factor SMS auth"
 
 # Push to GitHub
 git push origin main
 ```
 
----
+**Render will automatically:**
+1. Detect the push
+2. Start building backend
+3. Start building frontend
+4. Deploy both services
+5. Run database migrations
 
-## Step 2: Connect Render to GitHub
-
-1. Go to https://render.com/dashboard
-2. Click **New +** → **Blueprint**
-3. Select **Connect a repository**
-4. Choose: `Pulsemate-Connect/pulsemateconnect21`
-5. Click **Connect**
-
-Render will automatically detect `render.yaml` and create:
-- ✅ PostgreSQL Database (`pulsemate-db`)
-- ✅ Backend Web Service (`pulsemate-backend`)
-- ✅ Frontend Static Site (`pulsemate-frontend`)
+**Deployment Time**: 5-10 minutes
 
 ---
 
-## Step 3: Configure Environment Variables
+## 📊 Monitor Deployment
 
-### Backend Service Environment Variables
+### 1. Go to Render Dashboard
+https://dashboard.render.com
 
-Go to **pulsemate-backend** service → **Environment** tab and add these **manually**:
+### 2. Check Service Status
 
-#### 🔐 Firebase Configuration
-```bash
-FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"pulsemateconnect",...}
+**Backend Service**: `pulsemate-backend`
+- Watch build logs in real-time
+- Check for errors
+- Verify deployment status
+
+**Frontend Service**: `pulsemate-frontend`
+- Watch build logs
+- Check for build errors
+- Verify deployment
+
+### 3. Verify Deployment
+
+Once deployed, test:
+
+**Backend Health Check**:
 ```
-**How to get:**
-1. Go to Firebase Console → Project Settings → Service Accounts
-2. Click "Generate new private key"
-3. Copy the entire JSON content (single line)
-
-#### 📱 2Factor SMS API
-```bash
-TWO_FACTOR_API_KEY=your_2factor_api_key_here
+https://api.pulsemateconnect.in/health
 ```
-**How to get:**
-1. Go to https://2factor.in/dashboard
-2. Copy your API key
 
-#### 💳 Razorpay Payment Gateway
-```bash
-RAZORPAY_KEY_ID=rzp_live_xxxxx
-RAZORPAY_KEY_SECRET=your_razorpay_secret
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
-```
-**How to get:**
-1. Go to https://dashboard.razorpay.com/app/keys
-2. Copy Key ID and Key Secret
-3. For webhook secret: Settings → Webhooks → Create webhook
-   - URL: `https://api.pulsemateconnect.in/api/payments/razorpay-webhook`
-   - Events: `payment.captured`, `payment.failed`
-   - Copy the webhook secret
-
-#### ☁️ Cloudinary Image Storage
-```bash
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-```
-**How to get:**
-1. Go to https://cloudinary.com/console
-2. Copy Cloud Name, API Key, and API Secret
-
-### Auto-generated Environment Variables (Already set in render.yaml)
-- `JWT_ACCESS_SECRET` - Auto-generated
-- `JWT_REFRESH_SECRET` - Auto-generated
-- `COOKIE_SECRET` - Auto-generated
-- `DATABASE_URL` - Auto-linked from PostgreSQL database
-- `PORT` - Set to 5000
-- `NODE_ENV` - Set to production
-- `FRONTEND_URL` - https://www.pulsemateconnect.in
-- `BACKEND_URL` - https://api.pulsemateconnect.in
-
----
-
-## Step 4: Configure Custom Domains
-
-### Backend Domain
-1. Go to **pulsemate-backend** → **Settings** → **Custom Domain**
-2. Add: `api.pulsemateconnect.in`
-3. Add DNS records to your domain provider:
-   ```
-   Type: CNAME
-   Name: api
-   Value: pulsemate-backend.onrender.com
-   ```
-
-### Frontend Domain
-1. Go to **pulsemate-frontend** → **Settings** → **Custom Domain**
-2. Add: `www.pulsemateconnect.in`
-3. Add DNS records:
-   ```
-   Type: CNAME
-   Name: www
-   Value: pulsemate-frontend.onrender.com
-   ```
-4. Also add root domain `pulsemateconnect.in`:
-   ```
-   Type: A
-   Name: @
-   Value: 216.24.57.1 (Render's IP)
-   ```
-
----
-
-## Step 5: Verify Deployment
-
-### Check Backend Health
-```bash
-curl https://api.pulsemateconnect.in/health
-```
 Expected response:
 ```json
 {
   "status": "ok",
-  "timestamp": "2026-07-27T..."
+  "timestamp": "2026-07-28T..."
 }
 ```
 
-### Check Database Connection
-```bash
-curl https://api.pulsemateconnect.in/api/health/db
+**Frontend**:
+```
+https://www.pulsemateconnect.in
 ```
 
-### Check Frontend
-Open browser: https://www.pulsemateconnect.in
+Should show your app login page.
 
 ---
 
-## Step 6: Test Authentication
+## 🆕 What Changed in This Deployment
 
-### Test Firebase Phone Auth (Web)
-1. Open https://www.pulsemateconnect.in
-2. Enter phone number (with country code)
-3. Solve reCAPTCHA
-4. Enter OTP sent by Firebase
-5. Should redirect to dashboard
+### Backend Changes:
 
-### Test 2Factor SMS (Mobile - API Test)
+1. **Production 2Factor SMS Authentication** ✨
+   - Removed all development OTP code (123456)
+   - Implemented secure OTP generation with crypto
+   - Added OTP hashing with bcrypt
+   - Rate limiting: 3 OTP requests per 15 minutes
+   - IP-based rate limiting
+   - Maximum 5 verification attempts
+   - OTP expires after 5 minutes
+   - Session validation
+
+2. **Environment Variables Added**:
+   ```yaml
+   TWOFACTOR_API_KEY: 0f290349-865f-11f1-908b-0200cd936042
+   TWOFACTOR_TEMPLATE_NAME: ""
+   OTP_EXPIRY_MINUTES: 5
+   ```
+
+3. **Updated Files**:
+   - `backend/src/services/twofactor.service.js` - Complete rewrite
+   - `backend/src/controllers/auth.controller.js` - Production handlers
+   - `backend/.env` - 2Factor configuration
+
+### Frontend Changes:
+
+1. **Mobile App Login Screens**:
+   - Removed all devOtp handling
+   - Clean production flow
+   - `src/screens/Login2FactorScreen.jsx` - Updated
+   - `src/screens/Otp2FactorScreen.jsx` - Already clean
+
+2. **Version Bump**:
+   - Version: 1.3.2 → 1.3.3
+   - Version Code: 53 → 54
+
+---
+
+## 🔐 Security Notes
+
+### Already Configured (No Action Needed):
+
+✅ JWT secrets are auto-generated by Render  
+✅ Database credentials managed by Render  
+✅ HTTPS enabled automatically  
+✅ 2Factor API key configured in render.yaml  
+
+### Secrets in Dashboard (Set Manually if Not Already):
+
+These are marked `sync: false` in render.yaml, so you need to set them manually in Render dashboard:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+**To set manually**:
+1. Go to Render Dashboard
+2. Select `pulsemate-backend` service
+3. Go to Environment tab
+4. Add/update these variables
+5. Save changes (triggers redeploy)
+
+---
+
+## 🐛 Troubleshooting
+
+### Build Fails
+
+**Check Render logs for**:
+- Missing dependencies
+- Syntax errors
+- Environment variable issues
+- Database connection problems
+
+**Common fixes**:
 ```bash
-# Send OTP
-curl -X POST https://api.pulsemateconnect.in/api/auth/mobile/send-otp \
+# Ensure package.json is up to date
+cd backend
+npm install
+git add package.json package-lock.json
+git commit -m "Update dependencies"
+git push
+```
+
+### Database Migration Errors
+
+If migrations fail, check:
+1. Render logs for specific error
+2. Database is accessible
+3. Migration files are valid
+
+**Manual migration** (if needed):
+1. Go to Render Dashboard
+2. Open Shell for backend service
+3. Run:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+### 2Factor SMS Not Working
+
+**Check**:
+1. `TWOFACTOR_API_KEY` is set correctly
+2. 2Factor account has balance
+3. Backend logs show API calls
+4. Phone number format is correct (+91xxxxxxxxxx)
+
+**Test endpoint**:
+```bash
+curl -X POST https://api.pulsemateconnect.in/api/auth/patient/send-otp \
   -H "Content-Type: application/json" \
   -d '{"phone": "+919876543210"}'
-
-# Verify OTP
-curl -X POST https://api.pulsemateconnect.in/api/auth/mobile/verify \
-  -H "Content-Type: application/json" \
-  -d '{"phone": "+919876543210", "otp": "123456"}'
 ```
 
----
+### Health Check Fails
 
-## Step 7: Monitor Deployment
-
-### View Logs
-1. Go to Render Dashboard
-2. Click on **pulsemate-backend**
-3. Go to **Logs** tab
-4. Monitor for errors
-
-### Check Build Status
-- Backend: https://dashboard.render.com/web/pulsemate-backend
-- Frontend: https://dashboard.render.com/static/pulsemate-frontend
-- Database: https://dashboard.render.com/d/pulsemate-db
+If `/health` endpoint fails:
+1. Check service is running
+2. Check logs for errors
+3. Verify PORT is set correctly (5000)
+4. Check firewall settings
 
 ---
 
-## Common Issues & Solutions
+## 📝 Deployment Checklist
 
-### 1. Build Failed - Prisma Migration Error
-**Solution:** Database migrations run automatically during build. Check logs for specific errors.
+Before deploying:
 
-### 2. Backend Health Check Fails
-**Solution:** 
-- Check if `DATABASE_URL` is properly linked
-- Verify all required environment variables are set
-- Check logs for connection errors
+- [x] Code changes committed
+- [x] Version updated in app.json (1.3.3)
+- [x] Backend tested locally
+- [x] Environment variables configured
+- [x] render.yaml updated with 2Factor keys
+- [x] Documentation created
 
-### 3. Firebase Authentication Not Working
-**Solution:**
-- Verify `FIREBASE_SERVICE_ACCOUNT_JSON` is correctly set (single line JSON)
-- Check Firebase Console → Authentication → Sign-in method → Phone is enabled
-- Verify app is authorized in Firebase
+After pushing:
 
-### 4. 2Factor SMS Not Sending
-**Solution:**
-- Verify `TWO_FACTOR_API_KEY` is correct
-- Check 2Factor dashboard for credits
-- Check backend logs for API errors
-
-### 5. CORS Errors on Frontend
-**Solution:** Already configured in backend:
-```javascript
-// backend/src/server.js
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  credentials: true
-}));
-```
-
-### 6. JWT Token Not Persisting
-**Solution:** 
-- Web: Cookies are HttpOnly and Secure in production
-- Mobile: Uses Expo SecureStore
-- Check browser devtools → Application → Cookies
+- [ ] Monitor Render build logs
+- [ ] Verify backend deploys successfully
+- [ ] Verify frontend deploys successfully
+- [ ] Test health check endpoint
+- [ ] Test 2Factor OTP flow
+- [ ] Check error logs for issues
+- [ ] Verify mobile app connects to new backend
 
 ---
 
-## Render Free Tier Limits
+## 🎯 Post-Deployment Testing
 
-- ⏱️ Backend sleeps after 15 minutes of inactivity (first request takes ~30 seconds)
-- 💾 PostgreSQL: 1GB storage, 97 hours/month free
-- 🌐 750 hours/month free for web services
-- 📦 100GB bandwidth/month
-
-**To prevent backend sleep:**
-- Upgrade to paid plan ($7/month)
-- Or use external service to ping backend every 10 minutes
-
----
-
-## Production Checklist
-
-- [ ] All environment variables set in Render dashboard
-- [ ] Custom domains configured and DNS updated
-- [ ] Firebase Console → Authentication → Phone enabled
-- [ ] Firebase Console → Add `api.pulsemateconnect.in` to authorized domains
-- [ ] 2Factor API key verified and has credits
-- [ ] Razorpay webhook configured
-- [ ] Cloudinary credentials working
-- [ ] Backend health check passing
-- [ ] Frontend loading correctly
-- [ ] Test login flow (both web and mobile endpoints)
-- [ ] Check logs for any errors
-- [ ] Monitor first few user registrations
-
----
-
-## Quick Commands Reference
-
+### 1. Test Backend Health
 ```bash
-# View backend logs
-render logs pulsemate-backend --tail
+curl https://api.pulsemateconnect.in/health
+```
 
-# Restart backend
-render restart pulsemate-backend
+Expected: `{"status":"ok"}`
 
-# Check service status
-render services
+### 2. Test 2Factor OTP Flow
 
-# Trigger manual deploy
-git commit --allow-empty -m "Trigger Render deployment"
+**Send OTP**:
+```bash
+curl -X POST https://api.pulsemateconnect.in/api/auth/patient/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "+919876543210"}'
+```
+
+Expected:
+```json
+{
+  "success": true,
+  "data": {
+    "sessionId": "2f_...",
+    "expiresIn": 300
+  }
+}
+```
+
+**Verify OTP** (use real OTP from SMS):
+```bash
+curl -X POST https://api.pulsemateconnect.in/api/auth/patient/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+919876543210",
+    "sessionId": "2f_...",
+    "otp": "123456"
+  }'
+```
+
+### 3. Test Mobile App
+
+1. Open mobile app in Expo Go
+2. Try login with real phone number
+3. Check SMS received
+4. Enter OTP
+5. Verify successful login
+
+---
+
+## 📊 Render Service URLs
+
+After deployment, these URLs will be active:
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | https://api.pulsemateconnect.in | 🟢 Live |
+| Frontend Web | https://www.pulsemateconnect.in | 🟢 Live |
+| Health Check | https://api.pulsemateconnect.in/health | 🟢 Live |
+| Database | Internal (managed by Render) | 🟢 Live |
+
+---
+
+## 🔄 Rollback (if needed)
+
+If deployment causes issues:
+
+### Method 1: Render Dashboard
+1. Go to Render Dashboard
+2. Select service
+3. Go to "Events" tab
+4. Click "Rollback" on previous working deployment
+
+### Method 2: Git Revert
+```bash
+# Revert to previous commit
+git log  # Find previous commit hash
+git revert <commit-hash>
 git push origin main
 ```
 
 ---
 
-## Support & Documentation
+## 📈 Monitoring
 
-- Render Docs: https://render.com/docs
-- Firebase Auth: https://firebase.google.com/docs/auth
-- 2Factor API: https://2factor.in/docs
-- Project Documentation: See `DUAL-OTP-COMPLETE-SETUP.md`
+### Check Logs:
+1. Render Dashboard → Service → Logs tab
+2. Filter by error/warning
+3. Monitor real-time
+
+### Key Metrics:
+- Response times
+- Error rates
+- OTP send success rate
+- Database query performance
+- Memory usage
+- CPU usage
+
+### Set Up Alerts:
+1. Render Dashboard → Service → Notifications
+2. Configure email alerts for:
+   - Deployment failures
+   - Service crashes
+   - High error rates
 
 ---
 
-## Next Steps After Deployment
+## 🎉 Success Criteria
 
-1. ✅ Test all authentication flows
-2. ✅ Set up monitoring and alerts
-3. ✅ Configure backup strategy for PostgreSQL
-4. ✅ Set up error tracking (e.g., Sentry)
-5. ✅ Test payment flows with Razorpay
-6. ✅ Verify email notifications
-7. ✅ Load test the APIs
-8. ✅ Set up CI/CD for automated deployments
+Deployment is successful when:
+
+✅ Backend build completes without errors  
+✅ Frontend build completes without errors  
+✅ Health check returns 200 OK  
+✅ 2Factor OTP sends successfully  
+✅ OTP verification works  
+✅ Mobile app can login  
+✅ Web portal loads correctly  
+✅ Database migrations applied  
+✅ No errors in logs  
 
 ---
 
-**Deployment Status:** Ready to deploy! 🚀
+## 🚀 Next Steps After Deployment
 
-Run the git commands in Step 1 to push your changes, then follow the Render setup steps.
+1. **Test thoroughly**
+   - Test all OTP flows
+   - Test rate limiting
+   - Test error scenarios
+
+2. **Monitor for 24 hours**
+   - Watch error logs
+   - Check OTP success rate
+   - Monitor API response times
+
+3. **Update mobile app**
+   - Build new AAB (use GitHub Actions)
+   - Upload to Google Play
+   - Submit for review
+
+4. **Announce update**
+   - Notify users of new version
+   - Highlight security improvements
+   - Provide support contact
+
+---
+
+## 📞 Support
+
+**Render Status**: https://status.render.com  
+**Render Docs**: https://render.com/docs  
+**2Factor Support**: https://2factor.in/support  
+
+**Internal Docs**:
+- `PRODUCTION-2FACTOR-AUTH-COMPLETE.md` - Implementation details
+- `TESTING-GUIDE.md` - Testing procedures
+
+---
+
+**Deployment Date**: 2026-07-28  
+**Version**: 1.3.3 (vc54)  
+**Status**: Ready to deploy ✅  
+**Next Action**: Push to GitHub!

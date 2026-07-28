@@ -45,41 +45,22 @@ export default function Login2FactorScreen({ navigation }) {
       console.log('[Login2Factor] Full API Response:', JSON.stringify(response.data, null, 2));
       
       const sessionId = response.data?.data?.sessionId;
-      const devOtp = response.data?.data?.devOtp; // OTP in development mode
+      const expiresIn = response.data?.data?.expiresIn;
       
       console.log('[Login2Factor] Extracted sessionId:', sessionId);
-      console.log('[Login2Factor] SessionId type:', typeof sessionId);
+      console.log('[Login2Factor] OTP expires in:', expiresIn, 'seconds');
       
       if (!sessionId) {
         console.error('[Login2Factor] No session ID in response. Full data:', response.data);
         throw new Error('No session ID received from server');
       }
 
-      console.log('[Login2Factor] OTP sent, session:', sessionId);
+      console.log('[Login2Factor] OTP sent successfully, session:', sessionId);
       
-      // Show OTP in development mode
-      if (devOtp) {
-        console.log('\n' + '='.repeat(60));
-        console.log('🔑 DEVELOPMENT OTP');
-        console.log('='.repeat(60));
-        console.log('OTP:', devOtp);
-        console.log('Phone:', fullNumber);
-        console.log('='.repeat(60) + '\n');
-        
-        Alert.alert(
-          '🚀 Development Mode',
-          `Your OTP is: ${devOtp}\n\n(This only shows in Expo Go)`,
-          [{ text: 'OK' }]
-        );
-      }
-      
-      console.log('[Login2Factor] Navigating with params:', { mobile: fullNumber, sessionId });
-
       // Navigate to OTP screen
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
         sessionId: sessionId,
-        devOtp: devOtp, // Pass OTP to next screen for easy testing
       });
     } catch (err) {
       console.error('[Login2Factor] Send OTP error:', err);

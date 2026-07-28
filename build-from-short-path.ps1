@@ -184,7 +184,7 @@ if (Test-Path $aabSource) {
     if ($buildGradleContent -match 'versionCode\s+(\d+)') {
         $versionCode = $matches[1]
     }
-    if ($buildGradleContent -match 'versionName\s+"([^"]+)"') {
+    if ($buildGradleContent -match 'versionName\s+"([^""]+)"') {
         $versionName = $matches[1]
     }
     

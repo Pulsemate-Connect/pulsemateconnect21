@@ -39,12 +39,16 @@ services:
         value: "PulseMate <noreply@pulsemateconnect.in>"
       - key: SMS_PROVIDER
         value: 2factor
+      - key: TWOFACTOR_API_KEY
+        value: 0f290349-865f-11f1-908b-0200cd936042
+      - key: TWOFACTOR_TEMPLATE_NAME
+        value: ""
+      - key: OTP_EXPIRY_MINUTES
+        value: 5
       - key: FIREBASE_API_KEY
         value: AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc
       - key: OTP_PROVIDER
         value: mock
-      - key: OTP_EXPIRY_MINUTES
-        value: 5
       - key: OTP_MAX_ATTEMPTS
         value: 5
       - key: OTP_RESEND_COOLDOWN_SECONDS
