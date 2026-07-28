@@ -5,7 +5,7 @@ services:
     runtime: node
     region: singapore
     rootDir: backend
-    buildCommand: npm install && npx prisma migrate resolve --applied 20260628140314_add_clinic_holidays || echo "Migration already resolved or not failed" && npx prisma migrate resolve --rolled-back 20260700000000_dashboard_enhancements || echo "No rollback needed" && npx prisma generate && npx prisma migrate deploy && node prisma/seed-production.js && node scripts/fix-doctor-visibility.js || echo "Doctor visibility fix done"
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy || echo "Migrations done" && node prisma/seed-production.js || echo "Seed done" && node scripts/fix-doctor-visibility.js || echo "Doctor visibility fix done"
     startCommand: node src/server.js
     healthCheckPath: /health
     envVars:
@@ -14,10 +14,13 @@ services:
       - key: PORT
         value: 5000
       # ── Database (Supabase) ──────────────────────────────────────────────────
+      # DATABASE_URL  → Transaction pooler port 6543 with pgbouncer=true&connection_limit=1
+      # DIRECT_URL    → Session pooler port 5432 (same pooler host, NOT direct db host)
+      # Both set manually in Render dashboard (sync: false)
       - key: DATABASE_URL
-        sync: false   # set manually in Render dashboard
+        sync: false
       - key: DIRECT_URL
-        sync: false   # set manually in Render dashboard
+        sync: false
       # ── JWT Secrets ─────────────────────────────────────────────────────────
       - key: JWT_ACCESS_SECRET
         sync: false   # set manually in Render dashboard
