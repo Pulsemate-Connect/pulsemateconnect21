@@ -1,0 +1,144 @@
+═══════════════════════════════════════════════════════════════
+  📦 DOWNLOAD YOUR AAB FILE - QUICK CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+⏱️  TIME NEEDED: 2 minutes
+
+📍 START HERE: https://github.com/Pulsemate-Connect/pulsemateconnect21/actions
+
+
+STEP 1: CHECK BUILD STATUS
+═══════════════════════════════════════════════════════════════
+
+□ Go to: https://github.com/Pulsemate-Connect/pulsemateconnect21/actions
+
+□ Look at latest "Build Android AAB" workflow
+
+□ Check the status:
+  
+  ✅ Green checkmark = SUCCESS! → Go to STEP 2
+  ❌ Red X = FAILED → Go to STEP 1B
+  🔄 Yellow dot = BUILDING → Wait 2 minutes, refresh
+
+
+STEP 1B: IF BUILD FAILED (Only if you see red X ❌)
+═══════════════════════════════════════════════════════════════
+
+□ Get Expo Token:
+  → Go to: https://expo.dev/settings/access-tokens
+  → Click "Create Token"
+  → Name: GITHUB_ACTIONS
+  → Copy the token (starts with "ey...")
+
+□ Add to GitHub:
+  → Go to: https://github.com/Pulsemate-Connect/pulsemateconnect21/settings/secrets/actions
+  → Click "New repository secret"
+  → Name: EXPO_TOKEN
+  → Paste token
+  → Click "Add secret"
+
+□ Rebuild:
+  → Run: git commit --allow-empty -m "Trigger build"
+  → Run: git push origin main
+  → Wait 5-7 minutes
+  → Go back to STEP 1
+
+
+STEP 2: DOWNLOAD AAB (If build succeeded ✅)
+═══════════════════════════════════════════════════════════════
+
+□ Click on the latest "Build Android AAB" workflow run
+
+□ Scroll DOWN to the bottom of the page
+
+□ Find section called "Artifacts"
+
+□ You'll see your AAB file:
+  📦 pulsemate-v1.3.3-vc54-20260728-XXXX.aab
+
+□ CLICK on the filename → Download starts automatically
+
+□ Save the file (50-80 MB)
+
+□ DONE! ✅
+
+
+STEP 3: VERIFY FILE
+═══════════════════════════════════════════════════════════════
+
+□ Check file downloaded (look in Downloads folder)
+
+□ File size: 50-80 MB ✓
+
+□ File extension: .aab ✓
+
+□ Filename includes: v1.3.3 and vc54 ✓
+
+
+STEP 4: UPLOAD TO GOOGLE PLAY
+═══════════════════════════════════════════════════════════════
+
+□ Go to: https://play.google.com/console
+
+□ Select your app
+
+□ Go to: Production → Create new release
+
+□ Upload the AAB file
+
+□ Fill release notes
+
+□ Submit for review
+
+□ DONE! 🎉
+
+
+═══════════════════════════════════════════════════════════════
+  🎯 QUICK REFERENCE
+═══════════════════════════════════════════════════════════════
+
+GitHub Actions:
+https://github.com/Pulsemate-Connect/pulsemateconnect21/actions
+
+Expo Tokens:
+https://expo.dev/settings/access-tokens
+
+GitHub Secrets:
+https://github.com/Pulsemate-Connect/pulsemateconnect21/settings/secrets/actions
+
+Google Play:
+https://play.google.com/console
+
+
+═══════════════════════════════════════════════════════════════
+  📞 STUCK? HERE'S WHAT TO CHECK:
+═══════════════════════════════════════════════════════════════
+
+✗ No Artifacts section?
+  → Build still running or failed
+  → Check build status (green ✅ or red ❌)
+
+✗ Build failed?
+  → Need to add EXPO_TOKEN (see STEP 1B)
+
+✗ Can't find AAB file?
+  → Make sure build has green ✅
+  → Scroll all the way down to "Artifacts"
+
+✗ Download not starting?
+  → Try different browser
+  → Check internet connection
+
+
+═══════════════════════════════════════════════════════════════
+  ✅ EXPECTED RESULT
+═══════════════════════════════════════════════════════════════
+
+You should now have a file called:
+pulsemate-v1.3.3-vc54-20260728-XXXX.aab
+
+Size: 50-80 MB
+Location: Downloads folder
+Ready to upload to Google Play Console
+
+🎉 SUCCESS! 🎉

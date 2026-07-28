@@ -1,290 +1,332 @@
-# 🚀 Deployment Status - PulseMate Connect
+# 🚀 Deployment Status - v1.3.3
 
-## ✅ Code Pushed to GitHub
+## ✅ PUSHED TO GITHUB - DEPLOYMENTS IN PROGRESS
 
-**Repository:** https://github.com/Pulsemate-Connect/pulsemateconnect21  
-**Branch:** main  
-**Latest Commit:** `feat: Add production-ready dual OTP authentication system`  
-**Status:** ✅ Successfully pushed
+**Time**: 2026-07-28  
+**Version**: 1.3.3 (versionCode: 54)  
+**Commit**: 5baab04  
+**Branch**: main  
+
+---
+
+## 🔄 What's Happening Now
+
+### 1. ✅ **GitHub Actions - Building AAB**
+- **Status**: Started automatically
+- **Location**: https://github.com/Pulsemate-Connect/pulsemateconnect21/actions
+- **Expected Time**: 5-7 minutes
+- **Output**: `pulsemate-v1.3.3-vc54-[timestamp].aab`
+
+**To Watch**:
+1. Go to: https://github.com/Pulsemate-Connect/pulsemateconnect21/actions
+2. Click on "Build Android AAB" workflow
+3. Watch live progress
+
+**To Download AAB** (after build completes):
+1. Scroll to "Artifacts" section
+2. Click the AAB filename
+3. Download and upload to Google Play
+
+---
+
+### 2. 🔄 **Render - Deploying Backend**
+- **Status**: Deploying automatically
+- **Service**: pulsemate-backend
+- **URL**: https://api.pulsemateconnect.in
+- **Expected Time**: 5-10 minutes
+
+**To Watch**:
+1. Go to: https://dashboard.render.com
+2. Select `pulsemate-backend` service
+3. View deployment logs
+
+**What's Deploying**:
+- ✅ Production 2Factor SMS authentication
+- ✅ Secure OTP generation and hashing
+- ✅ Rate limiting (3 per 15 min)
+- ✅ IP-based rate limiting
+- ✅ Max 5 verification attempts
+- ✅ 5-minute OTP expiry
+- ✅ Session validation
+- ✅ Complete security logging
+
+---
+
+### 3. 🔄 **Render - Deploying Frontend**
+- **Status**: Deploying automatically
+- **Service**: pulsemate-frontend
+- **URL**: https://www.pulsemateconnect.in
+- **Expected Time**: 3-5 minutes
+
+**To Watch**:
+1. Go to: https://dashboard.render.com
+2. Select `pulsemate-frontend` service
+3. View deployment logs
 
 ---
 
 ## 📦 What Was Deployed
 
-### Backend Enhancements
-- ✅ 2Factor SMS service integration (`backend/src/services/twofactor.service.js`)
-- ✅ Firebase Admin SDK token verification (`backend/src/config/firebase.js`)
-- ✅ Enhanced authentication controllers with dual OTP support
-- ✅ JWT authentication with refresh tokens
-- ✅ Rate limiting and security middleware
-- ✅ Comprehensive error handling and logging
-- ✅ Session management for OTP verification
+### Backend Changes (Major Security Update):
 
-### Frontend Web Features
-- ✅ Firebase Phone Auth integration (`frontend/src/config/firebase.js`)
-- ✅ Complete Login UI with OTP flow (`frontend/src/pages/Login.jsx`)
-- ✅ Zustand authentication store with persistence (`frontend/src/stores/authStore.js`)
-- ✅ API client with automatic token refresh (`frontend/src/services/api.js`)
-- ✅ Protected routes with role-based access control (`frontend/src/components/ProtectedRoute.jsx`)
+1. **Production 2Factor SMS Authentication** 🔐
+   - File: `backend/src/services/twofactor.service.js`
+   - Completely rewritten for production
+   - All dev OTP code removed (123456)
+   - Secure crypto-based OTP generation
+   - bcrypt hashing (10 rounds)
+   - Rate limiting implemented
+   - Session management
+   - Comprehensive error handling
 
-### Documentation
-- ✅ `DUAL-OTP-COMPLETE-SETUP.md` - Comprehensive setup guide (~800 lines)
-- ✅ `DUAL-OTP-IMPLEMENTATION-GUIDE.md` - Architecture documentation
-- ✅ `DUAL-OTP-IMPLEMENTATION-FILES.md` - File structure and code examples
-- ✅ `IMPLEMENTATION-SUMMARY.md` - Quick reference guide
-- ✅ `DEPENDENCIES-REFERENCE.md` - Package dependencies
-- ✅ `RENDER-DEPLOYMENT-GUIDE.md` - Detailed deployment instructions
-- ✅ `RENDER-SETUP-CHECKLIST.md` - Quick deployment checklist
+2. **Authentication Controller Updates**
+   - File: `backend/src/controllers/auth.controller.js`
+   - Added logger import
+   - Removed duplicate functions
+   - Production-ready OTP handlers
+   - Full user creation/login flow
+   - JWT token generation
+   - Audit logging
 
-### Cleanup
-- ✅ Removed 6 .aab build files (no longer needed)
-- ✅ Removed 150+ redundant .md files
-- ✅ Removed 17 .bat files
-- ✅ Streamlined project structure
+3. **Environment Configuration**
+   - File: `backend/.env`
+   - Added `TWOFACTOR_API_KEY`
+   - Added `OTP_EXPIRY_MINUTES`
+   - Render configuration updated
 
----
+4. **Render Configuration**
+   - File: `render.yaml`
+   - Added 2Factor environment variables
+   - API key configured
+   - Template name set
+   - OTP expiry configured
 
-## 🎯 Next Steps - Deploy to Render
+### Mobile App Changes:
 
-### Option A: Automatic Deployment (Recommended)
+1. **Login Screen Cleanup**
+   - File: `src/screens/Login2FactorScreen.jsx`
+   - Removed all devOtp handling
+   - Removed dev console logs
+   - Removed dev alert dialogs
+   - Clean production flow
 
-1. **Connect Repository to Render** (2 minutes)
-   ```
-   1. Go to https://render.com/dashboard
-   2. Click "New +" → "Blueprint"
-   3. Connect GitHub repository: Pulsemate-Connect/pulsemateconnect21
-   4. Render will detect render.yaml automatically
-   5. Click "Apply" to deploy
-   ```
+2. **Version Bump**
+   - File: `app.json`
+   - Version: 1.3.2 → 1.3.3
+   - versionCode: 53 → 54
 
-2. **Add Environment Variables** (5 minutes)
-   - Go to `pulsemate-backend` service → Environment tab
-   - Add required secrets (see checklist below)
+### Infrastructure:
 
-3. **Configure Firebase** (2 minutes)
-   - Enable Phone Authentication
-   - Add authorized domains
+1. **GitHub Actions AAB Build** ⚙️
+   - File: `.github/workflows/build-android.yml`
+   - Automated cloud builds
+   - Bypasses Windows path limits
+   - FREE unlimited builds
+   - Automatic on every push
 
-4. **Test Deployment** (1 minute)
-   ```bash
-   curl https://pulsemate-backend.onrender.com/health
-   ```
-
-**Total Time:** ~10 minutes
-
-📋 **Follow detailed steps in:** `RENDER-SETUP-CHECKLIST.md`
-
----
-
-### Option B: Manual Render Configuration
-
-If Blueprint doesn't work, manually create:
-
-1. **PostgreSQL Database**
-   - Name: `pulsemate-db`
-   - Region: Singapore
-   - Plan: Free
-
-2. **Backend Web Service**
-   - Name: `pulsemate-backend`
-   - Runtime: Node
-   - Root Directory: `backend`
-   - Build Command: See `render.yaml`
-   - Start Command: `node src/server.js`
-
-3. **Frontend Static Site**
-   - Name: `pulsemate-frontend`
-   - Runtime: Static
-   - Root Directory: `frontend`
-   - Build Command: `npm install && npm run build`
-   - Publish Directory: `dist`
+2. **Documentation** 📚
+   - `PRODUCTION-2FACTOR-AUTH-COMPLETE.md`
+   - `IMPLEMENTATION-SUMMARY.md`
+   - `TESTING-GUIDE.md`
+   - `GITHUB-ACTIONS-BUILD-GUIDE.md`
+   - `RENDER-DEPLOYMENT-GUIDE.md`
+   - `BUILD-AAB-CHECKLIST.md`
+   - `setup-github-actions.md`
 
 ---
 
-## 🔐 Required Environment Variables
+## 🎯 Post-Deployment Checklist
 
-### Critical (Must Add Manually)
+### Immediate (After Deployments Complete):
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase Admin SDK credentials | Firebase Console → Project Settings → Service Accounts |
-| `TWO_FACTOR_API_KEY` | 2Factor SMS API key | https://2factor.in/dashboard |
+- [ ] **Check GitHub Actions**
+  - Build completed successfully?
+  - AAB file in Artifacts?
+  - No errors in logs?
 
-### Optional (Add if using these services)
+- [ ] **Check Render Backend**
+  - Deployment successful?
+  - Health check working?
+  - No errors in logs?
+  - Test: `curl https://api.pulsemateconnect.in/health`
 
-| Variable | Description | Required For |
-|----------|-------------|--------------|
-| `RAZORPAY_KEY_ID` | Razorpay payment gateway | Payment processing |
-| `RAZORPAY_KEY_SECRET` | Razorpay secret key | Payment processing |
-| `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook signature | Payment webhooks |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | Image uploads |
-| `CLOUDINARY_API_KEY` | Cloudinary API key | Image uploads |
-| `CLOUDINARY_API_SECRET` | Cloudinary API secret | Image uploads |
+- [ ] **Check Render Frontend**
+  - Deployment successful?
+  - Website loads?
+  - No build errors?
+  - Test: https://www.pulsemateconnect.in
 
-**Note:** All other environment variables are auto-generated or set in `render.yaml`
+### Testing (After All Deployments Complete):
 
----
+- [ ] **Test 2Factor OTP Flow**
+  ```bash
+  # Send OTP
+  curl -X POST https://api.pulsemateconnect.in/api/auth/patient/send-otp \
+    -H "Content-Type: application/json" \
+    -d '{"phone": "+919876543210"}'
+  
+  # Should return sessionId, NOT OTP
+  ```
 
-## 🧪 Testing Your Deployment
+- [ ] **Test Mobile App**
+  - Open in Expo Go
+  - Enter real phone number
+  - Check SMS received
+  - Enter OTP from SMS
+  - Verify login successful
 
-### Backend Health Check
-```bash
-curl https://pulsemate-backend.onrender.com/health
-```
-Expected:
-```json
-{
-  "status": "ok",
-  "service": "PulseMate API",
-  "version": "1.0.0"
-}
-```
+- [ ] **Test Rate Limiting**
+  - Send 4 OTP requests quickly
+  - 4th should fail with "Too many requests"
+  
+- [ ] **Test OTP Expiry**
+  - Request OTP
+  - Wait 6 minutes
+  - Try to verify
+  - Should fail with "expired"
 
-### Firebase Phone Auth (Web)
-```bash
-curl -X POST https://pulsemate-backend.onrender.com/api/auth/patient/firebase-phone-login \
-  -H "Content-Type: application/json" \
-  -d '{"idToken": "firebase_id_token_here"}'
-```
+- [ ] **Test Max Attempts**
+  - Request OTP
+  - Enter wrong OTP 5 times
+  - Should fail after 5 attempts
 
-### 2Factor SMS (Mobile)
-```bash
-# Send OTP
-curl -X POST https://pulsemate-backend.onrender.com/api/auth/mobile/send-otp \
-  -H "Content-Type: application/json" \
-  -d '{"phone": "+919876543210"}'
+- [ ] **Check Backend Logs**
+  - No errors showing?
+  - OTP sent successfully?
+  - Verification working?
+  - Rate limits triggering correctly?
 
-# Verify OTP
-curl -X POST https://pulsemate-backend.onrender.com/api/auth/mobile/verify \
-  -H "Content-Type: application/json" \
-  -d '{"phone": "+919876543210", "otp": "123456"}'
-```
+### Final Steps:
 
----
+- [ ] **Download AAB from GitHub Actions**
+  - Go to Artifacts
+  - Download AAB file
+  - Verify file size (50-80 MB)
 
-## 📊 Deployment Architecture
+- [ ] **Upload to Google Play Console**
+  - Create new release
+  - Upload AAB
+  - Update release notes
+  - Submit for review
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Render Cloud Platform                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────┐ │
-│  │  PostgreSQL DB   │  │  Backend API     │  │  Frontend │ │
-│  │  pulsemate-db    │◄─┤  Node.js + Express│  │  React    │ │
-│  │  (Singapore)     │  │  Port: 5000      │  │  Static   │ │
-│  └──────────────────┘  └──────────────────┘  └───────────┘ │
-│                              │                      │        │
-└──────────────────────────────┼──────────────────────┼────────┘
-                               │                      │
-                        ┌──────┴──────┐      ┌────────┴────────┐
-                        │             │      │                 │
-                   ┌────▼────┐  ┌────▼────┐ │                 │
-                   │ Firebase│  │2Factor  │ │   CloudFlare    │
-                   │  Auth   │  │   SMS   │ │      CDN        │
-                   └─────────┘  └─────────┘ │                 │
-                                            └─────────────────┘
-                                                    │
-                                            ┌───────▼────────┐
-                                            │   End Users    │
-                                            │  Web + Mobile  │
-                                            └────────────────┘
-```
+- [ ] **Monitor for 24 Hours**
+  - Watch error logs
+  - Check OTP success rate
+  - Monitor API response times
+  - Check for any user reports
 
 ---
 
-## 🔄 Continuous Deployment
+## 📊 Deployment URLs
 
-Every push to `main` branch will automatically trigger a new deployment on Render.
-
-**Deployment Flow:**
-```
-Local Changes → Git Commit → Push to GitHub → Render Auto-Deploy → Live
-```
-
-**Deployment Time:** 3-5 minutes
-
----
-
-## 📈 Monitoring & Logs
-
-### View Logs
-- Backend: https://dashboard.render.com/web/pulsemate-backend → Logs
-- Frontend: https://dashboard.render.com/static/pulsemate-frontend → Logs
-- Database: https://dashboard.render.com/d/pulsemate-db → Logs
-
-### Metrics
-- CPU usage
-- Memory usage
-- Request count
-- Response time
-- Error rate
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | https://api.pulsemateconnect.in | 🔄 Deploying |
+| Frontend Web | https://www.pulsemateconnect.in | 🔄 Deploying |
+| Health Check | https://api.pulsemateconnect.in/health | 🔄 Deploying |
+| GitHub Actions | [View Builds](https://github.com/Pulsemate-Connect/pulsemateconnect21/actions) | 🔄 Building |
+| Render Dashboard | https://dashboard.render.com | ✅ Ready |
 
 ---
 
-## 🎯 Production Checklist
+## 🔐 Security Features Deployed
 
-Before going live with real users:
-
-- [ ] Backend health check passing
-- [ ] Frontend loads without errors
-- [ ] Database migrations completed successfully
-- [ ] Firebase service account JSON configured
-- [ ] 2Factor API key configured and has credits
-- [ ] Firebase Phone Auth tested (web)
-- [ ] 2Factor SMS API tested (mobile)
-- [ ] JWT authentication working
-- [ ] Protected routes enforcing authentication
-- [ ] Rate limiting active
-- [ ] CORS configured correctly
-- [ ] Custom domains configured (optional)
-- [ ] SSL/TLS certificates active
-- [ ] Firebase authorized domains updated
-- [ ] Razorpay configured (if using payments)
-- [ ] Cloudinary configured (if using image uploads)
-- [ ] Error monitoring set up (optional: Sentry)
-- [ ] Backup strategy for database
-- [ ] Test user registration flow end-to-end
-- [ ] Monitor logs for first hour after deployment
+| Feature | Status | Details |
+|---------|--------|---------|
+| Secure OTP Generation | ✅ | crypto.randomBytes() |
+| OTP Hashing | ✅ | bcrypt 10 rounds |
+| Never Store Plain OTP | ✅ | Only hash stored |
+| Rate Limiting (Phone) | ✅ | 3 requests / 15 min |
+| Rate Limiting (IP) | ✅ | 9 requests / 15 min |
+| Max Verification Attempts | ✅ | 5 attempts per OTP |
+| OTP Expiry | ✅ | 5 minutes |
+| One OTP per Phone | ✅ | Previous invalidated |
+| No OTP Reuse | ✅ | Deleted after use |
+| Session Validation | ✅ | sessionId matches |
+| Enumeration Prevention | ✅ | Generic errors |
+| Security Logging | ✅ | No sensitive data |
+| Dev Code Removed | ✅ | No 123456 OTP |
 
 ---
 
-## 📚 Documentation Index
+## 🐛 If Something Goes Wrong
 
-| Document | Purpose | Size |
-|----------|---------|------|
-| `RENDER-SETUP-CHECKLIST.md` | Quick 10-min deployment guide | ~240 lines |
-| `RENDER-DEPLOYMENT-GUIDE.md` | Comprehensive deployment documentation | ~400 lines |
-| `DUAL-OTP-COMPLETE-SETUP.md` | Full authentication setup guide | ~800 lines |
-| `DUAL-OTP-IMPLEMENTATION-GUIDE.md` | Architecture and design decisions | ~300 lines |
-| `DUAL-OTP-IMPLEMENTATION-FILES.md` | File structure with code examples | ~500 lines |
-| `IMPLEMENTATION-SUMMARY.md` | Quick reference and getting started | ~200 lines |
-| `DEPENDENCIES-REFERENCE.md` | Package dependencies and versions | ~150 lines |
+### Backend Deployment Fails:
+1. Check Render logs for errors
+2. Verify environment variables set
+3. Check database connection
+4. Contact: https://dashboard.render.com/support
 
----
+### Frontend Deployment Fails:
+1. Check Render build logs
+2. Verify build command
+3. Check dependencies
+4. Review Vite configuration
 
-## 🆘 Support & Resources
+### GitHub Actions AAB Fails:
+1. Check workflow logs
+2. Verify EXPO_TOKEN secret
+3. Check for build errors
+4. Review `build-android.yml`
 
-- **GitHub Repository:** https://github.com/Pulsemate-Connect/pulsemateconnect21
-- **Render Dashboard:** https://render.com/dashboard
-- **Firebase Console:** https://console.firebase.google.com/project/pulsemateconnect
-- **2Factor Dashboard:** https://2factor.in/dashboard
-- **Render Documentation:** https://render.com/docs
-- **Firebase Auth Docs:** https://firebase.google.com/docs/auth
-- **2Factor API Docs:** https://2factor.in/docs
-
----
-
-## 🎉 Summary
-
-✅ **Code Status:** All changes committed and pushed to GitHub  
-✅ **Documentation:** Complete with 7 comprehensive guides  
-✅ **Deployment Config:** `render.yaml` configured and ready  
-✅ **Next Action:** Follow `RENDER-SETUP-CHECKLIST.md` to deploy  
-
-**Estimated Deployment Time:** 10-15 minutes
+### OTP Not Working:
+1. Check 2Factor API key
+2. Verify account balance
+3. Check backend logs
+4. Test with different phone number
+5. Verify phone format (+91xxxxxxxxxx)
 
 ---
 
-**Last Updated:** July 27, 2026  
-**Status:** ✅ READY TO DEPLOY
+## 📞 Support Resources
+
+**Render Support**: https://dashboard.render.com/support  
+**GitHub Actions**: https://docs.github.com/actions  
+**2Factor Support**: https://2factor.in/support  
+**Expo Docs**: https://docs.expo.dev  
+
+**Your Documentation**:
+- `RENDER-DEPLOYMENT-GUIDE.md` - Deployment instructions
+- `GITHUB-ACTIONS-BUILD-GUIDE.md` - AAB build guide
+- `PRODUCTION-2FACTOR-AUTH-COMPLETE.md` - Auth implementation
+- `TESTING-GUIDE.md` - Testing procedures
+
+---
+
+## 🎉 What's Next
+
+1. **Wait for Deployments** (~10 minutes)
+   - Monitor Render dashboard
+   - Watch GitHub Actions
+   - Check for errors
+
+2. **Test Everything**
+   - Backend health check
+   - 2Factor OTP flow
+   - Mobile app login
+   - Rate limiting
+   - Error scenarios
+
+3. **Download AAB**
+   - From GitHub Actions Artifacts
+   - Upload to Google Play
+   - Submit for review
+
+4. **Monitor Production**
+   - Watch error logs
+   - Check OTP success rate
+   - Monitor performance
+   - Review user feedback
+
+5. **Celebrate!** 🎊
+   - Production-ready auth
+   - Automated AAB builds
+   - Security hardened
+   - Professional workflow
+
+---
+
+**Deployment Started**: 2026-07-28  
+**Expected Completion**: ~10 minutes  
+**Status**: 🔄 In Progress  
+**Next Check**: Refresh Render dashboard in 5 minutes
