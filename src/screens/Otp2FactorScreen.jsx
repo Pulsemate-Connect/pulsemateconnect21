@@ -85,16 +85,12 @@ export default function Otp2FactorScreen({ route, navigation }) {
         throw new Error('Invalid response from server');
       }
 
-      // Store tokens and user data using authStore
+      // Store tokens and user data using authStore.
+      // RootNavigator watches `user` state and automatically switches to
+      // MainNavigator when signIn() resolves — no manual navigation.reset() needed.
       await signIn(accessToken, user, refreshToken);
 
       console.log('[Otp2Factor] Login successful');
-      
-      // Navigate to main app (navigation will auto-update via authStore)
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
     } catch (err) {
       console.error('[Otp2Factor] Verify OTP error:', err);
       const message = err?.response?.data?.message || err.message || 'Invalid OTP';

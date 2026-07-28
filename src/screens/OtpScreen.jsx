@@ -73,9 +73,11 @@ const sr = StyleSheet.create({
 });
 
 export default function OtpScreen({ route, navigation }) {
-  const { mobile, confirmationResult } = route.params;
+  const { mobile, confirmationResult: initialConfirmationResult } = route.params;
   const { signIn } = useAuth();
 
+  // Store confirmationResult in state instead of mutating route.params
+  const [activeConfirmation, setActiveConfirmation] = useState(initialConfirmationResult);
   const [digits,      setDigits]      = useState(['', '', '', '', '', '']);
   const [loading,     setLoading]     = useState(false);
   const [status,      setStatus]      = useState('idle');
@@ -132,7 +134,7 @@ export default function OtpScreen({ route, navigation }) {
 
   const handleVerify = async () => {
     const code = digits.join('');
-    if (code.length < 6 || !confirmationResult) return;
+    if (code.length < 6 || !activeConfirmation) return;
 
     setLoading(true);
 
@@ -140,7 +142,7 @@ export default function OtpScreen({ route, navigation }) {
       console.log('[OtpScreen] Verifying OTP with Firebase...');
 
       // Step 1: Verify OTP with Firebase SDK (local verification, no network call)
-      const firebaseResult = await verifyPhoneOtp(confirmationResult, code);
+      const firebaseResult = await verifyPhoneOtp(activeConfirmation, code);
 
       if (!firebaseResult?.idToken) {
         throw new Error('Failed to get Firebase token. Please try again.');
@@ -185,8 +187,8 @@ export default function OtpScreen({ route, navigation }) {
       console.log('[OtpScreen] Resending OTP...');
       const result = await resendOtp(mobile);
 
-      // Update confirmationResult in route params for next attempt
-      route.params.confirmationResult = result.confirmationResult;
+      // Update confirmationResult via state — never mutate route.params directly
+      setActiveConfirmation(result.confirmationResult);
 
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
@@ -209,7 +211,7 @@ export default function OtpScreen({ route, navigation }) {
     return [os.box];
   };
 
-  const canVerify = digits.join('').length === 6 && !loading && !!confirmationResult;
+  const canVerify = digits.join('').length === 6 && !loading && !!activeConfirmation;
 
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

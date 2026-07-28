@@ -20,7 +20,7 @@
  */
 
 const axios = require('axios');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const logger = require('../config/logger');
 const { normalizeMobileNumber } = require('../utils/mobile');
@@ -42,6 +42,9 @@ const MAX_OTP_REQUESTS = 3;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const BCRYPT_ROUNDS = 10;
 
+// Whether the service is usable (key present and valid)
+let _serviceAvailable = false;
+
 // Storage (use Redis in production for scalability)
 // Format: { mobile: { otpHash, sessionId, expiresAt, attempts, createdAt, ipAddress } }
 const otpStorage = new Map();
@@ -53,18 +56,29 @@ const phoneRateLimit = new Map(); // mobile -> [timestamps]
 const ipRateLimit = new Map(); // ip -> [timestamps]
 
 /**
- * Validate 2Factor configuration on startup
- * @throws {Error} If configuration is invalid
+ * Validate 2Factor configuration on startup.
+ *
+ * DOES NOT throw — logs a warning instead so the backend can start without
+ * TWOFACTOR_API_KEY being present (Firebase Phone Auth still works).
+ * The service simply returns a 503 at runtime when the key is absent.
  */
 const validateConfiguration = () => {
   if (!TWO_FACTOR_API_KEY || TWO_FACTOR_API_KEY.length < 30) {
-    throw new Error('TWOFACTOR_API_KEY is not configured or invalid. Set it in environment variables.');
+    logger.warn(
+      '[2Factor] TWOFACTOR_API_KEY is missing or invalid. ' +
+      '2Factor SMS OTP will be unavailable until the key is set in environment variables. ' +
+      'Firebase Phone Auth is unaffected.'
+    );
+    _serviceAvailable = false;
+    return;
   }
-  
+
   if (OTP_EXPIRY_MINUTES < 1 || OTP_EXPIRY_MINUTES > 10) {
-    throw new Error('OTP_EXPIRY_MINUTES must be between 1 and 10 minutes.');
+    logger.warn('[2Factor] OTP_EXPIRY_MINUTES must be between 1 and 10. Defaulting to 5.');
+    // Do not crash — fall through with the clamped default
   }
-  
+
+  _serviceAvailable = true;
   logger.info('[2Factor] Configuration validated successfully');
   logger.info(`[2Factor] OTP expiry: ${OTP_EXPIRY_MINUTES} minutes`);
   logger.info(`[2Factor] Template: ${TWO_FACTOR_TEMPLATE}`);
@@ -72,13 +86,8 @@ const validateConfiguration = () => {
   logger.info(`[2Factor] Rate limit: ${MAX_OTP_REQUESTS} requests per ${RATE_LIMIT_WINDOW_MS / 60000} minutes`);
 };
 
-// Validate on module load
-try {
-  validateConfiguration();
-} catch (error) {
-  logger.error(`[2Factor] Configuration error: ${error.message}`);
-  throw error;
-}
+// Validate on module load — never throws
+validateConfiguration();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -127,14 +136,14 @@ const generateSessionId = () => {
 const cleanupExpiredOtps = () => {
   const now = Date.now();
   let cleaned = 0;
-  
+
   for (const [mobile, data] of otpStorage.entries()) {
     if (now > data.expiresAt) {
       otpStorage.delete(mobile);
       cleaned++;
     }
   }
-  
+
   if (cleaned > 0) {
     logger.debug(`[2Factor] Cleaned up ${cleaned} expired OTP(s)`);
   }
@@ -148,22 +157,22 @@ const cleanupExpiredOtps = () => {
 const checkPhoneRateLimit = (mobile) => {
   const now = Date.now();
   const timestamps = phoneRateLimit.get(mobile) || [];
-  
+
   // Clean old timestamps outside window
   const validTimestamps = timestamps.filter(ts => (now - ts) < RATE_LIMIT_WINDOW_MS);
-  
+
   if (validTimestamps.length >= MAX_OTP_REQUESTS) {
     const oldestTimestamp = Math.min(...validTimestamps);
     const waitMinutes = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - oldestTimestamp)) / 60000);
-    
+
     logger.warn(`[2Factor] Rate limit exceeded for phone: ${mobile.substring(0, 6)}***`);
-    
+
     const error = new Error(`Too many OTP requests. Please try again in ${waitMinutes} minutes.`);
     error.status = 429;
     error.retryAfter = waitMinutes * 60;
     throw error;
   }
-  
+
   validTimestamps.push(now);
   phoneRateLimit.set(mobile, validTimestamps);
 };
@@ -175,23 +184,23 @@ const checkPhoneRateLimit = (mobile) => {
  */
 const checkIpRateLimit = (ipAddress) => {
   if (!ipAddress) return; // Skip if IP not available
-  
+
   const now = Date.now();
   const timestamps = ipRateLimit.get(ipAddress) || [];
-  
+
   const validTimestamps = timestamps.filter(ts => (now - ts) < RATE_LIMIT_WINDOW_MS);
-  
+
   // Allow more requests per IP (3x phone limit) to account for multiple users
   const IP_MAX_REQUESTS = MAX_OTP_REQUESTS * 3;
-  
+
   if (validTimestamps.length >= IP_MAX_REQUESTS) {
     logger.warn(`[2Factor] IP rate limit exceeded: ${ipAddress}`);
-    
+
     const error = new Error('Too many requests from this network. Please try again later.');
     error.status = 429;
     throw error;
   }
-  
+
   validTimestamps.push(now);
   ipRateLimit.set(ipAddress, validTimestamps);
 };
@@ -203,12 +212,12 @@ const checkIpRateLimit = (ipAddress) => {
  */
 const format2FactorPhone = (mobile) => {
   const normalized = normalizeMobileNumber(mobile);
-  
+
   // Remove +910 prefix if present (should be +91)
   if (normalized.startsWith('+910')) {
     return normalized.replace('+910', '+91');
   }
-  
+
   return normalized;
 };
 
@@ -240,6 +249,16 @@ const validateIndianMobile = (mobile) => {
  * @throws {Error} If API call fails or rate limit exceeded
  */
 const sendOtp = async (mobile, ipAddress = null) => {
+  // ── 0. Check if service is available ───────────────────────────────────
+  if (!_serviceAvailable) {
+    const error = new Error(
+      '2Factor SMS service is not configured on this server. ' +
+      'Please use Firebase Phone Auth or contact support.'
+    );
+    error.status = 503;
+    throw error;
+  }
+
   // ── 1. Normalize and validate phone number ────────────────────────────
   const normalizedMobile = format2FactorPhone(mobile);
   validateIndianMobile(normalizedMobile);
@@ -262,14 +281,14 @@ const sendOtp = async (mobile, ipAddress = null) => {
   // ── 5. Generate secure OTP ─────────────────────────────────────────────
   const otp = generateSecureOtp();
   const otpHash = await hashOtp(otp);
-  
+
   // ── 6. Call 2Factor API to send SMS ────────────────────────────────────
   try {
     const phoneWithoutPlus = normalizedMobile.replace('+', '');
     const url = `${TWO_FACTOR_BASE_URL}/${TWO_FACTOR_API_KEY}/SMS/${phoneWithoutPlus}/AUTOGEN/${TWO_FACTOR_TEMPLATE}`;
-    
+
     logger.info(`[2Factor] Sending OTP to ${normalizedMobile.substring(0, 6)}*** via 2Factor API`);
-    
+
     const response = await axios.get(url, {
       timeout: 15000, // 15 second timeout
       headers: {
@@ -284,11 +303,11 @@ const sendOtp = async (mobile, ipAddress = null) => {
     }
 
     const twoFactorSessionId = response.data.Details;
-    
+
     // ── 8. Store hashed OTP with metadata ──────────────────────────────────
     const sessionId = generateSessionId();
     const expiresAt = Date.now() + OTP_VALIDITY_MS;
-    
+
     otpStorage.set(normalizedMobile, {
       otpHash,
       sessionId,
@@ -300,29 +319,29 @@ const sendOtp = async (mobile, ipAddress = null) => {
     });
 
     logger.info(`[2Factor] OTP sent successfully. Session: ${sessionId}, Expires in: ${OTP_EXPIRY_MINUTES}m`);
-    
+
     // ── 9. Return session ID only (NEVER return OTP) ───────────────────────
     return {
       sessionId,
       message: `OTP sent successfully to ${normalizedMobile}`,
       expiresIn: OTP_EXPIRY_MINUTES * 60, // seconds
     };
-    
+
   } catch (error) {
     // ── 10. Handle 2Factor API errors ──────────────────────────────────────
     if (error.status === 429) {
       throw error; // Re-throw rate limit errors
     }
-    
+
     if (error.response) {
       const status = error.response.status;
       const data = error.response.data;
-      
+
       logger.error(`[2Factor] API error ${status}: ${JSON.stringify(data)}`);
-      
+
       let message = 'Failed to send OTP. Please try again.';
       let statusCode = 503;
-      
+
       if (status === 401 || status === 403) {
         message = 'SMS service authentication failed. Please contact support.';
         statusCode = 503;
@@ -335,17 +354,17 @@ const sendOtp = async (mobile, ipAddress = null) => {
         message = data.Details;
         statusCode = 400;
       }
-      
+
       const err = new Error(message);
       err.status = statusCode;
       throw err;
-      
+
     } else if (error.request) {
       logger.error(`[2Factor] No response from API: ${error.message}`);
       const err = new Error('SMS service is temporarily unavailable. Please try again in a few minutes.');
       err.status = 503;
       throw err;
-      
+
     } else {
       logger.error(`[2Factor] Request error: ${error.message}`);
       const err = new Error('Failed to send OTP. Please try again.');
@@ -368,6 +387,13 @@ const sendOtp = async (mobile, ipAddress = null) => {
  * @throws {Error} If verification fails
  */
 const verifyOtp = async (mobile, sessionId, otp, ipAddress = null) => {
+  // ── 0. Check if service is available ───────────────────────────────────
+  if (!_serviceAvailable) {
+    const error = new Error('2Factor SMS service is not configured on this server.');
+    error.status = 503;
+    throw error;
+  }
+
   // ── 1. Validate inputs ─────────────────────────────────────────────────
   if (!otp || !/^\d{6}$/.test(otp)) {
     logger.warn(`[2Factor] Invalid OTP format from IP: ${ipAddress || 'unknown'}`);
@@ -381,7 +407,7 @@ const verifyOtp = async (mobile, sessionId, otp, ipAddress = null) => {
 
   // ── 2. Find OTP data by mobile number ──────────────────────────────────
   const otpData = otpStorage.get(normalizedMobile);
-  
+
   if (!otpData) {
     logger.warn(`[2Factor] No OTP found for ${normalizedMobile.substring(0, 6)}***`);
     // Generic error to prevent enumeration
@@ -426,16 +452,16 @@ const verifyOtp = async (mobile, sessionId, otp, ipAddress = null) => {
 
   if (!isValid) {
     const remainingAttempts = MAX_VERIFICATION_ATTEMPTS - otpData.attempts;
-    
+
     logger.warn(`[2Factor] Invalid OTP attempt ${otpData.attempts}/${MAX_VERIFICATION_ATTEMPTS} for ${normalizedMobile.substring(0, 6)}*** from IP: ${ipAddress || 'unknown'}`);
-    
+
     if (remainingAttempts === 0) {
       otpStorage.delete(normalizedMobile);
       const error = new Error('Maximum verification attempts exceeded. Please request a new OTP.');
       error.status = 429;
       throw error;
     }
-    
+
     const error = new Error(`Invalid OTP. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`);
     error.status = 400;
     throw error;
@@ -443,7 +469,7 @@ const verifyOtp = async (mobile, sessionId, otp, ipAddress = null) => {
 
   // ── 8. OTP is valid - Delete immediately to prevent reuse ──────────────
   otpStorage.delete(normalizedMobile);
-  
+
   logger.info(`[2Factor] OTP verified successfully for ${normalizedMobile.substring(0, 6)}*** from IP: ${ipAddress || 'unknown'}`);
 
   // ── 9. Return verified mobile number ───────────────────────────────────
@@ -471,7 +497,7 @@ const resendOtp = async (mobile, ipAddress = null) => {
  */
 const getSessionStats = () => {
   cleanupExpiredOtps();
-  
+
   return {
     activeOtps: otpStorage.size,
     phoneRateLimitedCount: phoneRateLimit.size,
@@ -518,10 +544,10 @@ const clearOtp = (mobile) => {
 
 setInterval(() => {
   cleanupExpiredOtps();
-  
+
   // Clean up old rate limit entries
   const now = Date.now();
-  
+
   // Phone rate limits
   for (const [mobile, timestamps] of phoneRateLimit.entries()) {
     const validTimestamps = timestamps.filter(ts => (now - ts) < RATE_LIMIT_WINDOW_MS);
@@ -531,7 +557,7 @@ setInterval(() => {
       phoneRateLimit.set(mobile, validTimestamps);
     }
   }
-  
+
   // IP rate limits
   for (const [ip, timestamps] of ipRateLimit.entries()) {
     const validTimestamps = timestamps.filter(ts => (now - ts) < RATE_LIMIT_WINDOW_MS);
@@ -541,7 +567,7 @@ setInterval(() => {
       ipRateLimit.set(ip, validTimestamps);
     }
   }
-  
+
   logger.debug('[2Factor] Periodic cleanup completed');
 }, 5 * 60 * 1000);
 
@@ -557,4 +583,5 @@ module.exports = {
   clearPhoneRateLimit,
   clearIpRateLimit,
   clearOtp,
+  isServiceAvailable: () => _serviceAvailable,
 };

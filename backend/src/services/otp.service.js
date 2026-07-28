@@ -20,6 +20,7 @@ const { sendOtpSms } = require('./sms.service');
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
 const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10);
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
+const SMS_PROVIDER = process.env.SMS_PROVIDER || 'twofactor';
 
 const dispatchOtp = async (mobile, otp) => {
   try {
@@ -96,7 +97,7 @@ const verifyOtpViaFirebase = async (mobile, otp, purpose) => {
     // Increment attempts in DB for rate limiting
     const record = await otpRepository.findLatestValid(mobile, purpose).catch(() => null);
     if (record) {
-      await otpRepository.update(record.id, { attempts: { increment: 1 } }).catch(() => {});
+      await otpRepository.update(record.id, { attempts: { increment: 1 } }).catch(() => { });
     }
 
     const friendlyMsg = friendlyFirebaseError(err.message);
@@ -142,12 +143,12 @@ const verifyOtpViaDatabase = async (mobile, otp, purpose) => {
 // ── Firebase error → user-friendly message ────────────────────────────────────
 const friendlyFirebaseError = (message = '') => {
   const m = message.toUpperCase();
-  if (m.includes('INVALID_CODE'))           return 'Invalid OTP. Please check and try again.';
-  if (m.includes('SESSION_EXPIRED'))        return 'OTP expired. Please request a new code.';
-  if (m.includes('TOO_MANY_ATTEMPTS'))      return 'Too many attempts. Please wait a few minutes.';
-  if (m.includes('QUOTA_EXCEEDED'))         return 'SMS quota exceeded. Try again later.';
-  if (m.includes('INVALID_PHONE_NUMBER'))   return 'Invalid phone number.';
-  if (m.includes('MISSING_CLIENT'))         return 'Configuration error. Please try again.';
+  if (m.includes('INVALID_CODE')) return 'Invalid OTP. Please check and try again.';
+  if (m.includes('SESSION_EXPIRED')) return 'OTP expired. Please request a new code.';
+  if (m.includes('TOO_MANY_ATTEMPTS')) return 'Too many attempts. Please wait a few minutes.';
+  if (m.includes('QUOTA_EXCEEDED')) return 'SMS quota exceeded. Try again later.';
+  if (m.includes('INVALID_PHONE_NUMBER')) return 'Invalid phone number.';
+  if (m.includes('MISSING_CLIENT')) return 'Configuration error. Please try again.';
   return message;
 };
 
