@@ -1,17 +1,17 @@
 /**
- * Login2FactorScreen — 2Factor SMS OTP Authentication
+ * Login2FactorScreen — Firebase Phone Authentication
  *
- * Simpler alternative to Firebase Phone Auth
- * Uses 2Factor API for Indian phone numbers
+ * Uses Firebase Phone Auth for OTP authentication
+ * SMS sent directly via Firebase (no backend SMS service)
  */
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import api from '../api/axios';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -26,7 +26,29 @@ export default function Login2FactorScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [firebaseReady, setFirebaseReady] = useState(false);
   const inputRef = useRef(null);
+
+  // Initialize Firebase on component mount
+  useEffect(() => {
+    const initFirebase = async () => {
+      try {
+        console.log('[Login2Factor] Initializing Firebase Auth...');
+        await initializeFirebaseAuth();
+        setFirebaseReady(true);
+        console.log('[Login2Factor] Firebase Auth ready');
+      } catch (error) {
+        console.error('[Login2Factor] Firebase init error:', error.message);
+        Alert.alert(
+          'Initialization Error',
+          'Failed to initialize authentication. Please restart the app.',
+          [{ text: 'OK' }]
+        );
+      }
+    };
+    
+    initFirebase();
+  }, []);
 
   const handleSendOtp = async () => {
     const trimmed = mobile.trim();
@@ -35,43 +57,50 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
+    if (!firebaseReady) {
+      Alert.alert('Please Wait', 'Authentication is still initializing...');
+      return;
+    }
+
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
-      console.log('[Login2Factor] Sending OTP to', fullNumber);
-      const response = await api.post('/auth/patient/send-otp', { phone: fullNumber });
+      console.log('[Login2Factor] Sending OTP via Firebase to', fullNumber);
       
-      console.log('[Login2Factor] Full API Response:', JSON.stringify(response.data, null, 2));
+      // Send OTP using Firebase Phone Auth
+      const result = await sendOtpToPhone(fullNumber);
       
-      const sessionId = response.data?.data?.sessionId;
-      const expiresIn = response.data?.data?.expiresIn;
+      console.log('[Login2Factor] OTP sent successfully via Firebase');
       
-      console.log('[Login2Factor] Extracted sessionId:', sessionId);
-      console.log('[Login2Factor] OTP expires in:', expiresIn, 'seconds');
-      
-      if (!sessionId) {
-        console.error('[Login2Factor] No session ID in response. Full data:', response.data);
-        throw new Error('No session ID received from server');
-      }
-
-      console.log('[Login2Factor] OTP sent successfully, session:', sessionId);
-      
-      // Navigate to OTP screen
+      // Navigate to OTP screen with Firebase confirmation result
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
-        sessionId: sessionId,
+        confirmResult: result.confirmationResult,
       });
     } catch (err) {
       console.error('[Login2Factor] Send OTP error:', err);
-      const message = err?.response?.data?.message || err.message || 'Failed to send OTP';
+      
+      let message = err.message || 'Failed to send OTP';
+      
+      // Provide better error messages
+      if (err.message?.includes('too-many-requests')) {
+        message = 'Too many attempts. Please try again in a few minutes.';
+      } else if (err.message?.includes('invalid-phone-number')) {
+        message = 'Invalid phone number format.';
+      } else if (err.message?.includes('not support')) {
+        message = 'Firebase Phone Auth is not available. Please use a real Android device.';
+      } else if (err.message?.includes('operation-not-supported')) {
+        message = 'Phone authentication is not enabled for this region.';
+      }
+      
       Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
   };
 
-  const canSend = mobile.trim().length >= 10 && !loading;
+  const canSend = mobile.trim().length >= 10 && !loading && firebaseReady;
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

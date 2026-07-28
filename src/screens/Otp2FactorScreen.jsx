@@ -1,5 +1,5 @@
 /**
- * Otp2FactorScreen — Verify 2Factor SMS OTP
+ * Otp2FactorScreen — Verify Firebase Phone OTP
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -7,7 +7,7 @@ import {
   ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import api from '../api/axios';
+import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase';
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';
@@ -16,7 +16,7 @@ const GRAY  = '#6B7280';
 const DARK  = '#111827';
 
 export default function Otp2FactorScreen({ route, navigation }) {
-  const { mobile, sessionId } = route?.params || {};
+  const { mobile, confirmResult } = route?.params || {};
   const { signIn } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -27,12 +27,12 @@ export default function Otp2FactorScreen({ route, navigation }) {
   useEffect(() => {
     console.log('[Otp2Factor] Screen mounted');
     console.log('[Otp2Factor] Mobile:', mobile);
-    console.log('[Otp2Factor] SessionId:', sessionId);
+    console.log('[Otp2Factor] ConfirmResult:', confirmResult ? 'Present' : 'Missing');
     
-    if (!mobile || !sessionId) {
+    if (!mobile || !confirmResult) {
       Alert.alert(
-        'Verification Failed',
-        'Session ID is required',
+        'Session Error',
+        'Verification session is missing. Please request a new OTP.',
         [
           {
             text: 'OK',
@@ -41,7 +41,7 @@ export default function Otp2FactorScreen({ route, navigation }) {
         ]
       );
     }
-  }, [mobile, sessionId, navigation]);
+  }, [mobile, confirmResult, navigation]);
 
   const handleOtpChange = (value, index) => {
     if (!/^\d*$/.test(value)) return;
@@ -69,31 +69,49 @@ export default function Otp2FactorScreen({ route, navigation }) {
       return;
     }
 
+    if (!confirmResult) {
+      Alert.alert('Error', 'No confirmation result. Please request a new OTP.');
+      navigation.goBack();
+      return;
+    }
+
     setLoading(true);
 
     try {
-      console.log('[Otp2Factor] Verifying OTP');
-      const response = await api.post('/auth/patient/verify-otp', {
-        phone: mobile,
-        sessionId: sessionId,
-        otp: otpCode,
-      });
-
-      const { accessToken, refreshToken, user } = response.data?.data || {};
-
-      if (!accessToken || !user) {
-        throw new Error('Invalid response from server');
-      }
-
-      // Store tokens and user data using authStore.
-      // RootNavigator watches `user` state and automatically switches to
-      // MainNavigator when signIn() resolves — no manual navigation.reset() needed.
+      console.log('[Otp2Factor] Verifying OTP with Firebase');
+      
+      // STEP 1: Verify OTP with Firebase
+      const { idToken, phoneNumber } = await verifyPhoneOtp(confirmResult, otpCode);
+      
+      console.log('[Otp2Factor] OTP verified, phone:', phoneNumber);
+      console.log('[Otp2Factor] Logging in with backend using Firebase ID token');
+      
+      // STEP 2: Login with backend using Firebase ID token
+      const { accessToken, refreshToken, user } = await loginWithFirebaseToken(idToken);
+      
+      console.log('[Otp2Factor] Backend login successful');
+      
+      // STEP 3: Store tokens and user data
+      // RootNavigator watches user state and automatically navigates to MainNavigator
       await signIn(accessToken, user, refreshToken);
-
-      console.log('[Otp2Factor] Login successful');
+      
+      console.log('[Otp2Factor] Login complete');
     } catch (err) {
       console.error('[Otp2Factor] Verify OTP error:', err);
-      const message = err?.response?.data?.message || err.message || 'Invalid OTP';
+      
+      let message = err.message || 'Invalid OTP';
+      
+      // Provide better error messages
+      if (err.message?.includes('invalid-verification-code')) {
+        message = 'Invalid OTP code. Please check and try again.';
+      } else if (err.message?.includes('code-expired')) {
+        message = 'OTP has expired. Please request a new one.';
+      } else if (err.message?.includes('too-many-requests')) {
+        message = 'Too many verification attempts. Please request a new OTP.';
+      } else if (err.message?.includes('Session creation failed')) {
+        message = 'Login failed. Please try again.';
+      }
+      
       Alert.alert('Verification Failed', message);
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -103,14 +121,31 @@ export default function Otp2FactorScreen({ route, navigation }) {
   };
 
   const handleResendOtp = async () => {
+    if (!mobile) {
+      Alert.alert('Error', 'Phone number is missing');
+      return;
+    }
+
     setResending(true);
+    
     try {
-      await api.post('/auth/patient/send-otp', { phone: mobile });
+      console.log('[Otp2Factor] Resending OTP via Firebase');
+      
+      // Resend OTP using Firebase
+      const result = await resendOtp(mobile);
+      
+      // Update navigation params with new confirmation result
+      navigation.setParams({
+        mobile: mobile,
+        confirmResult: result.confirmationResult,
+      });
+      
       Alert.alert('OTP Sent', 'A new code has been sent to your mobile.');
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to resend OTP';
+      console.error('[Otp2Factor] Resend OTP error:', err);
+      const message = err.message || 'Failed to resend OTP';
       Alert.alert('Error', message);
     } finally {
       setResending(false);
