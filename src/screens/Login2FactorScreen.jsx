@@ -1,8 +1,7 @@
 /**
  * Login2FactorScreen — Firebase Phone Authentication
  *
- * Uses Firebase Phone Auth for OTP authentication
- * SMS sent directly via Firebase (no backend SMS service)
+ * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for proper reCAPTCHA verification
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -11,7 +10,9 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -27,7 +28,11 @@ export default function Login2FactorScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
+  
   const inputRef = useRef(null);
+  
+  // ✅ FIX: Add recaptchaVerifier ref for FirebaseRecaptchaVerifierModal
+  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -62,36 +67,47 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
+    // ✅ FIX: Validate recaptchaVerifier is available
+    if (!recaptchaVerifier.current) {
+      Alert.alert('Error', 'reCAPTCHA not ready. Please try again in a moment.');
+      return;
+    }
+
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
-      console.log('[Login2Factor] Sending OTP via Firebase to', fullNumber);
+      console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
+      console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
       
-      // Send OTP using Firebase Phone Auth
-      const result = await sendOtpToPhone(fullNumber);
+      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
+      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
       
-      console.log('[Login2Factor] OTP sent successfully via Firebase');
+      console.log('[Login2Factor] ✅ OTP sent successfully');
+      console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);
+      console.log('[Login2Factor] ⏰ Sent at:', new Date(result.timestamp).toISOString());
       
-      // Navigate to OTP screen with Firebase confirmation result
+      // Navigate to OTP screen with Firebase confirmation result AND timestamp
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
         confirmResult: result.confirmationResult,
+        verificationId: result.verificationId,
+        sentTimestamp: result.timestamp,
       });
     } catch (err) {
-      console.error('[Login2Factor] Send OTP error:', err);
+      console.error('[Login2Factor] ❌ Send OTP error:', err);
       
       let message = err.message || 'Failed to send OTP';
       
-      // Provide better error messages
+      // User-friendly error messages
       if (err.message?.includes('too-many-requests')) {
-        message = 'Too many attempts. Please try again in a few minutes.';
+        message = 'Too many attempts. Please try again in 15 minutes.';
       } else if (err.message?.includes('invalid-phone-number')) {
         message = 'Invalid phone number format.';
-      } else if (err.message?.includes('not support')) {
-        message = 'Firebase Phone Auth is not available. Please use a real Android device.';
-      } else if (err.message?.includes('operation-not-supported')) {
-        message = 'Phone authentication is not enabled for this region.';
+      } else if (err.message?.includes('quota-exceeded')) {
+        message = 'SMS service temporarily unavailable. Please try again later.';
+      } else if (err.message?.includes('SHA fingerprints')) {
+        message = 'App verification required. Please contact support.';
       }
       
       Alert.alert('Error', message);
@@ -105,6 +121,13 @@ export default function Login2FactorScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       <ScrollView 
         contentContainerStyle={s.scroll} 

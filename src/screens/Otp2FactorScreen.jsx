@@ -1,5 +1,7 @@
 /**
  * Otp2FactorScreen — Verify Firebase Phone OTP
+ * 
+ * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for resend functionality
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -7,7 +9,9 @@ import {
   ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';
@@ -16,20 +20,39 @@ const GRAY  = '#6B7280';
 const DARK  = '#111827';
 
 export default function Otp2FactorScreen({ route, navigation }) {
-  const { mobile, confirmResult } = route?.params || {};
+  const { mobile, confirmResult, verificationId, sentTimestamp } = route?.params || {};
   const { signIn } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [currentConfirmResult, setCurrentConfirmResult] = useState(confirmResult);
+  const [currentVerificationId, setCurrentVerificationId] = useState(verificationId);
+  const [currentSentTimestamp, setCurrentSentTimestamp] = useState(sentTimestamp);
   const inputRefs = useRef([]);
+  
+  // ✅ FIX: Add recaptchaVerifier ref for resend functionality
+  const recaptchaVerifier = useRef(null);
 
   // Validate required params on mount
   useEffect(() => {
-    console.log('[Otp2Factor] Screen mounted');
-    console.log('[Otp2Factor] Mobile:', mobile);
-    console.log('[Otp2Factor] ConfirmResult:', confirmResult ? 'Present' : 'Missing');
+    console.log('[Otp2Factor] 🎬 Screen mounted');
+    console.log('[Otp2Factor] 📱 Mobile:', mobile);
+    console.log('[Otp2Factor] 📦 ConfirmResult:', currentConfirmResult ? 'Present' : 'Missing');
+    console.log('[Otp2Factor] 🔑 VerificationId:', currentVerificationId || 'Missing');
+    console.log('[Otp2Factor] ⏰ Sent timestamp:', currentSentTimestamp ? new Date(currentSentTimestamp).toISOString() : 'Missing');
+    console.log('[Otp2Factor] ⏰ Current time:', new Date().toISOString());
     
-    if (!mobile || !confirmResult) {
+    if (currentSentTimestamp) {
+      const elapsed = (Date.now() - currentSentTimestamp) / 1000;
+      console.log('[Otp2Factor] ⏱️  Elapsed time:', elapsed, 'seconds');
+      
+      if (elapsed > 100) {
+        console.warn('[Otp2Factor] ⚠️  WARNING: More than 100 seconds elapsed since OTP sent');
+        console.warn('[Otp2Factor] ⚠️  OTP may expire soon (typical timeout: 120 seconds)');
+      }
+    }
+    
+    if (!mobile || !currentConfirmResult) {
       Alert.alert(
         'Session Error',
         'Verification session is missing. Please request a new OTP.',
@@ -41,7 +64,7 @@ export default function Otp2FactorScreen({ route, navigation }) {
         ]
       );
     }
-  }, [mobile, confirmResult, navigation]);
+  }, [mobile, currentConfirmResult, currentVerificationId, currentSentTimestamp, navigation]);
 
   const handleOtpChange = (value, index) => {
     if (!/^\d*$/.test(value)) return;
@@ -69,7 +92,8 @@ export default function Otp2FactorScreen({ route, navigation }) {
       return;
     }
 
-    if (!confirmResult) {
+    if (!currentConfirmResult) {
+      console.error('[Otp2Factor] ❌ No confirmation result available');
       Alert.alert('Error', 'No confirmation result. Please request a new OTP.');
       navigation.goBack();
       return;
@@ -78,38 +102,77 @@ export default function Otp2FactorScreen({ route, navigation }) {
     setLoading(true);
 
     try {
-      console.log('[Otp2Factor] Verifying OTP with Firebase');
+      const verifyStartTime = Date.now();
+      const elapsedSinceSent = currentSentTimestamp ? (verifyStartTime - currentSentTimestamp) / 1000 : null;
+      
+      console.log('[Otp2Factor] 🔐 Starting OTP verification');
+      console.log('[Otp2Factor] 📝 OTP entered:', otpCode);
+      console.log('[Otp2Factor] 🔑 Using VerificationId:', currentVerificationId || 'unknown');
+      console.log('[Otp2Factor] ⏰ Verify start time:', new Date(verifyStartTime).toISOString());
+      console.log('[Otp2Factor] ⏱️  Time since OTP sent:', elapsedSinceSent, 'seconds');
+      
+      if (elapsedSinceSent && elapsedSinceSent > 110) {
+        console.warn('[Otp2Factor] ⚠️  WARNING: Verification attempt after', elapsedSinceSent, 'seconds');
+        console.warn('[Otp2Factor] ⚠️  This is close to Firebase timeout limit (typically 120 seconds)');
+        Alert.alert(
+          'Timeout Warning',
+          'You\'ve taken more than 110 seconds to enter OTP. If verification fails, please request a new OTP.',
+          [{ text: 'Continue Anyway', onPress: () => {} }]
+        );
+      }
       
       // STEP 1: Verify OTP with Firebase
-      const { idToken, phoneNumber } = await verifyPhoneOtp(confirmResult, otpCode);
+      console.log('[Otp2Factor] 📡 Calling Firebase verifyPhoneOtp...');
+      const { idToken, phoneNumber } = await verifyPhoneOtp(
+        currentConfirmResult, 
+        otpCode,
+        currentSentTimestamp
+      );
       
-      console.log('[Otp2Factor] OTP verified, phone:', phoneNumber);
-      console.log('[Otp2Factor] Logging in with backend using Firebase ID token');
+      console.log('[Otp2Factor] ✅ OTP verified successfully');
+      console.log('[Otp2Factor] 📱 Phone:', phoneNumber);
+      console.log('[Otp2Factor] 🎫 Got Firebase ID token');
+      console.log('[Otp2Factor] ⏱️  Verification took:', (Date.now() - verifyStartTime) / 1000, 'seconds');
       
       // STEP 2: Login with backend using Firebase ID token
+      console.log('[Otp2Factor] 🔄 Logging in with backend...');
       const { accessToken, refreshToken, user } = await loginWithFirebaseToken(idToken);
       
-      console.log('[Otp2Factor] Backend login successful');
+      console.log('[Otp2Factor] ✅ Backend login successful');
+      console.log('[Otp2Factor] 👤 User ID:', user?.id || 'unknown');
       
       // STEP 3: Store tokens and user data
-      // RootNavigator watches user state and automatically navigates to MainNavigator
+      console.log('[Otp2Factor] 💾 Storing authentication data...');
       await signIn(accessToken, user, refreshToken);
       
-      console.log('[Otp2Factor] Login complete');
+      console.log('[Otp2Factor] 🎉 Login complete - Total time:', (Date.now() - verifyStartTime) / 1000, 'seconds');
     } catch (err) {
-      console.error('[Otp2Factor] Verify OTP error:', err);
+      console.error('[Otp2Factor] ❌ Verification failed');
+      console.error('[Otp2Factor] ❌ Error:', err.message);
+      console.error('[Otp2Factor] ❌ Error type:', err.constructor.name);
       
       let message = err.message || 'Invalid OTP';
       
-      // Provide better error messages
+      // Provide better error messages with specific guidance
       if (err.message?.includes('invalid-verification-code')) {
         message = 'Invalid OTP code. Please check and try again.';
-      } else if (err.message?.includes('code-expired')) {
+      } else if (err.message?.includes('code-expired') || err.message?.includes('expired')) {
         message = 'OTP has expired. Please request a new one.';
+        console.error('[Otp2Factor] 💡 Expiry reason: Likely took > 120 seconds to verify');
+      } else if (err.message?.includes('session-expired')) {
+        message = 'Session expired. Please start over and request a new OTP.';
       } else if (err.message?.includes('too-many-requests')) {
-        message = 'Too many verification attempts. Please request a new OTP.';
+        message = 'Too many verification attempts. Please wait a few minutes and request a new OTP.';
+      } else if (err.message?.includes('invalid-verification-id')) {
+        message = 'Verification session is invalid. Please request a new OTP.';
       } else if (err.message?.includes('Session creation failed')) {
-        message = 'Login failed. Please try again.';
+        message = 'Backend login failed. Please try again.';
+      } else if (err.message?.includes('Network error') || err.message?.includes('Cannot reach server')) {
+        message = 'Network error. Please check:\n\n1. Your internet connection is active\n2. You are not using VPN\n3. Try switching between WiFi and mobile data';
+      } else if (err.message?.includes('timeout')) {
+        message = 'Connection timeout. Please check your internet and try again.';
+      } else if (err.message?.includes('Firebase token verification failed')) {
+        message = 'Token verification failed. Please request a new OTP and try again.';
       }
       
       Alert.alert('Verification Failed', message);
@@ -126,25 +189,37 @@ export default function Otp2FactorScreen({ route, navigation }) {
       return;
     }
 
+    // ✅ FIX: Validate recaptchaVerifier is available
+    if (!recaptchaVerifier.current) {
+      Alert.alert('Error', 'reCAPTCHA not ready. Please try again in a moment.');
+      return;
+    }
+
     setResending(true);
     
     try {
-      console.log('[Otp2Factor] Resending OTP via Firebase');
+      console.log('[Otp2Factor] 🔄 Resending OTP via Firebase');
+      console.log('[Otp2Factor] 📱 Phone number:', mobile);
+      console.log('[Otp2Factor] ⏰ Resend timestamp:', new Date().toISOString());
       
-      // Resend OTP using Firebase
-      const result = await resendOtp(mobile);
+      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
+      const result = await resendOtp(mobile, recaptchaVerifier.current);
       
-      // Update navigation params with new confirmation result
-      navigation.setParams({
-        mobile: mobile,
-        confirmResult: result.confirmationResult,
-      });
+      // ✅ CRITICAL: Update ALL state with new confirmation result
+      setCurrentConfirmResult(result.confirmationResult);
+      setCurrentVerificationId(result.verificationId);
+      setCurrentSentTimestamp(result.timestamp);
       
-      Alert.alert('OTP Sent', 'A new code has been sent to your mobile.');
+      console.log('[Otp2Factor] ✅ New OTP sent successfully');
+      console.log('[Otp2Factor] 🔑 New VerificationId:', result.verificationId);
+      console.log('[Otp2Factor] ⏰ New timestamp:', new Date(result.timestamp).toISOString());
+      console.log('[Otp2Factor] ⏰ Valid until:', new Date(result.timestamp + 120000).toISOString());
+      
+      Alert.alert('OTP Sent', 'A new verification code has been sent to your mobile.');
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
     } catch (err) {
-      console.error('[Otp2Factor] Resend OTP error:', err);
+      console.error('[Otp2Factor] ❌ Resend OTP error:', err.message);
       const message = err.message || 'Failed to resend OTP';
       Alert.alert('Error', message);
     } finally {
@@ -161,6 +236,13 @@ export default function Otp2FactorScreen({ route, navigation }) {
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
+      
+      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal for resend */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
       
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>

@@ -8,9 +8,13 @@ import { getIsSigningOut } from '../store/authStore';
 const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 
 // ── API URL resolution ─────────────────────────────────────────────────────
-export const BASE_URL = isDev
-  ? (Constants.expoConfig?.extra?.apiUrl ?? 'https://api.pulsemateconnect.in/api')
-  : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://api.pulsemateconnect.in/api');
+// TEMPORARY FIX: Hardcode production URL to bypass app.json cache issues
+export const BASE_URL = 'https://api.pulsemateconnect.in/api';
+
+// Original dynamic resolution (commented out until cache clears):
+// export const BASE_URL = isDev
+//   ? (Constants.expoConfig?.extra?.apiUrl ?? 'https://api.pulsemateconnect.in/api')
+//   : (Constants.expoConfig?.extra?.apiUrlProd ?? 'https://api.pulsemateconnect.in/api');
 
 const api = axios.create({
   baseURL: BASE_URL,

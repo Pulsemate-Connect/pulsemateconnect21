@@ -1,0 +1,69 @@
+==========================================
+RUN EXPO APP ON PORT 8081 WITH USB
+==========================================
+
+STEP 1: Connect Your Device via USB
+------------------------------------
+1. Connect your Android phone to your computer using USB cable
+2. Enable USB Debugging on your phone:
+   - Go to Settings > About Phone
+   - Tap "Build Number" 7 times to enable Developer Options
+   - Go to Settings > Developer Options
+   - Enable "USB Debugging"
+3. When prompted on your phone, allow USB debugging for this computer
+
+STEP 2: Verify ADB Connection
+------------------------------
+Open a terminal and run:
+
+   adb devices
+
+You should see your device listed. If not:
+   - Check USB cable connection
+   - Make sure USB debugging is enabled
+   - Try a different USB cable or port
+
+STEP 3: Start Expo on Port 8081
+--------------------------------
+In the project directory, run:
+
+   npx expo start --port 8081 --android
+
+This will:
+- Start Expo Dev Server on port 8081
+- Automatically try to open the app on your USB-connected device
+
+ALTERNATIVE: Manual Steps
+--------------------------
+If you prefer to start the server first, then connect:
+
+1. Start the server on port 8081:
+   npx expo start --port 8081
+
+2. Press 'a' in the terminal to run on Android device
+
+IMPORTANT NOTES:
+----------------
+✓ Port 8081 is the default Metro bundler port for React Native
+✓ Your device must be connected via USB and have USB debugging enabled
+✓ Make sure no other app is using port 8081
+✓ The backend should be running on port 5000 (as configured in app.json)
+
+TROUBLESHOOTING:
+----------------
+If port 8081 is busy:
+   npx expo start --port 8082 --android
+
+If device not detected:
+   adb kill-server
+   adb start-server
+   adb devices
+
+If build fails:
+   cd android
+   gradlew clean
+   cd ..
+   npx expo start --port 8081 --android --clear
+
+CURRENT API URL: http://10.31.245.219:5000/api
+(Make sure backend is running on this address)

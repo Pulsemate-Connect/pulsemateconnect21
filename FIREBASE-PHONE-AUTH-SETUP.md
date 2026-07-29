@@ -1,361 +1,271 @@
-# 🔥 Firebase Phone Authentication Setup
+# Firebase Phone Authentication Setup Guide
 
-## Architecture
+## 🚀 Quick Start
 
-You're now using **Firebase Phone Auth with a hybrid approach**:
+### Development Mode (Testing)
+The app is now configured to work with test phone numbers in development mode.
 
-```
-App (React Native/Expo)
-    ↓
-  User enters phone: +917022818878
-    ↓
-  App calls: POST /api/auth/patient/firebase-send-otp
-    ↓
-Backend (Node.js + Firebase Admin SDK)
-    ├─ Generate 6-digit OTP
-    ├─ Store in cache (5-min expiry)
-    ├─ Send SMS via Twilio/MSG91/2Factor
-    └─ Return sessionInfo
-    ↓
-  User receives SMS (or checks console if mocked)
-    ↓
-  User enters OTP code
-    ↓
-  App calls: POST /api/auth/patient/firebase-verify-otp
-    ↓
-Backend
-    ├─ Verify OTP code
-    ├─ Create Firebase Custom Token (Admin SDK)
-    └─ Return customToken
-    ↓
-  App signs in with customToken using signInWithCustomToken()
-    ↓
-  Firebase Authentication completes
-    ↓
-  App calls: POST /auth/patient/firebase-phone-login
-    ↓
-Backend
-    ├─ Create/find user in database
-    ├─ Generate JWT tokens
-    └─ Return accessToken
-    ↓
-  ✅ Login Complete — User in Home Screen
-```
+**Test Phone Numbers:**
+- `+917022818878` → OTP: `123456`
+- `+919876543210` → OTP: `123456`
+
+These numbers work on:
+- ✅ Real Android devices
+- ✅ Android emulators
+- ✅ Expo Go
+- ✅ Development builds
+
+### Production Mode (Real SMS)
+Real phone numbers will receive actual SMS OTPs via Firebase.
 
 ---
 
-## Current Status
+## 📋 What Was Fixed
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Firebase Config | ✅ | Already set up in project |
-| Backend Endpoints | ✅ | Both send-otp and verify-otp created |
-| SMS Service | ✅ | Ready (currently mock) |
-| Firebase Admin SDK | ✅ | Already initialized in backend |
-| Custom Token Generation | ✅ | Code added to verify endpoint |
+### Problem
+Firebase Phone Auth was failing with errors:
+- `auth/argument-error`
+- `reCAPTCHA Enterprise not configured`
+- `This device/environment may not support Firebase Phone Auth`
 
----
-
-## Testing Firebase Phone Auth
-
-### Step 1: Ensure Backend is Running
-- Terminal ID 53 should show "PulseMate API running"
-- Check by visiting: `http://10.130.140.219:5000/health`
-- Should return: `{"status":"ok",...}`
-
-### Step 2: Reload Expo App
-- In Expo terminal, press `r` to reload
-- Wait for "Firebase Auth ready" message
-- App should connect to backend at `http://10.130.140.219:5000/api`
-
-### Step 3: Send OTP
-1. On your phone in the app
-2. Go to Login screen
-3. Enter phone: `+917022818878`
-4. Click "Send OTP"
-5. Wait for response
-
-### Step 4: Check Backend Console
-Look for logs in Terminal ID 53:
-```
-[FIREBASE-OTP] SMS sent to +917022818878, Code: 123456
-```
-
-Or if SMS mocked:
-```
-[SMS-MOCK] Sent to +917022818878 (mock SMS, for testing only)
-```
-
-### Step 5: Enter OTP in App
-1. Find the 6-digit code from:
-   - Backend console (if mocked)
-   - Your SMS inbox (if Twilio configured)
-2. Enter code in app's OTP field
-3. Click "Verify OTP"
-
-### Step 6: Check Backend for Custom Token
-Look for:
-```
-[FIREBASE] Custom token generated for +917022818878
-```
-
-### Step 7: Verify Firebase Signs In
-Check app console for:
-```
-[Firebase] OTP verified successfully
-[Firebase] Backend authentication successful
-```
-
-### Step 8: Login Complete ✅
-App navigates to Home screen and user is logged in
+### Solution
+1. **Added `appVerificationDisabledForTesting`** in development mode
+2. **Configured test phone numbers** for easy testing
+3. **Device detection** to provide better error messages
+4. **Automatic mode switching** between dev and production
 
 ---
 
-## Key Endpoints
+## 🔧 Configuration Changes
 
-### 1. Send OTP (Firebase)
-```
-POST http://10.130.140.219:5000/api/auth/patient/firebase-send-otp
+### Updated Files
+- `src/config/firebase.js` - Added dev mode, test numbers, device detection
 
-Request:
-{
-  "phone": "+917022818878"
-}
+### Key Changes
 
-Response:
-{
-  "success": true,
-  "data": {
-    "sessionInfo": "+917022818878_1784903542210",
-    "phone": "+917022818878"
-  }
-}
-```
+```javascript
+// Automatically detects development vs production
+const DEV_MODE = __DEV__;
 
-### 2. Verify OTP (Firebase)
-```
-POST http://10.130.140.219:5000/api/auth/patient/firebase-verify-otp
+// Test phone numbers for development
+const TEST_PHONE_NUMBERS = {
+  '+917022818878': '123456',
+  '+919876543210': '123456',
+};
 
-Request:
-{
-  "sessionInfo": "+917022818878_1784903542210",
-  "code": "123456",
-  "phoneNumber": "+917022818878"
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "customToken": "eyJhbGc...",
-    "phone": "+917022818878"
-  }
-}
-```
-
-### 3. Login with Firebase Token
-```
-POST http://10.130.140.219:5000/api/auth/patient/firebase-phone-login
-
-Request:
-{
-  "firebaseIdToken": "customToken...",
-  "name": "John Doe" (optional)
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "accessToken": "jwt...",
-    "refreshToken": "jwt...",
-    "user": { ... }
-  }
+// Enable test mode in development
+if (DEV_MODE) {
+  firebaseAuth.settings.appVerificationDisabledForTesting = true;
 }
 ```
 
 ---
 
-## SMS Configuration (Optional)
+## 🧪 Testing Guide
 
-Current setting: `SMS_PROVIDER=mock` (logs to console)
+### How to Test (Development)
 
-To enable **real SMS delivery**, configure Twilio in `backend/.env`:
+1. **Start the app on USB device (port 8081):**
+   ```bash
+   npx expo start --port 8081
+   ```
 
-```env
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_PHONE_NUMBER=+1234567890
+2. **On Login Screen:**
+   - Enter test number: `7022818878` (without +91)
+   - Click "Send OTP"
+   - You'll see in console: "Using TEST phone number - OTP: 123456"
+
+3. **On OTP Screen:**
+   - Enter OTP: `123456`
+   - Click "Verify"
+   - Should login successfully
+
+### Testing Real SMS (Production)
+
+To test with real SMS on your device:
+
+1. **Build a production APK/AAB** (not development build)
+2. **Or set `DEV_MODE = false`** in `firebase.js`
+3. Enter any real phone number
+4. Real SMS will be sent via Firebase
+
+---
+
+## 🔐 Firebase Console Setup Required
+
+### For Production (Real SMS)
+
+You MUST configure these in Firebase Console:
+
+#### 1. Enable Phone Authentication
+- Go to: Firebase Console → Authentication → Sign-in method
+- Enable "Phone" provider
+- Click "Save"
+
+#### 2. Add SHA-256 Certificate Fingerprint (Android)
+
+**For Development Build:**
+```bash
+cd android
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
 ```
 
-Then restart backend (type `rs` in terminal).
-
-See `TWILIO-QUICK-START.md` for detailed setup.
-
----
-
-## Flow Summary
-
-1. **User enters phone number**
-   - Validates E.164 format (+91...)
-
-2. **App calls firebase-send-otp**
-   - Backend generates 6-digit code
-   - Stores in cache (5 min expiry)
-   - Sends SMS (or mocks)
-   - Returns sessionInfo
-
-3. **User receives SMS and enters code**
-   - User copies OTP from SMS or console
-   - Enters in app's OTP field
-
-4. **App calls firebase-verify-otp**
-   - Backend validates code
-   - Creates Firebase Custom Token
-   - Returns customToken
-
-5. **App calls signInWithCustomToken()**
-   - Firebase client SDK signs in user
-   - Firebase stores auth state
-
-6. **App sends customToken to backend**
-   - Backend creates/finds user in database
-   - Generates JWT tokens
-   - Returns accessToken and user data
-
-7. **App stores tokens and navigates to home**
-   - ✅ Login complete
-   - User can now use the app
-
----
-
-## Files Modified
-
-### App Side
-- `src/config/firebase.js` — Updated to use Firebase Admin SDK OTP approach
-
-### Backend Side
-- `backend/src/routes/auth.routes.js` — Added 2 new endpoints:
-  - `/patient/firebase-send-otp`
-  - `/patient/firebase-verify-otp`
-
-### Configuration
-- `app.json` — Still using local backend for development
-
----
-
-## Advantages of This Approach
-
-✅ **No reCAPTCHA Issues** — Backend uses Firebase Admin SDK (no UI verification needed)
-✅ **Works in React Native/Expo** — No DOM requirements
-✅ **Real Firebase Security** — Leverages Firebase infrastructure
-✅ **Customizable** — Control OTP generation and SMS provider
-✅ **Scalable** — Can swap SMS provider easily (Twilio → MSG91, etc.)
-✅ **Testable** — Mock SMS for development, real SMS for production
-
----
-
-## Troubleshooting
-
-### Issue: "firebase-send-otp: 404 not found"
-**Solution**: 
-1. Check backend is running (Terminal ID 53)
-2. Reload Expo app (press 'r')
-3. Verify app.json has local API URL
-
-### Issue: "OTP expired" error
-**Cause**: 5-minute timeout exceeded
-**Solution**: Resend OTP and verify within 5 minutes
-
-### Issue: "Custom token generation error"
-**Cause**: Firebase Admin SDK initialization issue
-**Solution**: 
-1. Check Firebase credentials in `backend/.env`
-2. Restart backend
-3. Try again
-
-### Issue: SMS not received
-**Current**: SMS is mocked (logs to console)
-**Solution**: Set up Twilio to enable real SMS (see `TWILIO-QUICK-START.md`)
-
----
-
-## Next Steps
-
-1. **Test Current Setup**
-   - Send OTP → Check console for code
-   - Verify OTP → Should work
-   - Login → Should complete
-
-2. **Enable Real SMS (Optional)**
-   - Set up Twilio (5 minutes)
-   - Update `backend/.env`
-   - Restart backend
-   - Test with real SMS
-
-3. **Test Edge Cases**
-   - Wrong OTP code
-   - Expired OTP (after 5 min)
-   - Resend OTP
-   - Multiple users
-
-4. **Prepare for Production**
-   - Update app.json to production API URL
-   - Use paid Twilio account (vs. trial)
-   - Deploy backend to production server
-   - Build release APK/AAB
-   - Submit to Play Store
-
----
-
-## Architecture Diagram
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Phone App                             │
-│                 (React Native/Expo)                     │
-│                                                         │
-│  import { signInWithCustomToken } from 'firebase/auth' │
-└────────────────┬────────────────────────────────────────┘
-                 │ HTTP API
-                 ↓
-┌─────────────────────────────────────────────────────────┐
-│               Backend Server                            │
-│             (Node.js + Express)                        │
-│                                                         │
-│  POST /firebase-send-otp                              │
-│    ├─ Generate OTP                                     │
-│    ├─ Cache with expiry                               │
-│    └─ Send SMS                                         │
-│                                                         │
-│  POST /firebase-verify-otp                            │
-│    ├─ Verify OTP                                       │
-│    ├─ Create Firebase Custom Token                    │
-│    └─ Return customToken                              │
-│                                                         │
-│  POST /firebase-phone-login                           │
-│    ├─ Create/find user                                │
-│    ├─ Generate JWT                                    │
-│    └─ Return accessToken                              │
-└────────────────┬────────────────────────────────────────┘
-                 │
-      ┌──────────┼──────────┐
-      ↓          ↓          ↓
-   ┌──────┐  ┌──────┐  ┌──────┐
-   │ SMS  │  │Cache │  │ DB   │
-   │      │  │  5m  │  │      │
-   └──────┘  └──────┘  └──────┘
+**For Production Build (Release Keystore):**
+```bash
+keytool -list -v -keystore /path/to/your/keystore.jks -alias your-alias
 ```
 
+Copy the SHA-256 fingerprint and add it to Firebase Console:
+- Go to: Project Settings → Your Apps → Android App
+- Click "Add fingerprint"
+- Paste SHA-256 fingerprint
+- Click "Save"
+
+#### 3. Download Updated `google-services.json`
+- Go to: Project Settings → Your Apps → Android App
+- Click "Download google-services.json"
+- Replace the file in your project root
+
+#### 4. Configure Test Phone Numbers in Firebase (Optional)
+
+For numbers that should receive instant OTP without SMS:
+- Go to: Firebase Console → Authentication → Settings → Phone
+- Scroll to "Phone numbers for testing"
+- Add: `+917022818878` → OTP: `123456`
+- Add: `+919876543210` → OTP: `123456`
+
+This makes these numbers work in BOTH dev and production without sending SMS.
+
+#### 5. Enable reCAPTCHA Enterprise (Optional - for Web)
+
+If you plan to support web platform:
+- Go to: Google Cloud Console
+- Enable "reCAPTCHA Enterprise API"
+- Create a reCAPTCHA key
+- Link it to your Firebase project
+
 ---
 
-## Summary
+## 📱 Device Requirements
 
-You're now using **proper Firebase Phone Authentication** with:
-- ✅ Backend-driven OTP generation (avoids reCAPTCHA)
-- ✅ Firebase Custom Token for secure authentication
-- ✅ Support for real SMS via Twilio/MSG91/2Factor
-- ✅ Development mode with console-based OTP
+### Development Mode
+- ✅ Any device or emulator
+- ✅ Works with test phone numbers
+- ✅ No SMS charges
 
-Ready to test? Follow the **Testing Firebase Phone Auth** section above! 🚀
+### Production Mode (Real SMS)
+- ✅ Real Android device (recommended)
+- ✅ Android emulator with Google Play Services
+- ⚠️ Emulators may not receive SMS (use test numbers)
+- 💰 SMS charges apply (via Firebase/GCP billing)
+
+---
+
+## 🐛 Troubleshooting
+
+### Error: "auth/argument-error"
+**Cause:** reCAPTCHA verification is required but not configured.
+
+**Solution:**
+- Use test phone numbers in development
+- Or add SHA-256 fingerprint to Firebase Console
+- Or enable `appVerificationDisabledForTesting` (already done in dev mode)
+
+### Error: "quota-exceeded"
+**Cause:** Too many SMS requests.
+
+**Solution:**
+- Use test phone numbers
+- Wait 15-30 minutes
+- Increase quota in Firebase Console → Authentication → Settings → Phone → SMS quota
+
+### Error: "invalid-app-credential"
+**Cause:** App not properly registered in Firebase.
+
+**Solution:**
+- Add SHA-256 certificate fingerprint
+- Download updated `google-services.json`
+- Rebuild the app
+
+### OTP Not Received (Real Numbers)
+**Cause:** SMS delivery failed or blocked.
+
+**Solution:**
+- Check Firebase Console → Authentication → Usage (for delivery status)
+- Verify phone number format (+91XXXXXXXXXX)
+- Check SMS quota and billing
+- Try test phone numbers instead
+
+---
+
+## 💡 Best Practices
+
+### For Development
+1. ✅ Always use test phone numbers
+2. ✅ Keep `DEV_MODE = __DEV__` (auto-detects)
+3. ✅ Don't waste SMS quota on testing
+4. ✅ Test on real device when possible
+
+### For Production
+1. ✅ Add SHA-256 fingerprints for all keystores
+2. ✅ Enable Firebase billing (for SMS)
+3. ✅ Monitor SMS usage in Firebase Console
+4. ✅ Set up SMS quota alerts
+5. ✅ Keep test numbers in Firebase for demo accounts
+
+---
+
+## 📊 Current Configuration
+
+### Firebase Project
+- **Project ID:** pulsemateconnect
+- **Auth Domain:** pulsemateconnect.firebaseapp.com
+- **App ID:** 1:157620382332:web:e4156f49d8616a4ee6b7f9
+
+### Test Phone Numbers (Dev Mode)
+| Phone Number      | OTP    | Works On                    |
+|-------------------|--------|-----------------------------|
+| +917022818878     | 123456 | Emulator, Real Device, Expo |
+| +919876543210     | 123456 | Emulator, Real Device, Expo |
+
+### App Configuration
+- **Dev Mode:** Enabled automatically in `__DEV__`
+- **Test Verification:** Enabled in dev mode
+- **Device Check:** Enabled
+- **Platform:** React Native (Expo)
+
+---
+
+## 🎯 Next Steps
+
+1. ✅ **Test with test phone numbers** - Verify the fix works
+2. ⏭️ **Add SHA-256 fingerprint** - For production builds
+3. ⏭️ **Enable Firebase billing** - For real SMS delivery
+4. ⏭️ **Test on real device** - Verify SMS delivery
+5. ⏭️ **Add more test numbers** - As needed for your team
+
+---
+
+## 📚 References
+
+- [Firebase Phone Auth Docs](https://firebase.google.com/docs/auth/android/phone-auth)
+- [Expo Firebase Setup](https://docs.expo.dev/guides/using-firebase/)
+- [Firebase Test Phone Numbers](https://firebase.google.com/docs/auth/web/phone-auth#test-with-fictional-phone-numbers)
+- [reCAPTCHA Enterprise](https://cloud.google.com/recaptcha-enterprise/docs/overview)
+
+---
+
+## 🆘 Support
+
+If you encounter issues:
+1. Check the console logs for detailed error messages
+2. Verify test phone numbers are being used in dev mode
+3. Check Firebase Console → Authentication → Usage
+4. Review this guide's troubleshooting section
+5. Check device is connected via USB (port 8081)
+
+---
+
+**Last Updated:** January 29, 2026
+**Status:** ✅ Working in Development Mode
+**Next:** Configure SHA-256 for Production

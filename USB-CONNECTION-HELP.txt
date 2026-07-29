@@ -1,0 +1,181 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                                                                   ║
+║         📱 HOW TO CONNECT YOUR ANDROID DEVICE VIA USB            ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+⚠️  YOUR DEVICE IS NOT DETECTED YET
+
+Follow these steps to connect your Android phone:
+
+───────────────────────────────────────────────────────────────────
+
+STEP 1️⃣  ENABLE DEVELOPER OPTIONS (First time only)
+
+   On your Android phone:
+   
+   1. Open Settings
+   2. Scroll to "About phone" (or "About device")
+   3. Find "Build number"
+   4. Tap "Build number" 7 times rapidly
+   5. You'll see: "You are now a developer!"
+
+───────────────────────────────────────────────────────────────────
+
+STEP 2️⃣  ENABLE USB DEBUGGING
+
+   On your Android phone:
+   
+   1. Go back to Settings
+   2. Look for "Developer options" (might be under "System")
+   3. Scroll down and find "USB debugging"
+   4. Toggle it ON (turn it green)
+
+───────────────────────────────────────────────────────────────────
+
+STEP 3️⃣  CONNECT USB CABLE
+
+   1. Get a good USB cable (data cable, not charging-only)
+   2. Connect phone to your PC
+   3. Your phone will vibrate or make a sound
+
+───────────────────────────────────────────────────────────────────
+
+STEP 4️⃣  ALLOW USB DEBUGGING ON YOUR PHONE
+
+   A popup will appear on your phone:
+   
+   ┌─────────────────────────────────────┐
+   │ Allow USB debugging?                │
+   │                                     │
+   │ The computer's RSA key fingerprint │
+   │ is: XX:XX:XX...                     │
+   │                                     │
+   │ ☑ Always allow from this computer  │ ← CHECK THIS!
+   │                                     │
+   │         [CANCEL]    [OK]            │ ← TAP OK!
+   └─────────────────────────────────────┘
+
+   IMPORTANT: Check the "Always allow" box!
+
+───────────────────────────────────────────────────────────────────
+
+STEP 5️⃣  CHANGE USB MODE (If needed)
+
+   If your phone is in "Charging only" mode:
+   
+   1. Pull down notification shade on phone
+   2. You'll see "Charging this device via USB"
+   3. Tap it
+   4. Select "File Transfer" or "PTP" or "MTP"
+
+───────────────────────────────────────────────────────────────────
+
+STEP 6️⃣  VERIFY CONNECTION
+
+   Run this batch file:
+   
+   check-device.bat
+   
+   Or run this command:
+   
+   adb devices
+   
+   You should see:
+   
+   List of devices attached
+   RF8M12345AB     device
+   ↑
+   Your device ID
+
+───────────────────────────────────────────────────────────────────
+
+STEP 7️⃣  RUN THE APP
+
+   Once your device shows, run:
+   
+   run-on-device.bat
+   
+   Or:
+   
+   npx expo run:android
+   
+   This will:
+   ✅ Build the app (5-10 minutes first time)
+   ✅ Install on your phone
+   ✅ Launch automatically
+
+───────────────────────────────────────────────────────────────────
+
+🐛 TROUBLESHOOTING
+
+   ❌ Device not showing?
+      
+      Try these:
+      
+      1. Different USB cable (must be data cable)
+      2. Different USB port on your PC
+      3. Restart ADB:
+         adb kill-server
+         adb start-server
+         adb devices
+      
+      4. Restart your phone
+      5. Disable and re-enable USB debugging
+      6. Check if drivers are installed (Windows)
+
+   ❌ Device shows "unauthorized"?
+      
+      1. Disconnect USB cable
+      2. Revoke USB debugging authorizations:
+         Settings → Developer options → Revoke USB debugging
+      3. Reconnect USB cable
+      4. Allow USB debugging again (check "Always allow")
+
+   ❌ Device shows "offline"?
+      
+      1. Restart your phone
+      2. Run: adb kill-server && adb start-server
+
+───────────────────────────────────────────────────────────────────
+
+✅ SUCCESS LOOKS LIKE THIS:
+
+   $ adb devices
+   
+   List of devices attached
+   RF8M12345AB     device
+                   ↑
+                   This means CONNECTED ✅
+
+───────────────────────────────────────────────────────────────────
+
+📋 QUICK CHECKLIST:
+
+   [ ] Developer options enabled
+   [ ] USB debugging enabled
+   [ ] USB cable connected
+   [ ] "Allow USB debugging" popup accepted
+   [ ] USB mode set to "File Transfer" (if needed)
+   [ ] Device shows in: adb devices
+   [ ] Ready to run: npx expo run:android
+
+───────────────────────────────────────────────────────────────────
+
+🚀 NEXT STEPS:
+
+   1. Run: check-device.bat (to verify connection)
+   
+   2. Run: run-on-device.bat (to build and launch app)
+   
+   3. Test Firebase Phone Auth on your device!
+
+───────────────────────────────────────────────────────────────────
+
+⏳ CURRENT STATUS: Waiting for device connection
+
+   Run check-device.bat anytime to check if your device is connected.
+
+───────────────────────────────────────────────────────────────────
+
+💡 TIP: Keep USB debugging enabled for easier testing in the future!

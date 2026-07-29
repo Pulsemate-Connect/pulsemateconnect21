@@ -1,0 +1,137 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                                                                   ║
+║              📱 CONNECT YOUR ANDROID DEVICE VIA USB               ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+⚠️  NO DEVICE DETECTED
+
+I tried to run the app, but no Android device is connected.
+
+───────────────────────────────────────────────────────────────────
+
+🔌 CONNECT YOUR DEVICE (3 minutes):
+
+   STEP 1️⃣  ENABLE USB DEBUGGING ON YOUR PHONE:
+   
+   1. Open Settings on your Android phone
+   2. Go to "About phone"
+   3. Tap "Build number" 7 times (enables Developer mode)
+   4. Go back to Settings
+   5. Open "Developer options"
+   6. Enable "USB debugging"
+   7. Connect USB cable to your PC
+
+   ─────────────────────────────────────────────────────────────
+
+   STEP 2️⃣  ALLOW USB DEBUGGING:
+   
+   When you connect the USB cable, your phone will show:
+   "Allow USB debugging?"
+   
+   → Tap "Always allow from this computer"
+   → Tap "OK"
+
+   ─────────────────────────────────────────────────────────────
+
+   STEP 3️⃣  VERIFY CONNECTION:
+   
+   Run this command:
+   
+   adb devices
+   
+   You should see your device listed:
+   
+   List of devices attached
+   RF8M12345AB     device
+   
+   ✅ If you see "device" → Connected successfully!
+   ❌ If you see "unauthorized" → Allow USB debugging on phone
+   ❌ If you see nothing → Check USB cable and try again
+
+───────────────────────────────────────────────────────────────────
+
+🚀 AFTER DEVICE IS CONNECTED:
+
+   Run this command to build and run the app:
+   
+   npx expo run:android
+   
+   This will:
+   ✅ Build the app (5 minutes first time)
+   ✅ Install on your device
+   ✅ Launch automatically
+   ✅ Ready to test Firebase Phone Auth!
+
+───────────────────────────────────────────────────────────────────
+
+🧪 TEST FIREBASE PHONE AUTH:
+
+   1. App should launch on your device
+   2. Go to Login screen
+   3. Enter your phone number (+91XXXXXXXXXX)
+   4. Tap "Send OTP"
+   5. Wait for SMS (5-30 seconds)
+   6. Enter 6-digit code
+   7. Login should succeed ✅
+
+───────────────────────────────────────────────────────────────────
+
+⚠️  IMPORTANT BEFORE TESTING:
+
+   YOU MUST ADD SHA CERTIFICATES TO FIREBASE CONSOLE FIRST!
+   
+   Without this, you'll get "auth/app-not-authorized" error.
+   
+   Quick steps:
+   1. Open: https://console.firebase.google.com/project/pulsemateconnect/settings/general
+   2. Find Android app: in.pulsemateconnect.patient
+   3. Click "Add fingerprint"
+   4. Add SHA-1:   5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25
+   5. Add SHA-256: FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C
+
+───────────────────────────────────────────────────────────────────
+
+📋 TROUBLESHOOTING:
+
+   ❌ Device not showing in adb devices:
+      → Check USB cable (try different cable/port)
+      → Make sure USB debugging is enabled
+      → Try "File Transfer" mode (not "Charging only")
+      → Restart ADB: adb kill-server && adb start-server
+
+   ❌ Device shows "unauthorized":
+      → Disconnect and reconnect USB
+      → Allow USB debugging on phone
+      → Check "Always allow" checkbox
+
+   ❌ Build takes too long / fails:
+      → This is normal for first build (5-10 minutes)
+      → If path length error, use EAS instead:
+        eas build --platform android --profile development
+
+───────────────────────────────────────────────────────────────────
+
+✅ QUICK CHECKLIST:
+
+   [ ] Phone connected via USB
+   [ ] USB debugging enabled on phone
+   [ ] "Allow USB debugging" accepted on phone
+   [ ] adb devices shows your device
+   [ ] SHA certificates added to Firebase Console
+   [ ] Ready to run: npx expo run:android
+
+───────────────────────────────────────────────────────────────────
+
+🎯 NEXT COMMAND TO RUN:
+
+   After connecting your device, run:
+   
+   npx expo run:android
+
+───────────────────────────────────────────────────────────────────
+
+📚 FULL GUIDE: RUN-ON-USB-DEVICE.md
+
+Status: Waiting for device connection
+Last Check: No devices detected

@@ -13,6 +13,8 @@
  *   - OTP verification happens on client (no server call)
  *   - Backend only verifies the Firebase ID Token after successful verification
  *   - No mock OTP logging or generation
+ * 
+ * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for resend functionality
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -21,7 +23,9 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 import { useAuth } from '../store/authStore';
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -83,6 +87,9 @@ export default function OtpScreen({ route, navigation }) {
   const [status,      setStatus]      = useState('idle');
   const [cooldown,    setCooldown]    = useState(60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
+
+  // ✅ FIX: Add recaptchaVerifier ref for resend functionality
+  const recaptchaVerifier = useRef(null);
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
@@ -183,9 +190,17 @@ export default function OtpScreen({ route, navigation }) {
   };
 
   const handleResend = async () => {
+    // ✅ FIX: Validate recaptchaVerifier is available
+    if (!recaptchaVerifier.current) {
+      Alert.alert('Error', 'reCAPTCHA not ready. Please try again.');
+      return;
+    }
+
     try {
-      console.log('[OtpScreen] Resending OTP...');
-      const result = await resendOtp(mobile);
+      console.log('[OtpScreen] 📱 Resending OTP...');
+      
+      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
+      const result = await resendOtp(mobile, recaptchaVerifier.current);
 
       // Update confirmationResult via state — never mutate route.params directly
       setActiveConfirmation(result.confirmationResult);
@@ -195,9 +210,10 @@ export default function OtpScreen({ route, navigation }) {
       startCooldown(60);
       setTimeout(() => refs[0].current?.focus(), 100);
 
+      console.log('[OtpScreen] ✅ OTP resent successfully');
       Alert.alert('OTP Resent', 'New OTP sent to your phone.');
     } catch (err) {
-      console.error('[OtpScreen] Resend error:', err);
+      console.error('[OtpScreen] ❌ Resend error:', err);
       Alert.alert('Error', err.message || 'Failed to resend OTP.');
     }
   };
@@ -216,6 +232,13 @@ export default function OtpScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal for resend */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>

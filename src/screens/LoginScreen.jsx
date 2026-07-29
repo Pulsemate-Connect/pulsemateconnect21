@@ -7,15 +7,19 @@
  *   3. Firebase SDK sends real SMS OTP via Google's infrastructure
  *   4. Navigate to OtpScreen with { mobile, confirmationResult }
  *   5. User verifies OTP on next screen
+ * 
+ * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for proper reCAPTCHA verification
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -60,6 +64,9 @@ export default function LoginScreen({ navigation }) {
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
 
+  // ✅ FIX: Add recaptchaVerifier ref for FirebaseRecaptchaVerifierModal
+  const recaptchaVerifier = useRef(null);
+
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
     const init = async () => {
@@ -67,9 +74,9 @@ export default function LoginScreen({ navigation }) {
         console.log('[LoginScreen] Initializing Firebase Auth...');
         await initializeFirebaseAuth();
         setFirebaseReady(true);
-        console.log('[LoginScreen] Firebase Auth ready');
+        console.log('[LoginScreen] ✅ Firebase Auth ready');
       } catch (error) {
-        console.error('[LoginScreen] Firebase initialization failed:', error);
+        console.error('[LoginScreen] ❌ Firebase initialization failed:', error);
         Alert.alert(
           'Initialization Error',
           'Failed to initialize Firebase. Please restart the app.',
@@ -93,12 +100,22 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
+    // ✅ FIX: Validate recaptchaVerifier is available
+    if (!recaptchaVerifier.current) {
+      Alert.alert('Error', 'reCAPTCHA not ready. Please try again.');
+      return;
+    }
+
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
-      console.log('[LoginScreen] Sending OTP to', fullNumber);
-      const result = await sendOtpToPhone(fullNumber);
+      console.log('[LoginScreen] 📱 Sending OTP to', fullNumber);
+      
+      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
+      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+
+      console.log('[LoginScreen] ✅ OTP sent successfully');
 
       // Navigate to OTP screen with confirmationResult
       navigation.navigate('Otp', {
@@ -106,7 +123,7 @@ export default function LoginScreen({ navigation }) {
         confirmationResult: result.confirmationResult,
       });
     } catch (err) {
-      console.error('[LoginScreen] Send OTP error:', err);
+      console.error('[LoginScreen] ❌ Send OTP error:', err);
       Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
@@ -118,6 +135,13 @@ export default function LoginScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
