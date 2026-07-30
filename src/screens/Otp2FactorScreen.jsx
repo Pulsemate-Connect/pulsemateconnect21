@@ -9,9 +9,9 @@ import {
   ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
+// FirebaseRecaptchaVerifierModal removed for production build (not needed)
+import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-production';
+// firebaseConfig not needed in production
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';
@@ -30,8 +30,7 @@ export default function Otp2FactorScreen({ route, navigation }) {
   const [currentSentTimestamp, setCurrentSentTimestamp] = useState(sentTimestamp);
   const inputRefs = useRef([]);
   
-  // ✅ FIX: Add recaptchaVerifier ref for resend functionality
-  const recaptchaVerifier = useRef(null);
+  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   // Validate required params on mount
   useEffect(() => {
@@ -189,11 +188,7 @@ export default function Otp2FactorScreen({ route, navigation }) {
       return;
     }
 
-    // ✅ FIX: Validate recaptchaVerifier is available
-    if (!recaptchaVerifier.current) {
-      Alert.alert('Error', 'reCAPTCHA not ready. Please try again in a moment.');
-      return;
-    }
+    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
 
     setResending(true);
     
@@ -202,8 +197,8 @@ export default function Otp2FactorScreen({ route, navigation }) {
       console.log('[Otp2Factor] 📱 Phone number:', mobile);
       console.log('[Otp2Factor] ⏰ Resend timestamp:', new Date().toISOString());
       
-      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
-      const result = await resendOtp(mobile, recaptchaVerifier.current);
+      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      const result = await resendOtp(mobile);
       
       // ✅ CRITICAL: Update ALL state with new confirmation result
       setCurrentConfirmResult(result.confirmationResult);
@@ -237,12 +232,7 @@ export default function Otp2FactorScreen({ route, navigation }) {
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
       
-      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal for resend */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
+      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
       
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>

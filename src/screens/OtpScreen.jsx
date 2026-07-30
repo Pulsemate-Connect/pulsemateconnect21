@@ -23,9 +23,9 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
+// FirebaseRecaptchaVerifierModal removed for production build (not needed)
+import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase-production';
+// firebaseConfig not needed in production
 import { useAuth } from '../store/authStore';
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -88,8 +88,7 @@ export default function OtpScreen({ route, navigation }) {
   const [cooldown,    setCooldown]    = useState(60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
 
-  // ✅ FIX: Add recaptchaVerifier ref for resend functionality
-  const recaptchaVerifier = useRef(null);
+  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
@@ -190,17 +189,13 @@ export default function OtpScreen({ route, navigation }) {
   };
 
   const handleResend = async () => {
-    // ✅ FIX: Validate recaptchaVerifier is available
-    if (!recaptchaVerifier.current) {
-      Alert.alert('Error', 'reCAPTCHA not ready. Please try again.');
-      return;
-    }
+    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
 
     try {
       console.log('[OtpScreen] 📱 Resending OTP...');
       
-      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
-      const result = await resendOtp(mobile, recaptchaVerifier.current);
+      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      const result = await resendOtp(mobile);
 
       // Update confirmationResult via state — never mutate route.params directly
       setActiveConfirmation(result.confirmationResult);
@@ -233,12 +228,7 @@ export default function OtpScreen({ route, navigation }) {
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal for resend */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
+      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>

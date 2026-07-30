@@ -10,9 +10,9 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
+// FirebaseRecaptchaVerifierModal removed for production build (not needed)
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-production';
+// firebaseConfig not needed in production
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -31,8 +31,7 @@ export default function Login2FactorScreen({ navigation }) {
   
   const inputRef = useRef(null);
   
-  // ✅ FIX: Add recaptchaVerifier ref for FirebaseRecaptchaVerifierModal
-  const recaptchaVerifier = useRef(null);
+  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -67,11 +66,7 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
-    // ✅ FIX: Validate recaptchaVerifier is available
-    if (!recaptchaVerifier.current) {
-      Alert.alert('Error', 'reCAPTCHA not ready. Please try again in a moment.');
-      return;
-    }
+    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
 
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
@@ -80,8 +75,8 @@ export default function Login2FactorScreen({ navigation }) {
       console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
       console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
       
-      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      const result = await sendOtpToPhone(fullNumber);
       
       console.log('[Login2Factor] ✅ OTP sent successfully');
       console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);
@@ -122,12 +117,7 @@ export default function Login2FactorScreen({ navigation }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
+      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
 
       <ScrollView 
         contentContainerStyle={s.scroll} 

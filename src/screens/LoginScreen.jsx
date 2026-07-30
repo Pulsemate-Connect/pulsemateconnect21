@@ -17,9 +17,9 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
+// FirebaseRecaptchaVerifierModal removed for production build (not needed)
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-production';
+// firebaseConfig not needed in production
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -64,8 +64,7 @@ export default function LoginScreen({ navigation }) {
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
 
-  // ✅ FIX: Add recaptchaVerifier ref for FirebaseRecaptchaVerifierModal
-  const recaptchaVerifier = useRef(null);
+  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
@@ -100,11 +99,7 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
-    // ✅ FIX: Validate recaptchaVerifier is available
-    if (!recaptchaVerifier.current) {
-      Alert.alert('Error', 'reCAPTCHA not ready. Please try again.');
-      return;
-    }
+    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
 
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
@@ -112,8 +107,8 @@ export default function LoginScreen({ navigation }) {
     try {
       console.log('[LoginScreen] 📱 Sending OTP to', fullNumber);
       
-      // ✅ FIX: Pass recaptchaVerifier.current as 2nd parameter
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      const result = await sendOtpToPhone(fullNumber);
 
       console.log('[LoginScreen] ✅ OTP sent successfully');
 
@@ -136,12 +131,7 @@ export default function LoginScreen({ navigation }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* ✅ FIX: Add FirebaseRecaptchaVerifierModal */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
+      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
