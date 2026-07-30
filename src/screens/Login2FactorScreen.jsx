@@ -10,9 +10,9 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-// FirebaseRecaptchaVerifierModal removed for production build (not needed)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-production';
-// firebaseConfig not needed in production
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -30,8 +30,7 @@ export default function Login2FactorScreen({ navigation }) {
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   const inputRef = useRef(null);
-  
-  // recaptchaVerifier not needed in production (SafetyNet automatic)
+  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -66,7 +65,10 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
-    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
+    if (!recaptchaVerifier.current) {
+      Alert.alert('Error', 'reCAPTCHA verification not ready. Please try again.');
+      return;
+    }
 
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
@@ -75,8 +77,8 @@ export default function Login2FactorScreen({ navigation }) {
       console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
       console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
       
-      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
-      const result = await sendOtpToPhone(fullNumber);
+      // Pass recaptchaVerifier to Firebase
+      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
       
       console.log('[Login2Factor] ✅ OTP sent successfully');
       console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);
@@ -117,7 +119,12 @@ export default function Login2FactorScreen({ navigation }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
+      {/* Firebase reCAPTCHA Verifier for development/Expo Go */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       <ScrollView 
         contentContainerStyle={s.scroll} 

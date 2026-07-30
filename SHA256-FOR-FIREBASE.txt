@@ -1,0 +1,49 @@
+════════════════════════════════════════════════════════════════
+  SHA-256 FINGERPRINT FOR FIREBASE CONSOLE
+════════════════════════════════════════════════════════════════
+
+Copy this SHA-256 and add it to Firebase Console:
+
+48:99:8A:30:7C:9B:6A:33:1D:48:80:3B:7E:60:E7:EA:1F:E0:67:DC:65:45:5B:80:A0:AD:E8:01:1A:71:9B:FA
+
+════════════════════════════════════════════════════════════════
+  WHERE TO ADD IT
+════════════════════════════════════════════════════════════════
+
+1. Go to:
+   https://console.firebase.google.com/project/pulsemateconnect/settings/general
+
+2. Scroll to "Your apps" section
+
+3. Find: in.pulsemateconnect.patient (Android app)
+
+4. Look for "SHA certificate fingerprints"
+
+5. Click "Add fingerprint"
+
+6. Paste the SHA-256 above
+
+7. Click "Save"
+
+════════════════════════════════════════════════════════════════
+  VERIFICATION
+════════════════════════════════════════════════════════════════
+
+After adding, you should see it listed like:
+
+SHA-256: 48:99:8A:30:7C:9B:6A:33:1D:48:80:3B:7E:60:E7:EA:1F:E0:67:DC:65:45:5B:80:A0:AD:E8:01:1A:71:9B:FA
+
+This confirms Firebase will allow SafetyNet attestation for your app.
+
+════════════════════════════════════════════════════════════════
+  WHY THIS IS REQUIRED
+════════════════════════════════════════════════════════════════
+
+✅ Enables SafetyNet attestation (automatic device verification)
+✅ Allows Firebase Phone Auth to work in production
+✅ No reCAPTCHA modals needed
+✅ Invisible user experience
+
+Without this SHA-256, your production app CANNOT authenticate users!
+
+════════════════════════════════════════════════════════════════

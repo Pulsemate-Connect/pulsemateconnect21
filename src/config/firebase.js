@@ -11,7 +11,8 @@
  */
 
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPhoneNumber } from 'firebase/auth';
+import { getAuth, signInWithPhoneNumber, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/axios';
 import { firebaseConfig } from './firebaseConfig';
 
@@ -32,7 +33,21 @@ export const initializeFirebaseAuth = async () => {
       firebaseApp = getApps()[0];
     }
     
-    firebaseAuth = getAuth(firebaseApp);
+    // Initialize Auth with AsyncStorage persistence
+    try {
+      firebaseAuth = initializeAuth(firebaseApp, {
+        persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+      });
+      console.log('[Auth] ✅ Firebase Auth initialized with AsyncStorage persistence');
+    } catch (error) {
+      // If initializeAuth fails (already initialized), use getAuth
+      if (error.code === 'auth/already-initialized') {
+        firebaseAuth = getAuth(firebaseApp);
+        console.log('[Auth] ✅ Firebase Auth already initialized, using existing instance');
+      } else {
+        throw error;
+      }
+    }
     
     console.log('[Auth] ✅ Firebase initialized successfully');
     console.log('[Auth] Mode:', __DEV__ ? 'Development' : 'Production');

@@ -1,6 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  PulseMate Connect — App Entry + Premium Splash Screen
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Suppress specific Firebase informational messages
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs([
+  'Failed to initialize reCAPTCHA Enterprise config',
+]);
+
 console.log('[App] Starting import phase');
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
