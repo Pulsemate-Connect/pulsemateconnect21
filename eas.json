@@ -15,7 +15,13 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "credentialsSource": "local"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_NO_CAPABILITY_SYNC": "1"
       }
     },
     "production": {

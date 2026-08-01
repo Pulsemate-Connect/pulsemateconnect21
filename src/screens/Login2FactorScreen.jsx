@@ -10,14 +10,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-// Conditional import for expo-firebase-recaptcha (only needed in dev mode)
-let FirebaseRecaptchaVerifierModal;
-try {
-  FirebaseRecaptchaVerifierModal = require('expo-firebase-recaptcha').FirebaseRecaptchaVerifierModal;
-} catch (e) {
-  // Production build: recaptcha not needed (uses SafetyNet)
-  console.log('[Login2Factor] Running without expo-firebase-recaptcha (production mode)');
-}
+// Firebase reCAPTCHA is REQUIRED for Firebase Web SDK (even in production)
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 import { firebaseConfig } from '../config/firebaseConfig';
 
@@ -72,9 +66,16 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
-    // In production builds without expo-firebase-recaptcha, recaptchaVerifier will be null
-    // That's OK - Firebase will use SafetyNet attestation instead
-    const verifier = recaptchaVerifier.current || null;
+    // Firebase Web SDK ALWAYS requires reCAPTCHA verifier
+    const verifier = recaptchaVerifier.current;
+    
+    if (!verifier) {
+      Alert.alert(
+        'Initialization Error',
+        'reCAPTCHA verification is still loading. Please wait a moment and try again.'
+      );
+      return;
+    }
 
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
@@ -82,9 +83,9 @@ export default function Login2FactorScreen({ navigation }) {
     try {
       console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
       console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
-      console.log('[Login2Factor] 🔐 Verifier available:', verifier ? 'Yes (reCAPTCHA)' : 'No (SafetyNet)');
+      console.log('[Login2Factor] 🔐 Using reCAPTCHA verification');
       
-      // Pass recaptchaVerifier to Firebase (null in production = SafetyNet)
+      // Pass recaptchaVerifier to Firebase (REQUIRED for Web SDK)
       const result = await sendOtpToPhone(fullNumber, verifier);
       
       console.log('[Login2Factor] ✅ OTP sent successfully');
@@ -126,14 +127,12 @@ export default function Login2FactorScreen({ navigation }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      {/* Firebase reCAPTCHA Verifier for development/Expo Go */}
-      {FirebaseRecaptchaVerifierModal && (
-        <FirebaseRecaptchaVerifierModal
-          ref={recaptchaVerifier}
-          firebaseConfig={firebaseConfig}
-          attemptInvisibleVerification={true}
-        />
-      )}
+      {/* Firebase reCAPTCHA Verifier - REQUIRED for Firebase Web SDK */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
 
       <ScrollView 
         contentContainerStyle={s.scroll} 

@@ -79,25 +79,28 @@ export const getFirebaseAuth = () => {
  * @param {RecaptchaVerifier|null} recaptchaVerifier - From FirebaseRecaptchaVerifierModal.current (null = SafetyNet)
  * @returns {Promise<{confirmationResult, phoneNumber, verificationId, timestamp}>}
  */
-export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier = null) => {
+export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier) => {
   // Validate phone number
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
     throw new Error('Invalid phone number. Use E.164 format: +91XXXXXXXXXX');
   }
 
+  // CRITICAL: Firebase Web SDK REQUIRES reCAPTCHA verifier
+  // SafetyNet is NOT supported by Firebase JavaScript SDK
+  if (!recaptchaVerifier) {
+    throw new Error('reCAPTCHA verifier is required. Please ensure FirebaseRecaptchaVerifierModal is rendered.');
+  }
+
   try {
     const timestamp = Date.now();
     console.log('[Auth] 📱 Sending OTP to:', phoneNumber);
-    console.log('[Auth] 🔐 Verifier mode:', recaptchaVerifier ? 'reCAPTCHA (dev)' : 'SafetyNet (production)');
+    console.log('[Auth] 🔐 Using reCAPTCHA verification (Firebase Web SDK)');
     console.log('[Auth] ⏰ Request timestamp:', new Date(timestamp).toISOString());
 
     const auth = getFirebaseAuth();
 
-    // In production builds with registered SHA-256, Firebase automatically uses SafetyNet
-    // In development builds, pass recaptchaVerifier for reCAPTCHA v2
-    const confirmationResult = recaptchaVerifier 
-      ? await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier)
-      : await signInWithPhoneNumber(auth, phoneNumber);
+    // Firebase Web SDK ALWAYS requires reCAPTCHA verifier (no SafetyNet support)
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
 
     // Extract verificationId for debugging
     const verificationId = confirmationResult?.verificationId || 'unknown';
