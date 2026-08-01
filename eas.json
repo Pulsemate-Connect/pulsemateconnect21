@@ -22,13 +22,15 @@
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease",
-        "credentialsSource": "remote"
+        "credentialsSource": "remote",
+        "image": "latest"
       },
       "ios": {
         "simulator": false
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EXPO_NO_CAPABILITY_SYNC": "1"
       }
     }
   },

@@ -10,7 +10,14 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+// Conditional import for expo-firebase-recaptcha (only needed in dev mode)
+let FirebaseRecaptchaVerifierModal;
+try {
+  FirebaseRecaptchaVerifierModal = require('expo-firebase-recaptcha').FirebaseRecaptchaVerifierModal;
+} catch (e) {
+  // Production build: recaptcha not needed (uses SafetyNet)
+  console.log('[Login2Factor] Running without expo-firebase-recaptcha (production mode)');
+}
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 import { firebaseConfig } from '../config/firebaseConfig';
 
@@ -120,11 +127,13 @@ export default function Login2FactorScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
       {/* Firebase reCAPTCHA Verifier for development/Expo Go */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
+      {FirebaseRecaptchaVerifierModal && (
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={firebaseConfig}
+          attemptInvisibleVerification={true}
+        />
+      )}
 
       <ScrollView 
         contentContainerStyle={s.scroll} 
