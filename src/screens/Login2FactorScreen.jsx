@@ -72,10 +72,9 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
-    if (!recaptchaVerifier.current) {
-      Alert.alert('Error', 'reCAPTCHA verification not ready. Please try again.');
-      return;
-    }
+    // In production builds without expo-firebase-recaptcha, recaptchaVerifier will be null
+    // That's OK - Firebase will use SafetyNet attestation instead
+    const verifier = recaptchaVerifier.current || null;
 
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
@@ -83,9 +82,10 @@ export default function Login2FactorScreen({ navigation }) {
     try {
       console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
       console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
+      console.log('[Login2Factor] 🔐 Verifier available:', verifier ? 'Yes (reCAPTCHA)' : 'No (SafetyNet)');
       
-      // Pass recaptchaVerifier to Firebase
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // Pass recaptchaVerifier to Firebase (null in production = SafetyNet)
+      const result = await sendOtpToPhone(fullNumber, verifier);
       
       console.log('[Login2Factor] ✅ OTP sent successfully');
       console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);

@@ -72,37 +72,32 @@ export const getFirebaseAuth = () => {
 /**
  * Send OTP via Firebase Phone Authentication
  * 
- * CRITICAL: This function now requires recaptchaVerifier parameter
+ * PRODUCTION BUILDS: Pass null for recaptchaVerifier - Firebase will use SafetyNet
+ * DEVELOPMENT BUILDS: Pass recaptchaVerifier from FirebaseRecaptchaVerifierModal
  * 
  * @param {string} phoneNumber - Phone in E.164 format (+91XXXXXXXXXX)
- * @param {RecaptchaVerifier} recaptchaVerifier - From FirebaseRecaptchaVerifierModal.current
+ * @param {RecaptchaVerifier|null} recaptchaVerifier - From FirebaseRecaptchaVerifierModal.current (null = SafetyNet)
  * @returns {Promise<{confirmationResult, phoneNumber, verificationId, timestamp}>}
  */
-export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier) => {
+export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier = null) => {
   // Validate phone number
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
     throw new Error('Invalid phone number. Use E.164 format: +91XXXXXXXXXX');
   }
 
-  // Validate recaptchaVerifier
-  if (!recaptchaVerifier) {
-    throw new Error('recaptchaVerifier is required. Pass FirebaseRecaptchaVerifierModal.current');
-  }
-
   try {
     const timestamp = Date.now();
     console.log('[Auth] 📱 Sending OTP to:', phoneNumber);
-    console.log('[Auth] 🔐 Using recaptchaVerifier:', recaptchaVerifier ? 'Present' : 'Missing');
+    console.log('[Auth] 🔐 Verifier mode:', recaptchaVerifier ? 'reCAPTCHA (dev)' : 'SafetyNet (production)');
     console.log('[Auth] ⏰ Request timestamp:', new Date(timestamp).toISOString());
 
     const auth = getFirebaseAuth();
 
-    // ✅ FIX: Pass recaptchaVerifier as 3rd parameter
-    const confirmationResult = await signInWithPhoneNumber(
-      auth,
-      phoneNumber,
-      recaptchaVerifier  // ✅ This is what was missing!
-    );
+    // In production builds with registered SHA-256, Firebase automatically uses SafetyNet
+    // In development builds, pass recaptchaVerifier for reCAPTCHA v2
+    const confirmationResult = recaptchaVerifier 
+      ? await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier)
+      : await signInWithPhoneNumber(auth, phoneNumber);
 
     // Extract verificationId for debugging
     const verificationId = confirmationResult?.verificationId || 'unknown';
@@ -110,8 +105,6 @@ export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier) => {
     console.log('[Auth] ✅ OTP sent successfully');
     console.log('[Auth] 🔑 VerificationId:', verificationId);
     console.log('[Auth] ⏰ Valid until:', new Date(timestamp + 120000).toISOString(), '(2 minutes)');
-    console.log('[Auth] 📦 ConfirmationResult type:', typeof confirmationResult);
-    console.log('[Auth] 📦 ConfirmationResult has confirm method:', typeof confirmationResult?.confirm === 'function');
 
     return {
       confirmationResult,
@@ -130,11 +123,13 @@ export const sendOtpToPhone = async (phoneNumber, recaptchaVerifier) => {
     } else if (error.code === 'auth/quota-exceeded') {
       throw new Error('SMS quota exceeded. Please contact support.');
     } else if (error.code === 'auth/invalid-app-credential') {
-      throw new Error('App verification failed. Please try again.');
+      throw new Error('App verification failed. SHA-256 not registered or incorrect.');
+    } else if (error.code === 'auth/app-not-authorized') {
+      throw new Error('App not authorized. Please add SHA-256 to Firebase Console.');
     } else if (error.code === 'auth/captcha-check-failed') {
       throw new Error('reCAPTCHA verification failed. Please try again.');
     } else if (error.code === 'auth/argument-error') {
-      throw new Error('Configuration error. Please contact support.');
+      throw new Error('Configuration error. Please try again.');
     }
 
     throw new Error(error.message || 'Failed to send OTP. Please try again.');
