@@ -22,7 +22,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "in.pulsemateconnect.patient",
-      "versionCode": 70,
+      "versionCode": 71,
       "targetSdkVersion": 34,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
