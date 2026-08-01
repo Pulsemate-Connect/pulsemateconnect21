@@ -22,7 +22,7 @@
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease",
-        "credentialsSource": "remote",
+        "credentialsSource": "local",
         "image": "latest"
       },
       "ios": {

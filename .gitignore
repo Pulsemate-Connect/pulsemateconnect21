@@ -17,6 +17,7 @@ backend/.env.*
 
 # ── Security - Secrets & Credentials ──────────────────────────────────────────
 credentials/
+credentials.json
 secrets/
 *.jks
 *.keystore
