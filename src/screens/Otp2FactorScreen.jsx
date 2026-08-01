@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // FirebaseRecaptchaVerifierModal removed for production build (not needed)
-import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-production';
+import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-native';
 // firebaseConfig not needed in production
 import { useAuth } from '../store/authStore';
 

@@ -1,7 +1,8 @@
 /**
- * Login2FactorScreen — Firebase Phone Authentication
+ * Login2FactorScreen — Firebase Phone Authentication with React Native Firebase
  *
- * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for proper reCAPTCHA verification
+ * ✅ FIXED: Now uses React Native Firebase for native SafetyNet support
+ * ✅ NO reCAPTCHA modal required!
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -10,10 +11,7 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-// Firebase reCAPTCHA is REQUIRED for Firebase Web SDK (even in production)
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-native';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -31,7 +29,6 @@ export default function Login2FactorScreen({ navigation }) {
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   const inputRef = useRef(null);
-  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -66,36 +63,25 @@ export default function Login2FactorScreen({ navigation }) {
       return;
     }
 
-    // Firebase Web SDK ALWAYS requires reCAPTCHA verifier
-    const verifier = recaptchaVerifier.current;
-    
-    if (!verifier) {
-      Alert.alert(
-        'Initialization Error',
-        'reCAPTCHA verification is still loading. Please wait a moment and try again.'
-      );
-      return;
-    }
-
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
       console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
       console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
-      console.log('[Login2Factor] 🔐 Using reCAPTCHA verification');
+      console.log('[Login2Factor] 🔐 Using Native SafetyNet (no modal!)');
       
-      // Pass recaptchaVerifier to Firebase (REQUIRED for Web SDK)
-      const result = await sendOtpToPhone(fullNumber, verifier);
+      // React Native Firebase - NO recaptchaVerifier needed!
+      const result = await sendOtpToPhone(fullNumber);
       
       console.log('[Login2Factor] ✅ OTP sent successfully');
       console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);
       console.log('[Login2Factor] ⏰ Sent at:', new Date(result.timestamp).toISOString());
       
-      // Navigate to OTP screen with Firebase confirmation result AND timestamp
+      // Navigate to OTP screen with confirmation result AND timestamp
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
-        confirmResult: result.confirmationResult,
+        confirmResult: result.confirmation,
         verificationId: result.verificationId,
         sentTimestamp: result.timestamp,
       });
@@ -126,13 +112,6 @@ export default function Login2FactorScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* Firebase reCAPTCHA Verifier - REQUIRED for Firebase Web SDK */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
 
       <ScrollView 
         contentContainerStyle={s.scroll} 
