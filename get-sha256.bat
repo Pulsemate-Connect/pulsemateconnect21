@@ -1,96 +1,59 @@
 @echo off
-echo ================================================
-echo   Get SHA-256 Fingerprint for Firebase
-echo ================================================
+REM ========================================
+REM Get SHA-256 Fingerprint for Firebase
+REM ========================================
+echo.
+echo ========================================
+echo   GET SHA-256 FOR FIREBASE
+echo ========================================
 echo.
 
 cd /d "%~dp0"
 
-echo This fingerprint is REQUIRED for Firebase Phone Auth
-echo to work in your production AAB.
-echo.
-echo Looking for keystore files...
+echo Checking for debug keystore...
 echo.
 
-REM Check for existing keystores
-if exist "upload-keystore.jks" (
-    echo Found: upload-keystore.jks
-    set KEYSTORE=upload-keystore.jks
-    set ALIAS=upload
-    goto :found
+if exist "android\app\debug.keystore" (
+    echo Found debug.keystore
+    echo.
+    echo Extracting SHA-256 fingerprint...
+    echo.
+    echo ----------------------------------------
+    keytool -list -v -keystore android\app\debug.keystore -alias androiddebugkey -storepass android -keypass android | findstr "SHA256"
+    echo ----------------------------------------
+    echo.
+    echo INSTRUCTIONS:
+    echo 1. Copy the SHA-256 fingerprint above
+    echo 2. Go to: https://console.firebase.google.com/project/pulsemateconnect/settings/general
+    echo 3. Find: in.pulsemateconnect.patient
+    echo 4. Click: "Add fingerprint"
+    echo 5. Paste: The SHA-256 value
+    echo 6. Click: "Save"
+    echo 7. Download: Fresh google-services.json
+    echo 8. Replace: android\app\google-services.json
+    echo 9. Run: npx expo prebuild --clean
+    echo 10. Build: eas build --platform android --profile production
+    echo.
+) else (
+    echo ❌ Debug keystore not found!
+    echo.
+    echo Please run: npx expo prebuild --platform android
+    echo.
 )
 
-if exist "@shubhamskkk__pulsemate-app.bak.jks" (
-    echo Found: @shubhamskkk__pulsemate-app.bak.jks
-    set KEYSTORE=@shubhamskkk__pulsemate-app.bak.jks
-    set ALIAS=pulsemate-app
-    goto :found
-)
-
-if exist "@shubhamskkk__pulsemate-app.bak_OLD_1.jks" (
-    echo Found: @shubhamskkk__pulsemate-app.bak_OLD_1.jks
-    set KEYSTORE=@shubhamskkk__pulsemate-app.bak_OLD_1.jks
-    set ALIAS=pulsemate-app
-    goto :found
-)
-
-echo ERROR: No keystore file found!
 echo.
-echo Please ensure you have one of these files:
-echo - upload-keystore.jks
-echo - @shubhamskkk__pulsemate-app.bak.jks
+echo ========================================
+echo   FOR PRODUCTION BUILD
+echo ========================================
+echo.
+echo For production SHA-256, get it from Play Console:
+echo.
+echo 1. Go to: https://play.google.com/console
+echo 2. Select: PulseMate Connect
+echo 3. Navigate to: Release ^> Setup ^> App Integrity
+echo 4. Copy: SHA-256 certificate fingerprint
+echo 5. Add to Firebase Console
+echo.
+echo ========================================
 echo.
 pause
-exit /b 1
-
-:found
-echo.
-echo Using keystore: %KEYSTORE%
-echo.
-set /p PASSWORD="Enter keystore password: "
-
-echo.
-echo Getting SHA-256 fingerprint...
-echo.
-
-keytool -list -v -keystore "%KEYSTORE%" -alias %ALIAS% -storepass "%PASSWORD%" > sha256-output.txt 2>&1
-
-if %errorlevel% neq 0 (
-    echo.
-    echo ERROR: Failed to read keystore!
-    echo Check if the password is correct.
-    echo.
-    type sha256-output.txt
-    del sha256-output.txt
-    pause
-    exit /b 1
-)
-
-echo ================================================
-echo   CERTIFICATE FINGERPRINTS
-echo ================================================
-echo.
-
-findstr /C:"SHA1:" sha256-output.txt
-findstr /C:"SHA256:" sha256-output.txt
-
-echo.
-echo ================================================
-echo.
-echo COPY THE SHA-256 FINGERPRINT ABOVE
-echo (The long line starting with SHA256:)
-echo.
-echo Then add it to Firebase:
-echo 1. Go to: https://console.firebase.google.com/
-echo 2. Select: pulsemate-patient-care
-echo 3. Project Settings ^> Your apps ^> Android
-echo 4. Scroll to "SHA certificate fingerprints"
-echo 5. Click "Add fingerprint"
-echo 6. Paste the SHA-256 value
-echo 7. Save
-echo.
-echo Full output saved to: sha256-output.txt
-echo.
-pause
-
-del sha256-output.txt
