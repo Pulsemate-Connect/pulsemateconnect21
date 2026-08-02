@@ -17,9 +17,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// FirebaseRecaptchaVerifierModal removed for production build (not needed)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-production';
-// firebaseConfig not needed in production
+// Using Firebase JavaScript SDK v10
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -69,16 +68,55 @@ export default function LoginScreen({ navigation }) {
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
     const init = async () => {
+      const timestamp = Date.now();
       try {
-        console.log('[LoginScreen] Initializing Firebase Auth...');
+        console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔧 [LoginScreen] FIREBASE INITIALIZATION STARTING
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🏗️  Build Type: ${__DEV__ ? 'Development' : 'Production'}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+        
         await initializeFirebaseAuth();
         setFirebaseReady(true);
-        console.log('[LoginScreen] ✅ Firebase Auth ready');
+        
+        console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [LoginScreen] FIREBASE INITIALIZATION SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
+║ 🔥 Firebase Ready: true
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
       } catch (error) {
-        console.error('[LoginScreen] ❌ Firebase initialization failed:', error);
+        console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴 [LoginScreen] FIREBASE INITIALIZATION FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Name: ${error.name || 'N/A'}
+║ ├─ Code: ${error.code || 'N/A'}
+║ ├─ Message: ${error.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${error.stack ? error.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+        
         Alert.alert(
           'Initialization Error',
-          'Failed to initialize Firebase. Please restart the app.',
+          `Failed to initialize Firebase.\n\nError: ${error.message}\n\nPlease restart the app.`,
           [{ text: 'OK' }]
         );
       }
@@ -88,13 +126,30 @@ export default function LoginScreen({ navigation }) {
   }, []);
 
   const handleSendOtp = async () => {
+    const startTime = Date.now();
+    
+    console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔥 Firebase Ready: ${firebaseReady}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 📞 Mobile Input: ${mobile}
+║ 📏 Mobile Length: ${mobile.trim().length}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+    
     if (!firebaseReady) {
+      console.warn('[LoginScreen] ⚠️  Firebase not ready - rejecting OTP request');
       Alert.alert('Error', 'App is not ready. Please wait a moment and try again.');
       return;
     }
 
     const trimmed = mobile.trim();
     if (trimmed.length < 10) {
+      console.warn('[LoginScreen] ⚠️  Invalid mobile number length:', trimmed.length);
       Alert.alert('Invalid Number', 'Enter a valid 10-digit mobile number.');
       return;
     }
@@ -105,23 +160,76 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      console.log('[LoginScreen] 📱 Sending OTP to', fullNumber);
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 📞 [LoginScreen] CALLING sendOtpToPhone
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ 📱 Full Number: ${fullNumber}
+║ 🔐 RecaptchaVerifier: null (SafetyNet automatic in production)
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
       
       // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
       const result = await sendOtpToPhone(fullNumber);
 
-      console.log('[LoginScreen] ✅ OTP sent successfully');
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [LoginScreen] SEND OTP SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${fullNumber}
+║ 🔑 Verification ID: ${result.verificationId || 'N/A'}
+║ 📦 Has ConfirmationResult: ${!!result.confirmationResult}
+║ 
+║ 🔍 Result Object:
+${JSON.stringify({
+  hasConfirmationResult: !!result.confirmationResult,
+  verificationId: result.verificationId,
+  timestamp: result.timestamp,
+  phoneNumber: result.phoneNumber
+}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
 
+      console.log('[LoginScreen] 🧭 Navigating to OTP screen...');
+      
       // Navigate to OTP screen with confirmationResult
       navigation.navigate('Otp', {
         mobile: fullNumber,
         confirmationResult: result.confirmationResult,
       });
+      
+      console.log('[LoginScreen] ✅ Navigation successful');
     } catch (err) {
-      console.error('[LoginScreen] ❌ Send OTP error:', err);
+      console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴 [LoginScreen] SEND OTP FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${fullNumber}
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Name: ${err.name || 'N/A'}
+║ ├─ Code: ${err.code || 'N/A'}
+║ ├─ Message: ${err.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+      
       Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
+      console.log('[LoginScreen] 🏁 Send OTP flow completed at:', new Date().toISOString());
     }
   };
 

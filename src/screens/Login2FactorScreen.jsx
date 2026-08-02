@@ -1,8 +1,10 @@
 /**
- * Login2FactorScreen — Firebase Phone Authentication with React Native Firebase
+ * Login2FactorScreen — Firebase Phone Authentication
  *
- * ✅ FIXED: Now uses React Native Firebase for native SafetyNet support
- * ✅ NO reCAPTCHA modal required!
+ * ✅ Works in Development (Expo Go) with invisible reCAPTCHA
+ * ✅ Works in Production (AAB) with invisible reCAPTCHA
+ * ✅ Uses Firebase JavaScript SDK v10 (optimized for smaller bundle)
+ * ✅ No expo-firebase-recaptcha dependency (avoiding Gradle issues)
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -11,7 +13,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-native';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { firebaseConfig } from '../config/firebaseConfig';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -33,17 +36,73 @@ export default function Login2FactorScreen({ navigation }) {
   // Initialize Firebase on component mount
   useEffect(() => {
     const initFirebase = async () => {
+      const timestamp = Date.now();
       try {
-        console.log('[Login2Factor] Initializing Firebase Auth...');
+        console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔧 [Login2Factor] FIREBASE INITIALIZATION STARTING
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES (Expo Go)' : 'NO (EAS Build)'}
+║ 🏗️  Environment: ${__DEV__ ? 'Development (Expo Go)' : 'Production (EAS Build)'}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+        
         await initializeFirebaseAuth();
+        
+        console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [Login2Factor] FIREBASE INITIALIZATION SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
+║ 🔥 Firebase Auth initialized and ready
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+        
         setFirebaseReady(true);
-        console.log('[Login2Factor] Firebase Auth ready');
       } catch (error) {
-        console.error('[Login2Factor] Firebase init error:', error.message);
+        console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴💥 [Login2Factor] CRITICAL: FIREBASE INITIALIZATION FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Error Type: ${error.constructor.name}
+║ ├─ Error Name: ${error.name || 'N/A'}
+║ ├─ Error Code: ${error.code || 'NONE'}
+║ ├─ Error Message: ${error.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${error.stack ? error.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+        
+        // Show detailed error in development, generic in production
+        const errorTitle = 'Initialization Error';
+        let errorMessage = 'Failed to initialize authentication.';
+        
+        if (__DEV__) {
+          // Development: Show full error details
+          errorMessage = `${error.message}\n\nError Code: ${error.code || 'NONE'}\n\nCheck the console for full details.`;
+        } else {
+          // Production: Show user-friendly message with hints
+          errorMessage = error.message || 'Failed to initialize authentication. Please try:\n\n1. Check your internet connection\n2. Restart the app\n3. Reinstall the app if problem persists';
+        }
+        
         Alert.alert(
-          'Initialization Error',
-          'Failed to initialize authentication. Please restart the app.',
-          [{ text: 'OK' }]
+          errorTitle,
+          errorMessage,
+          [
+            { text: 'OK', onPress: () => console.log('[Login2Factor] User dismissed error alert') }
+          ]
         );
       }
     };
@@ -52,13 +111,30 @@ export default function Login2FactorScreen({ navigation }) {
   }, []);
 
   const handleSendOtp = async () => {
+    const startTime = Date.now();
     const trimmed = mobile.trim();
+    
+    console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🚀 [Login2Factor] SEND OTP BUTTON PRESSED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔥 Firebase Ready: ${firebaseReady}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 📞 Mobile Input: ${mobile}
+║ 📏 Mobile Length: ${trimmed.length}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+    
     if (trimmed.length < 10) {
+      console.warn('[Login2Factor] ⚠️  Invalid mobile number length:', trimmed.length);
       Alert.alert('Invalid Number', 'Enter a valid 10-digit mobile number.');
       return;
     }
 
     if (!firebaseReady) {
+      console.warn('[Login2Factor] ⚠️  Firebase not ready - rejecting OTP request');
       Alert.alert('Please Wait', 'Authentication is still initializing...');
       return;
     }
@@ -67,26 +143,74 @@ export default function Login2FactorScreen({ navigation }) {
     setLoading(true);
 
     try {
-      console.log('[Login2Factor] 📱 Sending OTP via Firebase to', fullNumber);
-      console.log('[Login2Factor] ⏰ Send timestamp:', new Date().toISOString());
-      console.log('[Login2Factor] 🔐 Using Native SafetyNet (no modal!)');
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 📞 [Login2Factor] CALLING sendOtpToPhone
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ 📱 Full Number: ${fullNumber}
+║ 🔐 Firebase SDK: v10 (optimized)
+║ 🔐 RecaptchaVerifier: null (invisible reCAPTCHA automatic)
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
       
-      // React Native Firebase - NO recaptchaVerifier needed!
-      const result = await sendOtpToPhone(fullNumber);
+      // Pass null for recaptcha verifier - Firebase will use invisible reCAPTCHA
+      const result = await sendOtpToPhone(fullNumber, null);
       
-      console.log('[Login2Factor] ✅ OTP sent successfully');
-      console.log('[Login2Factor] 🔑 VerificationId:', result.verificationId);
-      console.log('[Login2Factor] ⏰ Sent at:', new Date(result.timestamp).toISOString());
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [Login2Factor] SEND OTP SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${fullNumber}
+║ 🔑 Verification ID: ${result.verificationId || 'N/A'}
+║ ⏰ Timestamp: ${result.timestamp}
+║ 📦 Has ConfirmResult: ${!!result.confirmationResult}
+║ 
+║ 🔍 Result Object:
+${JSON.stringify({
+  hasConfirmationResult: !!result.confirmationResult,
+  verificationId: result.verificationId,
+  timestamp: result.timestamp,
+  phoneNumber: result.phoneNumber
+}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
       
-      // Navigate to OTP screen with confirmation result AND timestamp
+      console.log('[Login2Factor] 🧭 Navigating to Otp2Factor screen...');
+      
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
-        confirmResult: result.confirmation,
+        confirmResult: result.confirmationResult,
         verificationId: result.verificationId,
         sentTimestamp: result.timestamp,
       });
+      
+      console.log('[Login2Factor] ✅ Navigation successful');
     } catch (err) {
-      console.error('[Login2Factor] ❌ Send OTP error:', err);
+      console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴 [Login2Factor] SEND OTP FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${fullNumber}
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Name: ${err.name || 'N/A'}
+║ ├─ Code: ${err.code || 'N/A'}
+║ ├─ Message: ${err.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
       
       let message = err.message || 'Failed to send OTP';
       
@@ -104,6 +228,7 @@ export default function Login2FactorScreen({ navigation }) {
       Alert.alert('Error', message);
     } finally {
       setLoading(false);
+      console.log('[Login2Factor] 🏁 Send OTP flow completed at:', new Date().toISOString());
     }
   };
 

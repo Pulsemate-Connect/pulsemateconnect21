@@ -23,9 +23,8 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// FirebaseRecaptchaVerifierModal removed for production build (not needed)
-import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase-production';
-// firebaseConfig not needed in production
+// Using Firebase JavaScript SDK v10
+import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase';
 import { useAuth } from '../store/authStore';
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -139,63 +138,214 @@ export default function OtpScreen({ route, navigation }) {
   };
 
   const handleVerify = async () => {
+    const startTime = Date.now();
     const code = digits.join('');
-    if (code.length < 6 || !activeConfirmation) return;
+    
+    console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔐 [OtpScreen] VERIFY OTP BUTTON PRESSED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🔑 Code Length: ${code.length}
+║ 🔑 Code: ${'*'.repeat(code.length)}
+║ 📋 Has Active Confirmation: ${!!activeConfirmation}
+║ 📋 Active Confirmation Type: ${activeConfirmation?.constructor?.name || 'N/A'}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+    
+    if (code.length < 6 || !activeConfirmation) {
+      console.warn('[OtpScreen] ⚠️  Cannot verify - code length:', code.length, 'has confirmation:', !!activeConfirmation);
+      return;
+    }
 
     setLoading(true);
 
     try {
-      console.log('[OtpScreen] Verifying OTP with Firebase...');
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 📡 [OtpScreen] STEP 1: CALLING verifyPhoneOtp
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ 🔑 Code Length: ${code.length}
+║ 📋 Confirmation Object Present: ${!!activeConfirmation}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
 
       // Step 1: Verify OTP with Firebase SDK (local verification, no network call)
       const firebaseResult = await verifyPhoneOtp(activeConfirmation, code);
 
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [OtpScreen] STEP 1 SUCCESS: Firebase OTP Verified
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Step Duration: ${Date.now() - startTime}ms
+║ 🎫 Has ID Token: ${!!firebaseResult?.idToken}
+║ 🎫 Token Length: ${firebaseResult?.idToken?.length || 0}
+║ 📱 Phone Number: ${firebaseResult?.phoneNumber || 'N/A'}
+║ 
+║ 🔍 Firebase Result:
+${JSON.stringify({
+  hasIdToken: !!firebaseResult?.idToken,
+  idTokenLength: firebaseResult?.idToken?.length,
+  phoneNumber: firebaseResult?.phoneNumber,
+  hasUser: !!firebaseResult?.user
+}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+
       if (!firebaseResult?.idToken) {
-        throw new Error('Failed to get Firebase token. Please try again.');
+        const error = new Error('Failed to get Firebase token. Please try again.');
+        console.error('[OtpScreen] ❌ No ID token in Firebase result');
+        throw error;
       }
 
-      console.log('[OtpScreen] Firebase verification successful, sending to backend...');
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 📡 [OtpScreen] STEP 2: CALLING loginWithFirebaseToken
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ 🎫 Sending Firebase ID Token to backend
+║ 🎫 Token Length: ${firebaseResult.idToken.length}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
 
       // Step 2: Send Firebase ID Token to backend
       // Backend will verify the token using Firebase Admin SDK
       // and return application JWT tokens
       const authData = await loginWithFirebaseToken(firebaseResult.idToken);
 
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [OtpScreen] STEP 2 SUCCESS: Backend Authentication
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Step Duration: ${Date.now() - startTime}ms
+║ 🔑 Has Access Token: ${!!authData?.accessToken}
+║ 🔑 Access Token Length: ${authData?.accessToken?.length || 0}
+║ 🔄 Has Refresh Token: ${!!authData?.refreshToken}
+║ 👤 Has User Object: ${!!authData?.user}
+║ 👤 User ID: ${authData?.user?.id || 'N/A'}
+║ 👤 User Role: ${authData?.user?.role || 'N/A'}
+║ 
+║ 🔍 Auth Data:
+${JSON.stringify({
+  hasAccessToken: !!authData?.accessToken,
+  accessTokenLength: authData?.accessToken?.length,
+  hasRefreshToken: !!authData?.refreshToken,
+  hasUser: !!authData?.user,
+  userId: authData?.user?.id,
+  userRole: authData?.user?.role
+}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+
       if (!authData?.accessToken || !authData?.user) {
-        throw new Error('Backend authentication failed. Please try again.');
+        const error = new Error('Backend authentication failed. Please try again.');
+        console.error('[OtpScreen] ❌ Invalid auth data from backend');
+        throw error;
       }
 
-      console.log('[OtpScreen] Backend authentication successful');
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🎉 [OtpScreen] VERIFICATION COMPLETE SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Total Time: ${Date.now() - startTime}ms
+║ 👤 User authenticated successfully
+║ 🔐 Tokens stored, preparing sign in...
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
 
       setStatus('success');
       Animated.spring(successScale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
 
       // Sign in after showing success animation
-      setTimeout(() => signIn(
-        authData.accessToken,
-        authData.user,
-        authData.refreshToken ?? null,
-      ), 1600);
+      setTimeout(() => {
+        console.log('[OtpScreen] 🔑 Calling signIn with auth data...');
+        signIn(
+          authData.accessToken,
+          authData.user,
+          authData.refreshToken ?? null,
+        );
+        console.log('[OtpScreen] ✅ SignIn completed');
+      }, 1600);
 
     } catch (err) {
-      console.error('[OtpScreen] Verification error:', err);
+      console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴 [OtpScreen] VERIFICATION FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 🔑 Code Length: ${code.length}
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Name: ${err.name || 'N/A'}
+║ ├─ Code: ${err.code || 'N/A'}
+║ ├─ Message: ${err.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+      
       setStatus('error');
       triggerShake();
       const msg = err?.message || 'Verification failed. Please try again.';
       Alert.alert('Verification Failed', msg);
     } finally {
       setLoading(false);
+      console.log('[OtpScreen] 🏁 Verify flow completed at:', new Date().toISOString());
     }
   };
 
   const handleResend = async () => {
+    const startTime = Date.now();
+    
+    console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔄 [OtpScreen] RESEND OTP BUTTON PRESSED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 📞 Mobile: ${mobile}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+    
     // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
 
     try {
-      console.log('[OtpScreen] 📱 Resending OTP...');
+      console.log('[OtpScreen] 📡 Calling resendOtp...');
       
       // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
       const result = await resendOtp(mobile);
+
+      console.log(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ ✅ [OtpScreen] RESEND OTP SUCCESS
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${mobile}
+║ 🔑 New Verification ID: ${result.verificationId || 'N/A'}
+║ 📦 Has New ConfirmationResult: ${!!result.confirmationResult}
+║ 
+║ 🔍 Result Object:
+${JSON.stringify({
+  hasConfirmationResult: !!result.confirmationResult,
+  verificationId: result.verificationId,
+  timestamp: result.timestamp,
+  phoneNumber: result.phoneNumber
+}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
 
       // Update confirmationResult via state — never mutate route.params directly
       setActiveConfirmation(result.confirmationResult);
@@ -205,11 +355,33 @@ export default function OtpScreen({ route, navigation }) {
       startCooldown(60);
       setTimeout(() => refs[0].current?.focus(), 100);
 
-      console.log('[OtpScreen] ✅ OTP resent successfully');
+      console.log('[OtpScreen] 🎯 State updated, inputs cleared, focusing first digit');
       Alert.alert('OTP Resent', 'New OTP sent to your phone.');
     } catch (err) {
-      console.error('[OtpScreen] ❌ Resend error:', err);
+      console.error(`
+╔═══════════════════════════════════════════════════════════════════════════════
+║ 🔴 [OtpScreen] RESEND OTP FAILED
+╠═══════════════════════════════════════════════════════════════════════════════
+║ ⏰ Timestamp: ${new Date().toISOString()}
+║ ⏱️  Time Taken: ${Date.now() - startTime}ms
+║ 📱 Phone: ${mobile}
+║ 
+║ ❌ ERROR DETAILS:
+║ ├─ Name: ${err.name || 'N/A'}
+║ ├─ Code: ${err.code || 'N/A'}
+║ ├─ Message: ${err.message || 'N/A'}
+║ 
+║ 📚 Stack Trace:
+${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
+║ 
+║ 🔍 Full Error Object:
+${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
+╚═══════════════════════════════════════════════════════════════════════════════
+`);
+      
       Alert.alert('Error', err.message || 'Failed to resend OTP.');
+    } finally {
+      console.log('[OtpScreen] 🏁 Resend flow completed at:', new Date().toISOString());
     }
   };
 
