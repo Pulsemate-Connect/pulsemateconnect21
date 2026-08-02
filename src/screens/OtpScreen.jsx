@@ -1,20 +1,20 @@
 /**
- * OtpScreen — Firebase Phone Auth OTP verification
+ * OtpScreen — Firebase Phone Auth OTP verification (Native)
  *
- * Receives: mobile (E.164), confirmationResult (from Firebase sendOtpToPhone)
+ * Receives: mobile (E.164), confirmationResult (from React Native Firebase)
  * Flow:
  *   1. User enters 6-digit OTP from SMS
- *   2. verifyPhoneOtp(confirmationResult, code) → Firebase verifies locally, returns idToken
+ *   2. verifyPhoneOtp(confirmationResult, code) → Native Firebase verifies, returns idToken
  *   3. loginWithFirebaseToken(idToken) → Backend verifies Firebase token, returns app JWT
  *   4. signIn(accessToken, user) → User logged in ✅
  *
  * KEY POINTS:
- *   - Firebase SDK handles SMS delivery (real SMS via Google infrastructure)
- *   - OTP verification happens on client (no server call)
+ *   - React Native Firebase handles SMS delivery (native integration)
+ *   - OTP verification happens natively
  *   - Backend only verifies the Firebase ID Token after successful verification
- *   - No mock OTP logging or generation
+ *   - No reCAPTCHA needed - uses Play Integrity on Android
  * 
- * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for resend functionality
+ * ✅ MIGRATED: Now uses React Native Firebase (Native)
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -86,8 +86,6 @@ export default function OtpScreen({ route, navigation }) {
   const [status,      setStatus]      = useState('idle');
   const [cooldown,    setCooldown]    = useState(60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
-
-  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   const shake        = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(0)).current;
@@ -319,12 +317,10 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
-
     try {
-      console.log('[OtpScreen] 📡 Calling resendOtp...');
+      console.log('[OtpScreen] 📡 Calling resendOtp (Native)...');
       
-      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      // Native Firebase - no recaptchaVerifier needed
       const result = await resendOtp(mobile);
 
       console.log(`
@@ -399,8 +395,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
 
       {status === 'success' && (
         <Animated.View style={[os.successOverlay, { opacity: successScale }]}>

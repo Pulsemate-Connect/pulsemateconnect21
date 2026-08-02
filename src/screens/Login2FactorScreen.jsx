@@ -1,10 +1,10 @@
 /**
- * Login2FactorScreen — Firebase Phone Authentication
+ * Login2FactorScreen — Firebase Phone Authentication (Native)
  *
- * ✅ Works in Development (Expo Go) with invisible reCAPTCHA
- * ✅ Works in Production (AAB) with invisible reCAPTCHA
- * ✅ Uses Firebase JavaScript SDK v10 (optimized for smaller bundle)
- * ✅ No expo-firebase-recaptcha dependency (avoiding Gradle issues)
+ * ✅ Works in Development (Expo Go) with native verification
+ * ✅ Works in Production (AAB) with Play Integrity
+ * ✅ Uses React Native Firebase (Native)
+ * ✅ No reCAPTCHA needed - native verification
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -116,7 +116,7 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🚀 [Login2Factor] SEND OTP BUTTON PRESSED
+║ 🚀 [Login2Factor] SEND OTP BUTTON PRESSED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
@@ -124,6 +124,7 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${trimmed.length}
+║ 🔥 Implementation: React Native Firebase (Native)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -145,22 +146,22 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📞 [Login2Factor] CALLING sendOtpToPhone
+║ 📞 [Login2Factor] CALLING sendOtpToPhone (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 Firebase SDK: v10 (optimized)
-║ 🔐 RecaptchaVerifier: null (invisible reCAPTCHA automatic)
+║ 🔐 Firebase SDK: React Native Firebase (Native)
+║ 🔐 Verification: Play Integrity (No reCAPTCHA)
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // Pass null for recaptcha verifier - Firebase will use invisible reCAPTCHA
-      const result = await sendOtpToPhone(fullNumber, null);
+      // Native Firebase - no recaptchaVerifier needed
+      const result = await sendOtpToPhone(fullNumber);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Login2Factor] SEND OTP SUCCESS
+║ ✅ [Login2Factor] SEND OTP SUCCESS (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
@@ -192,7 +193,7 @@ ${JSON.stringify({
     } catch (err) {
       console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 [Login2Factor] SEND OTP FAILED
+║ 🔴 [Login2Factor] SEND OTP FAILED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms

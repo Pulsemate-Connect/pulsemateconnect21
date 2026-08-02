@@ -1,7 +1,7 @@
 /**
- * Otp2FactorScreen — Verify Firebase Phone OTP
+ * Otp2FactorScreen — Verify Firebase Phone OTP (Native)
  * 
- * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for resend functionality
+ * ✅ MIGRATED: Now uses React Native Firebase (Native)
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -29,8 +29,6 @@ export default function Otp2FactorScreen({ route, navigation }) {
   const [currentSentTimestamp, setCurrentSentTimestamp] = useState(sentTimestamp);
   const inputRefs = useRef([]);
   
-  // recaptchaVerifier not needed in production (SafetyNet automatic)
-
   // Validate required params on mount
   useEffect(() => {
     const timestamp = Date.now();
@@ -298,14 +296,12 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
       return;
     }
 
-    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
-
     setResending(true);
     
     try {
-      console.log('[Otp2Factor] 📡 Calling resendOtp via Firebase...');
+      console.log('[Otp2Factor] 📡 Calling resendOtp via Firebase (Native)...');
       
-      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      // Native Firebase - no recaptchaVerifier needed
       const result = await resendOtp(mobile);
       
       console.log(`
@@ -379,8 +375,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
-      
-      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
       
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>

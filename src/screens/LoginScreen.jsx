@@ -1,14 +1,16 @@
 /**
- * LoginScreen — Firebase Phone Authentication
+ * LoginScreen — Firebase Phone Authentication (Native)
  *
  * Flow:
  *   1. Initialize Firebase Auth on mount
  *   2. User enters 10-digit mobile number and taps Send OTP
- *   3. Firebase SDK sends real SMS OTP via Google's infrastructure
+ *   3. React Native Firebase sends real SMS OTP via native integration
  *   4. Navigate to OtpScreen with { mobile, confirmationResult }
  *   5. User verifies OTP on next screen
  * 
- * ✅ FIXED: Now uses FirebaseRecaptchaVerifierModal for proper reCAPTCHA verification
+ * ✅ MIGRATED: Now uses React Native Firebase (Native)
+ * Previous: Firebase JavaScript SDK with RecaptchaVerifier
+ * Current: Native Firebase Auth with Play Integrity
  */
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -62,8 +64,6 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
-
-  // recaptchaVerifier not needed in production (SafetyNet automatic)
 
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
@@ -130,7 +130,7 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED
+║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED (Native Firebase)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
@@ -138,6 +138,7 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${mobile.trim().length}
+║ 🔥 Implementation: React Native Firebase (Native)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -154,29 +155,27 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       return;
     }
 
-    // Production: recaptchaVerifier not needed (Firebase uses SafetyNet)
-
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📞 [LoginScreen] CALLING sendOtpToPhone
+║ 📞 [LoginScreen] CALLING sendOtpToPhone (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 RecaptchaVerifier: null (SafetyNet automatic in production)
+║ 🔐 Verification: Native Play Integrity (No reCAPTCHA)
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // Production: SafetyNet attestation automatic (no recaptchaVerifier parameter)
+      // Native Firebase - no recaptchaVerifier needed
       const result = await sendOtpToPhone(fullNumber);
 
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [LoginScreen] SEND OTP SUCCESS
+║ ✅ [LoginScreen] SEND OTP SUCCESS (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
@@ -206,7 +205,7 @@ ${JSON.stringify({
     } catch (err) {
       console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 [LoginScreen] SEND OTP FAILED
+║ 🔴 [LoginScreen] SEND OTP FAILED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
@@ -238,8 +237,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      {/* FirebaseRecaptchaVerifierModal removed - SafetyNet automatic in production */}
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
