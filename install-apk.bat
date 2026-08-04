@@ -1,36 +1,39 @@
 @echo off
-echo ========================================
-echo PulseMate Connect - APK Installer
-echo ========================================
+echo ============================================================
+echo INSTALLING APK TO DEVICE/EMULATOR
+echo ============================================================
 echo.
-echo Checking connected devices...
+echo Checking for connected devices...
 adb devices
 echo.
-
-if "%~1"=="" (
-    echo ERROR: Please drag and drop the APK file onto this script!
+echo Installing APK from new location...
+adb install "C:\pm\pulsemateconnect21\android\app\build\outputs\apk\release\app-release.apk"
+echo.
+if %errorlevel% == 0 (
+    echo ============================================================
+    echo SUCCESS! APK INSTALLED
+    echo ============================================================
     echo.
-    echo Usage: Drag the downloaded APK file onto this .bat file
+    echo The app is now installed on your device.
     echo.
-    echo Or run: install-apk.bat "path\to\app.apk"
+    echo NOTE: The app will CRASH on startup because Firebase
+    echo Phone Authentication is not configured yet.
     echo.
-    pause
-    exit /b 1
+    echo Next steps:
+    echo 1. Configure Firebase Console - see FIREBASE-CONSOLE-SETUP.md
+    echo 2. Update Render environment variables
+    echo 3. Rebuild and test again
+    echo.
+) else (
+    echo ============================================================
+    echo INSTALLATION FAILED
+    echo ============================================================
+    echo.
+    echo Common solutions:
+    echo 1. Make sure device is connected: adb devices
+    echo 2. Uninstall old version: adb uninstall in.pulsemateconnect.patient
+    echo 3. Enable USB debugging on device
+    echo 4. Accept "Install from this computer" prompt on device
+    echo.
 )
-
-echo Installing: %~1
-echo.
-adb install -r "%~1"
-echo.
-echo ========================================
-echo Installation complete!
-echo ========================================
-echo.
-echo Launching app...
-adb shell am start -n in.pulsemateconnect.patient/.MainActivity
-echo.
-echo App is now running on your device!
-echo.
-echo To monitor logs, run: monitor-auth-logs.bat
-echo.
 pause

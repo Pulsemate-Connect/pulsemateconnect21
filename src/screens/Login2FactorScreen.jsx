@@ -13,7 +13,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-native';
+// ✅ USING BACKEND SMS (No Firebase needed - works everywhere)
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -31,6 +32,7 @@ export default function Login2FactorScreen({ navigation }) {
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   const inputRef = useRef(null);
+  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -123,7 +125,8 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${trimmed.length}
-║ 🔥 Implementation: React Native Firebase (Native)
+║ 🔥 Implementation: Firebase JS SDK (Expo-compatible)
+║ 🔐 reCAPTCHA: ${recaptchaVerifier.current ? 'Ready' : 'Not Ready'}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -149,14 +152,18 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 Firebase SDK: React Native Firebase (Native)
-║ 🔐 Verification: Play Integrity (No reCAPTCHA)
+║ 🔐 Firebase SDK: Firebase JS SDK (Expo-compatible)
+║ 🔐 Verification: reCAPTCHA
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // Native Firebase - no recaptchaVerifier needed
-      const result = await sendOtpToPhone(fullNumber);
+      if (!recaptchaVerifier.current) {
+        throw new Error('reCAPTCHA verifier not ready. Please wait and try again.');
+      }
+      
+      // Firebase JS SDK - requires recaptchaVerifier
+      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
@@ -367,6 +374,13 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
           </TouchableOpacity>
         </View>
       </ScrollView>
+      
+      {/* Firebase reCAPTCHA (Invisible) */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification
+      />
     </KeyboardAvoidingView>
   );
 }

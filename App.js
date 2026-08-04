@@ -13,18 +13,21 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {
-  View, Text, Image, StyleSheet, Animated, Easing, Dimensions, StatusBar,
+  View, Text, Image, StyleSheet, Animated, Easing, Dimensions, StatusBar, Alert,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 console.log('[App] Core imports complete');
 
+console.log('[App] Importing AuthStore...');
 import { AuthProvider, useAuth } from './src/store/authStore';
 console.log('[App] AuthStore imported');
 
+console.log('[App] Importing Navigators...');
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 console.log('[App] Navigators imported');
 
+console.log('[App] Importing hooks and components...');
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import MedicalDisclaimerModal from './src/components/MedicalDisclaimerModal';
