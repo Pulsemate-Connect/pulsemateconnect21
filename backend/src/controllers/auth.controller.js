@@ -1276,42 +1276,47 @@ const firebasePhoneLoginHandler = async (req, res, next) => {
   }
 };
 
-const sendOtpHandler = patientSendOtpHandler;
-const verifyOtpHandler = patientVerifyOtpHandler;
-const loginPasswordHandler = loginHandler;
-
 module.exports = {
-  patientSendOtpHandler,
-  patientVerifyOtpHandler,
-  clinicOwnerSendOtpHandler,
-  clinicOwnerVerifyOtpHandler,
+  // Firebase Phone Auth
+  patientFirebasePhoneLoginHandler,
   clinicOwnerVerifyFirebasePhoneHandler,
+  doctorVerifyFirebasePhoneHandler,
+  
+  // Email Verification
   clinicOwnerSendEmailOtpHandler,
   clinicOwnerVerifyEmailOtpHandler,
   clinicOwnerSendEmailVerificationHandler: clinicOwnerSendEmailOtpHandler,
   clinicOwnerVerifyEmailHandler: clinicOwnerVerifyEmailOtpHandler,
+  
+  // Registration
   clinicOwnerUploadDocumentHandler,
   registerClinicOwnerHandler,
-  doctorVerifyFirebasePhoneHandler,
   registerDoctorHandler,
+  
+  // Password Login
   loginHandler,
   clinicOwnerLoginHandler: loginHandler,
   doctorLoginHandler: loginHandler,
   receptionistLoginHandler: loginHandler,
   adminLoginHandler: loginHandler,
+  
+  // Staff Management
   createReceptionistHandler,
   createAdminHandler,
+  
+  // Utilities
   lookupPincodeHandler,
+  
+  // Password Reset
   forgotPasswordHandler,
   resetPasswordHandler,
   verifyResetTokenHandler,
+  
+  // Token Management
   refreshTokenHandler,
   logoutHandler,
   logoutAllHandler,
+  
+  // User Info
   getMeHandler,
-  sendOtpHandler,
-  verifyOtpHandler,
-  loginPasswordHandler,
-  firebasePhoneLoginHandler,
-  patientFirebasePhoneLoginHandler,
 };
