@@ -1,22 +1,20 @@
 /**
- * Firebase Phone Authentication — PulseMate Connect (React Native Firebase)
+ * Backend Phone Authentication — PulseMate Connect
  * 
- * NATIVE Production Implementation with React Native Firebase
+ * Backend SMS Implementation (No Firebase Dependency)
  * =======================================================================
- * ✅ Uses @react-native-firebase/auth (Native implementation)
- * ✅ Sends REAL SMS OTP to ANY valid phone number
- * ✅ Works on production Android builds
- * ✅ Works with EAS Build
- * ✅ Native Firebase integration (no web SDK)
- * ✅ Automatic Play Integrity verification (no reCAPTCHA needed)
- * ✅ Comprehensive production logging maintained
+ * ✅ Works in ALL environments (Development, Production, EAS builds)
+ * ✅ Sends REAL SMS OTP via backend service
+ * ✅ Full control over SMS delivery
+ * ✅ No reCAPTCHA needed
+ * ✅ No Firebase native module issues
  * 
- * MIGRATION COMPLETE: 2026-08-02
- * Previous: Firebase JavaScript SDK v10.12.5
- * Current: React Native Firebase (Native)
+ * IMPLEMENTATION: Backend SMS Service
+ * Migration Date: 2026-08-02
+ * Previous: React Native Firebase (Native) - Had compatibility issues
+ * Current: Backend SMS API
  */
 
-import auth from '@react-native-firebase/auth';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import api from '../api/axios';
@@ -78,7 +76,7 @@ const logError = (context, error, additionalInfo = {}) => {
   
   console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 FIREBASE ERROR - ${context}
+║ 🔴 BACKEND SMS ERROR - ${context}
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${timestamp}
 ║ 🌍 Environment: ${env.environment}
@@ -88,7 +86,7 @@ const logError = (context, error, additionalInfo = {}) => {
 ║ 📦 App Version: ${env.appVersion} (Build: ${env.nativeBuildVersion})
 ║ 🔧 Expo SDK: ${env.expoSdkVersion}
 ║ 🖥️  Device: ${env.deviceName}
-║ 🔥 Firebase: React Native Firebase (Native)
+║ 🔥 Implementation: Backend SMS Service
 ║ 
 ║ ❌ ERROR DETAILS:
 ║ ├─ Name: ${error.name || 'N/A'}
@@ -116,7 +114,7 @@ const logSuccess = (context, details = {}) => {
   
   console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ FIREBASE SUCCESS - ${context}
+║ ✅ BACKEND SMS SUCCESS - ${context}
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${timestamp}
 ║ 🌍 Environment: ${env.environment}
@@ -124,7 +122,7 @@ const logSuccess = (context, details = {}) => {
 ║ 📱 Platform: ${env.platform} ${env.platformVersion}
 ║ 🆔 Package: ${env.packageName}
 ║ 📦 App Version: ${env.appVersion} (Build: ${env.nativeBuildVersion})
-║ 🔥 Firebase: React Native Firebase (Native)
+║ 🔥 Implementation: Backend SMS Service
 ${Object.keys(details).length > 0 ? `║ 
 ║ 📋 Details:
 ${JSON.stringify(details, null, 2).split('\n').map(line => '║    ' + line).join('\n')}` : ''}
@@ -133,7 +131,7 @@ ${JSON.stringify(details, null, 2).split('\n').map(line => '║    ' + line).joi
 };
 
 /**
- * Initialize Firebase Auth (React Native Firebase auto-initializes)
+ * Initialize Backend SMS Auth (No Firebase needed)
  */
 export const initializeFirebaseAuth = async () => {
   const env = getEnvironmentInfo();
@@ -141,7 +139,7 @@ export const initializeFirebaseAuth = async () => {
   try {
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔧 FIREBASE INITIALIZATION STARTING (Native)
+║ 🔧 BACKEND SMS INITIALIZATION
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 🌍 Environment: ${env.environment}
@@ -153,67 +151,44 @@ export const initializeFirebaseAuth = async () => {
 ║ 🔧 Expo SDK: ${env.expoSdkVersion}
 ║ 🔧 Expo Version: ${env.expoVersion}
 ║ 🖥️  Device: ${env.deviceName}
-║ 🔥 Implementation: React Native Firebase (Native)
-║ 
-║ 📱 Firebase Native Check:
-║ ├─ Auth Module: ${auth ? 'LOADED' : 'NOT_LOADED'}
-║ ├─ Current User: ${auth().currentUser ? auth().currentUser.uid : 'None'}
-║ ├─ App Name: ${auth().app.name || 'UNKNOWN'}
+║ 🔥 Implementation: Backend SMS Service (No Firebase)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    // React Native Firebase auto-initializes from google-services.json
-    const currentUser = auth().currentUser;
-    console.log('[Auth] ✅ Firebase Native Auth ready');
-    console.log('[Auth] 👤 Current User:', currentUser ? currentUser.uid : 'None (not logged in)');
+    console.log('[Auth] ✅ Backend SMS Auth ready');
+    console.log('[Auth] 📡 Backend API:', api.defaults.baseURL);
     
-    logSuccess('FIREBASE INITIALIZATION (Native)', {
-      hasAuth: !!auth,
-      currentUser: currentUser ? currentUser.uid : null,
+    logSuccess('BACKEND SMS INITIALIZATION', {
       environment: env.environment,
       packageName: env.packageName,
-      implementation: 'React Native Firebase (Native)'
+      implementation: 'Backend SMS Service',
+      hasBackendAPI: !!api.defaults.baseURL
     });
     
-    return auth;
+    return true;
   } catch (error) {
-    logError('FIREBASE INITIALIZATION (Native)', error, {
+    logError('BACKEND SMS INITIALIZATION', error, {
       environment: env.environment,
       packageName: env.packageName,
-      implementation: 'React Native Firebase (Native)'
+      implementation: 'Backend SMS Service'
     });
     
-    let detailedMessage = `Firebase initialization failed.\n\n`;
+    let detailedMessage = `Backend SMS initialization failed.\n\n`;
     detailedMessage += `Environment: ${env.environment}\n`;
     detailedMessage += `Package: ${env.packageName}\n`;
     detailedMessage += `Error: ${error.message || 'Unknown error'}\n`;
-    if (error.code) detailedMessage += `Code: ${error.code}\n`;
-    if (!__DEV__) {
-      detailedMessage += `\nPlease check:\n`;
-      detailedMessage += `1. Internet connection\n`;
-      detailedMessage += `2. google-services.json file\n`;
-      detailedMessage += `3. Firebase project configuration\n`;
-    }
     
     throw new Error(detailedMessage);
   }
 };
 
 /**
- * Get Firebase Auth instance
- */
-export const getFirebaseAuth = () => {
-  return auth;
-};
-
-/**
- * Send OTP via Firebase Native Phone Authentication
+ * Send OTP via Backend SMS Service
  * 
- * Uses native Firebase authentication - NO reCAPTCHA needed
- * Automatically uses Play Integrity API on Android
+ * Calls your backend API to send SMS OTP
  * 
  * @param {string} phoneNumber - Phone in E.164 format (+91XXXXXXXXXX)
- * @returns {Promise<{confirmationResult, phoneNumber, verificationId, timestamp}>}
+ * @returns {Promise<{requestId, phoneNumber, timestamp}>}
  */
 export const sendOtpToPhone = async (phoneNumber) => {
   const env = getEnvironmentInfo();
@@ -221,24 +196,24 @@ export const sendOtpToPhone = async (phoneNumber) => {
   
   console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📱 SEND OTP - STARTING (Native)
+║ 📱 SEND OTP - STARTING (Backend SMS)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
 ║ 🌍 Environment: ${env.environment}
 ║ 📦 Build Type: ${env.buildType}
 ║ 🆔 Package: ${env.packageName}
 ║ 📱 Platform: ${env.platform} ${env.platformVersion}
-║ 🔥 Implementation: React Native Firebase (Native)
+║ 🔥 Implementation: Backend SMS Service
 ║ 
 ║ 📞 Phone Number: ${phoneNumber}
-║ 🔐 Verification: Native Play Integrity (No reCAPTCHA)
+║ 🔐 Verification: Backend SMS (No Firebase)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
   // Validate phone number
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
     const error = new Error('Invalid phone number. Use E.164 format: +91XXXXXXXXXX');
-    logError('SEND OTP - VALIDATION (Native)', error, {
+    logError('SEND OTP - VALIDATION (Backend SMS)', error, {
       phoneNumber,
       phoneNumberLength: phoneNumber?.length,
       environment: env.environment
@@ -247,65 +222,89 @@ export const sendOtpToPhone = async (phoneNumber) => {
   }
 
   try {
-    console.log('[Auth] ✅ Using React Native Firebase native auth');
-    console.log('[Auth] 🔐 Native verification (Play Integrity API)');
+    console.log('[Auth] ✅ Using Backend SMS Service');
+    console.log('[Auth] 📡 Calling backend API: /auth/patient/send-otp');
+    
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING: Log request details
+    // ═══════════════════════════════════════════════════════════════
+    console.log('🔍 [API-DEBUG-1] Phone number being sent:', phoneNumber);
+    console.log('🔍 [API-DEBUG-1] Request body:', JSON.stringify({ phone: phoneNumber }));
+    console.log('🔍 [API-DEBUG-1] API base URL:', api.defaults.baseURL);
+    console.log('🔍 [API-DEBUG-1] Full endpoint:', `${api.defaults.baseURL}/auth/patient/send-otp`);
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🚀 CALLING auth().signInWithPhoneNumber (Native)
+║ 🚀 CALLING Backend API: /auth/patient/send-otp
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Phone: ${phoneNumber}
-║ 🔐 Method: Native Firebase Auth
+║ 🔐 Method: Backend SMS Service
 ║ 📦 Platform: ${env.platform} ${env.platformVersion}
+║ 📤 Request Body: ${JSON.stringify({ phone: phoneNumber })}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    const confirmationResult = await auth().signInWithPhoneNumber(phoneNumber);
+    const response = await api.post('/auth/patient/send-otp', {
+      phone: phoneNumber  // Backend expects 'phone', not 'phoneNumber'
+    });
     
-    const verificationId = confirmationResult?.verificationId || 'unknown';
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING: Log response
+    // ═══════════════════════════════════════════════════════════════
+    console.log('🔍 [API-DEBUG-2] Response status:', response.status);
+    console.log('🔍 [API-DEBUG-2] Response data:', JSON.stringify(response.data, null, 2));
     
-    logSuccess('SEND OTP - signInWithPhoneNumber SUCCESS (Native)', {
+    const data = response.data?.data ?? response.data;
+    const requestId = data.requestId || data.verificationId || 'backend-request';
+    
+    logSuccess('SEND OTP - Backend API SUCCESS', {
       phoneNumber,
-      verificationId,
-      hasConfirmationResult: !!confirmationResult,
-      confirmationResultType: typeof confirmationResult,
-      hasConfirmMethod: typeof confirmationResult?.confirm === 'function',
+      requestId,
+      hasRequestId: !!requestId,
       environment: env.environment,
       packageName: env.packageName,
-      implementation: 'React Native Firebase (Native)',
+      implementation: 'Backend SMS Service',
       timeTaken: `${Date.now() - timestamp}ms`
     });
 
     return {
-      confirmationResult,
+      confirmationResult: { requestId }, // For compatibility with existing code
       phoneNumber,
-      verificationId,
+      verificationId: requestId,
+      requestId: requestId,
       timestamp,
     };
   } catch (error) {
-    logError('SEND OTP - signInWithPhoneNumber FAILED (Native)', error, {
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING: Log error details
+    // ═══════════════════════════════════════════════════════════════
+    console.log('🔍 [API-DEBUG-3] API Error:', error);
+    console.log('🔍 [API-DEBUG-3] Error response:', error.response?.data);
+    console.log('🔍 [API-DEBUG-3] Error status:', error.response?.status);
+    console.log('🔍 [API-DEBUG-3] Error message:', error.message);
+    
+    logError('SEND OTP - Backend API FAILED', error, {
       phoneNumber,
       environment: env.environment,
       packageName: env.packageName,
       platform: env.platform,
       platformVersion: env.platformVersion,
       expoSdkVersion: env.expoSdkVersion,
-      implementation: 'React Native Firebase (Native)',
-      timeSinceStart: `${Date.now() - timestamp}ms`
+      implementation: 'Backend SMS Service',
+      timeSinceStart: `${Date.now() - timestamp}ms`,
+      errorResponse: error.response?.data
     });
 
     // Provide user-friendly error messages
-    if (error.code === 'auth/invalid-phone-number') {
-      throw new Error('Invalid phone number format.');
-    } else if (error.code === 'auth/too-many-requests') {
+    if (error.response?.status === 429) {
       throw new Error('Too many requests. Please try again in 15 minutes.');
-    } else if (error.code === 'auth/quota-exceeded') {
-      throw new Error('SMS quota exceeded. Please contact support.');
-    } else if (error.code === 'auth/invalid-app-credential') {
-      throw new Error('App verification failed. SHA-256 not registered or incorrect.');
-    } else if (error.code === 'auth/app-not-authorized') {
-      throw new Error('App not authorized. Please add SHA-256 to Firebase Console.');
+    } else if (error.response?.status === 400) {
+      throw new Error(error.response?.data?.message || 'Invalid phone number format.');
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'NETWORK_ERROR') {
+      throw new Error('Cannot reach server. Please check your internet connection.');
+    } else if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
     }
 
     throw new Error(error.message || 'Failed to send OTP. Please try again.');
@@ -313,34 +312,34 @@ export const sendOtpToPhone = async (phoneNumber) => {
 };
 
 /**
- * Verify OTP code and complete phone authentication (Native)
+ * Verify OTP code via Backend
  */
 export const verifyPhoneOtp = async (confirmResult, code, sentTimestamp = null) => {
   const env = getEnvironmentInfo();
   const verifyTimestamp = Date.now();
   const timeSinceSent = sentTimestamp ? (verifyTimestamp - sentTimestamp) / 1000 : 'unknown';
   
+  const requestId = confirmResult?.requestId || confirmResult?.verificationId || 'backend-request';
+  
   console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔐 VERIFY OTP - STARTING (Native)
+║ 🔐 VERIFY OTP - STARTING (Backend SMS)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(verifyTimestamp).toISOString()}
 ║ 🌍 Environment: ${env.environment}
 ║ 📦 Package: ${env.packageName}
-║ 🔥 Implementation: React Native Firebase (Native)
+║ 🔥 Implementation: Backend SMS Service
 ║ 
 ║ 🔑 Code Length: ${code?.length || 0}
 ║ 🔑 Code Format: ${/^\d{6}$/.test(code) ? 'VALID' : 'INVALID'}
 ║ ⏱️  Time Since OTP Sent: ${timeSinceSent} seconds
-║ 📋 Has ConfirmResult: ${!!confirmResult}
-║ 📋 ConfirmResult Type: ${typeof confirmResult}
-║ 📋 Has Confirm Method: ${typeof confirmResult?.confirm === 'function'}
+║ 📋 Request ID: ${requestId}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
-  if (!confirmResult) {
+  if (!requestId) {
     const error = new Error('No OTP request found. Please send OTP first.');
-    logError('VERIFY OTP - NO CONFIRM RESULT (Native)', error, {
+    logError('VERIFY OTP - NO REQUEST ID (Backend SMS)', error, {
       environment: env.environment,
       packageName: env.packageName
     });
@@ -349,7 +348,7 @@ export const verifyPhoneOtp = async (confirmResult, code, sentTimestamp = null) 
 
   if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
     const error = new Error('Please enter a valid 6-digit OTP code.');
-    logError('VERIFY OTP - INVALID CODE FORMAT (Native)', error, {
+    logError('VERIFY OTP - INVALID CODE FORMAT (Backend SMS)', error, {
       codeLength: code?.length,
       codeProvided: !!code,
       environment: env.environment
@@ -358,54 +357,54 @@ export const verifyPhoneOtp = async (confirmResult, code, sentTimestamp = null) 
   }
 
   try {
-    console.log('[Auth] 🔑 Calling confirmResult.confirm() (Native)...');
+    console.log('[Auth] 🔑 Calling backend API: /auth/patient/verify-otp');
     console.log('[Auth] ⏱️  Time elapsed since OTP sent:', timeSinceSent, 'seconds');
     
-    const userCredential = await confirmResult.confirm(code);
+    const response = await api.post('/auth/patient/verify-otp', {
+      requestId: requestId,
+      otp: code
+    });
     
-    console.log('[Auth] ✅ OTP verification successful (Native)');
-    console.log('[Auth] 👤 User UID:', userCredential.user?.uid);
-    console.log('[Auth] 📱 Phone Number:', userCredential.user?.phoneNumber);
+    const data = response.data?.data ?? response.data;
+    
+    console.log('[Auth] ✅ OTP verification successful (Backend SMS)');
+    console.log('[Auth] 👤 User:', data.user?.id || 'N/A');
+    console.log('[Auth] 🎫 Token received:', !!data.accessToken);
 
-    console.log('[Auth] 🎫 Getting Firebase ID token (Native)...');
-    const idToken = await userCredential.user.getIdToken();
-    console.log('[Auth] ✅ Firebase ID token obtained (Native)');
-    console.log('[Auth] 🎫 Token length:', idToken?.length || 0);
-
-    logSuccess('VERIFY OTP - COMPLETE (Native)', {
-      userUid: userCredential.user?.uid,
-      phoneNumber: userCredential.user?.phoneNumber,
-      hasIdToken: !!idToken,
-      idTokenLength: idToken?.length,
+    logSuccess('VERIFY OTP - COMPLETE (Backend SMS)', {
+      userId: data.user?.id,
+      phoneNumber: data.user?.phone,
+      hasToken: !!data.accessToken,
       timeSinceSent: `${timeSinceSent}s`,
       totalVerificationTime: `${Date.now() - verifyTimestamp}ms`,
       environment: env.environment,
       packageName: env.packageName,
-      implementation: 'React Native Firebase (Native)'
+      implementation: 'Backend SMS Service'
     });
 
     return {
-      user: userCredential.user,
-      idToken,
-      phoneNumber: userCredential.user.phoneNumber,
+      user: data.user,
+      idToken: data.accessToken, // For compatibility
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      phoneNumber: data.user?.phone,
     };
   } catch (error) {
-    logError('VERIFY OTP - CONFIRM FAILED (Native)', error, {
+    logError('VERIFY OTP - Backend API FAILED', error, {
       codeLength: code?.length,
       timeSinceSent: `${timeSinceSent}s`,
       environment: env.environment,
       packageName: env.packageName,
-      hasConfirmResult: !!confirmResult,
-      confirmResultType: typeof confirmResult,
-      implementation: 'React Native Firebase (Native)'
+      implementation: 'Backend SMS Service',
+      errorResponse: error.response?.data
     });
 
-    if (error.code === 'auth/invalid-verification-code') {
-      throw new Error('Invalid OTP code. Please check and try again.');
-    } else if (error.code === 'auth/code-expired') {
+    if (error.response?.status === 400) {
+      throw new Error(error.response?.data?.message || 'Invalid OTP code. Please check and try again.');
+    } else if (error.response?.status === 410) {
       throw new Error('OTP code expired. Please request a new one.');
-    } else if (error.code === 'auth/session-expired') {
-      throw new Error('Session expired. Please request a new OTP.');
+    } else if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
     }
 
     throw new Error(error.message || 'OTP verification failed');
@@ -413,109 +412,39 @@ export const verifyPhoneOtp = async (confirmResult, code, sentTimestamp = null) 
 };
 
 /**
- * Send Firebase ID token to backend for session creation
+ * Login with backend (already handled in verifyPhoneOtp)
+ * This function is kept for compatibility
  */
 export const loginWithFirebaseToken = async (idToken, name = null) => {
-  const env = getEnvironmentInfo();
-  const timestamp = Date.now();
-  
-  console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔄 BACKEND LOGIN - STARTING (Native Firebase)
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
-║ 🌍 Environment: ${env.environment}
-║ 📦 Package: ${env.packageName}
-║ 🔥 Implementation: React Native Firebase (Native)
-║ 
-║ 🎫 Has ID Token: ${!!idToken}
-║ 🎫 Token Length: ${idToken?.length || 0}
-║ 👤 Name Provided: ${name || 'N/A'}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-
-  if (!idToken) {
-    const error = new Error('Firebase ID token is required.');
-    logError('BACKEND LOGIN - NO TOKEN (Native)', error, {
-      environment: env.environment
-    });
-    throw error;
-  }
-
-  try {
-    console.log('[Auth] 🔄 Sending login request to backend...');
-    console.log('[Auth] 🌐 API endpoint: /auth/patient/firebase-phone-login');
-
-    const res = await api.post('/auth/patient/firebase-phone-login', {
-      firebaseIdToken: idToken,
-      name: name && name.trim().length >= 2 ? name.trim() : 'Patient',
-    });
-
-    const data = res.data?.data ?? res.data;
-
-    if (!data?.accessToken || !data?.user) {
-      const error = new Error('Session creation failed: Invalid server response');
-      logError('BACKEND LOGIN - INVALID RESPONSE (Native)', error, {
-        hasData: !!data,
-        hasAccessToken: !!data?.accessToken,
-        hasUser: !!data?.user,
-        responseData: JSON.stringify(data),
-        environment: env.environment
-      });
-      throw error;
-    }
-
-    logSuccess('BACKEND LOGIN - SUCCESS (Native)', {
-      hasAccessToken: !!data.accessToken,
-      hasRefreshToken: !!data.refreshToken,
-      userId: data.user?.id,
-      userRole: data.user?.role,
-      environment: env.environment,
-      implementation: 'React Native Firebase (Native)',
-      timeTaken: `${Date.now() - timestamp}ms`
-    });
-
-    return {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken ?? null,
-      user: data.user,
-    };
-  } catch (err) {
-    logError('BACKEND LOGIN - REQUEST FAILED (Native)', err, {
-      errorCode: err.code,
-      errorResponse: err.response?.data,
-      errorStatus: err.response?.status,
-      environment: env.environment,
-      packageName: env.packageName,
-      implementation: 'React Native Firebase (Native)'
-    });
-    
-    if (err.code === 'ECONNREFUSED') {
-      throw new Error('Cannot reach server. Please check your internet connection.');
-    } else if (err.response?.data?.message) {
-      throw new Error(err.response.data.message);
-    }
-
-    throw new Error(err.message || 'Login failed. Please try again.');
-  }
+  // Already handled in verifyPhoneOtp
+  // Backend returns accessToken + user directly
+  return {
+    accessToken: idToken,
+    user: { name }
+  };
 };
 
 /**
- * Resend OTP to the same phone number (Native)
+ * Resend OTP to the same phone number (Backend SMS)
  */
 export const resendOtp = async (phoneNumber) => {
   return sendOtpToPhone(phoneNumber);
 };
 
 /**
- * Sign out current user from Firebase (Native)
+ * Sign out current user (Clear local session)
  */
 export const signOutUser = async () => {
   try {
-    await auth().signOut();
-    console.log('[Auth] ✅ User signed out (Native)');
+    console.log('[Auth] ✅ User signed out (Backend SMS)');
+    // Local sign out - clear tokens handled by auth context
   } catch (error) {
-    console.error('[Auth] ❌ Sign out error (Native):', error.message);
+    console.error('[Auth] ❌ Sign out error (Backend SMS):', error.message);
     throw error;
   }
+};
+
+// Keep getFirebaseAuth for compatibility
+export const getFirebaseAuth = () => {
+  return null; // No Firebase auth instance
 };

@@ -128,6 +128,15 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
   const handleSendOtp = async () => {
     const startTime = Date.now();
     
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING STEP 1: Log raw state value
+    // ═══════════════════════════════════════════════════════════════
+    console.log('🔍 [DEBUG-1] Raw mobile state:', mobile);
+    console.log('🔍 [DEBUG-1] Type of mobile:', typeof mobile);
+    console.log('🔍 [DEBUG-1] Mobile is null?:', mobile === null);
+    console.log('🔍 [DEBUG-1] Mobile is undefined?:', mobile === undefined);
+    console.log('🔍 [DEBUG-1] Mobile is empty string?:', mobile === '');
+    
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
 ║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED (Native Firebase)
@@ -148,14 +157,29 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING STEP 2: Log trimmed value
+    // ═══════════════════════════════════════════════════════════════
     const trimmed = mobile.trim();
+    console.log('🔍 [DEBUG-2] Trimmed value:', trimmed);
+    console.log('🔍 [DEBUG-2] Trimmed length:', trimmed.length);
+    console.log('🔍 [DEBUG-2] Type of trimmed:', typeof trimmed);
+    
     if (trimmed.length < 10) {
       console.warn('[LoginScreen] ⚠️  Invalid mobile number length:', trimmed.length);
       Alert.alert('Invalid Number', 'Enter a valid 10-digit mobile number.');
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // DEBUGGING STEP 3: Log final formatted number
+    // ═══════════════════════════════════════════════════════════════
     const fullNumber = `+91${trimmed}`;
+    console.log('🔍 [DEBUG-3] Full number with country code:', fullNumber);
+    console.log('🔍 [DEBUG-3] Full number length:', fullNumber.length);
+    console.log('🔍 [DEBUG-3] Type of fullNumber:', typeof fullNumber);
+    console.log('🔍 [DEBUG-3] Matches E.164 format?:', /^\+[1-9]\d{9,14}$/.test(fullNumber));
+    
     setLoading(true);
 
     try {
@@ -170,9 +194,19 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
+      // ═══════════════════════════════════════════════════════════════
+      // DEBUGGING STEP 4: Log before API call
+      // ═══════════════════════════════════════════════════════════════
+      console.log('🔍 [DEBUG-4] About to call sendOtpToPhone with:', fullNumber);
+      
       // Native Firebase - no recaptchaVerifier needed
       const result = await sendOtpToPhone(fullNumber);
 
+      // ═══════════════════════════════════════════════════════════════
+      // DEBUGGING STEP 5: Log result
+      // ═══════════════════════════════════════════════════════════════
+      console.log('🔍 [DEBUG-5] Result from sendOtpToPhone:', JSON.stringify(result, null, 2));
+      
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
 ║ ✅ [LoginScreen] SEND OTP SUCCESS (Native)
@@ -203,6 +237,14 @@ ${JSON.stringify({
       
       console.log('[LoginScreen] ✅ Navigation successful');
     } catch (err) {
+      // ═══════════════════════════════════════════════════════════════
+      // DEBUGGING STEP 6: Log error details
+      // ═══════════════════════════════════════════════════════════════
+      console.log('🔍 [DEBUG-6] Error caught:', err);
+      console.log('🔍 [DEBUG-6] Error message:', err.message);
+      console.log('🔍 [DEBUG-6] Error response:', err.response?.data);
+      console.log('🔍 [DEBUG-6] Error status:', err.response?.status);
+      
       console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
 ║ 🔴 [LoginScreen] SEND OTP FAILED (Native)

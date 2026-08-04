@@ -149,9 +149,17 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
 const patientSendOtpHandler = async (req, res, next) => {
   try {
     const twoFactorService = require('../services/twofactor.service');
+    
+    // Log incoming request for debugging
+    console.log('[patientSendOtpHandler] Request body:', JSON.stringify(req.body));
+    console.log('[patientSendOtpHandler] Request headers:', JSON.stringify(req.headers));
+    
     const mobile = req.body.phone || req.body.mobile;
     
+    console.log('[patientSendOtpHandler] Extracted mobile:', mobile);
+    
     if (!mobile) {
+      console.error('[patientSendOtpHandler] Mobile number missing! Body:', req.body);
       return sendError(res, 'Mobile number is required', 400);
     }
     

@@ -44,7 +44,6 @@
     "plugins": [
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "@react-native-firebase/app",
       [
         "expo-location",
         {

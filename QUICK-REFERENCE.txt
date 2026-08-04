@@ -1,0 +1,127 @@
+╔════════════════════════════════════════════════════════════════╗
+║                  FIREBASE OTP TESTING                          ║
+║                    QUICK REFERENCE                             ║
+╚════════════════════════════════════════════════════════════════╝
+
+📖 START HERE: PRODUCTION-OTP-TESTING-QUICK-START.md
+
+═══════════════════════════════════════════════════════════════
+
+🎯 TESTING WORKFLOW (5 Steps)
+
+1. Get Debug SHA-1
+   └─→ .\get-debug-sha1.bat
+
+2. Add to Firebase Console
+   └─→ https://console.firebase.google.com/project/pulsemateconnect
+
+3. Build Development APK
+   └─→ .\build-dev-apk.bat
+
+4. Install via USB
+   └─→ .\install-dev-apk.bat
+
+5. Test OTP
+   └─→ npx expo start --dev-client
+
+═══════════════════════════════════════════════════════════════
+
+🛠️ AUTOMATED SCRIPTS
+
+BUILD & TEST:
+├─ get-debug-sha1.bat         → Get debug keystore SHA-1
+├─ build-dev-apk.bat           → Build development APK
+├─ install-dev-apk.bat         → Install APK via USB
+├─ start-dev-client.bat        → Start Metro for dev build
+└─ view-firebase-logs.bat      → View real-time logs
+
+PRODUCTION:
+├─ build-aab-auto-version.bat  → Build production AAB
+├─ increment-version.bat       → Increment version manually
+└─ run-dev-usb.bat             → Run Expo Go with USB
+
+═══════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION INDEX
+
+GETTING STARTED:
+└─ PRODUCTION-OTP-TESTING-QUICK-START.md ← START HERE!
+
+DEBUGGING:
+├─ FIREBASE-OTP-PRODUCTION-DEBUG-GUIDE.md  → Complete guide
+├─ FIREBASE-OTP-MASTER-CHECKLIST.md        → Step-by-step checklist
+└─ README-FIREBASE-OTP-PRODUCTION-TESTING.md → Full overview
+
+OTHER:
+├─ SUMMARY-ALL-FIXES.md          → All fixes applied
+├─ VERSION-TRACKER.md             → Version management
+└─ DEVELOPMENT-USB-GUIDE.md       → USB development guide
+
+═══════════════════════════════════════════════════════════════
+
+🔧 YOUR CONFIGURATION
+
+Package Name:    in.pulsemateconnect.patient
+Firebase Project: pulsemateconnect
+Production SHA-1: 0B:84:89:11:44:B1:B8:DB:C4:9B:4D:05:ED:AA:83:77:0F:30:43:4F
+Debug SHA-1:     Run .\get-debug-sha1.bat to get
+
+═══════════════════════════════════════════════════════════════
+
+✅ VERIFICATION CHECKLIST
+
+Before testing development build:
+□ Debug SHA-1 added to Firebase Console
+□ google-services.json downloaded (fresh)
+□ google-services.json placed at android\app\
+□ EAS CLI installed (npm install -g eas-cli)
+□ Phone connected via USB
+□ USB Debugging enabled on phone
+
+Before publishing to Play Store:
+□ Expo Go test: OTP works
+□ Development APK test: OTP works
+□ Production AAB test (Internal Testing): OTP works
+□ All SHA-1s registered in Firebase
+□ google-services.json up-to-date
+□ Package name matches everywhere
+
+═══════════════════════════════════════════════════════════════
+
+🐛 QUICK TROUBLESHOOTING
+
+Error: auth/app-not-authorized
+└─→ Add SHA-1 to Firebase Console
+
+Error: auth/invalid-phone-number
+└─→ Use format: +919876543210
+
+Error: "Too many requests"
+└─→ Wait 15 minutes or use test phone number
+
+"Failed to initialize reCAPTCHA Enterprise config"
+└─→ This is a WARNING (ignore it)
+
+No OTP received
+└─→ Check Firebase Console for quota limits
+└─→ Check SHA-1 in Firebase Console
+└─→ Check phone number format
+└─→ Check internet connection
+
+═══════════════════════════════════════════════════════════════
+
+🚀 NEXT STEPS
+
+1. Read: PRODUCTION-OTP-TESTING-QUICK-START.md
+2. Run:  .\get-debug-sha1.bat
+3. Add SHA-1 to Firebase Console
+4. Build development APK
+5. Test OTP!
+
+═══════════════════════════════════════════════════════════════
+
+Need help? Check:
+📖 FIREBASE-OTP-MASTER-CHECKLIST.md
+📖 FIREBASE-OTP-PRODUCTION-DEBUG-GUIDE.md
+
+═══════════════════════════════════════════════════════════════

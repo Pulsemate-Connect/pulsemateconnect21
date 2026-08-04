@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
-import { firebaseConfig } from '../config/firebaseConfig';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
