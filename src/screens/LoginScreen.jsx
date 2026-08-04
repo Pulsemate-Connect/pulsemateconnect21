@@ -20,7 +20,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // Using Firebase JavaScript SDK v10
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-auth';
+import RecaptchaContainer from '../components/RecaptchaContainer';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -279,6 +280,9 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+      
+      {/* reCAPTCHA container for Firebase Phone Auth */}
+      <RecaptchaContainer />
 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 

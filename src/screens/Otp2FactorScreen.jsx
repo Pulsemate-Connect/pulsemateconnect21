@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // Using Firebase JavaScript SDK v10
-import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase';
+import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-auth';
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';

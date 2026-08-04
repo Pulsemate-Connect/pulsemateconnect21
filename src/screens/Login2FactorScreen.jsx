@@ -13,7 +13,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-auth';
+import RecaptchaContainer from '../components/RecaptchaContainer';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -237,6 +238,9 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
+      
+      {/* reCAPTCHA container for Firebase Phone Auth */}
+      <RecaptchaContainer />
 
       <ScrollView 
         contentContainerStyle={s.scroll} 
