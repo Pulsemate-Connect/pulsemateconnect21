@@ -352,8 +352,8 @@ export const loginWithFirebaseToken = async (idToken) => {
   console.log('[Firebase] Calling backend for token exchange...');
   
   try {
-    const response = await api.post('/auth/firebase-login', {
-      firebaseToken: idToken
+    const response = await api.post('/auth/patient/firebase-phone-login', {
+      firebaseIdToken: idToken
     });
     
     const data = response.data?.data ?? response.data;
