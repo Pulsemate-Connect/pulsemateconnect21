@@ -17,12 +17,15 @@
 
 import { initializeApp, getApps } from 'firebase/app';
 import { 
-  getAuth, 
+  initializeAuth,
+  getAuth,
+  getReactNativePersistence,
   signInWithPhoneNumber,
   PhoneAuthProvider,
   signInWithCredential,
   RecaptchaVerifier
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import api from '../api/axios';
@@ -43,11 +46,23 @@ let auth;
 
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  console.log('[Firebase] Initialized successfully');
+  
+  // Initialize Auth with AsyncStorage persistence for React Native
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+  
+  console.log('[Firebase] Initialized successfully with AsyncStorage persistence');
 } else {
   app = getApps()[0];
-  auth = getAuth(app);
+  try {
+    auth = getAuth(app);
+  } catch (error) {
+    console.warn('[Firebase] getAuth failed, reinitializing...', error.message);
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage)
+    });
+  }
   console.log('[Firebase] Using existing instance');
 }
 
