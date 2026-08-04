@@ -1,257 +1,118 @@
 /**
  * Firebase Phone Authentication — PulseMate Connect
  * 
- * Using Firebase JS SDK v10 (Expo Compatible)
+ * Using React Native Firebase (Native Modules)
  * =======================================================================
- * ✅ Works with Expo managed workflow
- * ✅ Free SMS delivery via Firebase
- * ✅ Built-in Play Integrity security
- * ⚠️  Requires reCAPTCHA verification
- * ⚠️  No auto-SMS retrieval (JS SDK limitation)
+ * ✅ Native Android/iOS implementation
+ * ✅ No reCAPTCHA required (Play Integrity/SafetyNet)
+ * ✅ SMS Auto-retrieval on Android
+ * ✅ Better performance (native code)
+ * ✅ Smaller bundle size
  * 
- * IMPLEMENTATION: Firebase Phone Authentication
+ * IMPLEMENTATION: React Native Firebase (@react-native-firebase/auth)
  * Migration Date: August 4, 2026
- * Previous: Backend SMS (2Factor.in)
- * Current: Firebase JS SDK Phone Auth
+ * Previous: Firebase JS SDK (web-based)
+ * Current: React Native Firebase (native)
  */
 
-import { initializeApp, getApps } from 'firebase/app';
-import { 
-  initializeAuth,
-  getAuth,
-  getReactNativePersistence,
-  signInWithPhoneNumber,
-  PhoneAuthProvider,
-  signInWithCredential,
-  RecaptchaVerifier
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import auth from '@react-native-firebase/auth';
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import api from '../api/axios';
-
-// Firebase configuration from google-services.json
-const firebaseConfig = {
-  apiKey: "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc",
-  authDomain: "pulsemateconnect.firebaseapp.com",
-  projectId: "pulsemateconnect",
-  storageBucket: "pulsemateconnect.firebasestorage.app",
-  messagingSenderId: "157620382332",
-  appId: "1:157620382332:android:063dba90b53a1c81e6b7f9"
-};
-
-// Initialize Firebase (only once)
-let app;
-let auth;
-
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-  
-  // Initialize Auth with AsyncStorage persistence for React Native
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
-  });
-  
-  console.log('[Firebase] Initialized successfully with AsyncStorage persistence');
-} else {
-  app = getApps()[0];
-  try {
-    auth = getAuth(app);
-  } catch (error) {
-    console.warn('[Firebase] getAuth failed, reinitializing...', error.message);
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
-    });
-  }
-  console.log('[Firebase] Using existing instance');
-}
-
-// Global reCAPTCHA verifier instance
-let recaptchaVerifier = null;
-
-/**
- * Get environment info for logging
- */
-const getEnvironmentInfo = () => {
-  const buildType = Constants.appOwnership || 'unknown';
-  const isExpoGo = buildType === 'expo';
-  const isStandalone = buildType === 'standalone';
-  const isDev = __DEV__;
-  
-  let environment = 'UNKNOWN';
-  if (isExpoGo) environment = 'EXPO_GO';
-  else if (isStandalone && !isDev) environment = 'PLAY_STORE_PRODUCTION';
-  else if (isStandalone && isDev) environment = 'DEVELOPMENT_BUILD';
-  else if (isDev) environment = 'DEVELOPMENT';
-  else environment = 'PRODUCTION_BUILD';
-  
-  return {
-    environment,
-    buildType,
-    platform: Platform.OS,
-    platformVersion: Platform.Version,
-    packageName: Platform.select({
-      android: Constants.manifest?.android?.package ||
-               Constants.expoConfig?.android?.package ||
-               'in.pulsemateconnect.patient',
-      ios: Constants.manifest?.ios?.bundleIdentifier ||
-           Constants.expoConfig?.ios?.bundleIdentifier ||
-           'N/A',
-      default: 'N/A'
-    })
-  };
-};
 
 /**
  * Initialize Firebase Auth
+ * Note: React Native Firebase auto-initializes from google-services.json
  */
 export const initializeFirebaseAuth = async () => {
-  const env = getEnvironmentInfo();
+  const timestamp = Date.now();
   
   try {
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔥 FIREBASE PHONE AUTH INITIALIZATION
+║ 🔥 FIREBASE PHONE AUTH INITIALIZATION (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ 🌍 Environment: ${env.environment}
-║ 📦 Package: ${env.packageName}
-║ 📱 Platform: ${env.platform} ${env.platformVersion}
-║ 🔥 Firebase Project: pulsemateconnect
-║ 🔐 Auth Domain: pulsemateconnect.firebaseapp.com
-║ 🔑 API Key: ${firebaseConfig.apiKey.substring(0, 20)}...
+║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🔥 SDK: React Native Firebase (Native)
+║ 🔐 Verification: Play Integrity (No reCAPTCHA)
+║ 📦 Package: in.pulsemateconnect.patient
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    // Test Firebase connection
-    const currentUser = auth.currentUser;
-    console.log('[Firebase] Current user:', currentUser?.uid || 'None');
-    console.log('[Firebase] ✅ Firebase Phone Auth ready');
+    // Check if Firebase is initialized
+    const currentUser = auth().currentUser;
+    console.log('[Firebase Native] Current user:', currentUser?.uid || 'None');
+    console.log('[Firebase Native] ✅ Firebase Auth ready');
     
     return true;
   } catch (error) {
-    console.error('[Firebase] ❌ Initialization failed:', error);
+    console.error('[Firebase Native] ❌ Initialization failed:', error);
     throw error;
   }
 };
 
 /**
- * Create reCAPTCHA verifier
- * Required for Firebase Phone Auth with JS SDK
- * 
- * Note: In Expo, this uses an invisible reCAPTCHA
- */
-const createRecaptchaVerifier = () => {
-  if (recaptchaVerifier) {
-    console.log('[Firebase] Using existing reCAPTCHA verifier');
-    return recaptchaVerifier;
-  }
-
-  console.log('[Firebase] Creating new reCAPTCHA verifier');
-  
-  try {
-    recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: (response) => {
-        console.log('[Firebase] ✅ reCAPTCHA verified');
-      },
-      'expired-callback': () => {
-        console.warn('[Firebase] ⚠️  reCAPTCHA expired');
-        recaptchaVerifier = null;
-      },
-      'error-callback': (error) => {
-        console.error('[Firebase] ❌ reCAPTCHA error:', error);
-        recaptchaVerifier = null;
-      }
-    });
-    
-    return recaptchaVerifier;
-  } catch (error) {
-    console.error('[Firebase] Failed to create reCAPTCHA:', error);
-    throw new Error('reCAPTCHA initialization failed. Please refresh and try again.');
-  }
-};
-
-/**
- * Send OTP via Firebase Phone Authentication
+ * Send OTP via Firebase Phone Authentication (Native)
  * 
  * @param {string} phoneNumber - Phone in E.164 format (+91XXXXXXXXXX)
- * @returns {Promise<{confirmationResult, phoneNumber, timestamp}>}
+ * @returns {Promise<{confirmation}>}
  */
 export const sendOtpToPhone = async (phoneNumber) => {
-  const env = getEnvironmentInfo();
   const timestamp = Date.now();
   
   console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📱 SEND OTP - FIREBASE PHONE AUTH
+║ 📱 SEND OTP - REACT NATIVE FIREBASE
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
-║ 🌍 Environment: ${env.environment}
-║ 📦 Package: ${env.packageName}
 ║ 📞 Phone: ${phoneNumber}
-║ 🔥 Method: Firebase signInWithPhoneNumber
-║ 🔐 Security: reCAPTCHA + Play Integrity
+║ 🔥 Method: auth().signInWithPhoneNumber()
+║ 🔐 Security: Play Integrity (Android) / APNs (iOS)
+║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
   // Validate phone number
   if (!phoneNumber || !/^\+[1-9]\d{9,14}$/.test(phoneNumber)) {
-    const error = new Error('Invalid phone number. Use E.164 format: +91XXXXXXXXXX');
-    console.error('[Firebase] ❌ Validation failed:', phoneNumber);
-    throw error;
+    throw new Error('Invalid phone number. Use E.164 format: +91XXXXXXXXXX');
   }
 
   try {
-    // Create reCAPTCHA verifier (invisible)
-    console.log('[Firebase] Creating reCAPTCHA verifier...');
-    const appVerifier = createRecaptchaVerifier();
+    console.log('[Firebase Native] Sending OTP via React Native Firebase...');
     
-    console.log('[Firebase] Sending OTP via Firebase Phone Auth...');
-    console.log('[Firebase] Phone:', phoneNumber);
-    
-    // Send OTP - Firebase handles SMS delivery
-    const confirmationResult = await signInWithPhoneNumber(
-      auth,
-      phoneNumber,
-      appVerifier
-    );
+    // Send OTP - Firebase handles SMS delivery natively
+    const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ FIREBASE OTP SENT SUCCESSFULLY
+║ ✅ FIREBASE OTP SENT SUCCESSFULLY (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
 ║ 📱 Phone: ${phoneNumber}
-║ 🔑 Verification ID: ${confirmationResult.verificationId}
-║ 🔥 SMS sent via Firebase (FREE)
-║ 📦 Environment: ${env.environment}
+║ 🔑 Verification ID: ${confirmation.verificationId || 'N/A'}
+║ 🔥 SMS sent via Firebase (native)
+║ ✨ Auto-retrieval: ${Platform.OS === 'android' ? 'YES (SMS Retriever API)' : 'NO (iOS)'}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
     return {
-      confirmationResult,
+      confirmation,
+      confirmationResult: confirmation, // For compatibility
       phoneNumber,
-      verificationId: confirmationResult.verificationId,
-      requestId: confirmationResult.verificationId, // For compatibility
+      verificationId: confirmation.verificationId,
       timestamp,
     };
   } catch (error) {
     console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 FIREBASE OTP SEND FAILED
+║ 🔴 FIREBASE OTP SEND FAILED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
 ║ 📱 Phone: ${phoneNumber}
-║ 📦 Environment: ${env.environment}
-║ 
-║ ❌ ERROR DETAILS:
-║ ├─ Code: ${error.code || 'N/A'}
-║ ├─ Message: ${error.message || 'Unknown error'}
-║ 
-║ 📚 Stack: ${error.stack ? error.stack.substring(0, 200) + '...' : 'N/A'}
+║ ❌ Error: ${error.message}
+║ 🔍 Code: ${error.code}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -260,76 +121,74 @@ export const sendOtpToPhone = async (phoneNumber) => {
 };
 
 /**
- * Verify OTP code via Firebase
+ * Verify OTP code via Firebase (Native)
  * 
- * @param {object} confirmationResult - Result from sendOtpToPhone
+ * @param {object} confirmation - Confirmation from sendOtpToPhone
  * @param {string} code - 6-digit OTP code
  * @param {number} sentTimestamp - Timestamp when OTP was sent (optional)
  * @returns {Promise<{user, idToken, accessToken, refreshToken, phoneNumber}>}
  */
-export const verifyPhoneOtp = async (confirmationResult, code, sentTimestamp = null) => {
-  const env = getEnvironmentInfo();
+export const verifyPhoneOtp = async (confirmation, code, sentTimestamp = null) => {
   const timestamp = Date.now();
   const timeSinceSent = sentTimestamp ? (timestamp - sentTimestamp) / 1000 : 'unknown';
   
   console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔐 VERIFY OTP - FIREBASE
+║ 🔐 VERIFY OTP - REACT NATIVE FIREBASE
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
-║ 🌍 Environment: ${env.environment}
-║ 📦 Package: ${env.packageName}
+║ 📱 Platform: ${Platform.OS} ${Platform.Version}
 ║ 🔑 Code Length: ${code?.length}
 ║ 🔑 Code Format: ${/^\d{6}$/.test(code) ? 'VALID' : 'INVALID'}
 ║ ⏱️  Time Since OTP Sent: ${timeSinceSent} seconds
-║ 🔥 Method: Firebase confirmationResult.confirm
+║ 🔥 Method: confirmation.confirm()
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
   // Validate OTP code
   if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
     const error = new Error('Please enter a valid 6-digit OTP code.');
-    console.error('[Firebase] ❌ Invalid OTP format');
+    console.error('[Firebase Native] ❌ Invalid OTP format');
     throw error;
   }
 
-  if (!confirmationResult || !confirmationResult.confirm) {
+  if (!confirmation || !confirmation.confirm) {
     const error = new Error('Invalid confirmation result. Please request a new OTP.');
-    console.error('[Firebase] ❌ No confirmation result');
+    console.error('[Firebase Native] ❌ No confirmation result');
     throw error;
   }
 
   try {
-    console.log('[Firebase] Verifying OTP with Firebase...');
+    console.log('[Firebase Native] Verifying OTP with Firebase...');
     
-    // Verify OTP with Firebase
-    const userCredential = await confirmationResult.confirm(code);
-    const user = userCredential.user;
+    // Verify OTP with Firebase (Native)
+    const credential = await confirmation.confirm(code);
+    const user = credential.user;
     
-    console.log('[Firebase] ✅ Firebase OTP verified');
-    console.log('[Firebase] User ID:', user.uid);
-    console.log('[Firebase] Phone:', user.phoneNumber);
+    console.log('[Firebase Native] ✅ Firebase OTP verified');
+    console.log('[Firebase Native] User UID:', user.uid);
+    console.log('[Firebase Native] Phone:', user.phoneNumber);
     
     // Get Firebase ID token
-    console.log('[Firebase] Getting ID token...');
+    console.log('[Firebase Native] Getting ID token...');
     const idToken = await user.getIdToken();
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ FIREBASE OTP VERIFIED
+║ ✅ FIREBASE OTP VERIFIED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Verification Time: ${Date.now() - timestamp}ms
 ║ ⏱️  Total Time: ${timeSinceSent} seconds since OTP sent
-║ 👤 User ID: ${user.uid}
+║ 👤 User UID: ${user.uid}
 ║ 📱 Phone: ${user.phoneNumber}
 ║ 🎫 ID Token: ${idToken.substring(0, 20)}...
-║ 📦 Environment: ${env.environment}
+║ 📦 Platform: ${Platform.OS}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
     // Exchange Firebase token for backend JWT
-    console.log('[Firebase] Exchanging token with backend...');
+    console.log('[Firebase Native] Exchanging token with backend...');
     const backendAuth = await loginWithFirebaseToken(idToken);
     
     return {
@@ -342,16 +201,13 @@ export const verifyPhoneOtp = async (confirmationResult, code, sentTimestamp = n
   } catch (error) {
     console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 FIREBASE OTP VERIFICATION FAILED
+║ 🔴 FIREBASE OTP VERIFICATION FAILED (Native)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
 ║ ⏱️  Time Since Sent: ${timeSinceSent} seconds
-║ 📦 Environment: ${env.environment}
-║ 
-║ ❌ ERROR DETAILS:
-║ ├─ Code: ${error.code || 'N/A'}
-║ ├─ Message: ${error.message || 'Unknown error'}
+║ ❌ Error: ${error.message}
+║ 🔍 Code: ${error.code}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -364,7 +220,7 @@ export const verifyPhoneOtp = async (confirmationResult, code, sentTimestamp = n
  * Exchange Firebase token for backend JWT tokens
  */
 export const loginWithFirebaseToken = async (idToken) => {
-  console.log('[Firebase] Calling backend for token exchange...');
+  console.log('[Firebase Native] Calling backend for token exchange...');
   
   try {
     const response = await api.post('/auth/patient/firebase-phone-login', {
@@ -373,10 +229,10 @@ export const loginWithFirebaseToken = async (idToken) => {
     
     const data = response.data?.data ?? response.data;
     
-    console.log('[Firebase] ✅ Backend authentication successful');
-    console.log('[Firebase] User ID:', data.user?.id);
-    console.log('[Firebase] Has access token:', !!data.accessToken);
-    console.log('[Firebase] Has refresh token:', !!data.refreshToken);
+    console.log('[Firebase Native] ✅ Backend authentication successful');
+    console.log('[Firebase Native] User ID:', data.user?.id);
+    console.log('[Firebase Native] Has access token:', !!data.accessToken);
+    console.log('[Firebase Native] Has refresh token:', !!data.refreshToken);
     
     return {
       accessToken: data.accessToken,
@@ -384,7 +240,7 @@ export const loginWithFirebaseToken = async (idToken) => {
       user: data.user
     };
   } catch (error) {
-    console.error('[Firebase] ❌ Backend auth failed:', error.message);
+    console.error('[Firebase Native] ❌ Backend auth failed:', error.message);
     throw new Error('Failed to authenticate with backend. Please try again.');
   }
 };
@@ -393,7 +249,7 @@ export const loginWithFirebaseToken = async (idToken) => {
  * Resend OTP
  */
 export const resendOtp = async (phoneNumber) => {
-  console.log('[Firebase] Resending OTP...');
+  console.log('[Firebase Native] Resending OTP...');
   return sendOtpToPhone(phoneNumber);
 };
 
@@ -402,10 +258,10 @@ export const resendOtp = async (phoneNumber) => {
  */
 export const signOutUser = async () => {
   try {
-    await auth.signOut();
-    console.log('[Firebase] ✅ User signed out');
+    await auth().signOut();
+    console.log('[Firebase Native] ✅ User signed out');
   } catch (error) {
-    console.error('[Firebase] ❌ Sign out error:', error);
+    console.error('[Firebase Native] ❌ Sign out error:', error);
     throw error;
   }
 };
@@ -413,7 +269,7 @@ export const signOutUser = async () => {
 /**
  * Get Firebase auth instance
  */
-export const getFirebaseAuth = () => auth;
+export const getFirebaseAuth = () => auth();
 
 /**
  * Format Firebase errors to user-friendly messages
@@ -434,11 +290,10 @@ const formatFirebaseError = (error) => {
     'auth/code-expired': 'OTP has expired. Please request a new one.',
     'auth/session-expired': 'Session expired. Please start over.',
     'auth/too-many-requests': 'Too many attempts. Please try again later.',
-    'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
     'auth/missing-app-credential': 'App verification failed. Please update the app.',
     'auth/network-request-failed': 'Network error. Please check your internet connection.',
-    'auth/web-storage-unsupported': 'Please enable cookies and try again.',
-    'auth/popup-closed-by-user': 'Verification cancelled. Please try again.',
+    'auth/app-not-authorized': 'App not authorized. Check Firebase Console configuration.',
+    'auth/captcha-check-failed': 'Verification failed. Please try again.',
   };
   
   const friendlyMessage = errorMessages[code] || message;
@@ -447,3 +302,5 @@ const formatFirebaseError = (error) => {
   
   return err;
 };
+
+export default auth;
