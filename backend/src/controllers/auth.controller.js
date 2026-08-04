@@ -1,6 +1,5 @@
 const prisma = require('../config/database');
 const logger = require('../config/logger');
-const { sendOtp, verifyOtp } = require('../services/otp.service');
 const {
   createSessionTokens,
   rotateRefreshToken,
@@ -139,152 +138,6 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
     return sendError(res, 'Account is disabled', 403);
   }
   return null;
-};
-
-/**
- * POST /api/auth/patient/send-otp
- * 
- * Send OTP via 2Factor SMS (Indian patients) - PRODUCTION READY
- */
-const patientSendOtpHandler = async (req, res, next) => {
-  try {
-    const twoFactorService = require('../services/twofactor.service');
-    
-    // Log incoming request for debugging
-    console.log('[patientSendOtpHandler] Request body:', JSON.stringify(req.body));
-    console.log('[patientSendOtpHandler] Request headers:', JSON.stringify(req.headers));
-    
-    const mobile = req.body.phone || req.body.mobile;
-    
-    console.log('[patientSendOtpHandler] Extracted mobile:', mobile);
-    
-    if (!mobile) {
-      console.error('[patientSendOtpHandler] Mobile number missing! Body:', req.body);
-      return sendError(res, 'Mobile number is required', 400);
-    }
-    
-    // Get client IP address for rate limiting
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    
-    const result = await twoFactorService.sendOtp(mobile, ipAddress);
-    
-    return sendSuccess(res, {
-      sessionId: result.sessionId,
-      expiresIn: result.expiresIn,
-    }, 'OTP sent successfully to your mobile number');
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * POST /api/auth/patient/verify-otp
- * 
- * Verify OTP and create/login patient - PRODUCTION READY
- */
-const patientVerifyOtpHandler = async (req, res, next) => {
-  try {
-    const twoFactorService = require('../services/twofactor.service');
-    const { phone, mobile, sessionId, otp, name } = req.body;
-    
-    const phoneNumber = phone || mobile;
-    
-    if (!phoneNumber) {
-      return sendError(res, 'Mobile number is required', 400);
-    }
-    
-    if (!sessionId) {
-      return sendError(res, 'Session ID is required', 400);
-    }
-    
-    if (!otp) {
-      return sendError(res, 'OTP is required', 400);
-    }
-    
-    // Get client IP address for logging
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    
-    // Verify OTP
-    const verificationResult = await twoFactorService.verifyOtp(phoneNumber, sessionId, otp, ipAddress);
-    
-    if (!verificationResult.verified) {
-      return sendError(res, 'OTP verification failed', 400);
-    }
-    
-    const verifiedMobile = verificationResult.mobile;
-    
-    // Find or create patient
-    let user = await prisma.user.findUnique({
-      where: { mobile: verifiedMobile },
-      include: baseUserInclude,
-    });
-    
-    if (!user) {
-      // Create new patient
-      user = await prisma.user.create({
-        data: {
-          mobile: verifiedMobile,
-          name: name || 'Patient',
-          role: 'PATIENT',
-          isPhoneVerified: true,
-          isActive: true,
-          approvalStatus: 'APPROVED',
-          patientProfile: {
-            create: {},
-          },
-        },
-        include: baseUserInclude,
-      });
-      
-      logger.info(`[Auth] New patient created: ${user.id} (${verifiedMobile.substring(0, 6)}***)`);
-    } else {
-      // Update phone verification status
-      if (!user.isPhoneVerified) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { isPhoneVerified: true },
-          include: baseUserInclude,
-        });
-      }
-      
-      logger.info(`[Auth] Patient login: ${user.id} (${verifiedMobile.substring(0, 6)}***)`);
-    }
-    
-    // Check user status
-    if (user.approvalStatus === 'SUSPENDED') {
-      return sendError(res, user.suspendedReason || 'Account is suspended', 403);
-    }
-    
-    if (!user.isActive) {
-      return sendError(res, 'Account is disabled', 403);
-    }
-    
-    // Create session tokens
-    const tokens = await issueAuthTokens(res, user, req);
-    
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      action: 'LOGIN',
-      category: 'AUTH',
-      description: 'Patient login via 2Factor OTP',
-      metadata: {
-        mobile: verifiedMobile.substring(0, 6) + '***',
-        ipAddress,
-        method: '2FACTOR_OTP',
-      },
-      ipAddress,
-      userAgent: req.headers['user-agent'],
-    });
-    
-    return sendSuccess(res, {
-      user: toAuthUser(user),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    }, 'Login successful');
-  } catch (error) {
-    next(error);
-  }
 };
 
 /**
@@ -447,31 +300,6 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
       { ownerMobileVerified: true, mobile },
       'Phone number verified successfully'
     );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ── Backward-compat shims — old custom OTP routes kept alive during migration ─
-const clinicOwnerSendOtpHandler = async (req, res, next) => {
-  try {
-    const { phone } = req.body;
-    const existing = await prisma.user.findUnique({ where: { mobile: phone }, select: { id: true } });
-    if (existing) return sendError(res, 'A user with this phone number already exists', 409);
-    const result = await sendOtp(phone, 'PHONE_VERIFY');
-    return sendSuccess(res, result, 'OTP sent successfully');
-  } catch (error) {
-    next(error);
-  }
-};
-
-const clinicOwnerVerifyOtpHandler = async (req, res, next) => {
-  try {
-    const { phone, otp } = req.body;
-    const existing = await prisma.user.findUnique({ where: { mobile: phone }, select: { id: true } });
-    if (existing) return sendError(res, 'A user with this phone number already exists', 409);
-    await verifyOtp(phone, otp, 'PHONE_VERIFY');
-    return sendSuccess(res, { ownerMobileVerified: true }, 'Phone number verified successfully');
   } catch (error) {
     next(error);
   }
