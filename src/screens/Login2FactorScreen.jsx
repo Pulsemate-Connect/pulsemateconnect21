@@ -13,7 +13,7 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import FirebaseRecaptchaVerifier from '../components/FirebaseRecaptchaVerifier';
 // ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
 import { initializeFirebaseAuth, sendOtpToPhone, firebaseConfig } from '../config/firebase-phone-production';
 
@@ -373,9 +373,8 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
       </ScrollView>
 
       {/* Firebase reCAPTCHA Verifier - invisible in production */}
-      <FirebaseRecaptchaVerifierModal
+      <FirebaseRecaptchaVerifier
         ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
         attemptInvisibleVerification={true}
       />
     </KeyboardAvoidingView>
