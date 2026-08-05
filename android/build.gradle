@@ -19,11 +19,6 @@ allprojects {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
-  
-  // Exclude expo-firebase-core globally - we're using Firebase JS SDK instead
-  configurations.all {
-    exclude group: 'expo.modules', module: 'expo-firebase-core'
-  }
 }
 
 apply plugin: "expo-root-project"
