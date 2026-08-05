@@ -66,9 +66,9 @@
       "apiUrl": "https://api.pulsemateconnect.in/api",
       "apiUrlProd": "https://api.pulsemateconnect.in/api",
       "eas": {
-        "projectId": "31fca56b-a99e-4219-bb3f-600d8b0c86b7"
+        "projectId": "216bb6b9-f49f-41f1-902d-6cab4313a858"
       }
     },
-    "owner": "pulsemateconnecttt"
+    "owner": "pulsemateconnect"
   }
 }
