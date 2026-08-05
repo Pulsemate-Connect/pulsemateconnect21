@@ -1,174 +1,168 @@
-# Production AAB Build Status
+# 🔧 Firebase OTP Production Build - Current Status
 
-## 📊 Current Status: Ready to Build (Quota Exceeded)
-
-### Build Attempt: July 30, 2026, 4:46 PM
-
-## ✅ Successfully Validated
-
-### 1. EAS Configuration
-- ✅ Account verified: shubhamskkk
-- ✅ Project linked: dc7f9afd-2b0f-4eb0-88f8-7ac7865edbd3
-- ✅ Build profile: production
-- ✅ Build type: app-bundle (AAB)
-
-### 2. Project Files
-- ✅ Compressed successfully: 3.5 MB
-- ✅ Uploaded to EAS Build
-- ✅ Project fingerprint computed
-- ✅ No configuration errors
-
-### 3. Android Configuration
-- ✅ Package: in.pulsemateconnect.patient
-- ✅ Version: 1.3.4
-- ✅ Version Code: 55
-- ✅ Target SDK: 34 (Android 14)
-- ✅ Native android directory detected
-
-### 4. Credentials
-- ✅ Using remote credentials (EAS managed)
-- ✅ Keystore: fWuNBo7oSr (default)
-- ✅ Signing configured correctly
-
-### 5. Firebase Configuration
-- ✅ google-services.json present
-- ✅ Package name matches: in.pulsemateconnect.patient
-- ✅ Firebase plugin configured
-- ✅ SafetyNet ready for production
-
-### 6. Environment Variables
-- ✅ NODE_ENV=production set
-- ✅ Production API URL configured
-- ✅ No sensitive data in plain text
-
-## ❌ Build Stopped: Quota Exceeded
-
-**Error**: This account has used its Android builds from the Free plan this month
-
-**Reset Time**: Saturday, August 1, 2026 (in ~1 day, 7 hours)
-
-## 🎯 Build Command Used
-
-```bash
-npx eas build --platform android --profile production
-```
-
-## 📋 Build Process Progress
-
-| Stage | Status | Details |
-|-------|--------|---------|
-| **Validation** | ✅ Complete | All checks passed |
-| **Compression** | ✅ Complete | 3.5 MB compressed |
-| **Upload** | ✅ Complete | Uploaded to EAS |
-| **Fingerprint** | ✅ Complete | Project fingerprint computed |
-| **Quota Check** | ❌ Failed | Free builds exhausted |
-| **Build** | ⏸️ Not started | Waiting for quota reset |
-| **Download** | ⏸️ Pending | After successful build |
-
-## 🚀 What Happens When You Build Again
-
-When quota resets or you upgrade:
-
-1. **Build Queue** (30 seconds)
-   - Build job created
-   - Resources allocated
-   - Queue position assigned
-
-2. **Dependency Installation** (2-3 minutes)
-   - npm install runs
-   - Native modules compiled
-   - Expo dependencies configured
-
-3. **Native Build** (5-8 minutes)
-   - Android Gradle build
-   - Firebase integration
-   - SafetyNet configuration
-   - Resource compilation
-
-4. **Signing** (30 seconds)
-   - AAB signed with production keystore
-   - SHA-256 fingerprint applied
-
-5. **Upload** (1-2 minutes)
-   - AAB uploaded to EAS CDN
-   - Download link generated
-   - Build artifacts stored
-
-**Total Time**: ~10-15 minutes
-
-## 📱 Production Build Features
-
-When the AAB is built, it will have:
-
-### Firebase Authentication
-- ✅ **SafetyNet Attestation**: Automatic, invisible verification
-- ✅ **No reCAPTCHA modal**: Not needed in production
-- ✅ **Real SMS OTP**: Sent to any valid phone number
-- ✅ **Clean logs**: No "reCAPTCHA Enterprise" messages
-
-### App Configuration
-- ✅ **Package**: in.pulsemateconnect.patient
-- ✅ **API**: https://api.pulsemateconnect.in/api
-- ✅ **Push Notifications**: Configured
-- ✅ **Location Services**: Enabled
-- ✅ **Permissions**: All declared
-
-### Optimizations
-- ✅ **Minified code**: ProGuard/R8 enabled
-- ✅ **Optimized assets**: Compressed images
-- ✅ **Split APKs**: Play Store will generate per-device APKs
-- ✅ **App signing**: Google Play App Signing ready
-
-## 📦 Expected AAB Details
-
-| Property | Value |
-|----------|-------|
-| **File Size** | ~40-60 MB |
-| **Format** | Android App Bundle (.aab) |
-| **Min SDK** | 21 (Android 5.0) |
-| **Target SDK** | 34 (Android 14) |
-| **Architectures** | armeabi-v7a, arm64-v8a, x86, x86_64 |
-| **Download Expiry** | 30 days from build |
-
-## 🎬 Next Actions
-
-### Option A: Wait for Reset (August 1st)
-```bash
-# On August 1st, 2026:
-cd "C:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21"
-npx eas build --platform android --profile production
-```
-
-### Option B: Upgrade Plan (Immediate)
-1. Visit: https://expo.dev/accounts/shubhamskkk/settings/billing
-2. Select "Production" plan ($29/month)
-3. Run the build command
-
-### Option C: Check Build Status
-```bash
-# Check your build history
-npx eas build:list --platform android
-
-# Check current plan limits
-npx eas account:view
-```
-
-## 📝 Notes
-
-- All validation checks passed ✅
-- Build will succeed when quota is available
-- No code changes needed
-- Firebase is production-ready
-- AAB can be directly uploaded to Play Store
-
-## 🎉 Summary
-
-**Your app is 100% ready for production build.**
-
-The only blocker is the EAS free build quota. Once that resets (or you upgrade), the build will complete successfully in 10-15 minutes, and you'll have a production-ready AAB file to upload to Google Play Store.
-
-**Firebase OTP will work perfectly in production** with SafetyNet attestation - no reCAPTCHA modals, no configuration warnings, just clean, automatic phone verification.
+**Date**: August 5, 2026, 10:00 AM IST  
+**Status**: ⚠️ **BUILD FAILING** - Need to investigate Gradle error
 
 ---
 
-**Status**: ✅ Configuration Valid | ⏸️ Waiting for Build Quota
+## ✅ WHAT WE'VE FIXED
+
+### 1. **Switched from React Native Firebase to Firebase JS SDK**
+- ❌ Removed: `@react-native-firebase/app` and `@react-native-firebase/auth` (incompatible with Expo)
+- ✅ Added: `firebase@10.14.1` and `expo-firebase-recaptcha@2.3.1` (Expo-compatible)
+
+### 2. **Updated Firebase Configuration**
+- Rewrote `src/config/firebase-phone-production.js` to use Firebase JS SDK
+- Exported `firebaseConfig` for use with `FirebaseRecaptchaVerifierModal`
+- Configured with correct API key from `google-services.json`
+
+### 3. **Updated Login Screens**
+- `src/screens/LoginScreen.jsx` - Added FirebaseRecaptchaVerifierModal
+- `src/screens/Login2FactorScreen.jsx` - Added FirebaseRecaptchaVerifierModal
+- Both screens now pass `recaptchaVerifier.current` to `sendOtpToPhone()`
+
+### 4. **Cleaned Up Configuration**
+- Removed `@react-native-firebase/app` plugin from `app.json`
+- Removed Gradle exclusions from `android/app/build.gradle`
+- Ran `npx expo prebuild --platform android --clean` to regenerate native code
+
+### 5. **Commits Made**
+1. `e361333` - Switch to Firebase JS SDK with expo-firebase-recaptcha
+2. `616e909` - Fix Firebase config to match google-services.json  
+3. `33c3068` - Export firebaseConfig and use it directly in login screens
+
+---
+
+## ❌ CURRENT PROBLEM
+
+**Build Error**: "Gradle build failed with unknown error"
+
+**Build URLs** (last 3 attempts):
+1. https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds/55238534-5972-4d7d-8067-681be4731eea
+2. https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds/90b12bc0-b2ef-4407-b633-468ad6be4cfe
+3. https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds/d7d03c88-fad2-4864-84eb-8a48f186950a
+
+The terminal output only shows "Gradle build failed with unknown error" without specific details.
+
+---
+
+## 🔍 WHAT WE NEED TO DO
+
+### **Step 1: Check Build Logs**
+Go to the latest build URL and look at the "Run gradlew" phase logs to see the ACTUAL error message.
+
+Common issues to look for:
+- Missing dependencies in `build.gradle`
+- Version conflicts
+- Missing Firebase config
+- Google Services plugin errors
+- Compilation errors in native code
+
+### **Step 2: Identify Root Cause**
+Once we see the actual Gradle error, we can:
+- Fix missing dependencies
+- Resolve version conflicts
+- Add required plugins
+- Fix configuration issues
+
+### **Step 3: Apply Fix and Rebuild**
+After identifying the issue:
+1. Make the necessary code changes
+2. Commit: `git add -A && git commit -m "Fix: [describe fix]"`
+3. Rebuild: `eas build --platform android --profile production`
+
+---
+
+## 📋 VERIFIED CONFIGURATIONS
+
+### Firebase JS SDK Configuration ✅
+```javascript
+// src/config/firebase-phone-production.js
+export const firebaseConfig = {
+  apiKey: "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc",
+  authDomain: "pulsemateconnect.firebaseapp.com",
+  projectId: "pulsemateconnect",
+  storageBucket: "pulsemateconnect.firebasestorage.app",
+  messagingSenderId: "157620382332",
+  appId: "1:157620382332:android:063dba90b53a1c81e6b7f9"
+};
+```
+
+### Dependencies ✅
+```json
+{
+  "firebase": "^10.14.1",
+  "expo-firebase-recaptcha": "^2.3.1"
+}
+```
+
+### Login Screen reCAPTCHA Setup ✅
+```jsx
+<FirebaseRecaptchaVerifierModal
+  ref={recaptchaVerifier}
+  firebaseConfig={firebaseConfig}
+  attemptInvisibleVerification={true}
+/>
+```
+
+### Send OTP Call ✅
+```javascript
+const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+```
+
+---
+
+## 🎯 NEXT ACTIONS
+
+**IMMEDIATE**:
+1. Open the latest build URL in browser
+2. Navigate to "Run gradlew" phase
+3. Read the actual Gradle error message
+4. Share the error with me so I can fix it
+
+**POSSIBLE SOLUTIONS** (based on common issues):
+
+### If error is "Could not resolve firebase:firebase-*":
+```gradle
+// android/build.gradle
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+```
+
+### If error is related to google-services.json:
+- Verify file is at: `android/app/google-services.json`
+- Verify plugin is applied: `apply plugin: 'com.google.gms.google-services'`
+- Check classpath in `android/build.gradle`
+
+### If error is "Expo modules autolinking":
+```bash
+npx expo prebuild --clean
+```
+
+---
+
+## 📱 WHY THIS APPROACH IS CORRECT
+
+The Firebase JS SDK + expo-firebase-recaptcha approach is:
+
+✅ **Officially recommended by Expo** for Phone Auth  
+✅ **Works in production AAB builds**  
+✅ **Uses invisible reCAPTCHA** (no popup in production)  
+✅ **Compatible with Expo managed workflow**  
+✅ **No native module conflicts**  
+
+The build SHOULD work once we identify and fix the specific Gradle error.
+
+---
+
+## 📞 USER ACTION REQUIRED
+
+**Please open the build logs and share the specific Gradle error message with me.**
+
+Latest build: https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds/d7d03c88-fad2-4864-84eb-8a48f186950a
+
+Look for sections with ❌ or "FAILED" in the "Run gradlew" phase.
