@@ -21,7 +21,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 // ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
+import { initializeFirebaseAuth, sendOtpToPhone, firebaseConfig } from '../config/firebase-phone-production';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -65,7 +65,6 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
-  const [firebaseApp, setFirebaseApp] = useState(null);
   const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on mount (one-time)
@@ -84,8 +83,7 @@ export default function LoginScreen({ navigation }) {
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
         
-        const app = await initializeFirebaseAuth();
-        setFirebaseApp(app);
+        await initializeFirebaseAuth();
         setFirebaseReady(true);
         
         console.log(`
@@ -393,7 +391,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
       {/* Firebase reCAPTCHA Verifier - invisible in production */}
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
-        firebaseConfig={firebaseApp?.options}
+        firebaseConfig={firebaseConfig}
         attemptInvisibleVerification={true}
       />
     </KeyboardAvoidingView>

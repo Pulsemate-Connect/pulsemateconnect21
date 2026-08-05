@@ -15,7 +15,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 // ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
+import { initializeFirebaseAuth, sendOtpToPhone, firebaseConfig } from '../config/firebase-phone-production';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -31,7 +31,6 @@ export default function Login2FactorScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
-  const [firebaseApp, setFirebaseApp] = useState(null);
   const recaptchaVerifier = useRef(null);
   
   const inputRef = useRef(null);
@@ -52,8 +51,7 @@ export default function Login2FactorScreen({ navigation }) {
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
         
-        const app = await initializeFirebaseAuth();
-        setFirebaseApp(app);
+        await initializeFirebaseAuth();
         
         console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
@@ -377,7 +375,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
       {/* Firebase reCAPTCHA Verifier - invisible in production */}
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
-        firebaseConfig={firebaseApp?.options}
+        firebaseConfig={firebaseConfig}
         attemptInvisibleVerification={true}
       />
     </KeyboardAvoidingView>

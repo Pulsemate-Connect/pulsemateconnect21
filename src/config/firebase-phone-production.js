@@ -15,7 +15,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithPhoneNumber, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
 // Firebase configuration from google-services.json
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc",
   authDomain: "pulsemateconnect.firebaseapp.com",
   projectId: "pulsemateconnect",
