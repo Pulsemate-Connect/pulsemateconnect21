@@ -1,36 +1,57 @@
 @echo off
-echo ========================================
-echo    Convert AAB to APK for USB Install
-echo ========================================
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  🔄 CONVERT AAB TO APK (for local testing)
+echo ═══════════════════════════════════════════════════════════════════════════════
 echo.
-echo AAB files cannot be installed directly via USB.
-echo This script converts AAB to APK using bundletool.
+echo This converts your production AAB to APKs that can be installed locally.
 echo.
-pause
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  STEP 1: Check for bundletool
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
 
-REM Check if bundletool exists
-if not exist bundletool.jar (
-    echo Downloading bundletool...
-    curl -L -o bundletool.jar https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar
-    if errorlevel 1 (
+cd /d "c:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21"
+
+:: Check if bundletool exists
+if not exist "bundletool.jar" (
+    echo ⚠️  bundletool.jar not found. Downloading...
+    echo.
+    
+    :: Download bundletool
+    powershell -Command "Invoke-WebRequest -Uri 'https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar' -OutFile 'bundletool.jar'"
+    
+    if %errorlevel% neq 0 (
+        echo ❌ Failed to download bundletool
         echo.
-        echo ERROR: Failed to download bundletool!
         echo Please download manually from:
         echo https://github.com/google/bundletool/releases
+        echo.
+        echo Save as: bundletool.jar in this directory
         pause
         exit /b 1
     )
+    
+    echo ✅ bundletool downloaded
 )
 
-REM Find AAB file
+echo ✅ bundletool found
 echo.
-echo Looking for AAB file...
-for /f "delims=" %%i in ('dir /b /s *.aab 2^>nul') do set AAB_FILE=%%i
 
-if not defined AAB_FILE (
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  STEP 2: Finding AAB file
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+
+:: Find the most recent AAB file
+set "AAB_FILE="
+for /f "delims=" %%f in ('dir /b /od *.aab 2^>nul') do set "AAB_FILE=%%f"
+
+if "%AAB_FILE%"=="" (
+    echo ❌ No AAB file found!
     echo.
-    echo ERROR: No AAB file found!
-    echo Please download your AAB file and place it in this folder.
+    echo Please download your AAB first:
+    echo   eas build:download
+    echo.
     pause
     exit /b 1
 )
@@ -38,71 +59,81 @@ if not defined AAB_FILE (
 echo Found: %AAB_FILE%
 echo.
 
-REM Get connected devices
-echo Checking for connected devices...
-adb devices
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  STEP 3: Converting AAB to APKs
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+echo This may take 1-2 minutes...
 echo.
 
-REM Build APKs from AAB
-echo Building APKs from AAB...
-echo.
-java -jar bundletool.jar build-apks --bundle="%AAB_FILE%" --output=app.apks --mode=universal --ks=android\app\debug.keystore --ks-pass=pass:android --ks-key-alias=androiddebugkey --key-pass=pass:android
+:: Generate APKs using your EAS Build Credentials
+:: Keystore Type: JKS
+:: Key Alias: f1a185ee3a5ba7802fd6698297601ca8
+:: SHA256: 83:39:B0:5E:31:F4:08:E4:43:F4:76:7D:43:E3:65:1A:91:50:1D:F1:87:33:95:C2:17:B2:BB:18:78:5D:7B:B6
 
-if errorlevel 1 (
+echo NOTE: This requires the keystore file from EAS Build Credentials (yKf5TaJ1Kx)
+echo.
+echo If you don't have the keystore locally, use bundletool without signing:
+echo.
+
+:: Try with unsigned first (no keystore needed)
+java -jar bundletool.jar build-apks --bundle="%AAB_FILE%" --output="pulsemate.apks" --mode=universal
+
+if %errorlevel% neq 0 (
+    echo ❌ Conversion failed!
     echo.
-    echo ERROR: Failed to build APKs!
-    echo.
-    echo This might be because:
-    echo   1. Java is not installed
-    echo   2. AAB file is corrupted
-    echo   3. Keystore issue
+    echo Make sure:
+    echo 1. Java is installed (java -version)
+    echo 2. Keystore exists: android\app\pulsemate.keystore
+    echo 3. Keystore passwords are correct
     echo.
     pause
     exit /b 1
 )
 
-REM Extract universal APK
+echo ✅ APKs generated: pulsemate.apks
 echo.
-echo Extracting universal APK...
-powershell -Command "Expand-Archive -Path 'app.apks' -DestinationPath 'apks' -Force"
 
-REM Find and rename the APK
-for /f "delims=" %%i in ('dir /b /s apks\universal.apk 2^>nul') do set APK_FILE=%%i
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  STEP 4: Extracting Universal APK
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
 
-if not defined APK_FILE (
-    echo ERROR: Could not extract APK!
+:: Extract the universal APK
+powershell -Command "Expand-Archive -Path 'pulsemate.apks' -DestinationPath 'apks-temp' -Force"
+
+if %errorlevel% neq 0 (
+    echo ❌ Extraction failed!
     pause
     exit /b 1
 )
 
-copy "%APK_FILE%" "app-universal.apk"
+:: Copy universal APK to main directory
+copy "apks-temp\universal.apk" "pulsemate-production-fixed.apk"
 
-echo.
-echo ========================================
-echo    APK Created Successfully!
-echo ========================================
-echo.
-echo File: app-universal.apk
-echo.
-echo Installing to connected device...
-echo.
-
-adb install -r app-universal.apk
-
-if errorlevel 1 (
-    echo.
-    echo Installation failed!
-    echo Make sure USB debugging is enabled.
+if %errorlevel% neq 0 (
+    echo ❌ Failed to copy APK
     pause
     exit /b 1
 )
 
+:: Cleanup
+rmdir /s /q "apks-temp"
+del "pulsemate.apks"
+
+echo ✅ Universal APK created: pulsemate-production-fixed.apk
 echo.
-echo ========================================
-echo    Success!
-echo ========================================
+
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  ✅ CONVERSION COMPLETE!
+echo ═══════════════════════════════════════════════════════════════════════════════
 echo.
-echo App installed on your device.
-echo You can now test OTP!
+echo APK ready: pulsemate-production-fixed.apk
+echo.
+echo Next step:
+echo   Connect your phone via USB and run: INSTALL-APK-USB.bat
+echo.
+echo Or install manually:
+echo   adb install -r pulsemate-production-fixed.apk
 echo.
 pause

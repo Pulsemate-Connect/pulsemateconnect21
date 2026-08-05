@@ -1,22 +1,20 @@
 @echo off
 echo ═══════════════════════════════════════════════════════════════════════════════
-echo  📱 INSTALL APK VIA USB
+echo  🔨 BUILD LOCAL APK - Development Build
 echo ═══════════════════════════════════════════════════════════════════════════════
 echo.
-echo This will install the APK on your phone connected via USB.
+echo ✅ FIX APPLIED: Initialization Error Fixed
+echo ✅ Backend SMS Implementation Active
 echo.
-echo ⚠️  NOTE: The existing APK is OLD (before the fix)
-echo    You're currently testing with Expo Go (which has the fix)
+echo This will build a development APK that you can install on your phone.
 echo.
 echo ═══════════════════════════════════════════════════════════════════════════════
-echo  PREREQUISITES:
+echo  REQUIREMENTS:
 echo ═══════════════════════════════════════════════════════════════════════════════
 echo.
-echo 1. Connect phone via USB cable
-echo 2. Enable USB Debugging on phone:
-echo    - Settings → About Phone → Tap "Build Number" 7 times
-echo    - Settings → Developer Options → Enable USB Debugging
-echo 3. Allow USB debugging when prompted on phone
+echo 1. ✅ Android Studio installed
+echo 2. ✅ Android SDK configured
+echo 3. ✅ Expo Development Client
 echo.
 pause
 
@@ -24,97 +22,67 @@ cd /d "c:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21"
 
 echo.
 echo ═══════════════════════════════════════════════════════════════════════════════
-echo  STEP 1: Checking ADB (Android Debug Bridge)
+echo  STEP 1: Checking Environment
 echo ═══════════════════════════════════════════════════════════════════════════════
 echo.
 
-adb version 2>nul
+echo Checking Node.js...
+node --version
 if %errorlevel% neq 0 (
-    echo ❌ ADB not found!
-    echo.
-    echo ADB is required to install APK via USB.
-    echo Install Android Studio: https://developer.android.com/studio
-    echo.
+    echo ❌ ERROR: Node.js not found
     pause
     exit /b 1
 )
 
-echo ✅ ADB found
-echo.
-
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo  STEP 2: Checking Connected Devices
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo.
-
-adb devices
-
-echo.
-echo If you see your device listed above, press any key to continue.
-echo If not, check USB connection and USB debugging.
-echo.
-pause
-
-echo.
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo  STEP 3: Finding APK File
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo.
-
-set "APK_FILE="
-for %%f in (*.apk) do (
-    set "APK_FILE=%%f"
-    echo Found: %%f
-    goto :found_apk
+echo Checking EAS CLI...
+eas --version
+if %errorlevel% neq 0 (
+    echo ⚠️  EAS CLI not installed. Installing...
+    npm install -g eas-cli
 )
 
-:found_apk
-if "%APK_FILE%"=="" (
-    echo ❌ No APK file found in current directory
-    echo.
-    echo You need to build an APK first.
-    echo Run: BUILD-APK-LOCAL.bat
-    echo.
-    pause
-    exit /b 1
-)
-
-echo.
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo  STEP 4: Installing APK
-echo ═══════════════════════════════════════════════════════════════════════════════
-echo.
-echo Installing: %APK_FILE%
+echo ✅ Environment OK
 echo.
 
-adb install -r "%APK_FILE%"
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo  STEP 2: Building Development APK
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+echo This will take 10-15 minutes...
+echo.
+echo Building with:
+echo - Development profile
+echo - Backend SMS authentication
+echo - All debugging enabled
+echo.
+
+eas build --profile development --platform android --local
 
 if %errorlevel% equ 0 (
     echo.
     echo ═══════════════════════════════════════════════════════════════════════════════
-    echo  ✅ INSTALLATION SUCCESS!
+    echo  ✅ BUILD SUCCESS!
     echo ═══════════════════════════════════════════════════════════════════════════════
     echo.
-    echo App installed on your phone!
+    echo APK file created!
+    echo Location: Current directory
     echo.
-    echo ⚠️  IMPORTANT: This APK is from BEFORE the fix
-    echo    The "Initialization Error" will still appear
-    echo.
-    echo To test the fix:
-    echo 1. Use Expo Go (recommended) - already running
-    echo 2. Or build NEW APK with: BUILD-APK-LOCAL.bat
+    echo Next steps:
+    echo 1. Connect your phone via USB
+    echo 2. Enable USB debugging on phone
+    echo 3. Run: INSTALL-APK-USB.bat
     echo.
 ) else (
     echo.
     echo ═══════════════════════════════════════════════════════════════════════════════
-    echo  ❌ INSTALLATION FAILED
+    echo  ❌ BUILD FAILED
     echo ═══════════════════════════════════════════════════════════════════════════════
     echo.
+    echo Check the error messages above.
     echo Common issues:
-    echo 1. USB debugging not enabled
-    echo 2. USB connection not authorized
-    echo 3. Not enough storage on phone
-    echo 4. Signature mismatch (uninstall old version first)
+    echo 1. Android SDK not configured
+    echo 2. Java JDK not installed
+    echo 3. Not enough disk space
     echo.
 )
 

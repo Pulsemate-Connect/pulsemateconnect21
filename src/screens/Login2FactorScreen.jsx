@@ -13,8 +13,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-// ✅ USING BACKEND SMS (No Firebase needed - works everywhere)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+// ✅ PRODUCTION: React Native Firebase (Native Modules)
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
 
 const LOGO = require('../../assets/logo1.jpeg');
 

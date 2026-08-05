@@ -9,8 +9,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// ✅ USING BACKEND SMS (No Firebase needed - works everywhere)
-import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase';
+// ✅ PRODUCTION: React Native Firebase (Native Modules)
+import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-phone-production';
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';

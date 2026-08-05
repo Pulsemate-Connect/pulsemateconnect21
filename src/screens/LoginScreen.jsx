@@ -19,8 +19,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// ✅ USING BACKEND SMS (No Firebase needed - works everywhere)
-import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase';
+// ✅ PRODUCTION: React Native Firebase (Native Modules)
+import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
