@@ -15,6 +15,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 // ✅ PRODUCTION: React Native Firebase (Native Modules)
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
+import auth from '@react-native-firebase/auth';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -32,7 +33,6 @@ export default function Login2FactorScreen({ navigation }) {
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   const inputRef = useRef(null);
-  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
@@ -125,8 +125,8 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${trimmed.length}
-║ 🔥 Implementation: Firebase JS SDK (Expo-compatible)
-║ 🔐 reCAPTCHA: ${recaptchaVerifier.current ? 'Ready' : 'Not Ready'}
+║ 🔥 Implementation: React Native Firebase (Native)
+║ 🔐 Verification: Play Integrity (No reCAPTCHA)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -152,18 +152,14 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 Firebase SDK: Firebase JS SDK (Expo-compatible)
-║ 🔐 Verification: reCAPTCHA
+║ 🔐 Firebase SDK: React Native Firebase (Native)
+║ 🔐 Verification: Play Integrity (No reCAPTCHA)
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      if (!recaptchaVerifier.current) {
-        throw new Error('reCAPTCHA verifier not ready. Please wait and try again.');
-      }
-      
-      // Firebase JS SDK - requires recaptchaVerifier
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // React Native Firebase (Native) - NO reCAPTCHA needed
+      const result = await sendOtpToPhone(fullNumber);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
@@ -374,13 +370,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
           </TouchableOpacity>
         </View>
       </ScrollView>
-      
-      {/* Firebase reCAPTCHA (Invisible) */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification
-      />
     </KeyboardAvoidingView>
   );
 }

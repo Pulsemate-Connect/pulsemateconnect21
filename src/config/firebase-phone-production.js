@@ -11,39 +11,7 @@
  * These are NATIVE modules that integrate with Android properly
  */
 
-// Note: React Native Firebase is imported ONLY when actually used
-// This prevents build errors if the native modules aren't linked yet
-
-let auth = null;
-let isInitialized = false;
-
-/**
- * Lazy initialization of Firebase Auth
- * Only imports React Native Firebase when actually needed
- */
-const getFirebaseAuth = async () => {
-  if (isInitialized && auth) {
-    return auth;
-  }
-
-  try {
-    console.log('[Firebase Production] Initializing React Native Firebase Auth...');
-    
-    // Dynamic import to prevent build errors
-    const firebaseAuth = require('@react-native-firebase/auth').default;
-    
-    auth = firebaseAuth();
-    isInitialized = true;
-    
-    console.log('[Firebase Production] ✅ React Native Firebase Auth initialized');
-    console.log('[Firebase Production] Auth instance:', typeof auth);
-    
-    return auth;
-  } catch (error) {
-    console.error('[Firebase Production] ❌ Failed to initialize:', error);
-    throw new Error(`Firebase Auth initialization failed: ${error.message}`);
-  }
-};
+import auth from '@react-native-firebase/auth';
 
 /**
  * Initialize Firebase Phone Authentication
@@ -52,12 +20,13 @@ export const initializeFirebaseAuth = async () => {
   try {
     console.log('[Firebase Production] Starting initialization...');
     
-    const authInstance = await getFirebaseAuth();
+    // React Native Firebase is auto-initialized via google-services.json
+    const currentUser = auth().currentUser;
     
     console.log('[Firebase Production] ✅ Ready for Phone Authentication');
-    console.log('[Firebase Production] Current user:', authInstance.currentUser?.uid || 'None');
+    console.log('[Firebase Production] Current user:', currentUser?.uid || 'None');
     
-    return authInstance;
+    return auth();
   } catch (error) {
     console.error('[Firebase Production] ❌ Initialization error:', error);
     throw error;
@@ -91,14 +60,12 @@ export const sendOtpToPhone = async (phoneNumber) => {
   }
 
   try {
-    const authInstance = await getFirebaseAuth();
-    
     console.log('[Firebase Production] Calling signInWithPhoneNumber...');
     console.log('[Firebase Production] Phone:', phoneNumber);
     
-    // Call Firebase Phone Authentication
+    // Call Firebase Phone Authentication (Native)
     // This uses Play Integrity (no reCAPTCHA needed on Android)
-    const confirmation = await authInstance.signInWithPhoneNumber(phoneNumber);
+    const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
     
     console.log('[Firebase Production] ✅ OTP sent successfully');
     console.log('[Firebase Production] Verification ID:', confirmation.verificationId);
@@ -232,8 +199,7 @@ export const resendOtp = async (phoneNumber) => {
  */
 export const signOutUser = async () => {
   try {
-    const authInstance = await getFirebaseAuth();
-    await authInstance.signOut();
+    await auth().signOut();
     console.log('[Firebase Production] ✅ User signed out');
   } catch (error) {
     console.error('[Firebase Production] ❌ Sign out error:', error);
@@ -268,6 +234,3 @@ const formatFirebaseError = (error) => {
   
   return err;
 };
-
-// Export auth getter for compatibility
-export { getFirebaseAuth };

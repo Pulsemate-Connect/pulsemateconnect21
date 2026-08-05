@@ -21,6 +21,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 // ✅ PRODUCTION: React Native Firebase (Native Modules)
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
+import auth from '@react-native-firebase/auth';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -64,9 +65,6 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
-  
-  // reCAPTCHA verifier ref
-  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
@@ -203,12 +201,8 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       // ═══════════════════════════════════════════════════════════════
       console.log('🔍 [DEBUG-4] About to call sendOtpToPhone with:', fullNumber);
       
-      if (!recaptchaVerifier.current) {
-        throw new Error('reCAPTCHA verifier not ready. Please wait and try again.');
-      }
-      
-      // Firebase JS SDK - requires recaptchaVerifier
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // React Native Firebase (Native) - NO reCAPTCHA needed
+      const result = await sendOtpToPhone(fullNumber);
 
       // ═══════════════════════════════════════════════════════════════
       // DEBUGGING STEP 5: Log result
@@ -392,13 +386,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text> and <Text style={s.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
-      
-      {/* Firebase reCAPTCHA (Invisible) */}
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification
-      />
     </KeyboardAvoidingView>
   );
 }
