@@ -23,22 +23,22 @@ async function initDatabase() {
         await prisma.$executeRawUnsafe(`
           CREATE TABLE IF NOT EXISTS otp_attempts (
             id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-            mobile_number TEXT NOT NULL,
-            verification_id TEXT NOT NULL,
+            "mobileNumber" TEXT NOT NULL,
+            "verificationId" TEXT NOT NULL,
             provider TEXT NOT NULL DEFAULT 'MESSAGE_CENTRAL',
-            expires_at TIMESTAMPTZ NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            "expiresAt" TIMESTAMPTZ NOT NULL,
+            "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
         `);
         
         await prisma.$executeRawUnsafe(`
           CREATE INDEX IF NOT EXISTS idx_otp_attempts_mobile_created 
-          ON otp_attempts(mobile_number, created_at);
+          ON otp_attempts("mobileNumber", "createdAt");
         `);
         
         await prisma.$executeRawUnsafe(`
           CREATE INDEX IF NOT EXISTS idx_otp_attempts_verification_id 
-          ON otp_attempts(verification_id);
+          ON otp_attempts("verificationId");
         `);
         
         console.log('[DB Init] ✅ otp_attempts table created successfully');
