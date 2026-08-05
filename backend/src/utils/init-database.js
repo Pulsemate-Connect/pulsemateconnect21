@@ -1,0 +1,59 @@
+/**
+ * Database Initialization Script
+ * Automatically creates missing tables on server startup
+ */
+
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
+async function initDatabase() {
+  try {
+    console.log('[DB Init] Checking database schema...');
+    
+    // Try to query the otp_attempts table
+    try {
+      await prisma.$queryRaw`SELECT 1 FROM otp_attempts LIMIT 1`;
+      console.log('[DB Init] ✅ otp_attempts table exists');
+    } catch (error) {
+      // Table doesn't exist, create it
+      if (error.code === 'P2010' || error.message.includes('does not exist')) {
+        console.log('[DB Init] ⚠️  otp_attempts table missing, creating...');
+        
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS otp_attempts (
+            id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            mobile_number TEXT NOT NULL,
+            verification_id TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'MESSAGE_CENTRAL',
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        
+        await prisma.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS idx_otp_attempts_mobile_created 
+          ON otp_attempts(mobile_number, created_at);
+        `);
+        
+        await prisma.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS idx_otp_attempts_verification_id 
+          ON otp_attempts(verification_id);
+        `);
+        
+        console.log('[DB Init] ✅ otp_attempts table created successfully');
+      } else {
+        throw error;
+      }
+    }
+    
+    console.log('[DB Init] ✅ Database schema ready');
+  } catch (error) {
+    console.error('[DB Init] ❌ Error initializing database:', error.message);
+    // Don't throw - let the app start anyway
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+module.exports = { initDatabase };

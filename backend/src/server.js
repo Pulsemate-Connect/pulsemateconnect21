@@ -355,13 +355,17 @@ const PORT = process.env.PORT || 5000;
 // Only bind to a port when NOT running under Jest — integration tests use
 // supertest which calls app.listen() internally on a random port.
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', async () => {
     const localIP = getLocalIP();
     logger.info(`🚀 PulseMate API running on port ${PORT}`);
     logger.info(`📡 Socket.io ready`);
     logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     logger.info(`📱 LAN access: http://${localIP}:${PORT}`);
+
+    // Initialize database schema (auto-create missing tables)
+    const { initDatabase } = require('./utils/init-database');
+    await initDatabase();
 
     // Initialize Firebase Admin SDK
     initFirebase();
