@@ -1,16 +1,16 @@
 /**
- * LoginScreen — Firebase Phone Authentication (Native)
+ * LoginScreen — Firebase Phone Authentication (Expo-Compatible)
  *
  * Flow:
  *   1. Initialize Firebase Auth on mount
  *   2. User enters 10-digit mobile number and taps Send OTP
- *   3. React Native Firebase sends real SMS OTP via native integration
+ *   3. Firebase JS SDK sends real SMS OTP with invisible reCAPTCHA
  *   4. Navigate to OtpScreen with { mobile, confirmationResult }
  *   5. User verifies OTP on next screen
  * 
- * ✅ MIGRATED: Now uses React Native Firebase (Native)
- * Previous: Firebase JavaScript SDK with RecaptchaVerifier
- * Current: Native Firebase Auth with Play Integrity
+ * ✅ PRODUCTION: Firebase JS SDK with expo-firebase-recaptcha (Expo-Compatible)
+ * Previous: React Native Firebase (incompatible with Expo managed workflow)
+ * Current: Firebase JS SDK with invisible reCAPTCHA (works in production AAB)
  */
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -19,9 +19,9 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// ✅ PRODUCTION: React Native Firebase (Native Modules)
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+// ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
 import { initializeFirebaseAuth, sendOtpToPhone } from '../config/firebase-phone-production';
-import auth from '@react-native-firebase/auth';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -65,6 +65,8 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
+  const [firebaseApp, setFirebaseApp] = useState(null);
+  const recaptchaVerifier = useRef(null);
 
   // Initialize Firebase on mount (one-time)
   useEffect(() => {
@@ -82,7 +84,8 @@ export default function LoginScreen({ navigation }) {
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
         
-        await initializeFirebaseAuth();
+        const app = await initializeFirebaseAuth();
+        setFirebaseApp(app);
         setFirebaseReady(true);
         
         console.log(`
@@ -149,7 +152,7 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${mobile.trim().length}
 ║ 🔥 Implementation: Firebase JS SDK (Expo-compatible)
-║ 🔐 reCAPTCHA: ${recaptchaVerifier.current ? 'Ready' : 'Not Ready'}
+║ 🔐 reCAPTCHA Verifier: ${recaptchaVerifier.current ? 'Ready' : 'Not Ready'}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -201,8 +204,8 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       // ═══════════════════════════════════════════════════════════════
       console.log('🔍 [DEBUG-4] About to call sendOtpToPhone with:', fullNumber);
       
-      // React Native Firebase (Native) - NO reCAPTCHA needed
-      const result = await sendOtpToPhone(fullNumber);
+      // Firebase JS SDK with reCAPTCHA (Expo-Compatible)
+      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
 
       // ═══════════════════════════════════════════════════════════════
       // DEBUGGING STEP 5: Log result
@@ -386,6 +389,13 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text> and <Text style={s.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Firebase reCAPTCHA Verifier - invisible in production */}
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseApp?.options}
+        attemptInvisibleVerification={true}
+      />
     </KeyboardAvoidingView>
   );
 }

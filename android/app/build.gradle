@@ -156,11 +156,6 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // Exclude expo-firebase-core - we're using React Native Firebase instead
-    configurations.all {
-        exclude group: 'expo.modules', module: 'expo-firebase-core'
-    }
-
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";

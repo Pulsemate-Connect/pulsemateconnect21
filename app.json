@@ -60,8 +60,7 @@
           "androidMode": "default",
           "androidCollapsedTitle": "PulseMate Connect"
         }
-      ],
-      "@react-native-firebase/app"
+      ]
     ],
     "extra": {
       "apiUrl": "https://api.pulsemateconnect.in/api",
