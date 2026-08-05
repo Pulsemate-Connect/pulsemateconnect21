@@ -16,12 +16,12 @@ import { getAuth, signInWithPhoneNumber, PhoneAuthProvider, signInWithCredential
 
 // Firebase configuration from google-services.json
 const firebaseConfig = {
-  apiKey: "AIzaSyCYc_K49_KqKwrxvQlbZhq9bTBvjgKOxNU",
+  apiKey: "AIzaSyA2PXJxyIZpYOG2tXHDRu95gaaJogKEDBc",
   authDomain: "pulsemateconnect.firebaseapp.com",
   projectId: "pulsemateconnect",
   storageBucket: "pulsemateconnect.firebasestorage.app",
-  messagingSenderId: "731699832382",
-  appId: "1:731699832382:android:0d8a7da87c4a05a25f86a9"
+  messagingSenderId: "157620382332",
+  appId: "1:157620382332:android:063dba90b53a1c81e6b7f9"
 };
 
 // Initialize Firebase
