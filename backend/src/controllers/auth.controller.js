@@ -29,6 +29,8 @@ const {
 } = require('../services/email-verification.service');
 const { verifyFirebaseToken } = require('../config/firebase');
 const firebasePhoneVerificationRepo = require('../repositories/firebase-phone-verification.repository');
+const messageCentralService = require('../services/messagecentral.service');
+const jwt = require('jsonwebtoken');
 
 const buildFileUrl = (req, file) => {
   // When Cloudinary is active, req.file.path contains the full Cloudinary URL.
@@ -1276,11 +1278,179 @@ const firebasePhoneLoginHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/patient/send-otp
+ * 
+ * Send OTP using Message Central VerifyNow
+ * Step 1 of 2-factor auth migration
+ */
+const sendOtpHandler = async (req, res, next) => {
+  try {
+    const { mobileNumber } = req.body;
+    
+    // Validate input
+    if (!mobileNumber) {
+      return sendError(res, 'Mobile number is required', 400);
+    }
+
+    // Clean and validate mobile number
+    const cleanNumber = mobileNumber.replace(/\D/g, '').replace(/^91/, '');
+    if (cleanNumber.length !== 10) {
+      return sendError(res, 'Invalid mobile number format. Please enter 10-digit number.', 400);
+    }
+
+    // Rate limiting check (basic implementation)
+    // TODO: Implement Redis-based rate limiting for production
+    const recentAttempt = await prisma.otpAttempt.findFirst({
+      where: {
+        mobileNumber: `+91${cleanNumber}`,
+        createdAt: {
+          gte: new Date(Date.now() - 2 * 60 * 1000) // Last 2 minutes
+        }
+      }
+    });
+
+    if (recentAttempt) {
+      return sendError(res, 'Please wait 2 minutes before requesting another OTP', 429);
+    }
+
+    // Send OTP via Message Central
+    const result = await messageCentralService.sendOTP(cleanNumber, 6);
+
+    // Log OTP attempt (for analytics and rate limiting)
+    await prisma.otpAttempt.create({
+      data: {
+        mobileNumber: result.mobileNumber,
+        verificationId: result.verificationId,
+        provider: 'MESSAGE_CENTRAL',
+        expiresAt: new Date(Date.now() + result.timeout * 1000)
+      }
+    });
+
+    logger.info(`[Auth] OTP sent to ${result.mobileNumber} via Message Central`);
+
+    return sendSuccess(res, {
+      verificationId: result.verificationId,
+      expiresIn: result.timeout,
+      message: 'OTP sent successfully'
+    });
+  } catch (error) {
+    logger.error('[Auth] Send OTP error:', error);
+    return sendError(res, error.message || 'Failed to send OTP. Please try again.', 500);
+  }
+};
+
+/**
+ * POST /api/auth/patient/verify-otp
+ * 
+ * Verify OTP and login/register patient using Message Central
+ * Step 2 of 2-factor auth migration
+ */
+const verifyOtpHandler = async (req, res, next) => {
+  try {
+    const { verificationId, otp, mobileNumber } = req.body;
+
+    // Validate input
+    if (!verificationId || !otp || !mobileNumber) {
+      return sendError(res, 'Verification ID, OTP, and mobile number are required', 400);
+    }
+
+    // Clean OTP
+    const cleanOtp = otp.replace(/\D/g, '');
+    if (cleanOtp.length !== 6) {
+      return sendError(res, 'Invalid OTP format. Please enter 6-digit code.', 400);
+    }
+
+    // Validate OTP via Message Central
+    let validation;
+    try {
+      validation = await messageCentralService.validateOTP(verificationId, cleanOtp);
+    } catch (error) {
+      logger.error('[Auth] OTP validation failed:', error.message);
+      return sendError(res, error.message || 'Invalid or expired OTP', 401);
+    }
+
+    if (!validation.success) {
+      return sendError(res, 'Invalid or expired OTP', 401);
+    }
+
+    // OTP is valid - now handle user login/registration
+    const mobile = validation.mobileNumber;
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
+      where: { mobile },
+      include: baseUserInclude,
+    });
+
+    let isNewUser = false;
+    if (!user) {
+      // New user - create patient account
+      user = await prisma.user.create({
+        data: {
+          mobile,
+          role: 'PATIENT',
+          approvalStatus: 'VERIFIED',
+          isPhoneVerified: true,
+          authProvider: 'MESSAGE_CENTRAL',
+          patientProfile: { create: {} },
+        },
+        include: baseUserInclude,
+      });
+      isNewUser = true;
+      logger.info(`[Auth] New patient registered: ${user.id} (${mobile})`);
+    } else if (user.role !== 'PATIENT') {
+      return sendError(res, 'This phone belongs to a staff account. Use staff login.', 403);
+    } else {
+      // Existing patient - update login time
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isPhoneVerified: true,
+          lastLoginAt: new Date(),
+          authProvider: 'MESSAGE_CENTRAL',
+        },
+        include: baseUserInclude,
+      });
+      logger.info(`[Auth] Patient login: ${user.id} (${mobile})`);
+    }
+
+    // Issue JWT tokens
+    const tokens = await issueAuthTokens(res, user, req);
+
+    await createAuditLog({
+      userId: user.id,
+      action: isNewUser ? 'PATIENT_REGISTERED_MESSAGE_CENTRAL' : 'PATIENT_LOGIN_MESSAGE_CENTRAL',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+      metadata: { provider: 'MESSAGE_CENTRAL' },
+    });
+
+    return sendSuccess(
+      res,
+      {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: { ...toAuthUser(user), isNewUser },
+      },
+      isNewUser ? 'Account created successfully' : 'Login successful'
+    );
+  } catch (error) {
+    logger.error('[Auth] Verify OTP error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   // Firebase Phone Auth
   patientFirebasePhoneLoginHandler,
   clinicOwnerVerifyFirebasePhoneHandler,
   doctorVerifyFirebasePhoneHandler,
+  
+  // Message Central OTP Auth
+  sendOtpHandler,
+  verifyOtpHandler,
   
   // Email Verification
   clinicOwnerSendEmailOtpHandler,

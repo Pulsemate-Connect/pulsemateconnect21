@@ -434,6 +434,19 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model OtpAttempt {
+  id              String    @id @default(uuid())
+  mobileNumber    String
+  verificationId  String
+  provider        String    @default("MESSAGE_CENTRAL") // MESSAGE_CENTRAL or FIREBASE
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+
+  @@index([mobileNumber, createdAt])
+  @@index([verificationId])
+  @@map("otp_attempts")
+}
+
 model Payment {
   id                String        @id @default(uuid())
   appointmentId     String        @unique

@@ -19,6 +19,8 @@ const {
   logoutAllHandler,
   getMeHandler,
   patientFirebasePhoneLoginHandler,
+  sendOtpHandler,
+  verifyOtpHandler,
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
@@ -75,6 +77,21 @@ router.post(
   firebasePhoneLoginLimiter,
   validateRequest(firebasePhoneLoginSchema),
   patientFirebasePhoneLoginHandler
+);
+
+// ── MESSAGE CENTRAL VERIFYNOW OTP (Migration Path) ────────────────────────────
+// These routes provide Message Central OTP authentication for patient mobile app
+// Backend fully controls OTP generation/verification, no credentials exposed to app
+router.post(
+  '/patient/send-otp',
+  firebasePhoneLoginLimiter, // Reuse same rate limiter
+  sendOtpHandler
+);
+
+router.post(
+  '/patient/verify-otp',
+  firebasePhoneLoginLimiter, // Reuse same rate limiter
+  verifyOtpHandler
 );
 
 // ── Clinic owner phone verification — Firebase Phone Auth ─────────────────────

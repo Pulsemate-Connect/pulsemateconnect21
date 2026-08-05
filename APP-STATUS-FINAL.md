@@ -224,10 +224,12 @@ cd android
 - ✅ App registered: Android (in.pulsemateconnect.patient)
 
 ### **Mobile App:**
-- ✅ APK built: August 4, 2026
-- ✅ Location: C:\pm\pulsemateconnect21\android\app\build\outputs\apk\release\app-release.apk
-- ✅ Installed on device: Yes
-- ⏳ Testing: In progress
+- ✅ Production AAB built: August 5, 2026 (Build: 8ee61297-d918-43bc-85bc-c4e9fc7f5e12) *needs rebuild with fix*
+- ✅ Working Test APK: August 5, 2026 (Build: 85ff9495-14c7-4f84-8c19-9e983c092a3e)
+- ✅ Installed on emulator: PulseMatePixel35c (emulator-5554)
+- ✅ App running: Yes (launched successfully at 14:03:24)
+- ✅ Crash fixed: Removed expo-web-browser@57.0.2 incompatibility
+- ⏳ Testing: Ready to test Firebase Phone OTP
 
 ---
 
