@@ -30,7 +30,19 @@ async function generateAuthToken() {
       return authTokenCache.token;
     }
 
+    // Validate environment variables
+    if (!CUSTOMER_ID || !PASSWORD) {
+      console.error('[MessageCentral] ❌ Missing environment variables!');
+      console.error('[MessageCentral] CUSTOMER_ID present:', !!CUSTOMER_ID);
+      console.error('[MessageCentral] PASSWORD present:', !!PASSWORD);
+      console.error('[MessageCentral] BASE_URL:', BASE_URL);
+      throw new Error('MESSAGE_CENTRAL_CUSTOMER_ID or MESSAGE_CENTRAL_PASSWORD not configured');
+    }
+
     console.log('[MessageCentral] 🔑 Generating new auth token...');
+    console.log('[MessageCentral] 📋 Using CUSTOMER_ID:', CUSTOMER_ID);
+    console.log('[MessageCentral] 🔒 PASSWORD length:', PASSWORD?.length || 0);
+    console.log('[MessageCentral] 🌐 BASE_URL:', BASE_URL);
     
     const response = await axios.get(`${BASE_URL}/auth/v1/authentication/token`, {
       params: {
@@ -45,11 +57,18 @@ async function generateAuthToken() {
       timeout: 10000
     });
 
+    console.log('[MessageCentral] 📥 API Response Code:', response.data.responseCode);
+    console.log('[MessageCentral] 📥 API Response:', JSON.stringify(response.data));
+
     if (response.data.responseCode !== 200) {
-      throw new Error(`Token generation failed: ${response.data.message}`);
+      throw new Error(`Token generation failed: ${response.data.message || 'Unknown error'}`);
     }
 
-    const token = response.data.data.authToken;
+    const token = response.data.data?.authToken;
+    
+    if (!token) {
+      throw new Error('No auth token in response');
+    }
     
     // Cache token for 24 hours
     authTokenCache = {
@@ -63,9 +82,14 @@ async function generateAuthToken() {
     return token;
   } catch (error) {
     console.error('[MessageCentral] ❌ Token generation failed:', error.message);
+    console.error('[MessageCentral] Error type:', error.constructor.name);
     
     if (error.response) {
-      console.error('[MessageCentral] Response:', error.response.data);
+      console.error('[MessageCentral] Response status:', error.response.status);
+      console.error('[MessageCentral] Response data:', JSON.stringify(error.response.data));
+    } else if (error.request) {
+      console.error('[MessageCentral] No response received from API');
+      console.error('[MessageCentral] Request details:', error.request._header);
     }
     
     throw new Error('Failed to generate authentication token');
