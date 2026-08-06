@@ -1,8 +1,10 @@
 /**
- * Message Central VerifyNow OTP Service
+ * Message Central VerifyNow OTP Service - DIAGNOSTIC MODE
  * 
  * Handles all interactions with Message Central API for OTP verification
  * Credentials are stored in environment variables and NEVER exposed to frontend
+ * 
+ * Enhanced with comprehensive diagnostics for debugging token generation issues
  */
 
 const axios = require('axios');
@@ -19,10 +21,124 @@ let authTokenCache = {
 };
 
 /**
+ * STEP 2: Inspect and validate environment variables
+ */
+function validateEnvironmentVariables() {
+  const report = {
+    customerId: {
+      present: !!CUSTOMER_ID,
+      length: CUSTOMER_ID?.length || 0,
+      starts: CUSTOMER_ID?.substring(0, 10) || 'N/A',
+      ends: CUSTOMER_ID?.substring(CUSTOMER_ID.length - 10) || 'N/A',
+      containsSpaces: CUSTOMER_ID?.includes(' ') || false,
+      containsNewlines: CUSTOMER_ID?.includes('\n') || CUSTOMER_ID?.includes('\r') || false,
+      containsTabs: CUSTOMER_ID?.includes('\t') || false,
+      containsQuotes: CUSTOMER_ID?.includes('"') || CUSTOMER_ID?.includes("'") || false,
+      containsPeriods: CUSTOMER_ID?.includes('.') || false,
+    },
+    password: {
+      present: !!PASSWORD,
+      length: PASSWORD?.length || 0,
+      starts: PASSWORD?.substring(0, 10) || 'N/A',
+      ends: PASSWORD?.substring(PASSWORD.length - 10) || 'N/A',
+      containsSpaces: PASSWORD?.includes(' ') || false,
+      containsNewlines: PASSWORD?.includes('\n') || PASSWORD?.includes('\r') || false,
+      containsTabs: PASSWORD?.includes('\t') || false,
+      containsQuotes: PASSWORD?.includes('"') || PASSWORD?.includes("'") || false,
+      containsPeriods: PASSWORD?.includes('.') || false,
+    },
+    baseUrl: {
+      value: BASE_URL,
+      valid: BASE_URL?.startsWith('http') || false,
+    }
+  };
+  
+  console.log('[MessageCentral] 📋 ENVIRONMENT VALIDATION REPORT:');
+  console.log(JSON.stringify(report, null, 2));
+  
+  return report;
+}
+
+/**
+ * STEP 3: Determine credential type
+ */
+function detectCredentialType(credential) {
+  if (!credential) {
+    return { type: 'MISSING', valid: false, reason: 'Credential is null or undefined' };
+  }
+  
+  // Check if it's a JWT (header.payload.signature)
+  const jwtPattern = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+  if (jwtPattern.test(credential)) {
+    return {
+      type: 'JWT',
+      valid: false,
+      reason: 'MESSAGE_CENTRAL_PASSWORD appears to be a JWT token (header.payload.signature format). Message Central API requires a different credential type. Please verify the correct authentication key from Message Central dashboard.',
+      structure: 'JWT has 3 parts separated by dots',
+      parts: credential.split('.').length
+    };
+  }
+  
+  // Check if it's Base64
+  try {
+    const decoded = Buffer.from(credential, 'base64');
+    if (decoded.length > 0) {
+      return {
+        type: 'BASE64',
+        valid: true,
+        decodedLength: decoded.length,
+        reason: 'Valid Base64 string'
+      };
+    }
+  } catch (e) {
+    // Not valid Base64
+  }
+  
+  // Check if it contains only base64 characters but has periods
+  const base64WithPeriods = /^[A-Za-z0-9+/=.]+$/;
+  if (base64WithPeriods.test(credential) && credential.includes('.')) {
+    return {
+      type: 'BASE64_WITH_PERIODS',
+      valid: false,
+      reason: 'Contains periods which are not valid Base64 characters. This might be a JWT or incorrectly formatted key.',
+    };
+  }
+  
+  return {
+    type: 'UNKNOWN',
+    valid: false,
+    reason: 'Credential format not recognized'
+  };
+}
+
+/**
+ * STEP 7: Validate Base64 encoding
+ */
+function validateBase64(key) {
+  try {
+    const decoded = Buffer.from(key, 'base64');
+    console.log('[MessageCentral] ✅ Base64 validation passed');
+    console.log('[MessageCentral] 📊 Decoded length:', decoded.length, 'bytes');
+    return { valid: true, decoded };
+  } catch (error) {
+    console.error('[MessageCentral] ❌ Base64 validation failed:', error.message);
+    return {
+      valid: false,
+      error: 'Configured Message Central key is not valid Base64.',
+      details: error.message
+    };
+  }
+}
+
+/**
  * Generate Message Central Authentication Token
  * Token is cached for 24 hours to reduce API calls
  */
 async function generateAuthToken() {
+  console.log('[MessageCentral] ═══════════════════════════════════════════════════════');
+  console.log('[MessageCentral] 🔍 DIAGNOSTIC MODE: Message Central Token Generation');
+  console.log('[MessageCentral] ═══════════════════════════════════════════════════════');
+  
   try {
     // Check cache first
     if (authTokenCache.token && authTokenCache.expiresAt > Date.now()) {
@@ -30,21 +146,89 @@ async function generateAuthToken() {
       return authTokenCache.token;
     }
 
-    // Validate environment variables
+    // STEP 2: Validate environment variables
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 2: Environment Variable Validation');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    const envReport = validateEnvironmentVariables();
+    
     if (!CUSTOMER_ID || !PASSWORD) {
-      console.error('[MessageCentral] ❌ Missing environment variables!');
-      console.error('[MessageCentral] CUSTOMER_ID present:', !!CUSTOMER_ID);
-      console.error('[MessageCentral] PASSWORD present:', !!PASSWORD);
-      console.error('[MessageCentral] BASE_URL:', BASE_URL);
-      throw new Error('MESSAGE_CENTRAL_CUSTOMER_ID or MESSAGE_CENTRAL_PASSWORD not configured');
+      throw new Error('❌ FATAL: MESSAGE_CENTRAL_CUSTOMER_ID or MESSAGE_CENTRAL_PASSWORD not configured in environment variables');
     }
 
-    console.log('[MessageCentral] 🔑 Generating new auth token...');
-    console.log('[MessageCentral] 📋 Using CUSTOMER_ID:', CUSTOMER_ID);
-    console.log('[MessageCentral] 🔒 PASSWORD length:', PASSWORD?.length || 0);
-    console.log('[MessageCentral] 🌐 BASE_URL:', BASE_URL);
+    // STEP 3: Detect credential type
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 3: Credential Type Detection');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    const credentialType = detectCredentialType(PASSWORD);
+    console.log('[MessageCentral] 🔍 Credential Analysis:', JSON.stringify(credentialType, null, 2));
     
-    const response = await axios.get(`${BASE_URL}/auth/v1/authentication/token`, {
+    if (credentialType.type === 'JWT') {
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] ❌❌❌ CRITICAL ERROR ❌❌❌');
+      console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
+      console.error('[MessageCentral] WRONG CREDENTIAL TYPE DETECTED!');
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] The MESSAGE_CENTRAL_PASSWORD appears to be a JWT token.');
+      console.error('[MessageCentral] JWT Format: header.payload.signature (3 parts separated by dots)');
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] Message Central API Error: "Illegal base64 character 2e"');
+      console.error('[MessageCentral] (0x2e = period/dot character, which is NOT valid in Base64)');
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] ✅ ACTION REQUIRED:');
+      console.error('[MessageCentral] 1. Login to Message Central dashboard: https://cpaas.messagecentral.com');
+      console.error('[MessageCentral] 2. Navigate to API Credentials or Authentication section');
+      console.error('[MessageCentral] 3. Find the correct API KEY (NOT the JWT token)');
+      console.error('[MessageCentral] 4. Update MESSAGE_CENTRAL_PASSWORD environment variable');
+      console.error('[MessageCentral] 5. The correct key should be pure Base64 (no periods)');
+      console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
+      console.error('[MessageCentral] ');
+      throw new Error('WRONG_CREDENTIAL_TYPE: MESSAGE_CENTRAL_PASSWORD is a JWT token, but Message Central API requires a Base64 API key. Please check Message Central dashboard for the correct authentication key.');
+    }
+    
+    if (!credentialType.valid) {
+      throw new Error(`INVALID_CREDENTIAL: ${credentialType.reason}`);
+    }
+
+    // STEP 7: Validate Base64
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 7: Base64 Validation');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    const base64Validation = validateBase64(PASSWORD);
+    if (!base64Validation.valid) {
+      throw new Error(`BASE64_INVALID: ${base64Validation.error} - ${base64Validation.details}`);
+    }
+
+    // STEP 4: Log outgoing request details
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 4: Outgoing Request Details');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    const requestUrl = `${BASE_URL}/auth/v1/authentication/token`;
+    const requestParams = {
+      customerId: CUSTOMER_ID,
+      key: PASSWORD.substring(0, 10) + '...[REDACTED]...' + PASSWORD.substring(PASSWORD.length - 10),
+      scope: 'NEW',
+      country: '91'
+    };
+    console.log('[MessageCentral] 🌐 Method: GET');
+    console.log('[MessageCentral] 🌐 URL:', requestUrl);
+    console.log('[MessageCentral] 🌐 Params:', JSON.stringify(requestParams, null, 2));
+    console.log('[MessageCentral] 🌐 Headers: { accept: "*/*" }');
+    console.log('[MessageCentral] 🌐 Timeout: 10000ms');
+    console.log('[MessageCentral] 🌐 Encoding: URLSearchParams (automatic via axios params)');
+
+    // STEP 6: Verify request encoding
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 6: Request Encoding Verification');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    console.log('[MessageCentral] ✅ Using axios params (automatic URL encoding)');
+    console.log('[MessageCentral] ✅ This prevents manual encoding issues');
+    
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] 🚀 Sending request to Message Central API...');
+    console.log('[MessageCentral] ');
+    
+    const response = await axios.get(requestUrl, {
       params: {
         customerId: CUSTOMER_ID,
         key: PASSWORD,
@@ -57,17 +241,22 @@ async function generateAuthToken() {
       timeout: 10000
     });
 
-    console.log('[MessageCentral] 📥 API Response Code:', response.data.responseCode);
-    console.log('[MessageCentral] 📥 API Response:', JSON.stringify(response.data));
+    // STEP 5: Log complete response
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] STEP 5: API Response Analysis');
+    console.log('[MessageCentral] ───────────────────────────────────────');
+    console.log('[MessageCentral] 📥 Status:', response.status, response.statusText);
+    console.log('[MessageCentral] 📥 Response Code:', response.data.responseCode);
+    console.log('[MessageCentral] 📥 Response Body:', JSON.stringify(response.data, null, 2));
 
     if (response.data.responseCode !== 200) {
-      throw new Error(`Token generation failed: ${response.data.message || 'Unknown error'}`);
+      throw new Error(`API_ERROR: ${response.data.message || 'Unknown error'} (Code: ${response.data.responseCode})`);
     }
 
     const token = response.data.data?.authToken;
     
     if (!token) {
-      throw new Error('No auth token in response');
+      throw new Error('API_ERROR: No authToken in response data');
     }
     
     // Cache token for 24 hours
@@ -76,23 +265,51 @@ async function generateAuthToken() {
       expiresAt: Date.now() + (24 * 60 * 60 * 1000)
     };
 
-    console.log('[MessageCentral] ✅ Auth token generated successfully');
-    console.log('[MessageCentral] ⏰ Token cached until:', new Date(authTokenCache.expiresAt).toISOString());
+    console.log('[MessageCentral] ');
+    console.log('[MessageCentral] ✅✅✅ SUCCESS ✅✅✅');
+    console.log('[MessageCentral] Auth token generated successfully');
+    console.log('[MessageCentral] Token cached until:', new Date(authTokenCache.expiresAt).toISOString());
+    console.log('[MessageCentral] ═══════════════════════════════════════════════════════');
     
     return token;
   } catch (error) {
-    console.error('[MessageCentral] ❌ Token generation failed:', error.message);
-    console.error('[MessageCentral] Error type:', error.constructor.name);
+    // STEP 5: Comprehensive error logging
+    console.error('[MessageCentral] ');
+    console.error('[MessageCentral] ❌❌❌ ERROR ❌❌❌');
+    console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
+    console.error('[MessageCentral] Error Type:', error.constructor.name);
+    console.error('[MessageCentral] Error Message:', error.message);
     
     if (error.response) {
-      console.error('[MessageCentral] Response status:', error.response.status);
-      console.error('[MessageCentral] Response data:', JSON.stringify(error.response.data));
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] HTTP Response Error:');
+      console.error('[MessageCentral] ├─ Status:', error.response.status);
+      console.error('[MessageCentral] ├─ Status Text:', error.response.statusText);
+      console.error('[MessageCentral] ├─ Headers:', JSON.stringify(error.response.headers, null, 2));
+      console.error('[MessageCentral] └─ Body:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
-      console.error('[MessageCentral] No response received from API');
-      console.error('[MessageCentral] Request details:', error.request._header);
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] No Response Received:');
+      console.error('[MessageCentral] ├─ Request was sent but no response received');
+      console.error('[MessageCentral] ├─ URL:', error.config?.url);
+      console.error('[MessageCentral] ├─ Method:', error.config?.method);
+      console.error('[MessageCentral] └─ Timeout:', error.config?.timeout, 'ms');
+    } else if (error.code) {
+      console.error('[MessageCentral] ');
+      console.error('[MessageCentral] Axios Error:');
+      console.error('[MessageCentral] ├─ Code:', error.code);
+      console.error('[MessageCentral] └─ Message:', error.message);
     }
     
-    throw new Error('Failed to generate authentication token');
+    console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
+    console.error('[MessageCentral] ');
+    
+    // Throw specific error message based on analysis
+    if (error.message.includes('WRONG_CREDENTIAL_TYPE')) {
+      throw error; // Already has detailed message
+    }
+    
+    throw new Error(`Message Central Token Generation Failed: ${error.message}`);
   }
 }
 
