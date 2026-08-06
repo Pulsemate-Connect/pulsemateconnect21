@@ -37,8 +37,7 @@ async function generateAuthToken() {
         customerId: CUSTOMER_ID,
         key: PASSWORD,
         scope: 'NEW',
-        country: '91',
-        email: 'tech@pulsemateconnect.in'
+        country: '91'
       },
       headers: {
         'accept': '*/*'
