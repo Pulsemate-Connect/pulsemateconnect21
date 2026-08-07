@@ -1364,8 +1364,26 @@ const verifyOtpHandler = async (req, res, next) => {
     // Validate OTP via Message Central
     let validation;
     try {
+      console.log('[Auth] 🔍 Validating OTP with Message Central');
+      console.log('[Auth] 📋 VerificationId:', verificationId);
+      console.log('[Auth] 📋 OTP length:', cleanOtp.length);
+      console.log('[Auth] 📋 Mobile:', mobileNumber);
+      
       validation = await messageCentralService.validateOTP(verificationId, cleanOtp);
+      
+      console.log('[Auth] ✅ Message Central validation successful');
+      console.log('[Auth] 📥 Validation result:', JSON.stringify(validation, null, 2));
     } catch (error) {
+      console.error('[Auth] ❌ OTP validation failed');
+      console.error('[Auth] Error message:', error.message);
+      console.error('[Auth] Error stack:', error.stack);
+      
+      // Log the actual Message Central error if available
+      if (error.response) {
+        console.error('[Auth] 📥 Message Central HTTP Status:', error.response.status);
+        console.error('[Auth] 📥 Message Central Response:', JSON.stringify(error.response.data, null, 2));
+      }
+      
       logger.error('[Auth] OTP validation failed:', error.message);
       return sendError(res, error.message || 'Invalid or expired OTP', 401);
     }
