@@ -423,9 +423,12 @@ async function validateOTP(verificationId, code) {
     }
     
     console.log(`[MessageCentral] 🔐 Validating OTP for verification ID: ${verificationId}`);
+    console.log(`[MessageCentral] 📋 OTP Code: ${cleanCode}`);
     
     // Get auth token
     const authToken = await generateAuthToken();
+    
+    console.log(`[MessageCentral] 🔑 Auth token obtained, making validation request...`);
     
     // Validate OTP
     const response = await axios.post(
@@ -443,7 +446,9 @@ async function validateOTP(verificationId, code) {
       }
     );
 
-    console.log('[MessageCentral] Response:', JSON.stringify(response.data, null, 2));
+    console.log('[MessageCentral] ✅ Validation API call successful');
+    console.log('[MessageCentral] 📥 HTTP Status:', response.status);
+    console.log('[MessageCentral] 📥 Response:', JSON.stringify(response.data, null, 2));
 
     if (response.data.responseCode !== 200) {
       const errorCode = response.data.responseCode;
@@ -481,6 +486,14 @@ async function validateOTP(verificationId, code) {
     };
   } catch (error) {
     console.error('[MessageCentral] ❌ OTP validation error:', error.message);
+    console.error('[MessageCentral] Error type:', error.constructor.name);
+    
+    if (error.response) {
+      console.error('[MessageCentral] 📥 HTTP Status:', error.response.status);
+      console.error('[MessageCentral] 📥 Status Text:', error.response.statusText);
+      console.error('[MessageCentral] 📥 Response data:', JSON.stringify(error.response.data, null, 2));
+      console.error('[MessageCentral] 📥 Response headers:', JSON.stringify(error.response.headers, null, 2));
+    }
     
     // Return user-friendly errors
     if (error.message === 'WRONG_OTP') {
