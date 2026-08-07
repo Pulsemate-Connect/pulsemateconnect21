@@ -12,6 +12,7 @@ const axios = require('axios');
 const BASE_URL = process.env.MESSAGE_CENTRAL_BASE_URL || 'https://cpaas.messagecentral.com';
 const CUSTOMER_ID = process.env.MESSAGE_CENTRAL_CUSTOMER_ID;
 const PASSWORD = process.env.MESSAGE_CENTRAL_PASSWORD;
+const EMAIL = process.env.MESSAGE_CENTRAL_EMAIL;
 
 // In-memory cache for auth tokens
 // TODO: Use Redis in production for distributed systems
@@ -152,8 +153,8 @@ async function generateAuthToken() {
     console.log('[MessageCentral] ───────────────────────────────────────');
     const envReport = validateEnvironmentVariables();
     
-    if (!CUSTOMER_ID || !PASSWORD) {
-      throw new Error('❌ FATAL: MESSAGE_CENTRAL_CUSTOMER_ID or MESSAGE_CENTRAL_PASSWORD not configured in environment variables');
+    if (!CUSTOMER_ID || !PASSWORD || !EMAIL) {
+      throw new Error('❌ FATAL: MESSAGE_CENTRAL_CUSTOMER_ID, MESSAGE_CENTRAL_PASSWORD, or MESSAGE_CENTRAL_EMAIL not configured in environment variables');
     }
 
     // STEP 3: Detect credential type
@@ -207,10 +208,11 @@ async function generateAuthToken() {
     console.log('[MessageCentral] ───────────────────────────────────────');
     const requestUrl = `${BASE_URL}/auth/v1/authentication/token`;
     const requestParams = {
+      country: 'IN',
       customerId: CUSTOMER_ID,
-      key: PASSWORD.substring(0, 10) + '...[REDACTED]...' + PASSWORD.substring(PASSWORD.length - 10),
-      scope: 'NEW',
-      country: '91'
+      email: EMAIL?.substring(0, 3) + '***' + EMAIL?.substring(EMAIL.length - 10) || '[NOT SET]',
+      key: PASSWORD?.substring(0, 10) + '...[REDACTED]...' + PASSWORD?.substring(PASSWORD.length - 10),
+      scope: 'NEW'
     };
     console.log('[MessageCentral] 🌐 Method: GET');
     console.log('[MessageCentral] 🌐 URL:', requestUrl);
@@ -232,10 +234,11 @@ async function generateAuthToken() {
     
     const response = await axios.get(requestUrl, {
       params: {
+        country: 'IN',
         customerId: CUSTOMER_ID,
+        email: EMAIL,
         key: PASSWORD,
-        scope: 'NEW',
-        country: '91'
+        scope: 'NEW'
       },
       headers: {
         'accept': '*/*'
