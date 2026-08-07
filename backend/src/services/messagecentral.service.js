@@ -250,18 +250,23 @@ async function generateAuthToken() {
     console.log('[MessageCentral] ');
     console.log('[MessageCentral] STEP 5: API Response Analysis');
     console.log('[MessageCentral] ───────────────────────────────────────');
-    console.log('[MessageCentral] 📥 Status:', response.status, response.statusText);
+    console.log('[MessageCentral] 📥 HTTP Status:', response.status, response.statusText);
     console.log('[MessageCentral] 📥 Response Code:', response.data.responseCode);
+    console.log('[MessageCentral] 📥 Response Status:', response.data.status);
     console.log('[MessageCentral] 📥 Response Body:', JSON.stringify(response.data, null, 2));
 
-    if (response.data.responseCode !== 200) {
+    // Check for success (either responseCode: 200 OR status: 200)
+    const isSuccess = response.data.responseCode === 200 || response.data.status === 200;
+    
+    if (!isSuccess && response.data.responseCode) {
       throw new Error(`API_ERROR: ${response.data.message || 'Unknown error'} (Code: ${response.data.responseCode})`);
     }
 
-    const token = response.data.data?.authToken;
+    // Get token from either data.authToken OR data.token
+    const token = response.data.data?.authToken || response.data.token;
     
     if (!token) {
-      throw new Error('API_ERROR: No authToken in response data');
+      throw new Error('API_ERROR: No authToken or token in response data');
     }
     
     // Cache token for 24 hours
