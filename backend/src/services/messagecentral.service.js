@@ -430,10 +430,9 @@ async function validateOTP(verificationId, code) {
     
     console.log(`[MessageCentral] 🔑 Auth token obtained, making validation request...`);
     
-    // Validate OTP
-    const response = await axios.post(
+    // Validate OTP - Message Central uses GET, not POST!
+    const response = await axios.get(
       `${BASE_URL}/verification/v3/validateOtp`,
-      null,
       {
         params: {
           verificationId,
