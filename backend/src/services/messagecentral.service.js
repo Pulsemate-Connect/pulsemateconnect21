@@ -164,39 +164,37 @@ async function generateAuthToken() {
     console.log('[MessageCentral] 🔍 Credential Analysis:', JSON.stringify(credentialType, null, 2));
     
     if (credentialType.type === 'JWT') {
-      console.error('[MessageCentral] ');
-      console.error('[MessageCentral] ❌❌❌ CRITICAL ERROR ❌❌❌');
-      console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
-      console.error('[MessageCentral] WRONG CREDENTIAL TYPE DETECTED!');
-      console.error('[MessageCentral] ');
-      console.error('[MessageCentral] The MESSAGE_CENTRAL_PASSWORD appears to be a JWT token.');
-      console.error('[MessageCentral] JWT Format: header.payload.signature (3 parts separated by dots)');
-      console.error('[MessageCentral] ');
-      console.error('[MessageCentral] Message Central API Error: "Illegal base64 character 2e"');
-      console.error('[MessageCentral] (0x2e = period/dot character, which is NOT valid in Base64)');
-      console.error('[MessageCentral] ');
-      console.error('[MessageCentral] ✅ ACTION REQUIRED:');
-      console.error('[MessageCentral] 1. Login to Message Central dashboard: https://cpaas.messagecentral.com');
-      console.error('[MessageCentral] 2. Navigate to API Credentials or Authentication section');
-      console.error('[MessageCentral] 3. Find the correct API KEY (NOT the JWT token)');
-      console.error('[MessageCentral] 4. Update MESSAGE_CENTRAL_PASSWORD environment variable');
-      console.error('[MessageCentral] 5. The correct key should be pure Base64 (no periods)');
-      console.error('[MessageCentral] ═══════════════════════════════════════════════════════');
-      console.error('[MessageCentral] ');
-      throw new Error('WRONG_CREDENTIAL_TYPE: MESSAGE_CENTRAL_PASSWORD is a JWT token, but Message Central API requires a Base64 API key. Please check Message Central dashboard for the correct authentication key.');
+      console.warn('[MessageCentral] ');
+      console.warn('[MessageCentral] ⚠️ WARNING: JWT TOKEN DETECTED');
+      console.warn('[MessageCentral] ═══════════════════════════════════════════════════════');
+      console.warn('[MessageCentral] The MESSAGE_CENTRAL_PASSWORD appears to be a JWT token.');
+      console.warn('[MessageCentral] JWT Format: header.payload.signature (3 parts separated by dots)');
+      console.warn('[MessageCentral] ');
+      console.warn('[MessageCentral] Message Central typically expects Base64 keys without periods.');
+      console.warn('[MessageCentral] However, some Message Central JWT tokens labeled "API_KEY" may work.');
+      console.warn('[MessageCentral] ');
+      console.warn('[MessageCentral] ⏩ PROCEEDING TO TEST WITH MESSAGE CENTRAL API...');
+      console.warn('[MessageCentral] ═══════════════════════════════════════════════════════');
+      console.warn('[MessageCentral] ');
+      // Don't throw error - let Message Central API decide if it's valid
     }
     
     if (!credentialType.valid) {
       throw new Error(`INVALID_CREDENTIAL: ${credentialType.reason}`);
     }
 
-    // STEP 7: Validate Base64
+    // STEP 7: Validate Base64 (skip for JWT tokens - let API decide)
     console.log('[MessageCentral] ');
     console.log('[MessageCentral] STEP 7: Base64 Validation');
     console.log('[MessageCentral] ───────────────────────────────────────');
-    const base64Validation = validateBase64(PASSWORD);
-    if (!base64Validation.valid) {
-      throw new Error(`BASE64_INVALID: ${base64Validation.error} - ${base64Validation.details}`);
+    if (credentialType.type !== 'JWT') {
+      const base64Validation = validateBase64(PASSWORD);
+      if (!base64Validation.valid) {
+        throw new Error(`BASE64_INVALID: ${base64Validation.error} - ${base64Validation.details}`);
+      }
+    } else {
+      console.log('[MessageCentral] ⏩ Skipping Base64 validation (JWT token detected)');
+      console.log('[MessageCentral] 📋 Letting Message Central API validate the token format');
     }
 
     // STEP 4: Log outgoing request details
