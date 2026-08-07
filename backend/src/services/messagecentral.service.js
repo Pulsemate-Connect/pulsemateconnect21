@@ -179,8 +179,12 @@ async function generateAuthToken() {
       // Don't throw error - let Message Central API decide if it's valid
     }
     
-    if (!credentialType.valid) {
+    if (!credentialType.valid && credentialType.type !== 'JWT') {
       throw new Error(`INVALID_CREDENTIAL: ${credentialType.reason}`);
+    }
+    
+    if (credentialType.type === 'JWT') {
+      console.log('[MessageCentral] ⚠️  JWT detected but proceeding to test with API');
     }
 
     // STEP 7: Validate Base64 (skip for JWT tokens - let API decide)
