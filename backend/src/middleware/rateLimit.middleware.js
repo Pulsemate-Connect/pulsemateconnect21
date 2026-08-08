@@ -15,18 +15,6 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
     },
   });
 
-const otpSendLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // ✅ SECURITY: Only 3 OTP requests per hour
-  message: 'Too many OTP requests. Please try again later.',
-});
-
-const otpVerifyLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5, // ✅ SECURITY: Reduced from 10 to 5 attempts
-  message: 'Too many OTP verification attempts. Please try again later.',
-});
-
 const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: 5, // ✅ SECURITY: Reduced from 20 to 5 attempts
