@@ -430,19 +430,19 @@ async function validateOTP(verificationId, code) {
     
     console.log(`[MessageCentral] 🔑 Auth token obtained, making validation request...`);
     console.log(`[MessageCentral] 🔍 VALIDATION REQUEST DETAILS:`);
-    console.log(`[MessageCentral] ├─ Method: POST (as per Message Central documentation)`);
+    console.log(`[MessageCentral] ├─ Method: GET (as per Message Central API)`);
     console.log(`[MessageCentral] ├─ URL: ${BASE_URL}/verification/v3/validateOtp`);
-    console.log(`[MessageCentral] ├─ Body:`, JSON.stringify({ verificationId, code: cleanCode }, null, 2));
+    console.log(`[MessageCentral] ├─ Query Params: verificationId=${verificationId}, code=${cleanCode}`);
     console.log(`[MessageCentral] └─ Headers: { authToken: [REDACTED] }`);
     
-    // Validate OTP - Message Central uses POST with JSON body!
-    const response = await axios.post(
+    // Validate OTP - Message Central uses GET with query parameters!
+    const response = await axios.get(
       `${BASE_URL}/verification/v3/validateOtp`,
       {
-        verificationId,
-        code: cleanCode
-      },
-      {
+        params: {
+          verificationId,
+          code: cleanCode
+        },
         headers: {
           'authToken': authToken,
           'Content-Type': 'application/json'
