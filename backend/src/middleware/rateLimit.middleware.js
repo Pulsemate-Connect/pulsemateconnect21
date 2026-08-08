@@ -85,6 +85,39 @@ const firebasePhoneVerifyLimiter = createLimiter({
   message: 'Too many phone verification attempts. Please try again later.',
 });
 
+/**
+ * ✅ PRODUCTION FIX: Dedicated OTP Rate Limiters
+ * 
+ * Phone-based rate limiting for Message Central OTP authentication
+ * - Prevents DoS while allowing legitimate usage
+ * - Keys by phone number (not IP) to prevent NAT/corporate network issues
+ * - Separate limits for send vs verify operations
+ */
+
+// OTP Send Rate Limiter - Prevents SMS spam
+const otpSendLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 OTP sends per hour per phone number
+  message: 'Too many OTP requests. Please try again after an hour.',
+  keyGenerator: (req) => {
+    // Use phone number from request body for per-user limiting
+    const phone = req.body?.mobileNumber?.replace(/\D/g, '');
+    // Fallback to IP if phone not provided (shouldn't happen in normal flow)
+    return phone ? `otp_send:${phone}` : `otp_send_ip:${req.ip}`;
+  },
+});
+
+// OTP Verify Rate Limiter - More lenient to allow multiple attempts
+const otpVerifyLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 verification attempts per 15 minutes per phone
+  message: 'Too many verification attempts. Please try again in 15 minutes.',
+  keyGenerator: (req) => {
+    const phone = req.body?.mobileNumber?.replace(/\D/g, '');
+    return phone ? `otp_verify:${phone}` : `otp_verify_ip:${req.ip}`;
+  },
+});
+
 module.exports = {
   otpSendLimiter,
   otpVerifyLimiter,

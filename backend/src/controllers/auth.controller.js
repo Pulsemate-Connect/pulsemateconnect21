@@ -1299,25 +1299,14 @@ const sendOtpHandler = async (req, res, next) => {
       return sendError(res, 'Invalid mobile number format. Please enter 10-digit number.', 400);
     }
 
-    // Rate limiting check (basic implementation)
-    // TODO: Implement Redis-based rate limiting for production
-    const recentAttempt = await prisma.otpAttempt.findFirst({
-      where: {
-        mobileNumber: `+91${cleanNumber}`,
-        createdAt: {
-          gte: new Date(Date.now() - 2 * 60 * 1000) // Last 2 minutes
-        }
-      }
-    });
-
-    if (recentAttempt) {
-      return sendError(res, 'Please wait 2 minutes before requesting another OTP', 429);
-    }
+    // ✅ PRODUCTION FIX: Removed redundant database rate limiting
+    // The otpSendLimiter middleware (5 requests/hour per phone) handles rate limiting
+    // express-rate-limit is more efficient and consistent than database queries
 
     // Send OTP via Message Central
     const result = await messageCentralService.sendOTP(cleanNumber, 6);
 
-    // Log OTP attempt (for analytics and rate limiting)
+    // Log OTP attempt (for analytics only, not rate limiting)
     await prisma.otpAttempt.create({
       data: {
         mobileNumber: result.mobileNumber,

@@ -32,6 +32,8 @@ const {
   resetPasswordLimiter,
   firebasePhoneLoginLimiter,
   firebasePhoneVerifyLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
 } = require('../middleware/rateLimit.middleware');
 const {
   clinicOwnerEmailVerificationSendSchema,
@@ -80,17 +82,19 @@ router.post(
 );
 
 // ── MESSAGE CENTRAL VERIFYNOW OTP (Migration Path) ────────────────────────────
-// These routes provide Message Central OTP authentication for patient mobile app
-// Backend fully controls OTP generation/verification, no credentials exposed to app
+// ✅ PRODUCTION FIX: Using dedicated OTP rate limiters
+// - otpSendLimiter: 5 requests/hour per phone number
+// - otpVerifyLimiter: 10 attempts/15min per phone number
+// - Phone-based keys prevent NAT/corporate network blocking
 router.post(
   '/patient/send-otp',
-  firebasePhoneLoginLimiter, // Reuse same rate limiter
+  otpSendLimiter, // ✅ Dedicated OTP send limiter (5/hour per phone)
   sendOtpHandler
 );
 
 router.post(
   '/patient/verify-otp',
-  firebasePhoneLoginLimiter, // Reuse same rate limiter
+  otpVerifyLimiter, // ✅ Dedicated OTP verify limiter (10/15min per phone)
   verifyOtpHandler
 );
 
