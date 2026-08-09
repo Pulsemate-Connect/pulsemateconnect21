@@ -36,7 +36,7 @@ const getNotifications = () => {
       getExpoPushTokenAsync: () => Promise.resolve({ data: null }),
       addNotificationReceivedListener: noopSub,
       addNotificationResponseReceivedListener: noopSub,
-      removeNotificationSubscription: noop,
+      // Removed: removeNotificationSubscription (doesn't exist in Expo Notifications API)
       AndroidImportance: { HIGH: 4 },
       AndroidNotificationVisibility: { PUBLIC: 1 },
     };
@@ -186,12 +186,13 @@ const usePushNotifications = (navigationRef, isAuthenticated = false) => {
       try { await removeFcmToken(tokenRef.current); } catch { }
       tokenRef.current = null;
     }
+    // Fix: Use .remove() method on subscription objects, not removeNotificationSubscription
     if (notifListener.current) {
-      N.removeNotificationSubscription(notifListener.current);
+      try { notifListener.current.remove(); } catch { }
       notifListener.current = null;
     }
     if (responseListener.current) {
-      N.removeNotificationSubscription(responseListener.current);
+      try { responseListener.current.remove(); } catch { }
       responseListener.current = null;
     }
   }, []);
@@ -206,9 +207,13 @@ const usePushNotifications = (navigationRef, isAuthenticated = false) => {
     subscribe();
 
     return () => {
-      const N = getNotifications();
-      if (notifListener.current) N.removeNotificationSubscription(notifListener.current);
-      if (responseListener.current) N.removeNotificationSubscription(responseListener.current);
+      // Fix: Use .remove() method on subscription objects
+      if (notifListener.current) {
+        try { notifListener.current.remove(); } catch { }
+      }
+      if (responseListener.current) {
+        try { responseListener.current.remove(); } catch { }
+      }
     };
   }, [isAuthenticated, registerToken, subscribe, unregister]);
 };
