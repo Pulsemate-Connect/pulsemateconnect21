@@ -178,6 +178,24 @@ const bookAppointment = async (req, res, next) => {
       if (!session) return sendError(res, 'Session not found', 404);
       if (!session.enabled) return sendError(res, 'This session is not currently active', 400);
 
+      // ✅ BUG #2 FIX: Validate slotTime falls within session boundaries
+      if (slotTime) {
+        const [slotH, slotM] = slotTime.split(':').map(Number);
+        const [startH, startM] = session.startTime.split(':').map(Number);
+        const [endH, endM] = session.endTime.split(':').map(Number);
+
+        const slotMins = slotH * 60 + slotM;
+        const startMins = startH * 60 + startM;
+        const endMins = endH * 60 + endM;
+
+        if (slotMins < startMins || slotMins >= endMins) {
+          return sendError(res, 
+            `Selected time ${slotTime} is outside the ${session.name} session hours (${session.startTime}-${session.endTime}). Please select a time within the session.`,
+            400
+          );
+        }
+      }
+
       // Check session capacity
       const bookedCount = await prisma.appointment.count({
         where: {
@@ -249,6 +267,29 @@ const bookAppointment = async (req, res, next) => {
 
       // ── ATOMIC: assign queue number + create appointment ──────────────────
       appointment = await prisma.$transaction(async (tx) => {
+        // ✅ BUG #4 FIX: Use PostgreSQL advisory lock to prevent queue number collisions
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${resolvedQueueId}::bigint)`;
+        
+        // ✅ BUG #1 FIX: Re-check slot availability inside transaction
+        if (slotTime) {
+          const existingSlot = await tx.appointment.findFirst({
+            where: {
+              doctorId,
+              clinicId,
+              appointmentDate: {
+                gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+                lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
+              },
+              slotTime,
+              status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
+            },
+          });
+          
+          if (existingSlot) {
+            throw new Error('SLOT_ALREADY_BOOKED');
+          }
+        }
+        
         const allItems = await tx.queueItem.findMany({
           where: { queueId: resolvedQueueId },
           orderBy: { queueNumber: 'desc' },
@@ -293,6 +334,9 @@ const bookAppointment = async (req, res, next) => {
         });
 
         return created;
+      }, {
+        isolationLevel: 'Serializable',  // Highest isolation for critical operations
+        timeout: 10000,
       });
 
       // Estimated appointment time = the booked slot (most accurate)
@@ -326,7 +370,40 @@ const bookAppointment = async (req, res, next) => {
 
     return sendSuccess(res, { appointment, estimatedAppointmentTime }, 'Appointment booked successfully', 201);
   } catch (error) {
-    if (error.message === 'QUEUE_CLOSED') return sendError(res, 'The queue for this session is closed', 400);
+    // ✅ Handle specific errors with user-friendly messages
+    
+    if (error.message === 'QUEUE_CLOSED') {
+      return sendError(res, 'The queue for this session is closed', 400);
+    }
+    
+    // BUG #1: Slot already booked
+    if (error.message === 'SLOT_ALREADY_BOOKED') {
+      return sendError(res, 
+        'This time slot is no longer available. Please select another time slot.',
+        409
+      );
+    }
+    
+    // BUG #1: Caught by database unique constraint
+    if (error.code === 'P2002' && error.meta?.target?.includes('appointment_slot')) {
+      return sendError(res, 
+        'This time slot is no longer available. Please select another time slot.',
+        409
+      );
+    }
+    
+    // BUG #4: Queue number collision (should not happen with advisory lock)
+    if (error.code === 'P2002' && error.meta?.target?.includes('queue_number')) {
+      logger.error('[bookAppointment] Queue number collision despite advisory lock', { 
+        patientId: req.user.id,
+        error 
+      });
+      return sendError(res, 
+        'Unable to assign queue position. Please try again.',
+        500
+      );
+    }
+    
     next(error);
   }
 };

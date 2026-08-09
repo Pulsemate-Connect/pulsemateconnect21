@@ -35,6 +35,10 @@ const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
 
     // ── ATOMIC: assign queue number + confirm appointment ─────────────────
     const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
+      // ✅ BUG #4 FIX: Use PostgreSQL advisory lock to prevent queue number collisions
+      // Lock is automatically released when transaction ends
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${resolvedQueueId}::bigint)`;
+      
       // Count ALL items to get monotonically increasing queue number
       const allItems = await tx.queueItem.findMany({
         where: { queueId: resolvedQueueId },
@@ -255,15 +259,73 @@ const initiatePayment = async (req, res, next) => {
         queueId = q.id;
       }
 
-      // ── Step 2: Atomic transaction — only clean writes, no error-prone ops ──
+      // ── Step 2: Atomic transaction with ATOMIC free booking claim ──
       const result = await prisma.$transaction(async (tx) => {
-        // Re-read freeBookingUsed inside the transaction for concurrency safety
-        const userLocked = await tx.user.findUnique({
-          where: { id: patientId },
-          select: { freeBookingUsed: true },
+        // ✅ BUG #3 FIX: Atomic check-and-set using updateMany with WHERE condition
+        // This prevents race condition where two requests both see freeBookingUsed=false
+        const claimResult = await tx.user.updateMany({
+          where: {
+            id: patientId,
+            freeBookingUsed: false,  // ⚠️ CRITICAL: Only update if still false
+          },
+          data: {
+            freeBookingUsed: true,
+            freeBookingUsedAt: new Date(),
+          },
         });
-        if (userLocked.freeBookingUsed) {
+
+        // If count = 0, another concurrent request already claimed the free booking
+        if (claimResult.count === 0) {
           throw new Error('FREE_BOOKING_ALREADY_USED');
+        }
+
+        // ✅ BUG #1 FIX: Check slot availability inside transaction
+        if (slotTime) {
+          const existingSlot = await tx.appointment.findFirst({
+            where: {
+              doctorId,
+              clinicId,
+              appointmentDate: {
+                gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+                lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
+              },
+              slotTime,
+              status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
+            },
+          });
+          
+          if (existingSlot) {
+            throw new Error('SLOT_ALREADY_BOOKED');
+          }
+        }
+
+        // ✅ BUG #2 FIX: Validate session boundary
+        if (sessionId && slotTime) {
+          const session = await tx.clinicSession.findUnique({
+            where: { id: sessionId },
+            select: { startTime: true, endTime: true, name: true, enabled: true },
+          });
+
+          if (!session) {
+            throw new Error('SESSION_NOT_FOUND');
+          }
+
+          if (!session.enabled) {
+            throw new Error('SESSION_DISABLED');
+          }
+
+          // Validate slotTime falls within session window
+          const [slotH, slotM] = slotTime.split(':').map(Number);
+          const [startH, startM] = session.startTime.split(':').map(Number);
+          const [endH, endM] = session.endTime.split(':').map(Number);
+
+          const slotMins = slotH * 60 + slotM;
+          const startMins = startH * 60 + startM;
+          const endMins = endH * 60 + endM;
+
+          if (slotMins < startMins || slotMins >= endMins) {
+            throw new Error(`SLOT_OUTSIDE_SESSION:${session.name}:${session.startTime}-${session.endTime}`);
+          }
         }
 
         // Create appointment directly as BOOKED
@@ -286,17 +348,36 @@ const initiatePayment = async (req, res, next) => {
           },
         });
 
-        // Create QueueItem if offline
+        // ✅ BUG #4 FIX: Atomic queue number generation with PostgreSQL advisory lock
         if (appointmentType === 'OFFLINE' && queueId) {
+          // Use PostgreSQL transaction-level advisory lock to prevent collisions
+          // Lock is automatically released at transaction end
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${queueId}::bigint)`;
+          
+          // Now safely generate next queue number
+          const lastItem = await tx.queueItem.findFirst({
+            where: { queueId },
+            orderBy: { queueNumber: 'desc' },
+            select: { queueNumber: true },
+          });
+          
+          const nextQueueNumber = (lastItem?.queueNumber || 0) + 1;
+          
           await tx.queueItem.create({
             data: {
               queueId,
               appointmentId: appointment.id,
               patientId,
-              queueNumber,
+              queueNumber: nextQueueNumber,
               status: 'WAITING',
               position: waitingCountForItem + 1,
             },
+          });
+          
+          // Update appointment with queue number
+          await tx.appointment.update({
+            where: { id: appointment.id },
+            data: { queueNumber: nextQueueNumber },
           });
         }
 
@@ -315,13 +396,13 @@ const initiatePayment = async (req, res, next) => {
           },
         });
 
-        // Consume the free booking benefit — critical atomic write
-        await tx.user.update({
-          where: { id: patientId },
-          data: { freeBookingUsed: true, freeBookingUsedAt: new Date() },
-        });
+        // Consume the free booking benefit — no longer needed, done above atomically
+        // await tx.user.update({ ... }); // ❌ REMOVED - already done with updateMany
 
         return appointment;
+      }, {
+        isolationLevel: 'Serializable',  // Highest isolation level for critical operations
+        timeout: 10000,  // 10 second timeout
       });
 
       // ── Step 3: Non-critical side effects outside transaction ─────────────
@@ -356,6 +437,61 @@ const initiatePayment = async (req, res, next) => {
     // PATH B — PAID BOOKING (₹10 platform fee)
     // ═════════════════════════════════════════════════════════════════════
     const fee = BOOKING_FEE;
+
+    // ✅ BUG #1: Check slot availability before creating pending appointment
+    if (slotTime) {
+      const existingSlot = await prisma.appointment.findFirst({
+        where: {
+          doctorId,
+          clinicId,
+          appointmentDate: {
+            gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+            lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
+          },
+          slotTime,
+          status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
+        },
+      });
+      
+      if (existingSlot) {
+        return sendError(res, 
+          'This time slot is no longer available. Please select another time slot.',
+          409
+        );
+      }
+    }
+
+    // ✅ BUG #2: Validate session boundary for paid bookings
+    if (sessionId && slotTime) {
+      const session = await prisma.clinicSession.findUnique({
+        where: { id: sessionId },
+        select: { startTime: true, endTime: true, name: true, enabled: true },
+      });
+
+      if (!session) {
+        return sendError(res, 'Selected session not found', 404);
+      }
+
+      if (!session.enabled) {
+        return sendError(res, 'Selected session is currently not available', 400);
+      }
+
+      // Validate slotTime falls within session window
+      const [slotH, slotM] = slotTime.split(':').map(Number);
+      const [startH, startM] = session.startTime.split(':').map(Number);
+      const [endH, endM] = session.endTime.split(':').map(Number);
+
+      const slotMins = slotH * 60 + slotM;
+      const startMins = startH * 60 + startM;
+      const endMins = endH * 60 + endM;
+
+      if (slotMins < startMins || slotMins >= endMins) {
+        return sendError(res, 
+          `Selected time is outside the ${session.name} session hours (${session.startTime}-${session.endTime}). Please select a time within the session.`,
+          400
+        );
+      }
+    }
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -420,12 +556,65 @@ const initiatePayment = async (req, res, next) => {
     }, 'Payment order created');
 
   } catch (error) {
-    // Gracefully handle the concurrent free-booking race condition
+    // ✅ Handle specific errors with user-friendly messages
+    
+    // BUG #3: Free booking race condition
     if (error.message === 'FREE_BOOKING_ALREADY_USED') {
-      // Re-run as paid booking — rare case, just recurse once
+      // Another concurrent request claimed the free booking - fallback to paid
+      logger.info('[payment] Free booking claimed by concurrent request, retrying as paid', { patientId });
       req.body._forcePaid = true;
       return initiatePayment(req, res, next);
     }
+    
+    // BUG #1: Slot already booked by another patient
+    if (error.message === 'SLOT_ALREADY_BOOKED') {
+      return sendError(res, 
+        'This time slot is no longer available. Please select another time slot.',
+        409
+      );
+    }
+    
+    // BUG #2: Session validation errors
+    if (error.message === 'SESSION_NOT_FOUND') {
+      return sendError(res, 'Selected session not found', 404);
+    }
+    
+    if (error.message === 'SESSION_DISABLED') {
+      return sendError(res, 'Selected session is currently not available', 400);
+    }
+    
+    if (error.message.startsWith('SLOT_OUTSIDE_SESSION:')) {
+      const [, sessionName, timeRange] = error.message.split(':');
+      return sendError(res, 
+        `Selected time is outside the ${sessionName} session hours (${timeRange}). Please select a time within the session.`,
+        400
+      );
+    }
+    
+    // BUG #4: Queue number collision (should be prevented by advisory lock, but handle gracefully)
+    if (error.code === 'P2002' && error.meta?.target?.includes('queue_number')) {
+      logger.error('[payment] Queue number collision despite advisory lock', { patientId, error });
+      return sendError(res, 
+        'Unable to assign queue position. Please try again.',
+        500
+      );
+    }
+    
+    // BUG #1: Duplicate slot booking (caught by unique constraint)
+    if (error.code === 'P2002' && error.meta?.target?.includes('appointment_slot')) {
+      return sendError(res, 
+        'This time slot is no longer available. Please select another time slot.',
+        409
+      );
+    }
+    
+    // Generic error handling
+    logger.error('[payment] Unexpected error in initiatePayment', {
+      error: error.message,
+      stack: error.stack,
+      patientId,
+    });
+    
     next(error);
   }
 };
