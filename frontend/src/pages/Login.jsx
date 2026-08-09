@@ -220,11 +220,15 @@ export default function Login() {
         return;
       }
 
-      // Step 4: Save to store and redirect
+      // Step 4: Save to store
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Login successful');
-      navigate('/', { replace: true });
+      console.log('[Login] Login successful, redirecting to dashboard');
+      
+      // Wait for state to propagate, then redirect to patient dashboard
+      setTimeout(() => {
+        navigate('/patient/home', { replace: true });
+      }, 100);
     } catch (err) {
       console.error('[Login] Verify OTP error:', err);
       setError(err.message);
@@ -251,8 +255,12 @@ export default function Login() {
 
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Registration completed');
-      navigate('/', { replace: true });
+      console.log('[Login] Registration completed, redirecting to dashboard');
+      
+      // Wait for state to propagate, then redirect to patient dashboard
+      setTimeout(() => {
+        navigate('/patient/home', { replace: true });
+      }, 100);
     } catch (err) {
       console.error('[Login] Complete name error:', err);
       setError(err.message);

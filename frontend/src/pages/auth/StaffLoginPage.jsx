@@ -88,8 +88,16 @@ const StaffLoginPage = () => {
     try {
       const response = await loginWithPassword(form);
       const { accessToken, user } = response.data.data;
+      
+      // Set auth state first
       setAuth(user, accessToken);
-      navigate(ROLE_HOME[user.role] || '/patient/home');
+      
+      // Wait a moment for state to propagate, then navigate to role-specific dashboard
+      setTimeout(() => {
+        const redirectPath = ROLE_HOME[user.role] || '/patient/home';
+        console.log('[StaffLogin] Redirecting to:', redirectPath);
+        navigate(redirectPath, { replace: true });
+      }, 100);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Invalid credentials');
     } finally {
