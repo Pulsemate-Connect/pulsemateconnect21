@@ -649,7 +649,7 @@ const dd = StyleSheet.create({
 
   // Sticky bottom bar
   stickyBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
+    position: 'absolute', bottom: 16, left: 0, right: 0,
     backgroundColor: WHITE, paddingHorizontal: 20, paddingTop: 14,
     flexDirection: 'row', alignItems: 'center', gap: 16,
     borderTopWidth: 1, borderTopColor: '#F1F5F9',
