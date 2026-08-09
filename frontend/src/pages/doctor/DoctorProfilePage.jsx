@@ -11,7 +11,7 @@ import useAuthStore from '../../store/authStore';
 const SPECIALIZATIONS = [
   'Cardiologist', 'General Physician', 'Dermatologist', 'Orthopedic',
   'Pediatrician', 'Gynecologist', 'Neurologist', 'Psychiatrist', 'ENT',
-  'Ophthalmologist', 'Dentist', 'Urologist', 'Gastroenterologist', 'Other',
+  'Ophthalmologist', 'Dentist', 'Urologist', 'Gastroenterologist', 'Physiotherapist', 'Other',
 ];
 
 const DoctorProfilePage = () => {
