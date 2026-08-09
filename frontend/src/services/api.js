@@ -14,7 +14,7 @@
  */
 
 import axios from 'axios';
-import useAuthStore from '../stores/authStore';
+import useAuthStore from '../store/authStore'; // FIX: Use correct store path
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Configuration

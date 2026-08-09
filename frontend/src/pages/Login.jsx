@@ -27,7 +27,8 @@ import {
   signOutFirebase,
 } from '../config/firebase';
 import { loginWithFirebase } from '../services/api';
-import useAuthStore from '../stores/authStore';
+import useAuthStore from '../store/authStore'; // FIX: Use correct store path
+import { ROLE_HOME } from '../components/ProtectedRoute';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Component
@@ -219,14 +220,12 @@ export default function Login() {
       // Step 4: Save to store
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Login successful, user:', authData.user.role);
+      console.log('[Login] Login successful, user role:', authData.user.role);
+      console.log('[Login] Navigating to dashboard');
       
-      // Force immediate navigation to patient dashboard
-      // Using longer delay to ensure Zustand state fully propagates
-      setTimeout(() => {
-        console.log('[Login] Navigating to patient dashboard');
-        window.location.href = '/patient/home'; // Force full page navigation
-      }, 200);
+      // Navigate to appropriate dashboard based on role
+      const dashboardRoute = ROLE_HOME[authData.user.role] || '/patient/home';
+      navigate(dashboardRoute, { replace: true });
     } catch (err) {
       console.error('[Login] Verify OTP error:', err);
       setError(err.message);
@@ -253,14 +252,12 @@ export default function Login() {
 
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Registration completed, user:', authData.user.role);
+      console.log('[Login] Registration completed, user role:', authData.user.role);
+      console.log('[Login] Navigating to dashboard');
       
-      // Force immediate navigation to patient dashboard
-      // Using longer delay to ensure Zustand state fully propagates
-      setTimeout(() => {
-        console.log('[Login] Navigating to patient dashboard');
-        window.location.href = '/patient/home'; // Force full page navigation
-      }, 200);
+      // Navigate to appropriate dashboard based on role
+      const dashboardRoute = ROLE_HOME[authData.user.role] || '/patient/home';
+      navigate(dashboardRoute, { replace: true });
     } catch (err) {
       console.error('[Login] Complete name error:', err);
       setError(err.message);

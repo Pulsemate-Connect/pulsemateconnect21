@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { getMe, logout as logoutApi } from '../api/auth.api';
 
 const normalizeUser = (user) =>
@@ -12,7 +13,9 @@ const normalizeUser = (user) =>
     }
     : null;
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create(
+  persist(
+    (set) => ({
   user: null,
   accessToken: null,
   isAuthenticated: false,
@@ -73,6 +76,17 @@ const useAuthStore = create((set) => ({
       });
     }
   },
-}));
+})),
+{
+  name: 'pulsemate-auth-storage',
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    user: state.user,
+    accessToken: state.accessToken,
+    isAuthenticated: state.isAuthenticated,
+  }),
+}
+)
+);
 
 export default useAuthStore;
