@@ -1,0 +1,89 @@
+═══════════════════════════════════════════════════════════════════════════
+                  🚨 TEST OTP NOT CONFIGURED ON RENDER!
+═══════════════════════════════════════════════════════════════════════════
+
+PROBLEM:
+────────────────────────────────────────────────────────────────────────────
+You entered: 9999999999 (test number)
+Backend sent: REAL SMS via Message Central ❌
+Expected: Instant test OTP ✅
+
+This means test OTP is NOT configured on your Render backend!
+
+
+QUICK FIX (5 MINUTES):
+────────────────────────────────────────────────────────────────────────────
+
+1. Go to: https://dashboard.render.com/
+
+2. Click: pulsemate-backend
+
+3. Click: Environment tab
+
+4. Add these 3 variables:
+
+   Variable 1:
+   ├─ Key: ENABLE_TEST_OTP
+   └─ Value: true
+
+   Variable 2:
+   ├─ Key: TEST_OTP_NUMBERS
+   └─ Value: 9999999999,8888888888,7777777777
+   
+   Variable 3:
+   ├─ Key: TEST_OTP_CODE
+   └─ Value: 123456
+
+5. Click: "Save Changes"
+
+6. Wait: 2-3 minutes for Render to redeploy
+
+7. Test again: Enter 9999999999 → Get OTP → Should be INSTANT now!
+
+
+TEMPORARY SOLUTION (TO LOGIN NOW):
+────────────────────────────────────────────────────────────────────────────
+
+The real OTP was sent via SMS to +919999999999
+
+Option A: Check Your Phone
+  └─> Check SMS on +919999999999
+      └─> Find Message Central OTP (6 digits)
+          └─> Enter that OTP in app
+              └─> Login successful ✅
+
+Option B: Use Different Number
+  └─> Use YOUR real phone number
+      └─> Get OTP via SMS
+          └─> Enter OTP from SMS
+              └─> Login successful ✅
+
+
+AFTER CONFIGURATION:
+────────────────────────────────────────────────────────────────────────────
+
+Test OTP will work:
+  • Enter: 9999999999
+  • Response: Instant (< 100ms)
+  • OTP: 123456
+  • Cost: Free
+  • SMS: None sent
+
+
+VERIFICATION:
+────────────────────────────────────────────────────────────────────────────
+
+After adding variables on Render, check logs:
+  [Server] Test OTP: enabled ✅
+  [Server] Test Numbers: 3 configured
+
+Then test:
+  Enter: 9999999999
+  Time: < 100ms ← Should be instant!
+  OTP: 123456 ← Your test OTP
+
+
+═══════════════════════════════════════════════════════════════════════════
+              GO TO RENDER DASHBOARD AND ADD VARIABLES NOW!
+         https://dashboard.render.com/ → pulsemate-backend → Environment
+═══════════════════════════════════════════════════════════════════════════

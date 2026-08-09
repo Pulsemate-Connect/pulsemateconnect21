@@ -1,0 +1,77 @@
+═══════════════════════════════════════════════════════════════════════════
+                        🧪 TEST OTP - QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+────────────────────────────────────────────────────────────────────────────
+Test OTP system for instant login during development without real SMS.
+
+
+TEST PHONE NUMBERS:
+────────────────────────────────────────────────────────────────────────────
+  9999999999  ← Primary test user
+  8888888888  ← Secondary test user
+  7777777777  ← Tertiary test user
+
+
+TEST OTP CODE:
+────────────────────────────────────────────────────────────────────────────
+  123456  ← Use this OTP for all test numbers
+
+
+HOW TO USE:
+────────────────────────────────────────────────────────────────────────────
+1. Open app
+2. Enter phone: 9999999999
+3. Tap "Get OTP"
+4. You'll see: "TEST MODE: OTP is 123456"
+5. Enter OTP: 123456
+6. Login successful! ✅
+
+
+CONFIGURATION (Already Done):
+────────────────────────────────────────────────────────────────────────────
+File: backend/.env
+
+  ENABLE_TEST_OTP=true
+  TEST_OTP_NUMBERS=9999999999,8888888888,7777777777
+  TEST_OTP_CODE=123456
+
+
+BENEFITS:
+────────────────────────────────────────────────────────────────────────────
+✅ No SMS costs
+✅ Instant login (no waiting)
+✅ Works offline
+✅ Unlimited attempts
+✅ Perfect for emulator testing
+✅ Automatically disabled in production
+
+
+TROUBLESHOOTING:
+────────────────────────────────────────────────────────────────────────────
+Problem: Test OTP not working
+
+Solution:
+1. Check backend/.env has ENABLE_TEST_OTP=true
+2. Restart backend server
+3. Use exact test number: 9999999999
+4. Use exact OTP: 123456
+
+
+PRODUCTION SAFETY:
+────────────────────────────────────────────────────────────────────────────
+✅ Automatically disabled when NODE_ENV=production
+✅ Test numbers won't work in production
+✅ Real OTP service used for all numbers in production
+
+
+FULL DOCUMENTATION:
+────────────────────────────────────────────────────────────────────────────
+See: 🧪-TEST-OTP-GUIDE.md
+
+
+═══════════════════════════════════════════════════════════════════════════
+                            START TESTING NOW!
+                        Phone: 9999999999 / OTP: 123456
+═══════════════════════════════════════════════════════════════════════════

@@ -1,127 +1,89 @@
-╔════════════════════════════════════════════════════════════════╗
-║                  FIREBASE OTP TESTING                          ║
-║                    QUICK REFERENCE                             ║
-╚════════════════════════════════════════════════════════════════╝
+================================================================================
+QUICK REFERENCE - Upload Original Keystore
+================================================================================
 
-📖 START HERE: PRODUCTION-OTP-TESTING-QUICK-START.md
+COMMANDS TO RUN:
+================================================================================
 
-═══════════════════════════════════════════════════════════════
+cd "c:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21"
+eas credentials
+eas build --platform android --profile production --clear-cache
 
-🎯 TESTING WORKFLOW (5 Steps)
+================================================================================
 
-1. Get Debug SHA-1
-   └─→ .\get-debug-sha1.bat
+EAS CREDENTIALS MENU PATH:
+================================================================================
 
-2. Add to Firebase Console
-   └─→ https://console.firebase.google.com/project/pulsemateconnect
+1. Android
+2. production
+3. Keystore
+4. Set up a new keystore
+5. Upload an existing keystore
+6. File path: c:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21\credentials\android\keystore.jks
+7. Keystore password: [YOUR PASSWORD]
+8. Key alias: f1a185ee3a5ba7802fd6698297601ca8
+9. Key password: [YOUR PASSWORD]
 
-3. Build Development APK
-   └─→ .\build-dev-apk.bat
+================================================================================
 
-4. Install via USB
-   └─→ .\install-dev-apk.bat
+WHAT TO VERIFY:
+================================================================================
 
-5. Test OTP
-   └─→ npx expo start --dev-client
+After upload, check:
+SHA-1: 0B:84:89:11:44:B1:B8:DB:C4:9B:4D:05:ED:AA:83:77:0F:30:43:4F
 
-═══════════════════════════════════════════════════════════════
+Must match exactly!
 
-🛠️ AUTOMATED SCRIPTS
+================================================================================
 
-BUILD & TEST:
-├─ get-debug-sha1.bat         → Get debug keystore SHA-1
-├─ build-dev-apk.bat           → Build development APK
-├─ install-dev-apk.bat         → Install APK via USB
-├─ start-dev-client.bat        → Start Metro for dev build
-└─ view-firebase-logs.bat      → View real-time logs
+BUILD WATCH FOR:
+================================================================================
 
-PRODUCTION:
-├─ build-aab-auto-version.bat  → Build production AAB
-├─ increment-version.bat       → Increment version manually
-└─ run-dev-usb.bat             → Run Expo Go with USB
+√ Using Keystore from configuration: [some-id]
 
-═══════════════════════════════════════════════════════════════
+Verify SHA-1 in build logs matches target.
 
-📚 DOCUMENTATION INDEX
+================================================================================
 
-GETTING STARTED:
-└─ PRODUCTION-OTP-TESTING-QUICK-START.md ← START HERE!
+VERSION INFO:
+================================================================================
 
-DEBUGGING:
-├─ FIREBASE-OTP-PRODUCTION-DEBUG-GUIDE.md  → Complete guide
-├─ FIREBASE-OTP-MASTER-CHECKLIST.md        → Step-by-step checklist
-└─ README-FIREBASE-OTP-PRODUCTION-TESTING.md → Full overview
+Current version: 1.3.7
+Current version code: 82
+Build profile: production
 
-OTHER:
-├─ SUMMARY-ALL-FIXES.md          → All fixes applied
-├─ VERSION-TRACKER.md             → Version management
-└─ DEVELOPMENT-USB-GUIDE.md       → USB development guide
+================================================================================
 
-═══════════════════════════════════════════════════════════════
+KEYSTORE FILES:
+================================================================================
 
-🔧 YOUR CONFIGURATION
+Option 1: credentials\android\keystore.jks
+Option 2: @pulsemateconnect__pulsemate-app.jks
 
-Package Name:    in.pulsemateconnect.patient
-Firebase Project: pulsemateconnect
-Production SHA-1: 0B:84:89:11:44:B1:B8:DB:C4:9B:4D:05:ED:AA:83:77:0F:30:43:4F
-Debug SHA-1:     Run .\get-debug-sha1.bat to get
+Try option 1 first. If password fails, try option 2.
 
-═══════════════════════════════════════════════════════════════
+================================================================================
 
-✅ VERIFICATION CHECKLIST
+KEY ALIAS (Copy exactly):
+================================================================================
 
-Before testing development build:
-□ Debug SHA-1 added to Firebase Console
-□ google-services.json downloaded (fresh)
-□ google-services.json placed at android\app\
-□ EAS CLI installed (npm install -g eas-cli)
-□ Phone connected via USB
-□ USB Debugging enabled on phone
+f1a185ee3a5ba7802fd6698297601ca8
 
-Before publishing to Play Store:
-□ Expo Go test: OTP works
-□ Development APK test: OTP works
-□ Production AAB test (Internal Testing): OTP works
-□ All SHA-1s registered in Firebase
-□ google-services.json up-to-date
-□ Package name matches everywhere
+================================================================================
 
-═══════════════════════════════════════════════════════════════
+TROUBLESHOOTING:
+================================================================================
 
-🐛 QUICK TROUBLESHOOTING
+Password wrong?     → Try other keystore file
+SHA-1 doesn't match? → Wrong keystore, remove and retry
+Build uses wrong?   → Check eas credentials again
+Can't remember pwd? → Switch to Option A (Play App Signing)
 
-Error: auth/app-not-authorized
-└─→ Add SHA-1 to Firebase Console
+================================================================================
 
-Error: auth/invalid-phone-number
-└─→ Use format: +919876543210
+FULL GUIDE:
+================================================================================
 
-Error: "Too many requests"
-└─→ Wait 15 minutes or use test phone number
+See: OPTION-B-COMPLETE-GUIDE.md
 
-"Failed to initialize reCAPTCHA Enterprise config"
-└─→ This is a WARNING (ignore it)
-
-No OTP received
-└─→ Check Firebase Console for quota limits
-└─→ Check SHA-1 in Firebase Console
-└─→ Check phone number format
-└─→ Check internet connection
-
-═══════════════════════════════════════════════════════════════
-
-🚀 NEXT STEPS
-
-1. Read: PRODUCTION-OTP-TESTING-QUICK-START.md
-2. Run:  .\get-debug-sha1.bat
-3. Add SHA-1 to Firebase Console
-4. Build development APK
-5. Test OTP!
-
-═══════════════════════════════════════════════════════════════
-
-Need help? Check:
-📖 FIREBASE-OTP-MASTER-CHECKLIST.md
-📖 FIREBASE-OTP-PRODUCTION-DEBUG-GUIDE.md
-
-═══════════════════════════════════════════════════════════════
+================================================================================

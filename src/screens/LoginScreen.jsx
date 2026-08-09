@@ -1,16 +1,16 @@
 /**
- * LoginScreen — Firebase Phone Authentication (Expo-Compatible)
+ * LoginScreen — Message Central OTP Authentication
  *
  * Flow:
- *   1. Initialize Firebase Auth on mount
- *   2. User enters 10-digit mobile number and taps Send OTP
- *   3. Firebase JS SDK sends real SMS OTP with invisible reCAPTCHA
- *   4. Navigate to OtpScreen with { mobile, confirmationResult }
+ *   1. User enters 10-digit mobile number and taps Send OTP
+ *   2. Backend calls Message Central API to send real SMS OTP
+ *   3. Backend returns verificationId and expiration time
+ *   4. Navigate to OtpScreen with { mobile, verificationId }
  *   5. User verifies OTP on next screen
  * 
- * ✅ PRODUCTION: Firebase JS SDK with expo-firebase-recaptcha (Expo-Compatible)
- * Previous: React Native Firebase (incompatible with Expo managed workflow)
- * Current: Firebase JS SDK with invisible reCAPTCHA (works in production AAB)
+ * ✅ PRODUCTION: Message Central OTP (Backend API)
+ * Previous: Firebase Phone Authentication (deprecated)
+ * Current: Message Central with backend validation (production-ready)
  */
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -19,9 +19,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import FirebaseRecaptchaVerifier from '../components/FirebaseRecaptchaVerifier';
-// ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
-import { initializeFirebaseAuth, sendOtpToPhone, firebaseConfig } from '../config/firebase-phone-production';
+// ✅ PRODUCTION: Message Central OTP Service
+import { sendOTP } from '../services/messagecentral-otp.service';
 
 const PRIVACY_URL = 'https://www.pulsemateconnect.in/privacy-policy';
 const TERMS_URL   = 'https://www.pulsemateconnect.in/terms-of-service';
@@ -64,109 +63,23 @@ export default function LoginScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [firebaseReady, setFirebaseReady] = useState(false);
-  const recaptchaVerifier = useRef(null);
-
-  // Initialize Firebase on mount (one-time)
-  useEffect(() => {
-    const init = async () => {
-      const timestamp = Date.now();
-      try {
-        console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔧 [LoginScreen] FIREBASE INITIALIZATION STARTING
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
-║ 📱 Platform: ${Platform.OS} ${Platform.Version}
-║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
-║ 🏗️  Build Type: ${__DEV__ ? 'Development' : 'Production'}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-        
-        await initializeFirebaseAuth();
-        setFirebaseReady(true);
-        
-        console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [LoginScreen] FIREBASE INITIALIZATION SUCCESS
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
-║ 🔥 Firebase Ready: true
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-      } catch (error) {
-        console.error(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 [LoginScreen] FIREBASE INITIALIZATION FAILED
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
-║ 
-║ ❌ ERROR DETAILS:
-║ ├─ Name: ${error.name || 'N/A'}
-║ ├─ Code: ${error.code || 'N/A'}
-║ ├─ Message: ${error.message || 'N/A'}
-║ 
-║ 📚 Stack Trace:
-${error.stack ? error.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(line => '║    ' + line).join('\n')}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-        
-        Alert.alert(
-          'Initialization Error',
-          `Failed to initialize Firebase.\n\nError: ${error.message}\n\nPlease restart the app.`,
-          [{ text: 'OK' }]
-        );
-      }
-    };
-
-    init();
-  }, []);
 
   const handleSendOtp = async () => {
     const startTime = Date.now();
-    
-    // ═══════════════════════════════════════════════════════════════
-    // DEBUGGING STEP 1: Log raw state value
-    // ═══════════════════════════════════════════════════════════════
-    console.log('🔍 [DEBUG-1] Raw mobile state:', mobile);
-    console.log('🔍 [DEBUG-1] Type of mobile:', typeof mobile);
-    console.log('🔍 [DEBUG-1] Mobile is null?:', mobile === null);
-    console.log('🔍 [DEBUG-1] Mobile is undefined?:', mobile === undefined);
-    console.log('🔍 [DEBUG-1] Mobile is empty string?:', mobile === '');
+    const trimmed = mobile.trim();
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED (Native Firebase)
+║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
-║ 🔥 Firebase Ready: ${firebaseReady}
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
-║ 📏 Mobile Length: ${mobile.trim().length}
-║ 🔥 Implementation: Firebase JS SDK (Expo-compatible)
-║ 🔐 reCAPTCHA Verifier: ${recaptchaVerifier.current ? 'Ready' : 'Not Ready'}
+║ 📏 Mobile Length: ${trimmed.length}
+║ 🔐 Method: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
-    
-    if (!firebaseReady) {
-      console.warn('[LoginScreen] ⚠️  Firebase not ready - rejecting OTP request');
-      Alert.alert('Error', 'App is not ready. Please wait a moment and try again.');
-      return;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // DEBUGGING STEP 2: Log trimmed value
-    // ═══════════════════════════════════════════════════════════════
-    const trimmed = mobile.trim();
-    console.log('🔍 [DEBUG-2] Trimmed value:', trimmed);
-    console.log('🔍 [DEBUG-2] Trimmed length:', trimmed.length);
-    console.log('🔍 [DEBUG-2] Type of trimmed:', typeof trimmed);
     
     if (trimmed.length < 10) {
       console.warn('[LoginScreen] ⚠️  Invalid mobile number length:', trimmed.length);
@@ -174,83 +87,57 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       return;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // DEBUGGING STEP 3: Log final formatted number
-    // ═══════════════════════════════════════════════════════════════
     const fullNumber = `+91${trimmed}`;
-    console.log('🔍 [DEBUG-3] Full number with country code:', fullNumber);
-    console.log('🔍 [DEBUG-3] Full number length:', fullNumber.length);
-    console.log('🔍 [DEBUG-3] Type of fullNumber:', typeof fullNumber);
-    console.log('🔍 [DEBUG-3] Matches E.164 format?:', /^\+[1-9]\d{9,14}$/.test(fullNumber));
-    
     setLoading(true);
 
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📞 [LoginScreen] CALLING sendOtpToPhone (Native)
+║ 📞 [LoginScreen] CALLING sendOTP (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 Verification: Native Play Integrity (No reCAPTCHA)
+║ 🔐 Backend API: /auth/patient/send-otp
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // ═══════════════════════════════════════════════════════════════
-      // DEBUGGING STEP 4: Log before API call
-      // ═══════════════════════════════════════════════════════════════
-      console.log('🔍 [DEBUG-4] About to call sendOtpToPhone with:', fullNumber);
-      
-      // Firebase JS SDK with reCAPTCHA (Expo-Compatible)
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
-
-      // ═══════════════════════════════════════════════════════════════
-      // DEBUGGING STEP 5: Log result
-      // ═══════════════════════════════════════════════════════════════
-      console.log('🔍 [DEBUG-5] Result from sendOtpToPhone:', JSON.stringify(result, null, 2));
+      // Message Central - Backend handles SMS delivery
+      const result = await sendOTP(fullNumber);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [LoginScreen] SEND OTP SUCCESS (Native)
+║ ✅ [LoginScreen] SEND OTP SUCCESS (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
 ║ 📱 Phone: ${fullNumber}
-║ 🔑 Verification ID: ${result.verificationId || 'N/A'}
-║ 📦 Has ConfirmationResult: ${!!result.confirmationResult}
+║ 🔑 Verification ID: ${result.verificationId}
+║ ⏰ Expires In: ${result.expiresIn}s
 ║ 
 ║ 🔍 Result Object:
 ${JSON.stringify({
-  hasConfirmationResult: !!result.confirmationResult,
   verificationId: result.verificationId,
-  timestamp: result.timestamp,
-  phoneNumber: result.phoneNumber
+  expiresIn: result.expiresIn,
+  message: result.message
 }, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
       console.log('[LoginScreen] 🧭 Navigating to OTP screen...');
       
-      // Navigate to OTP screen with confirmationResult
+      // Navigate to OTP screen with verificationId
       navigation.navigate('Otp', {
         mobile: fullNumber,
-        confirmationResult: result.confirmationResult,
+        verificationId: result.verificationId,
+        expiresIn: result.expiresIn,
       });
       
       console.log('[LoginScreen] ✅ Navigation successful');
     } catch (err) {
-      // ═══════════════════════════════════════════════════════════════
-      // DEBUGGING STEP 6: Log error details
-      // ═══════════════════════════════════════════════════════════════
-      console.log('🔍 [DEBUG-6] Error caught:', err);
-      console.log('🔍 [DEBUG-6] Error message:', err.message);
-      console.log('🔍 [DEBUG-6] Error response:', err.response?.data);
-      console.log('🔍 [DEBUG-6] Error status:', err.response?.status);
-      
       console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 [LoginScreen] SEND OTP FAILED (Native)
+║ 🔴 [LoginScreen] SEND OTP FAILED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
@@ -258,15 +145,11 @@ ${JSON.stringify({
 ║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ║ 
 ║ ❌ ERROR DETAILS:
-║ ├─ Name: ${err.name || 'N/A'}
-║ ├─ Code: ${err.code || 'N/A'}
 ║ ├─ Message: ${err.message || 'N/A'}
+║ ├─ Status: ${err.response?.status || 'N/A'}
 ║ 
 ║ 📚 Stack Trace:
 ${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
@@ -277,7 +160,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     }
   };
 
-  const canSend = firebaseReady && mobile.trim().length >= 10 && !loading;
+  const canSend = mobile.trim().length >= 10 && !loading;
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -344,7 +227,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
 
           <View style={s.noPwdRow}>
             <View style={s.noPwdCheck}><Ionicons name="checkmark" size={9} color={WHITE} /></View>
-            <Text style={s.noPwdText}>Verified by Firebase — no password needed</Text>
+            <Text style={s.noPwdText}>Verified by Message Central — no password needed</Text>
           </View>
 
           <TouchableOpacity
@@ -371,7 +254,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
         {/* Trust */}
         <View style={s.trustRow}>
           {[
-            { icon: 'shield-outline',      label: 'Firebase\nVerified' },
+            { icon: 'shield-outline',      label: 'Secure\nOTP' },
             { icon: 'lock-closed-outline', label: 'No Password\nRequired' },
             { icon: 'people-outline',      label: 'Trusted by\nClinics' },
           ].map((b) => (
@@ -387,12 +270,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
         <Text style={s.terms}>By continuing, you agree to our <Text style={s.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text> and <Text style={s.termsLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text></Text>
         <View style={{ height: 24 }} />
       </ScrollView>
-
-      {/* Firebase reCAPTCHA Verifier - invisible in production */}
-      <FirebaseRecaptchaVerifier
-        ref={recaptchaVerifier}
-        attemptInvisibleVerification={true}
-      />
     </KeyboardAvoidingView>
   );
 }

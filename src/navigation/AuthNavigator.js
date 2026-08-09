@@ -1,5 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import WelcomeScreen from '../screens/WelcomeScreen';
+import SplashScreen from '../screens/SplashScreen';
 
 // Primary patient login — 2Factor SMS OTP (Indian numbers, active flow)
 import Login2FactorScreen from '../screens/Login2FactorScreen';
@@ -17,11 +17,11 @@ export default function AuthNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        animation: 'fade',
       }}
     >
-      {/* Entry point */}
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      {/* Entry point - 3 second splash with logo */}
+      <Stack.Screen name="Splash" component={SplashScreen} />
 
       {/* Active 2Factor SMS OTP flow */}
       <Stack.Screen name="Login" component={Login2FactorScreen} />

@@ -1,10 +1,10 @@
 /**
- * Login2FactorScreen — Firebase Phone Authentication (Expo-Compatible)
+ * Login2FactorScreen — Message Central OTP Authentication
  *
- * ✅ Works in Development with invisible reCAPTCHA
- * ✅ Works in Production (AAB) with invisible reCAPTCHA
- * ✅ Uses Firebase JS SDK (Expo-Compatible)
- * ✅ reCAPTCHA is invisible in production builds
+ * ✅ Production-ready OTP authentication
+ * ✅ Uses Message Central (Backend API)
+ * ✅ Secure SMS delivery via backend
+ * ✅ Works in Development AND Production
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -13,9 +13,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import FirebaseRecaptchaVerifier from '../components/FirebaseRecaptchaVerifier';
-// ✅ PRODUCTION: Firebase JS SDK (Expo-Compatible)
-import { initializeFirebaseAuth, sendOtpToPhone, firebaseConfig } from '../config/firebase-phone-production';
+// ✅ Message Central OTP Service
+import { sendOTP } from '../services/messagecentral-otp.service';
 
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -30,86 +29,23 @@ export default function Login2FactorScreen({ navigation }) {
   const [mobile,  setMobile]  = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [firebaseReady, setFirebaseReady] = useState(false);
-  const recaptchaVerifier = useRef(null);
   
   const inputRef = useRef(null);
 
-  // Initialize Firebase on component mount
+  // Remove Firebase-specific checks - Message Central handled by backend
   useEffect(() => {
-    const initFirebase = async () => {
-      const timestamp = Date.now();
-      try {
-        console.log(`
+    const timestamp = Date.now();
+    console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔧 [Login2Factor] FIREBASE INITIALIZATION STARTING
+║ 🎬 [Login2Factor] SCREEN MOUNTED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(timestamp).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
-║ 🔧 Development Mode: ${__DEV__ ? 'YES (Expo Go)' : 'NO (EAS Build)'}
-║ 🏗️  Environment: ${__DEV__ ? 'Development (Expo Go)' : 'Production (EAS Build)'}
+║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🔐 Provider: Message Central (Backend API)
+║ 🔒 Security: All SMS credentials on backend
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
-        
-        await initializeFirebaseAuth();
-        
-        console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Login2Factor] FIREBASE INITIALIZATION SUCCESS
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
-║ 🔥 Firebase Auth initialized and ready
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-        
-        setFirebaseReady(true);
-      } catch (error) {
-        console.error(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴💥 [Login2Factor] CRITICAL: FIREBASE INITIALIZATION FAILED
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Time Taken: ${Date.now() - timestamp}ms
-║ 📦 Platform: ${Platform.OS} ${Platform.Version}
-║ 
-║ ❌ ERROR DETAILS:
-║ ├─ Error Type: ${error.constructor.name}
-║ ├─ Error Name: ${error.name || 'N/A'}
-║ ├─ Error Code: ${error.code || 'NONE'}
-║ ├─ Error Message: ${error.message || 'N/A'}
-║ 
-║ 📚 Stack Trace:
-${error.stack ? error.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(line => '║    ' + line).join('\n')}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-        
-        // Show detailed error in development, generic in production
-        const errorTitle = 'Initialization Error';
-        let errorMessage = 'Failed to initialize authentication.';
-        
-        if (__DEV__) {
-          // Development: Show full error details
-          errorMessage = `${error.message}\n\nError Code: ${error.code || 'NONE'}\n\nCheck the console for full details.`;
-        } else {
-          // Production: Show user-friendly message with hints
-          errorMessage = error.message || 'Failed to initialize authentication. Please try:\n\n1. Check your internet connection\n2. Restart the app\n3. Reinstall the app if problem persists';
-        }
-        
-        Alert.alert(
-          errorTitle,
-          errorMessage,
-          [
-            { text: 'OK', onPress: () => console.log('[Login2Factor] User dismissed error alert') }
-          ]
-        );
-      }
-    };
-    
-    initFirebase();
   }, []);
 
   const handleSendOtp = async () => {
@@ -118,16 +54,14 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🚀 [Login2Factor] SEND OTP BUTTON PRESSED (Native)
+║ 🚀 [Login2Factor] SEND OTP BUTTON PRESSED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
-║ 🔥 Firebase Ready: ${firebaseReady}
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 📞 Mobile Input: ${mobile}
 ║ 📏 Mobile Length: ${trimmed.length}
-║ 🔥 Implementation: React Native Firebase (Native)
-║ 🔐 Verification: Play Integrity (No reCAPTCHA)
+║ 🔐 Provider: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -137,49 +71,33 @@ ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2).split('\n').map(li
       return;
     }
 
-    if (!firebaseReady) {
-      console.warn('[Login2Factor] ⚠️  Firebase not ready - rejecting OTP request');
-      Alert.alert('Please Wait', 'Authentication is still initializing...');
-      return;
-    }
-
     const fullNumber = `+91${trimmed}`;
     setLoading(true);
 
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📞 [Login2Factor] CALLING sendOtpToPhone (Native)
+║ 📞 [Login2Factor] CALLING sendOTP (React Native Firebase)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 📱 Full Number: ${fullNumber}
-║ 🔐 Firebase SDK: React Native Firebase (Native)
-║ 🔐 Verification: Play Integrity (No reCAPTCHA)
-║ 📦 Platform: ${Platform.OS} ${Platform.Version}
+║ 🔐 Provider: Message Central (Backend API)
+║ 🔒 Security: SMS credentials on backend only
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // Firebase JS SDK with reCAPTCHA (Expo-Compatible)
-      const result = await sendOtpToPhone(fullNumber, recaptchaVerifier.current);
+      // Message Central - Backend API
+      const result = await sendOTP(fullNumber);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Login2Factor] SEND OTP SUCCESS (Native)
+║ ✅ [Login2Factor] SEND OTP SUCCESS (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
 ║ 📱 Phone: ${fullNumber}
-║ 🔑 Verification ID: ${result.verificationId || 'N/A'}
-║ ⏰ Timestamp: ${result.timestamp}
-║ 📦 Has ConfirmResult: ${!!result.confirmationResult}
-║ 
-║ 🔍 Result Object:
-${JSON.stringify({
-  hasConfirmationResult: !!result.confirmationResult,
-  verificationId: result.verificationId,
-  timestamp: result.timestamp,
-  phoneNumber: result.phoneNumber
-}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
+║ 🔑 Verification ID: ${result.verificationId}
+║ ⏰ Expires In: ${result.expiresIn}s
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
@@ -187,47 +105,25 @@ ${JSON.stringify({
       
       navigation.navigate('Otp2Factor', {
         mobile: fullNumber,
-        confirmResult: result.confirmationResult,
         verificationId: result.verificationId,
-        sentTimestamp: result.timestamp,
+        expiresIn: result.expiresIn,
       });
       
       console.log('[Login2Factor] ✅ Navigation successful');
     } catch (err) {
       console.error(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔴 [Login2Factor] SEND OTP FAILED (Native)
+║ 🔴 [Login2Factor] SEND OTP FAILED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
 ║ 📱 Phone: ${fullNumber}
-║ 📦 Platform: ${Platform.OS} ${Platform.Version}
 ║ 
-║ ❌ ERROR DETAILS:
-║ ├─ Name: ${err.name || 'N/A'}
-║ ├─ Code: ${err.code || 'N/A'}
-║ ├─ Message: ${err.message || 'N/A'}
-║ 
-║ 📚 Stack Trace:
-${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
+║ ❌ ERROR: ${err.message}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      let message = err.message || 'Failed to send OTP';
-      
-      // User-friendly error messages
-      if (err.message?.includes('too-many-requests')) {
-        message = 'Too many attempts. Please try again in 15 minutes.';
-      } else if (err.message?.includes('invalid-phone-number')) {
-        message = 'Invalid phone number format.';
-      } else if (err.message?.includes('quota-exceeded')) {
-        message = 'SMS service temporarily unavailable. Please try again later.';
-      } else if (err.message?.includes('SHA fingerprints')) {
-        message = 'App verification required. Please contact support.';
-      }
+      const message = err.message || 'Failed to send OTP. Please try again.';
       
       Alert.alert('Error', message);
     } finally {
@@ -236,7 +132,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     }
   };
 
-  const canSend = mobile.trim().length >= 10 && !loading && firebaseReady;
+  const canSend = mobile.trim().length >= 10 && !loading;
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -371,12 +267,6 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Firebase reCAPTCHA Verifier - invisible in production */}
-      <FirebaseRecaptchaVerifier
-        ref={recaptchaVerifier}
-        attemptInvisibleVerification={true}
-      />
     </KeyboardAvoidingView>
   );
 }

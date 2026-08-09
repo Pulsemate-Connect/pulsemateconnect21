@@ -1,20 +1,20 @@
 /**
- * OtpScreen — Firebase Phone Auth OTP verification (Native)
+ * OtpScreen — Message Central OTP verification
  *
- * Receives: mobile (E.164), confirmationResult (from React Native Firebase)
+ * Receives: mobile (E.164), verificationId (from Message Central)
  * Flow:
  *   1. User enters 6-digit OTP from SMS
- *   2. verifyPhoneOtp(confirmationResult, code) → Native Firebase verifies, returns idToken
- *   3. loginWithFirebaseToken(idToken) → Backend verifies Firebase token, returns app JWT
- *   4. signIn(accessToken, user) → User logged in ✅
+ *   2. verifyOTP(verificationId, code, mobile) → Backend verifies with Message Central
+ *   3. Backend returns JWT tokens (accessToken, refreshToken) and user profile
+ *   4. signIn(accessToken, user, refreshToken) → User logged in ✅
  *
  * KEY POINTS:
- *   - React Native Firebase handles SMS delivery (native integration)
- *   - OTP verification happens natively
- *   - Backend only verifies the Firebase ID Token after successful verification
- *   - No reCAPTCHA needed - uses Play Integrity on Android
+ *   - Message Central handles SMS delivery via backend API
+ *   - OTP verification happens in backend (secure)
+ *   - Backend validates OTP with Message Central and returns app JWT
+ *   - All SMS API credentials stay on backend
  * 
- * ✅ MIGRATED: Now uses React Native Firebase (Native)
+ * ✅ MIGRATED: Now uses Message Central (Backend API)
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -23,8 +23,8 @@ import {
   ActivityIndicator, Alert, Animated, Easing, StatusBar, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// Using Firebase JavaScript SDK v10
-import { verifyPhoneOtp, resendOtp, loginWithFirebaseToken } from '../config/firebase';
+// ✅ Message Central OTP Service (Backend API)
+import { verifyOTP, resendOTP } from '../services/messagecentral-otp.service';
 import { useAuth } from '../store/authStore';
 const LOGO = require('../../assets/logo1.jpeg');
 
@@ -76,15 +76,15 @@ const sr = StyleSheet.create({
 });
 
 export default function OtpScreen({ route, navigation }) {
-  const { mobile, confirmationResult: initialConfirmationResult } = route.params;
+  const { mobile, verificationId: initialVerificationId, expiresIn: initialExpiresIn } = route.params;
   const { signIn } = useAuth();
 
-  // Store confirmationResult in state instead of mutating route.params
-  const [activeConfirmation, setActiveConfirmation] = useState(initialConfirmationResult);
+  // Store verificationId in state (can be updated on resend)
+  const [activeVerificationId, setActiveVerificationId] = useState(initialVerificationId);
   const [digits,      setDigits]      = useState(['', '', '', '', '', '']);
   const [loading,     setLoading]     = useState(false);
   const [status,      setStatus]      = useState('idle');
-  const [cooldown,    setCooldown]    = useState(60);
+  const [cooldown,    setCooldown]    = useState(initialExpiresIn || 60);
   const [focusedIdx,  setFocusedIdx]  = useState(null);
 
   const shake        = useRef(new Animated.Value(0)).current;
@@ -96,7 +96,7 @@ export default function OtpScreen({ route, navigation }) {
   const refs = [r0,r1,r2,r3,r4,r5];
 
   useEffect(() => {
-    startCooldown(60);
+    startCooldown(initialExpiresIn || 60);
     setTimeout(() => refs[0].current?.focus(), 150);
   }, []);
 
@@ -148,13 +148,12 @@ export default function OtpScreen({ route, navigation }) {
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 🔑 Code Length: ${code.length}
 ║ 🔑 Code: ${'*'.repeat(code.length)}
-║ 📋 Has Active Confirmation: ${!!activeConfirmation}
-║ 📋 Active Confirmation Type: ${activeConfirmation?.constructor?.name || 'N/A'}
+║ 🆔 Verification ID: ${activeVerificationId}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    if (code.length < 6 || !activeConfirmation) {
-      console.warn('[OtpScreen] ⚠️  Cannot verify - code length:', code.length, 'has confirmation:', !!activeConfirmation);
+    if (code.length < 6 || !activeVerificationId) {
+      console.warn('[OtpScreen] ⚠️  Cannot verify - code length:', code.length, 'has verificationId:', !!activeVerificationId);
       return;
     }
 
@@ -163,64 +162,25 @@ export default function OtpScreen({ route, navigation }) {
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📡 [OtpScreen] STEP 1: CALLING verifyPhoneOtp
+║ 📡 [OtpScreen] CALLING verifyOTP (Message Central Backend API)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 🔑 Code Length: ${code.length}
-║ 📋 Confirmation Object Present: ${!!activeConfirmation}
+║ 🆔 Verification ID Present: ${!!activeVerificationId}
+║ 📞 Mobile: ${mobile}
+║ 🔐 Implementation: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
-      // Step 1: Verify OTP with Firebase SDK (local verification, no network call)
-      const firebaseResult = await verifyPhoneOtp(activeConfirmation, code);
+      // Verify OTP via Backend → Message Central
+      const authData = await verifyOTP(activeVerificationId, code, mobile);
 
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [OtpScreen] STEP 1 SUCCESS: Firebase OTP Verified
+║ ✅ [OtpScreen] VERIFICATION SUCCESS
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Step Duration: ${Date.now() - startTime}ms
-║ 🎫 Has ID Token: ${!!firebaseResult?.idToken}
-║ 🎫 Token Length: ${firebaseResult?.idToken?.length || 0}
-║ 📱 Phone Number: ${firebaseResult?.phoneNumber || 'N/A'}
-║ 
-║ 🔍 Firebase Result:
-${JSON.stringify({
-  hasIdToken: !!firebaseResult?.idToken,
-  idTokenLength: firebaseResult?.idToken?.length,
-  phoneNumber: firebaseResult?.phoneNumber,
-  hasUser: !!firebaseResult?.user
-}, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-
-      if (!firebaseResult?.idToken) {
-        const error = new Error('Failed to get Firebase token. Please try again.');
-        console.error('[OtpScreen] ❌ No ID token in Firebase result');
-        throw error;
-      }
-
-      console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 📡 [OtpScreen] STEP 2: CALLING loginWithFirebaseToken
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ 🎫 Sending Firebase ID Token to backend
-║ 🎫 Token Length: ${firebaseResult.idToken.length}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-
-      // Step 2: Send Firebase ID Token to backend
-      // Backend will verify the token using Firebase Admin SDK
-      // and return application JWT tokens
-      const authData = await loginWithFirebaseToken(firebaseResult.idToken);
-
-      console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [OtpScreen] STEP 2 SUCCESS: Backend Authentication
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Step Duration: ${Date.now() - startTime}ms
+║ ⏱️  Total Time: ${Date.now() - startTime}ms
 ║ 🔑 Has Access Token: ${!!authData?.accessToken}
 ║ 🔑 Access Token Length: ${authData?.accessToken?.length || 0}
 ║ 🔄 Has Refresh Token: ${!!authData?.refreshToken}
@@ -241,7 +201,7 @@ ${JSON.stringify({
 `);
 
       if (!authData?.accessToken || !authData?.user) {
-        const error = new Error('Backend authentication failed. Please try again.');
+        const error = new Error('Authentication failed. Please try again.');
         console.error('[OtpScreen] ❌ Invalid auth data from backend');
         throw error;
       }
@@ -281,15 +241,11 @@ ${JSON.stringify({
 ║ 🔑 Code Length: ${code.length}
 ║ 
 ║ ❌ ERROR DETAILS:
-║ ├─ Name: ${err.name || 'N/A'}
-║ ├─ Code: ${err.code || 'N/A'}
 ║ ├─ Message: ${err.message || 'N/A'}
+║ ├─ Status: ${err.response?.status || 'N/A'}
 ║ 
 ║ 📚 Stack Trace:
 ${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
@@ -308,47 +264,47 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔄 [OtpScreen] RESEND OTP BUTTON PRESSED
+║ 🔄 [OtpScreen] RESEND OTP BUTTON PRESSED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
 ║ 📞 Mobile: ${mobile}
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🔐 Implementation: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
     try {
-      console.log('[OtpScreen] 📡 Calling resendOtp (Native)...');
+      console.log('[OtpScreen] 📡 Calling resendOTP (Message Central Backend API)...');
       
-      // Native Firebase - no recaptchaVerifier needed
-      const result = await resendOtp(mobile);
+      // Message Central - Backend API
+      const result = await resendOTP(mobile);
 
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [OtpScreen] RESEND OTP SUCCESS
+║ ✅ [OtpScreen] RESEND OTP SUCCESS (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
 ║ 📱 Phone: ${mobile}
-║ 🔑 New Verification ID: ${result.verificationId || 'N/A'}
-║ 📦 Has New ConfirmationResult: ${!!result.confirmationResult}
+║ 🔑 New Verification ID: ${result.verificationId}
+║ ⏰ Expires In: ${result.expiresIn}s
 ║ 
 ║ 🔍 Result Object:
 ${JSON.stringify({
-  hasConfirmationResult: !!result.confirmationResult,
   verificationId: result.verificationId,
-  timestamp: result.timestamp,
-  phoneNumber: result.phoneNumber
+  expiresIn: result.expiresIn,
+  message: result.message
 }, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
 
-      // Update confirmationResult via state — never mutate route.params directly
-      setActiveConfirmation(result.confirmationResult);
+      // Update verificationId for new OTP
+      setActiveVerificationId(result.verificationId);
 
       setDigits(['', '', '', '', '', '']);
       setStatus('idle');
-      startCooldown(60);
+      startCooldown(result.expiresIn || 60);
       setTimeout(() => refs[0].current?.focus(), 100);
 
       console.log('[OtpScreen] 🎯 State updated, inputs cleared, focusing first digit');
@@ -363,15 +319,11 @@ ${JSON.stringify({
 ║ 📱 Phone: ${mobile}
 ║ 
 ║ ❌ ERROR DETAILS:
-║ ├─ Name: ${err.name || 'N/A'}
-║ ├─ Code: ${err.code || 'N/A'}
 ║ ├─ Message: ${err.message || 'N/A'}
+║ ├─ Status: ${err.response?.status || 'N/A'}
 ║ 
 ║ 📚 Stack Trace:
 ${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
@@ -390,7 +342,7 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     return [os.box];
   };
 
-  const canVerify = digits.join('').length === 6 && !loading && !!activeConfirmation;
+  const canVerify = digits.join('').length === 6 && !loading && !!activeVerificationId;
 
   return (
     <KeyboardAvoidingView style={os.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

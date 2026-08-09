@@ -1,0 +1,61 @@
+═══════════════════════════════════════════════════════════════
+  BUILD IN PROGRESS — PulseMate Connect v1.3.7
+═══════════════════════════════════════════════════════════════
+
+✅ APK Build: STARTED (uploading project files - 165 MB)
+
+The build has been queued on EAS servers. Upload is in progress.
+
+───────────────────────────────────────────────────────────────
+  CHECK BUILD STATUS
+───────────────────────────────────────────────────────────────
+
+Run this command to see current status:
+  npx eas-cli build:list
+
+Or visit the dashboard:
+  https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds
+
+───────────────────────────────────────────────────────────────
+  START PRODUCTION AAB BUILD NOW
+───────────────────────────────────────────────────────────────
+
+While APK is building, you can start the production AAB build:
+  npx eas-cli build --platform android --profile production --non-interactive
+
+This will run in parallel with the APK build.
+
+───────────────────────────────────────────────────────────────
+  WHAT HAPPENS NEXT
+───────────────────────────────────────────────────────────────
+
+1. Upload completes (165 MB) - may take 5-10 minutes
+2. Build queues on EAS server (1-5 minutes)
+3. Build runs (10-15 minutes)
+4. Download link appears in dashboard
+
+TOTAL TIME: ~20-30 minutes per build
+
+───────────────────────────────────────────────────────────────
+  MONITOR PROGRESS
+───────────────────────────────────────────────────────────────
+
+Dashboard (recommended):
+  https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds
+
+Command line:
+  npx eas-cli build:list --platform android --limit 5
+
+───────────────────────────────────────────────────────────────
+  DOWNLOAD WHEN COMPLETE
+───────────────────────────────────────────────────────────────
+
+From dashboard:
+  Click the build → Click "Download"
+
+From command line:
+  npx eas-cli build:download --latest
+
+═══════════════════════════════════════════════════════════════
+  BUILDS STARTED: 1 of 2 (APK uploading)
+═══════════════════════════════════════════════════════════════

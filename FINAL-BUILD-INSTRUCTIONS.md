@@ -1,126 +1,241 @@
-# 🚀 FINAL BUILD INSTRUCTIONS - Version 74
+# 🚀 FINAL BUILD INSTRUCTIONS - Build 81
 
-**Status**: ✅ Ready to build  
-**Date**: August 1, 2026
-
----
-
-## ✅ WHAT'S FIXED
-
-1. **Reverted to Firebase JavaScript SDK v10.12.5** (stable, smaller bundle than v12)
-2. **Detailed error logging** added (30+ log lines)
-3. **Code optimized** to reduce bundle size
-4. **reCAPTCHA modal** restored for Firebase Web SDK
+**Current Directory:** ✅ You're in the project folder  
+**Next Step:** Configure keystore and build
 
 ---
 
-## 🔧 BEFORE BUILDING
+## ⚡ WHAT YOU NEED TO DO NOW
 
-### **Download Keystore** (REQUIRED)
+You are currently in the project directory. Now you have **2 options**:
 
-Run this command and follow the prompts:
+---
+
+## OPTION 1: Configure Keystore First (Recommended) ✅
+
+### Step 1: Run EAS Credentials
+In your current terminal/PowerShell window, type:
 
 ```bash
 eas credentials
 ```
 
-**Steps:**
-1. Select platform: **Android**
-2. Select build profile: **production**
-3. Select: **credentials.json: Upload/Download credentials**
-4. Select: **Download credentials from EAS to credentials.json**
-5. Press any key to exit after download completes
+Press Enter, then follow the interactive prompts:
 
-**Verify keystore exists:**
+1. **Select platform:** `Android` (press Enter)
+2. **Select build profile:** `production` (use arrow keys, press Enter)
+3. **Select action:** `Keystore` (press Enter)
+4. **Select:** `Use a different Keystore` (arrow down twice, press Enter)
+5. **Select:** `yKf5TaJ1Kx` (should be first option, press Enter)
+   - Look for SHA1: `0B:84:89:11:44:B1:B8:DB...` ✅
+   - DO NOT select `8Xpt79mt7A` ❌
+6. **Verify:** Select "View credentials" to confirm
+7. **Exit:** Select "Go back" until done
+
+### Step 2: Build AAB
+After configuring keystore, run:
+
 ```bash
-dir android\app\pulsemate-release-key.keystore
+eas build --platform android --profile production --clear-cache
+```
+
+**Watch for:**
+```
+√ Using Keystore from configuration: Build Credentials yKf5TaJ1Kx (default) ✅
+```
+
+✅ If you see `yKf5TaJ1Kx` → Let build continue  
+❌ If you see `8Xpt79mt7A` → Press Ctrl+C and repeat Step 1
+
+---
+
+## OPTION 2: Build with Quick Check (Faster but Risky)
+
+If you want to try building immediately and check which keystore is used:
+
+```bash
+eas build --platform android --profile production --clear-cache
+```
+
+**Within 30 seconds, watch for:**
+```
+√ Using Keystore from configuration: Build Credentials [ID]
+```
+
+- ✅ If `yKf5TaJ1Kx` → Perfect! Let it continue
+- ❌ If `8Xpt79mt7A` → Press Ctrl+C immediately, do Option 1
+
+---
+
+## 🎯 RECOMMENDED: DO OPTION 1
+
+**Why?**
+- Ensures correct keystore before building
+- Avoids wasting 10 minutes on wrong build
+- Prevents another Play Console rejection
+
+**Time:**
+- Configure keystore: 2-3 minutes
+- Build: 10 minutes
+- Total: ~13 minutes
+
+---
+
+## 📋 COPY-PASTE COMMANDS
+
+### For Option 1 (Recommended):
+```bash
+# Step 1: Configure keystore
+eas credentials
+# (Follow interactive prompts to select yKf5TaJ1Kx)
+
+# Step 2: Build
+eas build --platform android --profile production --clear-cache
+```
+
+### For Option 2 (Quick check):
+```bash
+# Build immediately
+eas build --platform android --profile production --clear-cache
+# (Cancel if wrong keystore within 30 seconds)
 ```
 
 ---
 
-## 🚀 BUILD VERSION 74
+## 🔑 KEYSTORE REFERENCE
 
-Once keystore is downloaded:
+### ✅ CORRECT (Select This):
+```
+ID:      yKf5TaJ1Kx
+SHA-1:   0B:84:89:11:44:B1:B8:DB:C4:9B:4D:05:ED:AA:83:77:0F:30:43:4F
+Status:  Exists in your EAS account
+Matches: Google Play Console requirements
+```
 
-```bash
-eas build --platform android --profile production
+### ❌ WRONG (Do NOT Use):
+```
+ID:      8Xpt79mt7A
+SHA-1:   56:39:95:C3:CD:73:07:E4:93:CF:75:2A:F4:37:FD:2E:09:2C:B2:61
+Status:  Currently set as default (will fail)
+Result:  Play Console will reject
 ```
 
 ---
 
-## 📊 WHAT CHANGED FROM BUILD #4
+## 📊 BUILD STATUS AFTER FIXES
 
-| Aspect | Build #4 (React Native Firebase) | Build #5 (Firebase JS SDK v10) |
-|--------|-----------------------------------|----------------------------------|
-| **Package** | @react-native-firebase | firebase@10.12.5 |
-| **Bundle Size** | N/A (failed before bundling) | Smaller (v10 vs v12) |
-| **Compatibility** | ❌ Doesn't work with Expo | ✅ Works with Expo |
-| **reCAPTCHA** | Native (doesn't work) | ✅ Modal (works) |
-| **Expected Result** | ❌ Gradle failure | ✅ Should succeed |
-
----
-
-## ✅ WHY THIS WILL WORK
-
-1. **Firebase v10.12.5** is older and more stable than v12 (smaller bundle)
-2. **Works perfectly with Expo** (no native config needed)
-3. **All code has detailed logging** for debugging
-4. **reCAPTCHA modal** is proven to work in development
-5. **Keystore credentials** are verified and correct
+| Issue | Status |
+|-------|--------|
+| Gradle debug signing | ✅ Fixed |
+| Version code | ✅ Incremented to 81 |
+| EAS configuration | ✅ Verified |
+| Keystore selection | ⚠️ **YOU MUST DO NOW** |
 
 ---
 
-## 📋 BUILD CHECKLIST
+## ✅ SUCCESS INDICATORS
 
-Before running `eas build`:
+After build completes, you should see:
 
-- [ ] Run `eas credentials` to download keystore
-- [ ] Verify: `android\app\pulsemate-release-key.keystore` exists
-- [ ] Check: `npm list firebase` shows v10.12.5
-- [ ] Verify: VERSION.txt shows 74
-- [ ] Check: google-services.json has SHA-1: `0b84891144b1b8dbc49b4d05edaa83770f30434f`
-
----
-
-## 🎯 EXPECTED BUILD TIME
-
-- **JavaScript bundling**: 2-3 minutes ✅ (should pass)
-- **Gradle build**: 5-7 minutes ✅ (should pass)
-- **Total**: ~10-15 minutes
+1. ✅ Build output: `Using Keystore: yKf5TaJ1Kx`
+2. ✅ Build status: `Finished`
+3. ✅ Download link provided
+4. ✅ Play Console accepts AAB
+5. ✅ No "wrong key" error
 
 ---
 
-## 📦 AFTER BUILD SUCCEEDS
+## � IF PROBLEMS OCCUR
 
-1. **Download AAB** from EAS dashboard
-2. **Upload to Play Store** (internal testing)
-3. **Install on device**
-4. **Test OTP flow**
-5. **Verify:** reCAPTCHA modal appears
-6. **Verify:** OTP SMS received
-7. **Verify:** Login successful
+### Problem: Build uses wrong keystore (8Xpt79mt7A)
+**Solution:**
+1. Press Ctrl+C to cancel build
+2. Run `eas credentials`
+3. Navigate: Android → production → Keystore
+4. Select: "Remove Keystore" (removes wrong one)
+5. Then: "Set up a new keystore" → "Use existing" → Select `yKf5TaJ1Kx`
+6. Rebuild
 
----
+### Problem: Can't find yKf5TaJ1Kx in credentials list
+**Solution:**
+1. Check if it's listed under a different name
+2. Look for SHA-1 starting with: `0B:84:89:11...`
+3. That's the correct one regardless of ID shown
 
-## 🔐 CREDENTIALS
-
-**Build Credentials yKf5TaJ1Kx:**
-- Key Alias: f1a185ee3a5ba7802fd6698297601ca8
-- SHA-1: 0B:84:89:11:44:B1:B8:DB:C4:9B:4D:05:ED:AA:83:77:0F:30:43:4F
-- SHA-256: 83:39:B0:5E:31:F4:08:E4:43:F4:76:7D:43:E3:65:1A:91:50:1D:F1:87:33:95:C2:17:B2:BB:18:78:5D:7B:B6
-
-**All verified** ✅
-
----
-
-## 📚 KEY FILES
-
-- `src/config/firebase.js` - Firebase JavaScript SDK v10 with detailed logging
-- `src/screens/Login2FactorScreen.jsx` - Restored reCAPTCHA modal
-- `package.json` - firebase@10.12.5
-- `android/app/google-services.json` - Correct SHA-1
-- `credentials.json` - Keystore configuration
+### Problem: Play Console still rejects AAB
+**Solution: Enable Play App Signing**
+1. Go to: https://play.google.com/console
+2. Navigate: Setup → App integrity → App signing
+3. Click: "Use Play App Signing"
+4. Select: "Let Google create and manage my app signing key"
+5. Retry upload (same AAB)
 
 ---
 
-**Ready to build once keystore is downloaded!** 🚀
+## ⏱️ TIMELINE
+
+```
+NOW:    You're in project directory ✅
++2 min: Configure keystore
++3 min: Start build
++13 min: Build completes
++18 min: Upload to Play Console
++20 min: DONE! 🎉
+```
+
+---
+
+## 🎯 YOUR NEXT COMMAND
+
+**Type this now in your terminal:**
+
+```bash
+eas credentials
+```
+
+Then follow the prompts to select `yKf5TaJ1Kx`.
+
+**OR** if you want to try the quick way:
+
+```bash
+eas build --platform android --profile production --clear-cache
+```
+
+And cancel if it uses wrong keystore.
+
+---
+
+## � HELPFUL FILES IN YOUR PROJECT
+
+- **`KEYSTORE-VISUAL-GUIDE.md`** - Shows exact screens you'll see
+- **`SET-KEYSTORE-STEP-BY-STEP.txt`** - Plain text instructions
+- **`FIX-KEYSTORE-URGENTLY.md`** - Detailed explanation
+- **`SIGNING-FIX-COMPLETE-SUMMARY.md`** - Overview of all fixes
+
+---
+
+## � QUICK TIPS
+
+- **Be patient** - Interactive menus take a moment to load
+- **Use arrow keys** - Up/Down to navigate, Enter to select
+- **Read carefully** - Make sure you select `yKf5TaJ1Kx`, not `8Xpt79mt7A`
+- **Don't panic** - You can always go back or cancel
+- **Watch build output** - First 30 seconds show which keystore is used
+
+---
+
+## 🎊 YOU'RE SO CLOSE!
+
+All the hard work is done:
+- ✅ Code fixed
+- ✅ Configuration updated
+- ✅ Correct keystore identified
+- ⚠️ **Just need to:** Select correct keystore and build
+
+**You're literally one command away from building!**
+
+---
+
+**Type `eas credentials` or `eas build` now!** 🚀
+
+Good luck! 🍀

@@ -37,12 +37,26 @@
         "EXPO_NO_CAPABILITY_SYNC": "1"
       }
     },
-    "production": {
+    "test-aab": {
+      "distribution": "internal",
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease",
         "credentialsSource": "remote",
         "image": "latest"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "credentialsSource": "remote",
+        "image": "latest",
+        "withoutCredentials": false
       },
       "ios": {
         "simulator": false

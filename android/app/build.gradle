@@ -110,9 +110,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Signing configuration is managed by EAS Build
+            // Do NOT set signingConfig here - let EAS inject the correct keystore
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -155,6 +154,15 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    // Firebase BOM for version management
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    
+    // Firebase Auth
+    implementation 'com.google.firebase:firebase-auth'
+    
+    // Play Services Auth for phone authentication
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

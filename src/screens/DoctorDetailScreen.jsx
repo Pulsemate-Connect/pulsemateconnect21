@@ -300,7 +300,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
       >
         {/* ── Hero banner ── */}
         <View style={[dd.heroBanner, { backgroundColor: accent }]}>
@@ -478,7 +478,7 @@ export default function DoctorDetailScreen({ route, navigation }) {
       </ScrollView>
 
       {/* ── Sticky bottom bar ── */}
-      <View style={[dd.stickyBar, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[dd.stickyBar, { paddingBottom: insets.bottom || 8 }]}>
         <TouchableOpacity
           style={[dd.stickyBtn, dd.stickyBtnFull, { backgroundColor: accent, shadowColor: accent }]}
           onPress={() => handleBook(firstClinic)}
@@ -486,7 +486,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
         >
           <Ionicons name="calendar" size={18} color={WHITE} />
           <Text style={dd.stickyBtnText}>Book Appointment</Text>
-          <Ionicons name="arrow-forward" size={16} color={WHITE} />
         </TouchableOpacity>
       </View>
     </View>
@@ -649,11 +648,11 @@ const dd = StyleSheet.create({
 
   // Sticky bottom bar
   stickyBar: {
-    position: 'absolute', bottom: 16, left: 0, right: 0,
-    backgroundColor: WHITE, paddingHorizontal: 20, paddingTop: 14,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: WHITE, paddingHorizontal: 16, paddingTop: 12,
     flexDirection: 'row', alignItems: 'center', gap: 16,
-    borderTopWidth: 1, borderTopColor: '#F1F5F9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 12,
+    borderTopWidth: 0,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 10,
   },
   stickyBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

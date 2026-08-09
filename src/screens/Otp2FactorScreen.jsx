@@ -1,7 +1,7 @@
 /**
- * Otp2FactorScreen — Verify Firebase Phone OTP (Native)
+ * Otp2FactorScreen — Verify Message Central OTP
  * 
- * ✅ MIGRATED: Now uses React Native Firebase (Native)
+ * ✅ Uses Message Central (Backend API)
  */
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -9,8 +9,8 @@ import {
   ActivityIndicator, Alert, StatusBar, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// ✅ PRODUCTION: React Native Firebase (Native Modules)
-import { verifyPhoneOtp, loginWithFirebaseToken, resendOtp } from '../config/firebase-phone-production';
+// ✅ Message Central OTP Service
+import { verifyOTP, resendOTP } from '../services/messagecentral-otp.service';
 import { useAuth } from '../store/authStore';
 
 const BLUE  = '#2563EB';
@@ -19,24 +19,21 @@ const GRAY  = '#6B7280';
 const DARK  = '#111827';
 
 export default function Otp2FactorScreen({ route, navigation }) {
-  const { mobile, confirmResult, verificationId, sentTimestamp } = route?.params || {};
+  const { mobile, verificationId: initialVerificationId, expiresIn } = route?.params || {};
   const { signIn } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [currentConfirmResult, setCurrentConfirmResult] = useState(confirmResult);
-  const [currentVerificationId, setCurrentVerificationId] = useState(verificationId);
-  const [currentSentTimestamp, setCurrentSentTimestamp] = useState(sentTimestamp);
+  const [currentVerificationId, setCurrentVerificationId] = useState(initialVerificationId);
   const inputRefs = useRef([]);
   
   // Validate required params on mount
   useEffect(() => {
     const timestamp = Date.now();
-    const elapsedSinceSent = currentSentTimestamp ? (timestamp - currentSentTimestamp) / 1000 : null;
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🎬 [Otp2Factor] SCREEN MOUNTED
+║ 🎬 [Otp2Factor] SCREEN MOUNTED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Mount Timestamp: ${new Date(timestamp).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
@@ -44,23 +41,15 @@ export default function Otp2FactorScreen({ route, navigation }) {
 ║ 
 ║ 📋 RECEIVED PARAMETERS:
 ║ ├─ Mobile: ${mobile || 'MISSING'}
-║ ├─ ConfirmResult: ${currentConfirmResult ? 'Present' : 'MISSING'}
 ║ ├─ VerificationId: ${currentVerificationId || 'MISSING'}
-║ ├─ Sent Timestamp: ${currentSentTimestamp ? new Date(currentSentTimestamp).toISOString() : 'MISSING'}
-║ 
-║ ⏱️  TIME ANALYSIS:
-║ ├─ Current Time: ${new Date(timestamp).toISOString()}
-║ ├─ OTP Sent Time: ${currentSentTimestamp ? new Date(currentSentTimestamp).toISOString() : 'N/A'}
-║ ├─ Time Elapsed: ${elapsedSinceSent ? `${elapsedSinceSent.toFixed(2)} seconds` : 'N/A'}
-${elapsedSinceSent && elapsedSinceSent > 100 ? `║ ├─ ⚠️  WARNING: More than 100 seconds elapsed
-║ ├─ ⚠️  OTP may expire soon (typical timeout: 120 seconds)` : ''}
+║ ├─ ExpiresIn: ${expiresIn || 'N/A'} seconds
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
-    if (!mobile || !currentConfirmResult) {
+    if (!mobile || !currentVerificationId) {
       console.error('[Otp2Factor] ❌ CRITICAL: Missing required parameters');
       console.error('[Otp2Factor] Missing mobile:', !mobile);
-      console.error('[Otp2Factor] Missing confirmResult:', !currentConfirmResult);
+      console.error('[Otp2Factor] Missing verificationId:', !currentVerificationId);
       
       Alert.alert(
         'Session Error',
@@ -76,7 +65,7 @@ ${elapsedSinceSent && elapsedSinceSent > 100 ? `║ ├─ ⚠️  WARNING: More
         ]
       );
     }
-  }, [mobile, currentConfirmResult, currentVerificationId, currentSentTimestamp, navigation]);
+  }, [mobile, currentVerificationId, navigation]);
 
   const handleOtpChange = (value, index) => {
     if (!/^\d*$/.test(value)) return;
@@ -100,22 +89,18 @@ ${elapsedSinceSent && elapsedSinceSent > 100 ? `║ ├─ ⚠️  WARNING: More
   const handleVerifyOtp = async () => {
     const startTime = Date.now();
     const otpCode = otp.join('');
-    const elapsedSinceSent = currentSentTimestamp ? (startTime - currentSentTimestamp) / 1000 : null;
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔐 [Otp2Factor] VERIFY OTP BUTTON PRESSED
+║ 🔐 [Otp2Factor] VERIFY OTP BUTTON PRESSED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Verify Start: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
 ║ 🔑 OTP Length: ${otpCode.length}
 ║ 🔑 OTP Format: ${/^\d{6}$/.test(otpCode) ? 'VALID' : 'INVALID'}
-║ 📋 Has ConfirmResult: ${!!currentConfirmResult}
 ║ 🔑 VerificationId: ${currentVerificationId || 'unknown'}
-║ ⏱️  Time Since OTP Sent: ${elapsedSinceSent ? `${elapsedSinceSent.toFixed(2)} seconds` : 'unknown'}
-${elapsedSinceSent && elapsedSinceSent > 110 ? `║ ⚠️  WARNING: Verification after ${elapsedSinceSent.toFixed(0)} seconds
-║ ⚠️  Close to Firebase timeout (typically 120 seconds)` : ''}
+║ 📞 Mobile: ${mobile}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -125,20 +110,11 @@ ${elapsedSinceSent && elapsedSinceSent > 110 ? `║ ⚠️  WARNING: Verificatio
       return;
     }
 
-    if (!currentConfirmResult) {
-      console.error('[Otp2Factor] ❌ No confirmation result available');
-      Alert.alert('Error', 'No confirmation result. Please request a new OTP.');
+    if (!currentVerificationId) {
+      console.error('[Otp2Factor] ❌ No verification ID available');
+      Alert.alert('Error', 'No verification ID. Please request a new OTP.');
       navigation.goBack();
       return;
-    }
-    
-    if (elapsedSinceSent && elapsedSinceSent > 110) {
-      console.warn(`[Otp2Factor] ⚠️  WARNING: Verification attempt after ${elapsedSinceSent.toFixed(0)} seconds`);
-      Alert.alert(
-        'Timeout Warning',
-        `You've taken more than ${Math.floor(elapsedSinceSent)} seconds to enter OTP. If verification fails, please request a new OTP.`,
-        [{ text: 'Continue Anyway', onPress: () => {} }]
-      );
     }
 
     setLoading(true);
@@ -146,68 +122,41 @@ ${elapsedSinceSent && elapsedSinceSent > 110 ? `║ ⚠️  WARNING: Verificatio
     try {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 📡 [Otp2Factor] STEP 1: CALLING verifyPhoneOtp
+║ 📡 [Otp2Factor] CALLING verifyOTP (Message Central Backend API)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ 🔑 OTP Length: ${otpCode.length}
-║ 📋 Has ConfirmResult: ${!!currentConfirmResult}
 ║ 🔑 VerificationId: ${currentVerificationId}
-║ ⏰ Sent Timestamp: ${currentSentTimestamp}
+║ 📞 Mobile: ${mobile}
+║ 🔐 Implementation: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      const verifyStartTime = Date.now();
-      
-      // STEP 1: Verify OTP with Firebase
-      const { idToken, phoneNumber } = await verifyPhoneOtp(
-        currentConfirmResult, 
-        otpCode,
-        currentSentTimestamp
-      );
+      // Verify OTP via Backend → Message Central (single step, returns JWT tokens directly)
+      const authData = await verifyOTP(currentVerificationId, otpCode, mobile);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Otp2Factor] STEP 1 SUCCESS: Firebase OTP Verified
+║ ✅ [Otp2Factor] VERIFICATION SUCCESS (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Verification Duration: ${(Date.now() - verifyStartTime) / 1000} seconds
-║ 📱 Phone: ${phoneNumber}
-║ 🎫 Has ID Token: ${!!idToken}
-║ 🎫 Token Length: ${idToken?.length || 0}
+║ ⏱️  Total Time: ${(Date.now() - startTime) / 1000} seconds
+║ 🔑 Has Access Token: ${!!authData?.accessToken}
+║ 🔄 Has Refresh Token: ${!!authData?.refreshToken}
+║ 👤 Has User Object: ${!!authData?.user}
+║ 👤 User ID: ${authData?.user?.id || 'unknown'}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
+
+      if (!authData?.accessToken || !authData?.user) {
+        const error = new Error('Authentication failed. Please try again.');
+        console.error('[Otp2Factor] ❌ Invalid auth data from backend');
+        throw error;
+      }
       
-      console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ 📡 [Otp2Factor] STEP 2: CALLING loginWithFirebaseToken
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ 🎫 Sending Firebase ID Token to backend
-║ 🎫 Token Length: ${idToken?.length}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-      
-      const backendStartTime = Date.now();
-      
-      // STEP 2: Login with backend using Firebase ID token
-      const { accessToken, refreshToken, user } = await loginWithFirebaseToken(idToken);
-      
-      console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Otp2Factor] STEP 2 SUCCESS: Backend Authentication
-╠═══════════════════════════════════════════════════════════════════════════════
-║ ⏰ Timestamp: ${new Date().toISOString()}
-║ ⏱️  Backend Duration: ${(Date.now() - backendStartTime) / 1000} seconds
-║ 🔑 Has Access Token: ${!!accessToken}
-║ 🔄 Has Refresh Token: ${!!refreshToken}
-║ 👤 Has User Object: ${!!user}
-║ 👤 User ID: ${user?.id || 'unknown'}
-╚═══════════════════════════════════════════════════════════════════════════════
-`);
-      
-      // STEP 3: Store tokens and user data
+      // Store tokens and user data
       console.log('[Otp2Factor] 💾 Storing authentication data...');
-      await signIn(accessToken, user, refreshToken);
+      await signIn(authData.accessToken, authData.user, authData.refreshToken);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
@@ -215,7 +164,6 @@ ${elapsedSinceSent && elapsedSinceSent > 110 ? `║ ⚠️  WARNING: Verificatio
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Total Time: ${(Date.now() - startTime) / 1000} seconds
-║ ⏱️  Time Since OTP Sent: ${elapsedSinceSent ? `${elapsedSinceSent.toFixed(2)} seconds` : 'unknown'}
 ║ 👤 User authenticated and signed in successfully
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
@@ -226,46 +174,17 @@ ${elapsedSinceSent && elapsedSinceSent > 110 ? `║ ⚠️  WARNING: Verificatio
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${(Date.now() - startTime) / 1000} seconds
-║ ⏱️  Time Since OTP Sent: ${elapsedSinceSent ? `${elapsedSinceSent.toFixed(2)} seconds` : 'unknown'}
 ║ 🔑 OTP Length: ${otpCode.length}
 ║ 
 ║ ❌ ERROR DETAILS:
-║ ├─ Error Type: ${err.constructor.name}
-║ ├─ Error Name: ${err.name || 'N/A'}
-║ ├─ Error Code: ${err.code || 'N/A'}
 ║ ├─ Error Message: ${err.message || 'N/A'}
 ║ 
 ║ 📚 Stack Trace:
 ${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      let message = err.message || 'Invalid OTP';
-      
-      // Provide better error messages with specific guidance
-      if (err.message?.includes('invalid-verification-code')) {
-        message = 'Invalid OTP code. Please check and try again.';
-      } else if (err.message?.includes('code-expired') || err.message?.includes('expired')) {
-        message = 'OTP has expired. Please request a new one.';
-        console.error('[Otp2Factor] 💡 Expiry reason: Likely took > 120 seconds to verify');
-      } else if (err.message?.includes('session-expired')) {
-        message = 'Session expired. Please start over and request a new OTP.';
-      } else if (err.message?.includes('too-many-requests')) {
-        message = 'Too many verification attempts. Please wait a few minutes and request a new OTP.';
-      } else if (err.message?.includes('invalid-verification-id')) {
-        message = 'Verification session is invalid. Please request a new OTP.';
-      } else if (err.message?.includes('Session creation failed')) {
-        message = 'Backend login failed. Please try again.';
-      } else if (err.message?.includes('Network error') || err.message?.includes('Cannot reach server')) {
-        message = 'Network error. Please check:\n\n1. Your internet connection is active\n2. You are not using VPN\n3. Try switching between WiFi and mobile data';
-      } else if (err.message?.includes('timeout')) {
-        message = 'Connection timeout. Please check your internet and try again.';
-      } else if (err.message?.includes('Firebase token verification failed')) {
-        message = 'Token verification failed. Please request a new OTP and try again.';
-      }
+      const message = err.message || 'Verification failed. Please try again.';
       
       Alert.alert('Verification Failed', message);
       setOtp(['', '', '', '', '', '']);
@@ -281,12 +200,13 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     
     console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ 🔄 [Otp2Factor] RESEND OTP BUTTON PRESSED
+║ 🔄 [Otp2Factor] RESEND OTP BUTTON PRESSED (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date(startTime).toISOString()}
 ║ 📱 Platform: ${Platform.OS} ${Platform.Version}
 ║ 📞 Mobile: ${mobile || 'MISSING'}
 ║ 🔧 Development Mode: ${__DEV__ ? 'YES' : 'NO'}
+║ 🔐 Implementation: Message Central (Backend API)
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
     
@@ -299,39 +219,34 @@ ${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line =
     setResending(true);
     
     try {
-      console.log('[Otp2Factor] 📡 Calling resendOtp via Firebase (Native)...');
+      console.log('[Otp2Factor] 📡 Calling resendOTP (Message Central Backend API)...');
       
-      // Native Firebase - no recaptchaVerifier needed
-      const result = await resendOtp(mobile);
+      // Message Central - Backend API
+      const result = await resendOTP(mobile);
       
       console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════════
-║ ✅ [Otp2Factor] RESEND OTP SUCCESS
+║ ✅ [Otp2Factor] RESEND OTP SUCCESS (Message Central)
 ╠═══════════════════════════════════════════════════════════════════════════════
 ║ ⏰ Timestamp: ${new Date().toISOString()}
 ║ ⏱️  Time Taken: ${Date.now() - startTime}ms
 ║ 📱 Phone: ${mobile}
 ║ 🔑 New VerificationId: ${result.verificationId}
-║ ⏰ New Timestamp: ${new Date(result.timestamp).toISOString()}
-║ ⏰ Valid Until: ${new Date(result.timestamp + 120000).toISOString()}
-║ 📦 Has New ConfirmResult: ${!!result.confirmationResult}
+║ ⏰ Expires In: ${result.expiresIn}s
 ║ 
 ║ 🔍 Result Object:
 ${JSON.stringify({
-  hasConfirmationResult: !!result.confirmationResult,
   verificationId: result.verificationId,
-  timestamp: result.timestamp,
-  phoneNumber: result.phoneNumber
+  expiresIn: result.expiresIn,
+  message: result.message
 }, null, 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       
-      // ✅ CRITICAL: Update ALL state with new confirmation result
-      setCurrentConfirmResult(result.confirmationResult);
+      // Update verificationId with new one
       setCurrentVerificationId(result.verificationId);
-      setCurrentSentTimestamp(result.timestamp);
       
-      console.log('[Otp2Factor] ✅ State updated with new confirmation result');
+      console.log('[Otp2Factor] ✅ State updated with new verification ID');
       
       Alert.alert('OTP Sent', 'A new verification code has been sent to your mobile.');
       setOtp(['', '', '', '', '', '']);
@@ -346,15 +261,10 @@ ${JSON.stringify({
 ║ 📱 Phone: ${mobile}
 ║ 
 ║ ❌ ERROR DETAILS:
-║ ├─ Name: ${err.name || 'N/A'}
-║ ├─ Code: ${err.code || 'N/A'}
 ║ ├─ Message: ${err.message || 'N/A'}
 ║ 
 ║ 📚 Stack Trace:
 ${err.stack ? err.stack.split('\n').map(line => '║    ' + line).join('\n') : '║    N/A'}
-║ 
-║ 🔍 Full Error Object:
-${JSON.stringify(err, Object.getOwnPropertyNames(err), 2).split('\n').map(line => '║    ' + line).join('\n')}
 ╚═══════════════════════════════════════════════════════════════════════════════
 `);
       

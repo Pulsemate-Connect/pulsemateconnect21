@@ -210,35 +210,7 @@ model DoctorProfile {
   languagesKnown            String[]
   marketplaceVisible        Boolean              @default(false)
   profileStatus             DoctorProfileStatus  @default(INCOMPLETE)
-  verificationStatus        DoctorVerificationStatus @default(NOT_VERIFIED)
-  gender                    String?
-  licenseNumber             String?
-  profileImage              String?
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
-  documentUrl               String?
-  appointments              Appointment[]
-  availabilities            DoctorAvailability[]
-  doctorClinics             DoctorClinic[]       @relation("MarketplaceDoctor")
-  user                      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prescriptions             prescriptions[]
-  queues                    Queue[]
-
-  @@map("doctor_profiles")
-}
-
-model ReceptionistProfile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  assignedClinicId String
-  createdByOwnerId String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  assignedClinic   Clinic   @relation(fields: [assignedClinicId], references: [id], onDelete: Cascade)
-  createdByOwner   User     @relation("OwnerCreatedReceptionists", fields: [createdByOwnerId], references: [id])
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("receptionist_profiles")
+/  @@map("receptionist_profiles")
 }
 
 model AdminProfile {

@@ -1,218 +1,282 @@
-# 🧪 PulseMate Connect - Testing Guide
+# Message Central OTP Testing Guide
 
-## ✅ Build Status: SUCCESS
-**Build ID:** 88120141-b9db-4ac9-8af5-7d21e9c1ca5b  
-**Build Date:** August 2, 2026  
-**Build Type:** APK (Production)  
-**Status:** ✅ **INSTALLED ON EMULATOR**
+## 🚀 Quick Start
 
----
-
-## 📱 App Installation
-
-### Current Installation
-- **Package Name:** `in.pulsemateconnect.patient`
-- **Installed On:** Android Emulator (emulator-5554)
-- **Installation Status:** ✅ Success
-
-### Reinstall if Needed
+### 1. Install Dependencies
 ```bash
-# Download latest build
-eas build:download --id 88120141-b9db-4ac9-8af5-7d21e9c1ca5b
-
-# Install on emulator
-adb install "C:\Users\shubh\AppData\Local\Temp\eas-cli-nodejs\eas-build-run-cache\31fca56b-a99e-4219-bb3f-600d8b0c86b7_88120141-b9db-4ac9-8af5-7d21e9c1ca5b.apk"
-
-# Launch app
-adb shell monkey -p in.pulsemateconnect.patient 1
+npm install
 ```
 
----
-
-## 🧪 Test OTP Authentication
-
-### Step 1: Open App
-The app is already installed and can be launched from the emulator.
-
-### Step 2: Monitor Logs
-Run this command in a **separate terminal**:
+### 2. Uninstall Firebase (if not done)
 ```bash
-cd "c:\Users\shubh\Desktop\PulseMate Connect\pulsemateconnect21"
-test-otp-flow.bat
+npm uninstall @react-native-firebase/app @react-native-firebase/auth
 ```
 
-This will show real-time logs for:
-- Authentication events
-- Firebase initialization
-- OTP send/verify operations
-- Backend API calls
-- Any errors
-
-### Step 3: Test Login Flow
-
-1. **Enter Phone Number:** `+917022818878` (or any valid number)
-2. **Tap "Send OTP"**
-3. **Watch the logs** for:
-   - ✅ Backend API call to `/auth/patient/send-otp`
-   - ❌ Network errors (if backend is unreachable)
-   - ✅ OTP sent successfully
-
-### Step 4: Enter OTP
-If OTP is received, enter it and verify login works.
-
----
-
-## 🔍 What to Check in Logs
-
-### ✅ Success Indicators
-```
-[Login2Factor] FIREBASE INITIALIZATION SUCCESS
-[Login2Factor] CALLING sendOtpToPhone
-[Backend SMS] Sending OTP to +917022818878
-[Backend SMS] OTP sent successfully
+### 3. Start Development Server
+```bash
+npm start
 ```
 
-### ❌ Error Indicators
-```
-ERROR: Network Error
-ERROR: Backend API unreachable
-ERROR: Request timed out after 30000ms
+### 4. Run on Android
+```bash
+# Emulator (now supported!)
+npm run android
+
+# Or physical device via Expo Go
+# Scan QR code from terminal
 ```
 
 ---
 
-## 🌐 Backend API Requirements
+## ✅ Test Scenarios
 
-The app now uses **Backend SMS Service** instead of Firebase.
+### Test 1: Send OTP (Happy Path)
+1. Launch app
+2. Enter valid 10-digit mobile number (e.g., `9876543210`)
+3. Tap "Send OTP"
+4. **Expected Result:**
+   - Loading indicator appears briefly
+   - Navigation to OTP screen
+   - SMS arrives on phone
+   - Countdown timer starts (60s)
+   - Console logs show successful API call
 
-### Required Endpoints
+### Test 2: Verify OTP (Happy Path)
+1. After receiving OTP SMS
+2. Enter 6-digit OTP code
+3. OTP auto-verifies when 6 digits entered
+4. **Expected Result:**
+   - Loading indicator appears
+   - Success animation plays (green checkmark)
+   - "Verified! Welcome to PulseMate Connect" message
+   - Navigation to home screen
+   - User logged in
 
-#### 1. Send OTP
+### Test 3: Invalid Phone Number
+1. Enter less than 10 digits (e.g., `98765`)
+2. Tap "Send OTP"
+3. **Expected Result:**
+   - Alert: "Enter a valid 10-digit mobile number"
+   - No API call made
+
+### Test 4: Invalid OTP
+1. Send OTP successfully
+2. Enter incorrect 6-digit code (e.g., `000000`)
+3. **Expected Result:**
+   - Alert: "Invalid or expired OTP. Please try again"
+   - Input boxes shake (error animation)
+   - OTP boxes turn red briefly
+
+### Test 5: Resend OTP
+1. Send OTP successfully
+2. Wait for countdown to reach 0 (or let OTP expire)
+3. Tap "Resend OTP"
+4. **Expected Result:**
+   - New SMS arrives
+   - Countdown resets to 60s
+   - Input boxes cleared
+   - Alert: "OTP Resent"
+
+### Test 6: Expired OTP
+1. Send OTP successfully
+2. Wait 60+ seconds (or however long backend expires OTP)
+3. Enter the old OTP code
+4. **Expected Result:**
+   - Alert: "OTP has expired. Please request a new one"
+   - Suggest tapping "Resend OTP"
+
+### Test 7: Rate Limiting
+1. Send OTP successfully
+2. Immediately go back to login screen
+3. Try sending OTP again to same number
+4. **Expected Result:**
+   - Alert: "Please wait 2 minutes before requesting another OTP"
+   - No SMS sent
+
+### Test 8: Network Error
+1. Disable internet/wifi
+2. Try sending OTP
+3. **Expected Result:**
+   - Alert with network error message
+   - Loading indicator stops
+
+### Test 9: Backend Down
+1. Stop backend server
+2. Try sending OTP
+3. **Expected Result:**
+   - Alert with error message
+   - Graceful error handling
+
+---
+
+## 🔍 What to Check
+
+### Console Logs (Frontend)
+Look for these log patterns:
+
+#### Send OTP Success:
 ```
+╔═══════════════════════════════════════════════════════════════
+║ 🚀 [LoginScreen] SEND OTP BUTTON PRESSED (Message Central)
+║ ✅ [LoginScreen] SEND OTP SUCCESS (Message Central)
+║ 🔑 Verification ID: abc123...
+╚═══════════════════════════════════════════════════════════════
+```
+
+#### Verify OTP Success:
+```
+╔═══════════════════════════════════════════════════════════════
+║ 🔐 [OtpScreen] VERIFY OTP BUTTON PRESSED
+║ ✅ [OtpScreen] VERIFICATION SUCCESS
+║ 👤 User authenticated successfully
+╚═══════════════════════════════════════════════════════════════
+```
+
+### Backend Logs
+Look for:
+- `[Auth] OTP sent to +91XXXXXXXXXX via Message Central`
+- `[Auth] Patient login: <user-id>`
+- `[MessageCentral] ✅ OTP sent successfully`
+- `[MessageCentral] ✅ OTP validated successfully`
+
+---
+
+## 🐛 Common Issues
+
+### "Failed to send OTP"
+**Causes:**
+- Backend not running
+- Message Central credentials missing in backend `.env`
+- Invalid phone number format
+
+**Solutions:**
+1. Check backend is running on correct URL
+2. Verify backend `.env` has:
+   ```
+   MESSAGE_CENTRAL_CUSTOMER_ID=...
+   MESSAGE_CENTRAL_PASSWORD=...
+   MESSAGE_CENTRAL_BASE_URL=...
+   ```
+3. Check phone number is valid Indian mobile (+91XXXXXXXXXX)
+
+### "Invalid or expired OTP"
+**Causes:**
+- OTP entered incorrectly
+- OTP expired (>60 seconds)
+- Network delay
+
+**Solutions:**
+1. Double-check OTP digits
+2. Request new OTP via "Resend"
+3. Check backend logs for validation errors
+
+### "Network request failed"
+**Causes:**
+- No internet connection
+- Backend URL incorrect
+- Backend not accessible
+
+**Solutions:**
+1. Check device internet connection
+2. Verify `BASE_URL` in `src/api/axios.js`
+3. Test backend URL in browser/Postman
+
+### App crashes on OTP screen
+**Causes:**
+- Missing route params
+- Invalid verificationId
+
+**Solutions:**
+1. Check console for error stack trace
+2. Verify navigation params passed correctly
+3. Check backend returned valid verificationId
+
+---
+
+## 📱 Device-Specific Testing
+
+### Android Emulator
+- ✅ **Now works!** (no longer requires Play Integrity)
+- OTP will be sent to phone number
+- Check SMS on physical device with that number
+
+### Android Physical Device
+- ✅ Works perfectly
+- Automatic SMS retrieval may work depending on Android version
+- OTP arrives in Messages app
+
+### iOS (Future)
+- Backend supports iOS
+- Frontend migration needed for iOS screens
+
+---
+
+## 🔧 Advanced Testing
+
+### Test with Postman
+You can test backend directly:
+
+#### Send OTP:
+```http
 POST https://api.pulsemateconnect.in/api/auth/patient/send-otp
 Content-Type: application/json
 
 {
-  "phoneNumber": "+917022818878"
-}
-
-Response:
-{
-  "requestId": "unique-request-id",
-  "message": "OTP sent successfully"
+  "mobileNumber": "+919876543210"
 }
 ```
 
-#### 2. Verify OTP
-```
+#### Verify OTP:
+```http
 POST https://api.pulsemateconnect.in/api/auth/patient/verify-otp
 Content-Type: application/json
 
 {
-  "requestId": "unique-request-id",
-  "otp": "123456"
-}
-
-Response:
-{
-  "success": true,
-  "token": "jwt-token",
-  "user": { ... }
+  "verificationId": "<from-send-response>",
+  "otp": "123456",
+  "mobileNumber": "+919876543210"
 }
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## ✅ Sign-Off Checklist
 
-### Issue: Network Error
-**Symptom:** `AxiosError: Network Error` with code `ERR_NETWORK`
+Before marking migration complete:
 
-**Possible Causes:**
-1. Backend server is not running
-2. Emulator cannot reach `api.pulsemateconnect.in`
-3. API endpoints don't exist yet
-4. Firewall blocking requests
-
-**Solutions:**
-
-#### Option A: Use Physical Device
-Physical devices have better network access than emulators.
-
-```bash
-# Check connected devices
-adb devices
-
-# Install on physical device
-adb -s <device-id> install pulsemate-latest.apk
-```
-
-#### Option B: Fix Emulator Network
-```bash
-# Check if emulator can reach backend
-adb shell ping api.pulsemateconnect.in
-
-# If ping fails, configure network or use localhost tunnel
-```
-
-#### Option C: Test Backend Endpoints
-```bash
-# Test from your PC
-curl -X POST https://api.pulsemateconnect.in/api/auth/patient/send-otp ^
-  -H "Content-Type: application/json" ^
-  -d "{\"phoneNumber\": \"+917022818878\"}"
-```
-
-### Issue: App Crashes on Launch
-**Check logs:**
-```bash
-adb logcat | findstr "FATAL"
-```
-
-### Issue: OTP Not Received
-**Check:**
-1. Backend server logs
-2. SMS service (Twilio/AWS SNS) configuration
-3. Phone number format (+91XXXXXXXXXX)
+- [ ] Send OTP works on emulator
+- [ ] Send OTP works on physical device
+- [ ] Verify OTP works with correct code
+- [ ] Invalid OTP shows proper error
+- [ ] Resend OTP works
+- [ ] Expired OTP shows proper error
+- [ ] Rate limiting works (try sending twice quickly)
+- [ ] Network error handling works
+- [ ] UI unchanged from previous version
+- [ ] No console errors or warnings
+- [ ] Backend logs show Message Central calls
+- [ ] Production build tested (EAS build)
 
 ---
 
-## 📊 Test Results Log
+## 📊 Success Metrics
 
-| Test Case | Status | Notes |
-|-----------|--------|-------|
-| App Installation | ✅ Pass | Installed successfully |
-| App Launch | ✅ Pass | Opens without crashes |
-| Firebase Initialization | ✅ Pass | No Firebase errors (removed) |
-| UI Rendering | ⏳ Pending | Check if login screen appears |
-| Send OTP Button | ⏳ Pending | Test phone number entry |
-| Backend API Call | ⏳ Pending | Test network connectivity |
-| OTP Verification | ⏳ Pending | Test OTP entry and verification |
+Migration is successful when:
+1. ✅ 100% of auth flows work without Firebase
+2. ✅ No Firebase imports or dependencies remain
+3. ✅ Works on Android emulators
+4. ✅ Same user experience as before
+5. ✅ All error scenarios handled gracefully
 
 ---
 
-## 📝 Next Steps
+## 🎯 Performance Expectations
 
-1. **Run `test-otp-flow.bat`** to start monitoring logs
-2. **Open the app** on emulator
-3. **Enter phone number** and tap "Send OTP"
-4. **Check logs** for success or errors
-5. **If network error:**
-   - Verify backend server is running
-   - Test API endpoints exist
-   - Consider testing on physical device
+- **Send OTP:** ~2-5 seconds (depends on Message Central API)
+- **OTP Arrival:** 10-30 seconds (SMS delivery time)
+- **Verify OTP:** ~1-3 seconds (backend validation)
+- **Total Login Time:** ~30-60 seconds (similar to Firebase)
 
 ---
 
-## 📞 Support
-
-If you encounter any issues:
-1. Check the logs using `test-otp-flow.bat`
-2. Share the error messages
-3. Verify backend server status
-4. Test on physical device if emulator has network issues
-
----
-
-**Last Updated:** August 2, 2026  
-**Build Version:** 88120141-b9db-4ac9-8af5-7d21e9c1ca5b
+**Happy Testing! 🎉**

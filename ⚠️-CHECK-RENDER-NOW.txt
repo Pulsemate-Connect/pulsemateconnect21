@@ -1,0 +1,119 @@
+═══════════════════════════════════════════════════════════════════════════
+                  ⚠️ TEST OTP STILL NOT WORKING!
+═══════════════════════════════════════════════════════════════════════════
+
+PROBLEM:
+────────────────────────────────────────────────────────────────────────────
+Render logs show backend is STILL calling Message Central API.
+Test mode is NOT active!
+
+Evidence:
+  [Auth] 🔍 Validating OTP with Message Central  ← Should say "TEST MODE"!
+  [MessageCentral] Response: WRONG_OTP_PROVIDED
+
+
+ROOT CAUSE:
+────────────────────────────────────────────────────────────────────────────
+Environment variables NOT loaded correctly on Render.
+
+Possible reasons:
+  ❌ Variables not saved
+  ❌ Wrong format (quotes, spaces, caps)
+  ❌ Backend didn't restart
+  ❌ Typo in variable names
+
+
+FIX RIGHT NOW:
+────────────────────────────────────────────────────────────────────────────
+
+Step 1: Go to Render
+  → https://dashboard.render.com/
+  → Click: pulsemate-backend
+  → Click: Environment tab
+
+Step 2: Check EXACT format of each variable
+
+Variable 1:
+  Key: ENABLE_TEST_OTP
+  Value: true
+  
+  ✅ Must be: true (lowercase, no quotes)
+  ❌ NOT: "true" or True or TRUE
+
+Variable 2:
+  Key: TEST_OTP_NUMBERS
+  Value: 9999999999,8888888888,7777777777
+  
+  ✅ Must have: NO SPACES between numbers
+  ❌ NOT: 9999999999, 8888888888, 7777777777
+
+Variable 3:
+  Key: TEST_OTP_CODE
+  Value: 123456
+  
+  ✅ Must be: 123456 (no quotes)
+  ❌ NOT: "123456"
+
+Step 3: If ANY are wrong
+  → Fix them
+  → Click "Save Changes"
+
+Step 4: Manual Redeploy
+  → Scroll to "Manual Deploy"
+  → Click "Deploy latest commit"
+  → Wait 2-3 minutes
+
+Step 5: Check Logs
+  → Go to Logs tab
+  → Look for: "[Server] Test OTP: enabled ✅"
+  → If you DON'T see this, variables still wrong!
+
+Step 6: Request NEW OTP in app
+  → Don't use old verification ID!
+  → Fresh OTP request
+  → Should be instant now
+
+
+VERIFICATION CHECKLIST:
+────────────────────────────────────────────────────────────────────────────
+
+Before testing:
+  [ ] ENABLE_TEST_OTP = true (exact lowercase)
+  [ ] TEST_OTP_NUMBERS = 9999999999,8888888888,7777777777 (no spaces)
+  [ ] TEST_OTP_CODE = 123456 (no quotes)
+  [ ] Clicked "Save Changes" on Render
+  [ ] Manual redeploy triggered
+  [ ] Logs show "Test OTP: enabled"
+
+When testing:
+  [ ] Requested NEW OTP (not old one)
+  [ ] Response time < 100ms (instant)
+  [ ] Verification ID starts with "TEST-"
+  [ ] No Message Central call in logs
+  [ ] OTP 123456 works
+
+
+COMMON MISTAKES:
+────────────────────────────────────────────────────────────────────────────
+
+Mistake 1: Quotes around values
+  Wrong: ENABLE_TEST_OTP = "true"
+  Right: ENABLE_TEST_OTP = true
+
+Mistake 2: Spaces in number list
+  Wrong: TEST_OTP_NUMBERS = 9999999999, 8888888888, 7777777777
+  Right: TEST_OTP_NUMBERS = 9999999999,8888888888,7777777777
+
+Mistake 3: Capital letters
+  Wrong: ENABLE_TEST_OTP = True or TRUE
+  Right: ENABLE_TEST_OTP = true
+
+Mistake 4: Using old OTP request
+  Wrong: Trying to verify old verificationId: 12072243
+  Right: Request NEW OTP, get new verificationId
+
+
+═══════════════════════════════════════════════════════════════════════════
+          GO TO RENDER → ENVIRONMENT → CHECK EXACT FORMAT NOW!
+                https://dashboard.render.com/
+═══════════════════════════════════════════════════════════════════════════

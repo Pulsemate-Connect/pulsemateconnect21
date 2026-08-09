@@ -1,0 +1,64 @@
+═══════════════════════════════════════════════════════════════
+  QUICK BUILD COMMANDS — PulseMate Connect v1.3.7
+═══════════════════════════════════════════════════════════════
+
+📦 BUILD TEST AAB (for local testing)
+─────────────────────────────────────────────────────────────────
+npx eas-cli build --platform android --profile test-aab
+
+
+📦 BUILD PRODUCTION AAB (for Play Store)
+─────────────────────────────────────────────────────────────────
+npx eas-cli build --platform android --profile production
+
+
+📦 BUILD APK (easiest for testing - direct install)
+─────────────────────────────────────────────────────────────────
+npx eas-cli build --platform android --profile apk
+
+
+📦 BUILD BOTH (test + production)
+─────────────────────────────────────────────────────────────────
+npx eas-cli build --platform android --profile test-aab
+npx eas-cli build --platform android --profile production
+
+
+📋 CHECK BUILD STATUS
+─────────────────────────────────────────────────────────────────
+npx eas-cli build:list
+
+
+📥 DOWNLOAD LATEST BUILD
+─────────────────────────────────────────────────────────────────
+npx eas-cli build:download
+
+
+🚀 SUBMIT TO PLAY STORE (after production build completes)
+─────────────────────────────────────────────────────────────────
+npx eas-cli submit --platform android --profile production
+
+
+🎯 RECOMMENDED WORKFLOW
+─────────────────────────────────────────────────────────────────
+1. For quick testing:
+   npx eas-cli build -p android --profile apk
+   
+2. For Play Store:
+   npx eas-cli build -p android --profile production
+   
+3. Monitor builds:
+   https://expo.dev/accounts/pulsemateconnect/projects/pulsemate-app/builds
+
+
+⏱️ BUILD TIME
+─────────────────────────────────────────────────────────────────
+• Queue: 1-5 minutes
+• Build: 10-15 minutes
+• Total: ~15-20 minutes per build
+
+
+💡 TIP: Use the build-aab.bat script for interactive menu!
+─────────────────────────────────────────────────────────────────
+Just double-click: build-aab.bat
+
+═══════════════════════════════════════════════════════════════

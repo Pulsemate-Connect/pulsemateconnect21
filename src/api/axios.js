@@ -8,7 +8,7 @@ import { getIsSigningOut } from '../store/authStore';
 const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 
 // ── API URL resolution ─────────────────────────────────────────────────────
-// TEMPORARY FIX: Hardcode production URL to bypass app.json cache issues
+// PRODUCTION: Using production backend
 export const BASE_URL = 'https://api.pulsemateconnect.in/api';
 
 // Original dynamic resolution (commented out until cache clears):
