@@ -196,7 +196,7 @@ export default function HomeScreen({ navigation }) {
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goSearch     = () => navigation.navigate('Search');
-  const goDoctors    = () => navigation.navigate('TopDoctors');
+  const goDoctors    = () => navigation.navigate('DoctorsTab'); // Fixed: Navigate to Doctors tab
   const goBooking    = (doctor) => navigation.navigate('DoctorsTab', { screen: 'DoctorDetail', params: { doctorId: doctor?.id } });
   const goClinicBook = () => navigation.navigate('DoctorsTab');
   const goAllClinics = () => navigation.navigate('NearbyClinics');
