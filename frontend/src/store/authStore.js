@@ -76,7 +76,7 @@ const useAuthStore = create(
       });
     }
   },
-})),
+}),
 {
   name: 'pulsemate-auth-storage',
   storage: createJSONStorage(() => localStorage),
@@ -86,7 +86,6 @@ const useAuthStore = create(
     isAuthenticated: state.isAuthenticated,
   }),
 }
-)
 );
 
 export default useAuthStore;
