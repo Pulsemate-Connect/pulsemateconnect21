@@ -16,16 +16,16 @@
 
 CREATE UNIQUE INDEX idx_unique_active_appointment_slot 
 ON appointments (
-  doctor_id, 
-  clinic_id, 
-  DATE(appointment_date AT TIME ZONE 'UTC'), 
-  slot_time
+  "doctorId", 
+  "clinicId", 
+  DATE("appointmentDate" AT TIME ZONE 'UTC'), 
+  "slotTime"
 ) 
 WHERE status NOT IN ('CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT');
 
 -- Index to improve lookup performance
 CREATE INDEX idx_appointment_slot_lookup 
-ON appointments (doctor_id, clinic_id, appointment_date, slot_time, status);
+ON appointments ("doctorId", "clinicId", "appointmentDate", "slotTime", status);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -36,11 +36,11 @@ ON appointments (doctor_id, clinic_id, appointment_date, slot_time, status);
 -- Expected: Unique queue numbers within each queue ✅
 
 CREATE UNIQUE INDEX idx_unique_queue_number 
-ON queue_items (queue_id, queue_number);
+ON queue_items ("queueId", "queueNumber");
 
 -- Index to improve queue item lookups
 CREATE INDEX idx_queue_item_status_position 
-ON queue_items (queue_id, status, position);
+ON queue_items ("queueId", status, position);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -49,16 +49,16 @@ ON queue_items (queue_id, status, position);
 
 -- Index for free booking eligibility checks
 CREATE INDEX idx_user_free_booking 
-ON users (id, free_booking_used) 
-WHERE free_booking_used = false;
+ON users (id, "freeBookingUsed") 
+WHERE "freeBookingUsed" = false;
 
 -- Index for session validation queries
 CREATE INDEX idx_clinic_session_lookup 
-ON clinic_sessions (id, clinic_id, enabled, start_time, end_time);
+ON clinic_sessions (id, "clinicId", enabled, "startTime", "endTime");
 
 -- Index for doctor availability queries
 CREATE INDEX idx_doctor_availability_lookup 
-ON doctor_availability (doctor_id, clinic_id, day_of_week, is_active);
+ON doctor_availability ("doctorId", "clinicId", "dayOfWeek", "isActive");
 
 
 -- ────────────────────────────────────────────────────────────────────────────
