@@ -222,13 +222,6 @@ const StaffLoginPage = () => {
                       </Link>
                     </div>
 
-                    <div className="flex items-center justify-center text-sm">
-                      <span className="text-slate-500">Are you a patient?</span>
-                      <Link to="/login" className="ml-2 font-semibold text-blue-600 hover:text-blue-700">
-                        Login with OTP →
-                      </Link>
-                    </div>
-
                     <button
                       type="submit"
                       disabled={isLoading}
@@ -237,6 +230,13 @@ const StaffLoginPage = () => {
                       {isLoading ? 'Signing in...' : 'Login to Portal'}
                     </button>
                   </form>
+
+                  <div className="mt-4 flex items-center justify-center gap-1 text-sm">
+                    <span className="text-slate-500">Are you a patient?</span>
+                    <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+                      Login with OTP here
+                    </Link>
+                  </div>
 
                   <div className="mt-7 rounded-[1.4rem] border border-blue-100 bg-[linear-gradient(180deg,#f5f8ff_0%,#eef4ff_100%)] p-4 text-blue-700 shadow-sm">
                     <div className="flex items-start gap-3">
