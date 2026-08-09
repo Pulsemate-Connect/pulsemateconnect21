@@ -4,9 +4,9 @@ const refreshTokenRepository = require('../repositories/refresh-token.repository
 const { hashToken } = require('../utils/hash');
 
 const ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
-const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
+const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '30d';
 const ACCESS_COOKIE_MAX_AGE = 15 * 60 * 1000;
-const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
 const randomId = () => crypto.randomUUID();
 

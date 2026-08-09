@@ -16,6 +16,7 @@ const { startAccountDeletionJob } = require('./jobs/accountDeletion.job');
 const { initFirebase } = require('./config/firebase');
 const { initSocketNotifications } = require('./services/socket-notification.service');
 const { startNotificationJobs } = require('./jobs/notification.job');
+const { startCleanupJob } = require('./jobs/cleanup-tokens.job');
 
 // Routes
 const authRoutes = require('./routes/auth.routes');
@@ -374,6 +375,7 @@ if (process.env.NODE_ENV !== 'test') {
     startReminderJob();
     startAccountDeletionJob();
     startNotificationJobs();
+    startCleanupJob(); // ✅ PERSISTENT LOGIN: Cleanup expired refresh tokens daily
   });
 }
 

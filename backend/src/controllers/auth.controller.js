@@ -85,7 +85,8 @@ const getSessionMetadata = (req) => ({
 
 const issueAuthTokens = async (res, user, req) => {
   const tokens = await createSessionTokens(user, user.role, getSessionMetadata(req));
-  setRefreshTokenCookie(res, tokens.refreshToken, 7 * 24 * 60 * 60 * 1000);
+  // ✅ PERSISTENT LOGIN: Set 30-day cookie (matches refresh token expiry)
+  setRefreshTokenCookie(res, tokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
   return tokens;
 };
 
@@ -959,7 +960,8 @@ const refreshTokenHandler = async (req, res, next) => {
     const refreshed = await rotateRefreshToken(rawRefreshToken, null, getSessionMetadata(req));
 
     // Set cookie for web clients (no-op on mobile — cookies are not persisted)
-    setRefreshTokenCookie(res, refreshed.refreshToken, 7 * 24 * 60 * 60 * 1000);
+    // ✅ PERSISTENT LOGIN: Use 30-day cookie max age (matches refresh token expiry)
+    setRefreshTokenCookie(res, refreshed.refreshToken, 30 * 24 * 60 * 60 * 1000);
 
     return sendSuccess(res, {
       accessToken: refreshed.accessToken,
@@ -975,7 +977,8 @@ const refreshTokenHandler = async (req, res, next) => {
 
 const logoutHandler = async (req, res, next) => {
   try {
-    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    // ✅ PERSISTENT LOGIN: Support both cookie and body refresh tokens (mobile + web)
+    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
     if (rawRefreshToken) await revokeRefreshToken(rawRefreshToken);
     clearRefreshTokenCookie(res);
     return sendSuccess(res, {}, 'Logged out successfully');
@@ -1299,6 +1302,38 @@ const sendOtpHandler = async (req, res, next) => {
       return sendError(res, 'Invalid mobile number format. Please enter 10-digit number.', 400);
     }
 
+    // ✅ TEST MODE: Use fixed OTP for specific test numbers in development
+    const isTestMode = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_OTP === 'true';
+    const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
+    const testOtp = process.env.TEST_OTP_CODE || '123456';
+    
+    if (isTestMode && testNumbers.includes(cleanNumber)) {
+      logger.info(`[Auth] 🧪 TEST MODE: Using test OTP for ${cleanNumber}`);
+      
+      // Generate a fake verification ID
+      const testVerificationId = `TEST-${Date.now()}-${cleanNumber}`;
+      
+      // Store in database for verification
+      await prisma.otpAttempt.create({
+        data: {
+          mobileNumber: cleanNumber,
+          verificationId: testVerificationId,
+          provider: 'TEST_MODE',
+          expiresAt: new Date(Date.now() + 300 * 1000) // 5 minutes
+        }
+      });
+
+      logger.info(`[Auth] 🧪 TEST OTP: ${testOtp} for ${cleanNumber} (verificationId: ${testVerificationId})`);
+
+      return sendSuccess(res, {
+        verificationId: testVerificationId,
+        expiresIn: 300,
+        message: `TEST MODE: OTP is ${testOtp}`,
+        _testMode: true,
+        _testOtp: testOtp // Only send in dev mode
+      });
+    }
+
     // ✅ PRODUCTION FIX: Removed redundant database rate limiting
     // The otpSendLimiter middleware (5 requests/hour per phone) handles rate limiting
     // express-rate-limit is more efficient and consistent than database queries
@@ -1350,7 +1385,105 @@ const verifyOtpHandler = async (req, res, next) => {
       return sendError(res, 'Invalid OTP format. Please enter 6-digit code.', 400);
     }
 
-    // Validate OTP via Message Central
+    // Clean mobile number
+    const cleanNumber = mobileNumber.replace(/\D/g, '').replace(/^91/, '');
+
+    // ✅ TEST MODE: Validate test OTP for test numbers
+    const isTestMode = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_OTP === 'true';
+    const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
+    const testOtp = process.env.TEST_OTP_CODE || '123456';
+    
+    if (isTestMode && verificationId.startsWith('TEST-') && testNumbers.includes(cleanNumber)) {
+      logger.info(`[Auth] 🧪 TEST MODE: Verifying test OTP for ${cleanNumber}`);
+      
+      // Check if test OTP matches
+      if (cleanOtp !== testOtp) {
+        logger.warn(`[Auth] 🧪 TEST MODE: Invalid OTP. Expected: ${testOtp}, Got: ${cleanOtp}`);
+        return sendError(res, 'Invalid OTP. For test mode, use: ' + testOtp, 401);
+      }
+
+      // Check if verification ID exists and is not expired
+      const otpAttempt = await prisma.otpAttempt.findFirst({
+        where: {
+          verificationId,
+          mobileNumber: cleanNumber,
+          provider: 'TEST_MODE',
+          expiresAt: { gte: new Date() }
+        }
+      });
+
+      if (!otpAttempt) {
+        return sendError(res, 'Invalid or expired verification ID', 401);
+      }
+
+      logger.info(`[Auth] 🧪 TEST MODE: OTP verified successfully for ${cleanNumber}`);
+      
+      // Continue with user login/registration using cleanNumber
+      const mobile = cleanNumber;
+      
+      // Find or create user
+      let user = await prisma.user.findUnique({
+        where: { mobile },
+        include: baseUserInclude,
+      });
+
+      let isNewUser = false;
+      if (!user) {
+        // New user - create patient account
+        user = await prisma.user.create({
+          data: {
+            mobile,
+            role: 'PATIENT',
+            approvalStatus: 'VERIFIED',
+            isPhoneVerified: true,
+            authProvider: 'TEST_MODE',
+            patientProfile: { create: {} },
+          },
+          include: baseUserInclude,
+        });
+        isNewUser = true;
+        logger.info(`[Auth] 🧪 TEST MODE: New patient registered: ${user.id} (${mobile})`);
+      } else if (user.role !== 'PATIENT') {
+        return sendError(res, 'This phone belongs to a staff account. Use staff login.', 403);
+      } else {
+        // Existing patient - update login time
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isPhoneVerified: true,
+            lastLoginAt: new Date(),
+            authProvider: 'TEST_MODE',
+          },
+          include: baseUserInclude,
+        });
+        logger.info(`[Auth] 🧪 TEST MODE: Patient login: ${user.id} (${mobile})`);
+      }
+
+      // Issue JWT tokens
+      const tokens = await issueAuthTokens(res, user, req);
+
+      await createAuditLog({
+        userId: user.id,
+        action: isNewUser ? 'PATIENT_REGISTERED_TEST_MODE' : 'PATIENT_LOGIN_TEST_MODE',
+        entityType: 'User',
+        entityId: user.id,
+        ipAddress: req.ip,
+        metadata: { provider: 'TEST_MODE' },
+      });
+
+      return sendSuccess(
+        res,
+        {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          user: { ...toAuthUser(user), isNewUser },
+          _testMode: true
+        },
+        isNewUser ? 'TEST MODE: Account created successfully' : 'TEST MODE: Login successful'
+      );
+    }
+
+    // ✅ PRODUCTION: Validate OTP via Message Central
     let validation;
     try {
       console.log('[Auth] 🔍 Validating OTP with Message Central');
