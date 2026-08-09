@@ -178,3 +178,32 @@ export function StaffRoute({ children }) {
     </ProtectedRoute>
   );
 }
+
+/**
+ * Route accessible only when NOT authenticated (e.g., login, register pages)
+ * Redirects to role-based home if user is already logged in
+ */
+export function PublicRoute({ children }) {
+  const { isAuthenticated, user, isLoading } = useAuthStore();
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If authenticated, redirect to role-based home
+  if (isAuthenticated && user) {
+    const homeRoute = ROLE_HOME[user.role] || '/';
+    return <Navigate to={homeRoute} replace />;
+  }
+
+  // Not authenticated, show public content
+  return children;
+}
