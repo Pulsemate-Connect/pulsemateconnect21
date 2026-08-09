@@ -17,6 +17,21 @@ import { Navigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Constants - Role-based home routes
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Map of user roles to their home/dashboard routes
+ */
+export const ROLE_HOME = {
+  PATIENT: '/patient/home',
+  DOCTOR: '/doctor/dashboard',
+  CLINIC_OWNER: '/owner/dashboard',
+  RECEPTIONIST: '/receptionist/dashboard',
+  SUPER_ADMIN: '/admin/dashboard',
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Component
 // ──────────────────────────────────────────────────────────────────────────────
 
