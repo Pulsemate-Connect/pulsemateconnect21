@@ -219,10 +219,14 @@ export default function Login() {
       // Step 4: Save to store
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Login successful - PublicRoute will handle redirect');
+      console.log('[Login] Login successful, user:', authData.user.role);
       
-      // PublicRoute wrapper will automatically redirect to /patient/home
-      // No manual navigation needed - removes race condition
+      // Force immediate navigation to patient dashboard
+      // Using longer delay to ensure Zustand state fully propagates
+      setTimeout(() => {
+        console.log('[Login] Navigating to patient dashboard');
+        window.location.href = '/patient/home'; // Force full page navigation
+      }, 200);
     } catch (err) {
       console.error('[Login] Verify OTP error:', err);
       setError(err.message);
@@ -249,10 +253,14 @@ export default function Login() {
 
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Registration completed - PublicRoute will handle redirect');
+      console.log('[Login] Registration completed, user:', authData.user.role);
       
-      // PublicRoute wrapper will automatically redirect to /patient/home
-      // No manual navigation needed - removes race condition
+      // Force immediate navigation to patient dashboard
+      // Using longer delay to ensure Zustand state fully propagates
+      setTimeout(() => {
+        console.log('[Login] Navigating to patient dashboard');
+        window.location.href = '/patient/home'; // Force full page navigation
+      }, 200);
     } catch (err) {
       console.error('[Login] Complete name error:', err);
       setError(err.message);
