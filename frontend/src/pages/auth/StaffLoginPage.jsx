@@ -222,6 +222,13 @@ const StaffLoginPage = () => {
                       </Link>
                     </div>
 
+                    <div className="flex items-center justify-center text-sm">
+                      <span className="text-slate-500">Are you a patient?</span>
+                      <Link to="/login" className="ml-2 font-semibold text-blue-600 hover:text-blue-700">
+                        Login with OTP →
+                      </Link>
+                    </div>
+
                     <button
                       type="submit"
                       disabled={isLoading}
