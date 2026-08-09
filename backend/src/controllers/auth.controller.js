@@ -977,11 +977,40 @@ const refreshTokenHandler = async (req, res, next) => {
 
 const logoutHandler = async (req, res, next) => {
   try {
-    // ✅ PERSISTENT LOGIN: Support both cookie and body refresh tokens (mobile + web)
+    // ✅ SOFT LOGOUT WITH 7-DAY GRACE PERIOD (Cost-Saving Feature)
+    // 
+    // Strategy: DON'T revoke the refresh token on logout
+    // - User appears "logged out" (frontend shows login screen)
+    // - But refresh token remains valid in database for 30 days
+    // - Frontend keeps token in secure storage (doesn't delete it)
+    // - If user "logs in" again within 30 days: Uses existing token (NO OTP needed)
+    // - Saves ₹0.12 OTP cost per accidental logout or quick return
+    //
+    // Security: Token still expires after 30 days of inactivity
+    // User can force "hard logout" (revoke all tokens) from settings if needed
+    
     const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
-    if (rawRefreshToken) await revokeRefreshToken(rawRefreshToken);
+    
+    // DON'T revoke the token - let it remain valid
+    // This allows "silent re-login" without OTP if user returns
+    
+    // Note: For HARD logout (immediate revocation), use /logout-all endpoint instead
+    // That endpoint calls: await revokeRefreshToken(rawRefreshToken);
+    
+    // Just clear cookie (for web browsers)
+    // Mobile app should NOT delete token from secure storage
     clearRefreshTokenCookie(res);
-    return sendSuccess(res, {}, 'Logged out successfully');
+    
+    logger.info('[Auth] Soft logout - token remains valid for grace period re-login');
+    
+    return sendSuccess(
+      res,
+      { 
+        gracePeriodDays: 30,
+        message: 'You can log back in without OTP within 30 days'
+      },
+      'Logged out successfully'
+    );
   } catch (error) {
     next(error);
   }

@@ -36,10 +36,23 @@ export const AuthProvider = ({ children }) => {
       onSignOutRef.current = null;
     }
 
-    // Clear ALL storage — SecureStore tokens + any AsyncStorage cache
+    // ✅ SOFT LOGOUT WITH GRACE PERIOD (Cost-Saving Feature)
+    // Strategy: Keep refresh token for 30 days, only delete access token
+    // - User appears logged out (shows login screen)
+    // - But refresh token stays in SecureStore
+    // - On next "login": Check if refresh token exists → Silent re-login (NO OTP)
+    // - Saves ₹0.12 OTP cost per accidental logout
+    // - After 30 days: Token expires naturally, OTP required
+    
     const clearStorage = async () => {
-      const secureKeys = ['accessToken', 'refreshToken'];
-      await Promise.allSettled(secureKeys.map(k => SecureStore.deleteItemAsync(k)));
+      // Only delete access token (causes user to appear logged out)
+      // KEEP refresh token for grace period re-login
+      await SecureStore.deleteItemAsync('accessToken');
+      
+      // ❌ DON'T delete refresh token (allow grace period re-login)
+      // await SecureStore.deleteItemAsync('refreshToken');  // COMMENTED OUT
+      
+      console.log('[AuthProvider] ✅ Soft logout: Access token deleted, refresh token kept for grace period');
 
       // Clear AsyncStorage cache (React Query, socket token, misc)
       try {
@@ -59,7 +72,7 @@ export const AuthProvider = ({ children }) => {
     // Reset flag after a short delay so any in-flight requests can drain
     setTimeout(() => { _isSigningOut = false; }, 1000);
 
-    console.log('[AuthProvider] signOut complete');
+    console.log('[AuthProvider] signOut complete (grace period active)');
   }, []);
 
   // Register signOut with axios so 401 errors auto-logout
