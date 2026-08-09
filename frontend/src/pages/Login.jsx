@@ -51,12 +51,8 @@ export default function Login() {
 
   // ── Effects ──────────────────────────────────────────────────────────────
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
+  // Note: PublicRoute wrapper handles authenticated user redirect automatically
+  // No manual redirect needed here - it would conflict with role-based routing
 
   // Show session expired message
   useEffect(() => {
@@ -223,12 +219,10 @@ export default function Login() {
       // Step 4: Save to store
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Login successful, redirecting to dashboard');
+      console.log('[Login] Login successful - PublicRoute will handle redirect');
       
-      // Wait for state to propagate, then redirect to patient dashboard
-      setTimeout(() => {
-        navigate('/patient/home', { replace: true });
-      }, 100);
+      // PublicRoute wrapper will automatically redirect to /patient/home
+      // No manual navigation needed - removes race condition
     } catch (err) {
       console.error('[Login] Verify OTP error:', err);
       setError(err.message);
@@ -255,12 +249,10 @@ export default function Login() {
 
       setAuth(authData.user, authData.accessToken);
       
-      console.log('[Login] Registration completed, redirecting to dashboard');
+      console.log('[Login] Registration completed - PublicRoute will handle redirect');
       
-      // Wait for state to propagate, then redirect to patient dashboard
-      setTimeout(() => {
-        navigate('/patient/home', { replace: true });
-      }, 100);
+      // PublicRoute wrapper will automatically redirect to /patient/home
+      // No manual navigation needed - removes race condition
     } catch (err) {
       console.error('[Login] Complete name error:', err);
       setError(err.message);
