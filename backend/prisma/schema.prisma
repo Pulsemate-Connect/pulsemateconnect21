@@ -193,24 +193,52 @@ model ClinicStaff {
 }
 
 model DoctorProfile {
-  id                        String               @id @default(uuid())
-  userId                    String               @unique
-  approvalStatus            ApprovalStatus       @default(PENDING)
+  id                        String                   @id @default(uuid())
+  userId                    String                   @unique
+  approvalStatus            ApprovalStatus           @default(PENDING)
   qualification             String?
   specialization            String?
-  experienceYears           Int?                 @default(0)
+  experienceYears           Int?                     @default(0)
   education                 String?
-  consultationFee           Float?               @default(0)
-  onlineAvailable           Boolean              @default(false)
-  offlineAvailable          Boolean              @default(true)
+  consultationFee           Float?                   @default(0)
+  onlineAvailable           Boolean                  @default(false)
+  offlineAvailable          Boolean                  @default(true)
   bio                       String?
-  avgConsultationMins       Int                  @default(10)
-  medicalRegistrationNumber String?              @unique
+  avgConsultationMins       Int                      @default(10)
+  medicalRegistrationNumber String?                  @unique
   certificates              Json?
   languagesKnown            String[]
-  marketplaceVisible        Boolean              @default(false)
-  profileStatus             DoctorProfileStatus  @default(INCOMPLETE)
-/  @@map("receptionist_profiles")
+  marketplaceVisible        Boolean                  @default(false)
+  profileStatus             DoctorProfileStatus      @default(INCOMPLETE)
+  verificationStatus        DoctorVerificationStatus @default(NOT_VERIFIED)
+  gender                    String?
+  licenseNumber             String?
+  profileImage              String?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  documentUrl               String?
+  appointments              Appointment[]
+  availabilities            DoctorAvailability[]
+  doctorClinics             DoctorClinic[]           @relation("MarketplaceDoctor")
+  user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prescriptions             prescriptions[]
+  queues                    Queue[]
+
+  @@map("doctor_profiles")
+}
+
+model ReceptionistProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  assignedClinicId String
+  createdByOwnerId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  assignedClinic   Clinic   @relation(fields: [assignedClinicId], references: [id], onDelete: Cascade)
+  createdByOwner   User     @relation("OwnerCreatedReceptionists", fields: [createdByOwnerId], references: [id])
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("receptionist_profiles")
 }
 
 model AdminProfile {
