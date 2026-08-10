@@ -15,27 +15,31 @@ const normalizeUser = (user) =>
 
 const useAuthStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       isAuthenticated: false,
       isLoading: true,
 
-      setAuth: (user, accessToken) =>
+      setAuth: (user, accessToken) => {
+        console.log('[AuthStore] setAuth called:', { user: user?.id, role: user?.role, accessToken: accessToken?.substring(0, 20) + '...' });
         set({
           user: normalizeUser(user),
           accessToken,
           isAuthenticated: true,
           isLoading: false,
-        }),
+        });
+      },
 
-      clearAuth: () =>
+      clearAuth: () => {
+        console.log('[AuthStore] clearAuth called');
         set({
           user: null,
           accessToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        });
+      },
 
       updateUser: (patch) =>
         set((state) => ({
@@ -58,6 +62,15 @@ const useAuthStore = create(
       },
 
       checkAuth: async () => {
+        // If we already have a token, skip the API call and just set loading to false
+        const { accessToken } = get();
+        if (accessToken) {
+          console.log('[AuthStore] Token exists, setting isLoading to false');
+          set((state) => ({ ...state, isLoading: false }));
+          return;
+        }
+
+        console.log('[AuthStore] No token, checking /auth/me');
         set((state) => ({ ...state, isLoading: true }));
         try {
           const response = await getMe();
@@ -68,6 +81,7 @@ const useAuthStore = create(
             isLoading: false,
           });
         } catch (_) {
+          console.log('[AuthStore] No persisted session found');
           set({
             user: null,
             accessToken: null,
@@ -85,6 +99,15 @@ const useAuthStore = create(
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // After rehydration, set isLoading to false if we have auth data
+        if (state?.accessToken && state?.isAuthenticated) {
+          console.log('[AuthStore] Rehydrated with auth data, setting isLoading to false');
+          state.isLoading = false;
+        } else {
+          console.log('[AuthStore] No auth data after rehydration');
+        }
+      },
     }
   )
 );
