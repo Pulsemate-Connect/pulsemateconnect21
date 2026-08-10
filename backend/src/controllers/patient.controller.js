@@ -362,10 +362,22 @@ const bookAppointment = async (req, res, next) => {
       });
     }
 
-    // Fire-and-forget notifications
-    notifyAppointmentBooked(req.user.id, appointment.doctor?.user?.name || 'the doctor', appointmentDate, appointment.queueNumber).catch(() => {});
+    // Fire-and-forget notifications with proper error logging
+    notifyAppointmentBooked(req.user.id, appointment.doctor?.user?.name || 'the doctor', appointmentDate, appointment.queueNumber).catch((err) => {
+      logger.error('[Patient] Patient booking notification failed', {
+        patientId: req.user.id,
+        appointmentId: appointment.id,
+        error: err.message,
+      });
+    });
     if (appointment.doctor?.user?.id) {
-      notifyDoctorNewBooking(appointment.doctor.user.id, req.user.name || 'A patient', appointmentDate).catch(() => {});
+      notifyDoctorNewBooking(appointment.doctor.user.id, req.user.name || 'A patient', appointmentDate).catch((err) => {
+        logger.error('[Patient] Doctor booking notification failed', {
+          doctorUserId: appointment.doctor.user.id,
+          appointmentId: appointment.id,
+          error: err.message,
+        });
+      });
     }
 
     return sendSuccess(res, { appointment, estimatedAppointmentTime }, 'Appointment booked successfully', 201);

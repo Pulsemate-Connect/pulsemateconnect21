@@ -8,8 +8,9 @@ export const logout = () => api.post('/auth/logout');
 export const getMyNotifications = () => api.get('/notifications/my');
 export const markNotificationRead = (id) => api.patch(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => api.patch('/notifications/read-all');
-export const registerFcmToken = (token, platform = 'android') => api.post('/notifications/fcm-token', { token, platform });
-export const removeFcmToken = (token) => api.delete('/notifications/fcm-token', { data: { token } });
+// ✅ CRITICAL FIX: Corrected endpoint to match backend route
+export const registerFcmToken = (token, platform = 'android') => api.post('/device-token/register', { fcmToken: token, platform: platform.toUpperCase() });
+export const removeFcmToken = (token) => api.post('/device-token/deactivate', { fcmToken: token });
 
 /**
  * Firebase Phone Auth login / register for PATIENTS.

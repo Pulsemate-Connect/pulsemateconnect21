@@ -136,7 +136,13 @@ const notifyStakeholders = async (appointment, patientName) => {
     ]);
 
     if (doctorProfile) {
-      notifyDoctorNewBooking(doctorProfile.userId, patientName, apptDate).catch(() => { });
+      notifyDoctorNewBooking(doctorProfile.userId, patientName, apptDate).catch((err) => {
+        logger.error('[Payment] Doctor booking notification failed', {
+          doctorUserId: doctorProfile.userId,
+          patientName,
+          error: err.message,
+        });
+      });
     }
 
     if (clinicData) {
@@ -672,7 +678,13 @@ const verifyPayment = async (req, res, next) => {
         confirmed.doctor?.user?.name || 'the doctor',
         appointment.appointmentDate,
         confirmed.queueNumber
-      ).catch(() => { });
+      ).catch((err) => {
+        logger.error('[Payment] Patient booking notification failed', {
+          patientId: appointment.patientId,
+          appointmentId: appointment.id,
+          error: err.message,
+        });
+      });
 
       const patientUser = await prisma.user.findUnique({
         where: { id: appointment.patientId },

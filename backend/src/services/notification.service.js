@@ -4,6 +4,7 @@
 // ═════════════════════════════════════════════════════════════════════════════
 const prisma = require('../config/database');
 const logger = require('../config/logger');
+const fcmService = require('./fcm.service');
 
 /**
  * Notification types enum
@@ -65,9 +66,35 @@ async function createNotification({
       priority,
     });
 
-    // TODO: Send push notification
-    // TODO: Send email if important
-    // TODO: Send SMS if critical
+    // ✅ CRITICAL FIX: Send push notification immediately after database notification
+    try {
+      await fcmService.sendNotification(userId, {
+        title,
+        body: message,
+        data: {
+          notificationId: notification.id,
+          type,
+          ...metadata,
+        },
+      });
+      logger.info('[Notification] Push notification sent', {
+        notificationId: notification.id,
+        userId,
+        type,
+      });
+    } catch (pushError) {
+      // Log error but don't throw - database notification still succeeded
+      logger.error('[Notification] Push notification failed', {
+        notificationId: notification.id,
+        userId,
+        type,
+        error: pushError.message,
+        stack: pushError.stack,
+      });
+    }
+
+    // TODO: Send email if important (priority === 'HIGH')
+    // TODO: Send SMS if critical (priority === 'HIGH' and specific types)
 
     return notification;
   } catch (error) {

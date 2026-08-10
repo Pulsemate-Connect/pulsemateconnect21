@@ -39,6 +39,7 @@ const sessionAvailabilityRoutes = require('./routes/sessionAvailability.routes')
 const uploadRoutes = require('./routes/upload.routes');
 const holidayRoutes = require('./routes/holiday.routes');
 const notificationEnhancedRoutes = require('./routes/notification-enhanced.routes');
+const notificationTestRoutes = require('./routes/notification.test.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -334,6 +335,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api', holidayRoutes);
 app.use('/api/notifications', notificationEnhancedRoutes);
+app.use('/api/notifications', notificationTestRoutes); // Test endpoints for debugging
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
