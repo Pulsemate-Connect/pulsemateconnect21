@@ -561,7 +561,7 @@ const initiatePayment = async (req, res, next) => {
     // BUG #3: Free booking race condition
     if (error.message === 'FREE_BOOKING_ALREADY_USED') {
       // Another concurrent request claimed the free booking - fallback to paid
-      logger.info('[payment] Free booking claimed by concurrent request, retrying as paid', { patientId });
+      logger.info('[payment] Free booking claimed by concurrent request, retrying as paid', { patientId: req.user?.id });
       req.body._forcePaid = true;
       return initiatePayment(req, res, next);
     }
@@ -593,7 +593,7 @@ const initiatePayment = async (req, res, next) => {
     
     // BUG #4: Queue number collision (should be prevented by advisory lock, but handle gracefully)
     if (error.code === 'P2002' && error.meta?.target?.includes('queue_number')) {
-      logger.error('[payment] Queue number collision despite advisory lock', { patientId, error });
+      logger.error('[payment] Queue number collision despite advisory lock', { patientId: req.user?.id, error });
       return sendError(res, 
         'Unable to assign queue position. Please try again.',
         500
@@ -612,7 +612,7 @@ const initiatePayment = async (req, res, next) => {
     logger.error('[payment] Unexpected error in initiatePayment', {
       error: error.message,
       stack: error.stack,
-      patientId,
+      patientId: req.user?.id,
     });
     
     next(error);
