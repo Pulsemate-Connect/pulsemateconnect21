@@ -287,6 +287,28 @@ const initiatePayment = async (req, res, next) => {
 
         // ✅ BUG #1 FIX: Check slot availability inside transaction
         if (slotTime) {
+          // ✅ CRITICAL: Validate slot is not in the past (TODAY only) - Use Asia/Kolkata timezone
+          const apptDateTime = new Date(appointmentDate);
+          
+          // Get current time in Asia/Kolkata timezone (IST)
+          const now = new Date();
+          const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+          const apptDateIST = new Date(apptDateTime.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+          
+          const isToday = apptDateIST.toDateString() === istNow.toDateString();
+          
+          if (isToday) {
+            const [slotH, slotM] = slotTime.split(':').map(Number);
+            const slotDateTime = new Date(apptDateIST);
+            slotDateTime.setHours(slotH, slotM, 0, 0);
+            
+            // 5-minute buffer
+            const bufferMs = 5 * 60 * 1000;
+            if (slotDateTime.getTime() - istNow.getTime() < bufferMs) {
+              throw new Error('SLOT_TIME_PASSED');
+            }
+          }
+          
           const existingSlot = await tx.appointment.findFirst({
             where: {
               doctorId,
@@ -571,6 +593,14 @@ const initiatePayment = async (req, res, next) => {
       logger.info('[payment] Free booking claimed by concurrent request, retrying as paid', { patientId: req.user?.id });
       req.body._forcePaid = true;
       return initiatePayment(req, res, next);
+    }
+    
+    // ✅ CRITICAL: Past slot time validation
+    if (error.message === 'SLOT_TIME_PASSED') {
+      return sendError(res, 
+        'This time slot has already passed. Please select the next available slot.',
+        400
+      );
     }
     
     // BUG #1: Slot already booked by another patient

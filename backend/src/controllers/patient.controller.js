@@ -214,6 +214,31 @@ const bookAppointment = async (req, res, next) => {
 
     // Prevent duplicate slot booking (same doctor + clinic + date + slotTime)
     if (slotTime) {
+      // ✅ CRITICAL: Validate slot is not in the past (TODAY only) - Use Asia/Kolkata timezone
+      const apptDateTime = new Date(appointmentDate);
+      
+      // Get current time in Asia/Kolkata timezone (IST)
+      const now = new Date();
+      const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const apptDateIST = new Date(apptDateTime.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      
+      const isToday = apptDateIST.toDateString() === istNow.toDateString();
+      
+      if (isToday) {
+        const [slotH, slotM] = slotTime.split(':').map(Number);
+        const slotDateTime = new Date(apptDateIST);
+        slotDateTime.setHours(slotH, slotM, 0, 0);
+        
+        // 5-minute buffer - don't allow booking a slot that starts in less than 5 minutes
+        const bufferMs = 5 * 60 * 1000;
+        if (slotDateTime.getTime() - istNow.getTime() < bufferMs) {
+          return sendError(res, 
+            `This time slot (${slotTime}) has already passed or will start within 5 minutes. Please select the next available slot.`,
+            400
+          );
+        }
+      }
+      
       const slotTaken = await prisma.appointment.findFirst({
         where: {
           doctorId, clinicId, slotTime,

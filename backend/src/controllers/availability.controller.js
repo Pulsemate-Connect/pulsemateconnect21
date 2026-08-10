@@ -52,12 +52,19 @@ const fetchBookedSlots = async (doctorId, clinicId, dateStr) => {
 };
 
 /** Build the slot response array with available/booked/past flags.
+ * Uses Asia/Kolkata timezone for Indian clinics.
  * Adds a 5-minute buffer — slots starting within the next 5 minutes are also
  * treated as past so patients can't book a slot that's essentially already started.
  */
 const buildSlotArray = (allSlots, bookedSet, targetDate) => {
+  // Get current time in Asia/Kolkata timezone (IST)
   const now = new Date();
-  const isToday = new Date(targetDate).toDateString() === now.toDateString();
+  const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  
+  // Compare dates in IST timezone
+  const targetDateIST = new Date(new Date(targetDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const isToday = targetDateIST.toDateString() === istTime.toDateString();
+  
   // 5-minute booking buffer — don't allow booking a slot < 5 minutes away
   const bufferMs = 5 * 60 * 1000;
 
@@ -65,9 +72,9 @@ const buildSlotArray = (allSlots, bookedSet, targetDate) => {
     let isPast = false;
     if (isToday) {
       const [h, m] = time.split(':').map(Number);
-      const slotDt = new Date(targetDate);
+      const slotDt = new Date(targetDateIST);
       slotDt.setHours(h, m, 0, 0);
-      isPast = slotDt.getTime() - now.getTime() < bufferMs;
+      isPast = slotDt.getTime() - istTime.getTime() < bufferMs;
     }
     return {
       time,
