@@ -351,8 +351,9 @@ const initiatePayment = async (req, res, next) => {
         // ✅ BUG #4 FIX: Atomic queue number generation with PostgreSQL advisory lock
         if (appointmentType === 'OFFLINE' && queueId) {
           // Use PostgreSQL transaction-level advisory lock to prevent collisions
-          // Lock is automatically released at transaction end
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${queueId}::bigint)`;
+          // Convert UUID queueId to a bigint hash for advisory lock
+          // Note: We use hashtext() which converts the UUID string to a numeric hash
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${queueId}))`;
           
           // Now safely generate next queue number
           const lastItem = await tx.queueItem.findFirst({
