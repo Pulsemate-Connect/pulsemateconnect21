@@ -16,76 +16,77 @@ const normalizeUser = (user) =>
 const useAuthStore = create(
   persist(
     (set) => ({
-  user: null,
-  accessToken: null,
-  isAuthenticated: false,
-  isLoading: true,
-
-  setAuth: (user, accessToken) =>
-    set({
-      user: normalizeUser(user),
-      accessToken,
-      isAuthenticated: true,
-      isLoading: false,
-    }),
-
-  clearAuth: () =>
-    set({
       user: null,
       accessToken: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true,
+
+      setAuth: (user, accessToken) =>
+        set({
+          user: normalizeUser(user),
+          accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+        }),
+
+      clearAuth: () =>
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+        }),
+
+      updateUser: (patch) =>
+        set((state) => ({
+          user: state.user ? normalizeUser({ ...state.user, ...patch }) : state.user,
+        })),
+
+      logout: async () => {
+        try {
+          await logoutApi();
+        } catch (_) {
+          // noop
+        }
+
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      },
+
+      checkAuth: async () => {
+        set((state) => ({ ...state, isLoading: true }));
+        try {
+          const response = await getMe();
+          const { user } = response.data.data;
+          set({
+            user: normalizeUser(user),
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (_) {
+          set({
+            user: null,
+            accessToken: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
+      },
     }),
-
-  updateUser: (patch) =>
-    set((state) => ({
-      user: state.user ? normalizeUser({ ...state.user, ...patch }) : state.user,
-    })),
-
-  logout: async () => {
-    try {
-      await logoutApi();
-    } catch (_) {
-      // noop
+    {
+      name: 'pulsemate-auth-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
-
-    set({
-      user: null,
-      accessToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-  },
-
-  checkAuth: async () => {
-    set((state) => ({ ...state, isLoading: true }));
-    try {
-      const response = await getMe();
-      const { user } = response.data.data;
-      set({
-        user: normalizeUser(user),
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (_) {
-      set({
-        user: null,
-        accessToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    }
-  },
-}),
-{
-  name: 'pulsemate-auth-storage',
-  storage: createJSONStorage(() => localStorage),
-  partialize: (state) => ({
-    user: state.user,
-    accessToken: state.accessToken,
-    isAuthenticated: state.isAuthenticated,
-  }),
-}
+  )
 );
 
 export default useAuthStore;
