@@ -105,34 +105,34 @@ const AppRoutes = () => {
       <Route path="/portal/apply-clinic" element={<PublicRoute><ClinicOwnerRegisterPage /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
-      <Route path="/verification-pending" element={<ProtectedRoute roles={['CLINIC_OWNER', 'DOCTOR']}><PendingVerificationPage /></ProtectedRoute>} />
+      <Route path="/verification-pending" element={<ProtectedRoute requiredRole={['CLINIC_OWNER', 'DOCTOR']}><PendingVerificationPage /></ProtectedRoute>} />
 
       <Route path="/patient" element={<Navigate to="/patient/home" replace />} />
-      <Route path="/patient/home" element={<ProtectedRoute roles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} />
-      <Route path="/patient/search" element={<ProtectedRoute roles={['PATIENT']}><DoctorSearch /></ProtectedRoute>} />
-      <Route path="/patient/doctors/:id" element={<ProtectedRoute roles={['PATIENT']}><DoctorProfile /></ProtectedRoute>} />
-      <Route path="/patient/appointments" element={<ProtectedRoute roles={['PATIENT']}><MyAppointments /></ProtectedRoute>} />
-      <Route path="/patient/appointments/:id" element={<ProtectedRoute roles={['PATIENT']}><MyAppointments /></ProtectedRoute>} />
-      <Route path="/patient/queue/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><LiveQueue /></ProtectedRoute>} />
-      <Route path="/patient/profile" element={<ProtectedRoute roles={['PATIENT']}><PatientProfile /></ProtectedRoute>} />
-      <Route path="/patient/payment/:appointmentId" element={<ProtectedRoute roles={['PATIENT']}><PaymentPage /></ProtectedRoute>} />
-      <Route path="/patient/payments" element={<ProtectedRoute roles={['PATIENT']}><MyPayments /></ProtectedRoute>} />
+      <Route path="/patient/home" element={<ProtectedRoute requiredRole="PATIENT"><PatientDashboard /></ProtectedRoute>} />
+      <Route path="/patient/search" element={<ProtectedRoute requiredRole="PATIENT"><DoctorSearch /></ProtectedRoute>} />
+      <Route path="/patient/doctors/:id" element={<ProtectedRoute requiredRole="PATIENT"><DoctorProfile /></ProtectedRoute>} />
+      <Route path="/patient/appointments" element={<ProtectedRoute requiredRole="PATIENT"><MyAppointments /></ProtectedRoute>} />
+      <Route path="/patient/appointments/:id" element={<ProtectedRoute requiredRole="PATIENT"><MyAppointments /></ProtectedRoute>} />
+      <Route path="/patient/queue/:appointmentId" element={<ProtectedRoute requiredRole="PATIENT"><LiveQueue /></ProtectedRoute>} />
+      <Route path="/patient/profile" element={<ProtectedRoute requiredRole="PATIENT"><PatientProfile /></ProtectedRoute>} />
+      <Route path="/patient/payment/:appointmentId" element={<ProtectedRoute requiredRole="PATIENT"><PaymentPage /></ProtectedRoute>} />
+      <Route path="/patient/payments" element={<ProtectedRoute requiredRole="PATIENT"><MyPayments /></ProtectedRoute>} />
 
       <Route path="/doctor" element={<Navigate to="/doctor/dashboard" replace />} />
-      <Route path="/doctor/dashboard" element={<ProtectedRoute roles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
-      <Route path="/doctor/appointments" element={<ProtectedRoute roles={['DOCTOR']}><DoctorAppointments /></ProtectedRoute>} />
-      <Route path="/doctor/queue" element={<ProtectedRoute roles={['DOCTOR']}><DoctorQueue /></ProtectedRoute>} />
-      <Route path="/doctor/profile" element={<ProtectedRoute roles={['DOCTOR']}><DoctorProfilePage /></ProtectedRoute>} />
-      <Route path="/doctor/schedule" element={<ProtectedRoute roles={['DOCTOR']}><DoctorSchedulePage /></ProtectedRoute>} />
+      <Route path="/doctor/dashboard" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorDashboard /></ProtectedRoute>} />
+      <Route path="/doctor/appointments" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorAppointments /></ProtectedRoute>} />
+      <Route path="/doctor/queue" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorQueue /></ProtectedRoute>} />
+      <Route path="/doctor/profile" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorProfilePage /></ProtectedRoute>} />
+      <Route path="/doctor/schedule" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorSchedulePage /></ProtectedRoute>} />
 
       <Route path="/reception" element={<Navigate to="/receptionist/dashboard" replace />} />
       <Route path="/reception/queue" element={<Navigate to="/receptionist/queue" replace />} />
       <Route path="/reception/walk-in" element={<Navigate to="/receptionist/walk-in" replace />} />
       <Route path="/reception/follow-up" element={<Navigate to="/receptionist/follow-up" replace />} />
-      <Route path="/receptionist/dashboard" element={<ProtectedRoute roles={['RECEPTIONIST']}><ReceptionDashboard /></ProtectedRoute>} />
-      <Route path="/receptionist/queue" element={<ProtectedRoute roles={['RECEPTIONIST']}><TodayQueue /></ProtectedRoute>} />
-      <Route path="/receptionist/walk-in" element={<ProtectedRoute roles={['RECEPTIONIST']}><WalkInBooking /></ProtectedRoute>} />
-      <Route path="/receptionist/follow-up" element={<ProtectedRoute roles={['RECEPTIONIST']}><FollowUpBooking /></ProtectedRoute>} />
+      <Route path="/receptionist/dashboard" element={<ProtectedRoute requiredRole="RECEPTIONIST"><ReceptionDashboard /></ProtectedRoute>} />
+      <Route path="/receptionist/queue" element={<ProtectedRoute requiredRole="RECEPTIONIST"><TodayQueue /></ProtectedRoute>} />
+      <Route path="/receptionist/walk-in" element={<ProtectedRoute requiredRole="RECEPTIONIST"><WalkInBooking /></ProtectedRoute>} />
+      <Route path="/receptionist/follow-up" element={<ProtectedRoute requiredRole="RECEPTIONIST"><FollowUpBooking /></ProtectedRoute>} />
 
       <Route path="/owner" element={<Navigate to="/clinic/dashboard" replace />} />
       <Route path="/owner/clinic" element={<Navigate to="/clinic/profile" replace />} />
@@ -141,26 +141,26 @@ const AppRoutes = () => {
       <Route path="/owner/receptionists" element={<Navigate to="/clinic/receptionists" replace />} />
       <Route path="/owner/appointments" element={<Navigate to="/clinic/appointments" replace />} />
       <Route path="/owner/queue" element={<Navigate to="/clinic/queue" replace />} />
-      <Route path="/clinic/dashboard" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerDashboard /></ProtectedRoute>} />
-      <Route path="/clinic/edit-resubmit" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicEditResubmit /></ProtectedRoute>} />
-      <Route path="/clinic/profile" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicProfile /></ProtectedRoute>} />
-      <Route path="/clinic/profile/:id" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ClinicProfile /></ProtectedRoute>} />
-      <Route path="/clinic/doctors" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="DOCTOR" /></ProtectedRoute>} />
-      <Route path="/clinic/receptionists" element={<ProtectedRoute roles={['CLINIC_OWNER']}><ManageStaff staffRole="RECEPTIONIST" /></ProtectedRoute>} />
-      <Route path="/clinic/appointments" element={<ProtectedRoute roles={['CLINIC_OWNER']}><OwnerAppointments /></ProtectedRoute>} />
-      <Route path="/clinic/queue" element={<ProtectedRoute roles={['CLINIC_OWNER']}><QueueOverview /></ProtectedRoute>} />
-      <Route path="/clinic/sessions" element={<ProtectedRoute roles={['CLINIC_OWNER']}><SessionManagement /></ProtectedRoute>} />
+      <Route path="/clinic/dashboard" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><OwnerDashboard /></ProtectedRoute>} />
+      <Route path="/clinic/edit-resubmit" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicEditResubmit /></ProtectedRoute>} />
+      <Route path="/clinic/profile" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />
+      <Route path="/clinic/profile/:id" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />
+      <Route path="/clinic/doctors" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ManageStaff staffRole="DOCTOR" /></ProtectedRoute>} />
+      <Route path="/clinic/receptionists" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ManageStaff staffRole="RECEPTIONIST" /></ProtectedRoute>} />
+      <Route path="/clinic/appointments" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><OwnerAppointments /></ProtectedRoute>} />
+      <Route path="/clinic/queue" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><QueueOverview /></ProtectedRoute>} />
+      <Route path="/clinic/sessions" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><SessionManagement /></ProtectedRoute>} />
 
       <Route path="/admin" element={<PublicRoute><AdminLoginPage /></PublicRoute>} />
-      <Route path="/admin/dashboard" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/admin/dashboard" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/clinics" element={<Navigate to="/admin/clinics/verify" replace />} />
-      <Route path="/admin/clinics/verify" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerification /></ProtectedRoute>} />
-      <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerificationDetail /></ProtectedRoute>} />
-      <Route path="/admin/users" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><UsersManagement /></ProtectedRoute>} />
-      <Route path="/admin/notifications" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><AdminNotifications /></ProtectedRoute>} />
+      <Route path="/admin/clinics/verify" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><ClinicVerification /></ProtectedRoute>} />
+      <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><ClinicVerificationDetail /></ProtectedRoute>} />
+      <Route path="/admin/users" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><UsersManagement /></ProtectedRoute>} />
+      <Route path="/admin/notifications" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><AdminNotifications /></ProtectedRoute>} />
 
-      <Route path="/notifications" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationsPage /></ProtectedRoute>} />
-      <Route path="/notifications/settings" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationSettingsPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute requiredRole={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationsPage /></ProtectedRoute>} />
+      <Route path="/notifications/settings" element={<ProtectedRoute requiredRole={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationSettingsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
