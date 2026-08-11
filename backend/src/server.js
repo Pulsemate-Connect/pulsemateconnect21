@@ -40,6 +40,8 @@ const uploadRoutes = require('./routes/upload.routes');
 const holidayRoutes = require('./routes/holiday.routes');
 const notificationEnhancedRoutes = require('./routes/notification-enhanced.routes');
 const notificationTestRoutes = require('./routes/notification.test.routes');
+const clinicOnboardingRoutes = require('./routes/clinic/onboarding.routes');
+const locationRoutes = require('./routes/clinic/location.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -336,6 +338,10 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api', holidayRoutes);
 app.use('/api/notifications', notificationEnhancedRoutes);
 app.use('/api/notifications', notificationTestRoutes); // Test endpoints for debugging
+// ✅ NEW: Clinic onboarding routes
+app.use('/api/clinic/onboarding', clinicOnboardingRoutes);
+// ✅ NEW: Location/geocoding routes
+app.use('/api/location', locationRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
