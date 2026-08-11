@@ -62,7 +62,6 @@ import QueueOverview from './pages/owner/QueueOverview';
 import SessionManagement from './pages/owner/SessionManagement';
 import ClinicOnboarding from './pages/clinic/onboarding/ClinicOnboarding';
 import Step1ClinicInfo from './pages/clinic/onboarding/steps/Step1ClinicInfo';
-import ClinicPartnerPage from './pages/public/ClinicPartnerPage';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';

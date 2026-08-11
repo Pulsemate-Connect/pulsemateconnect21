@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
-import api from '../../utils/api';
+import axios from '../../api/axios';
 
 const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
   const [mode, setMode] = useState(initialMode); // 'login' | 'register'
@@ -87,7 +87,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
         purpose: mode === 'register' ? 'VERIFY_MOBILE' : 'LOGIN',
       };
 
-      await api.post('/auth/send-otp', payload);
+      await axios.post('/auth/send-otp', payload);
       
       setStep('otp');
       setCountdown(30);
@@ -117,7 +117,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
         otp: formData.otp,
       };
 
-      const response = await api.post('/auth/verify-otp', payload);
+      const response = await axios.post('/auth/verify-otp', payload);
       
       if (response.data.success) {
         const { user, token } = response.data.data;
@@ -158,7 +158,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
         role: 'CLINIC_OWNER',
       };
 
-      const response = await api.post('/auth/register', payload);
+      const response = await axios.post('/auth/register', payload);
       
       if (response.data.success) {
         const { user, token } = response.data.data;
