@@ -98,6 +98,25 @@ router.post(
   verifyOtpHandler
 );
 
+// ── Clinic Partner OTP Authentication (Message Central) ───────────────────────
+router.post(
+  '/send-otp',
+  otpSendLimiter,
+  sendOtpHandler
+);
+
+router.post(
+  '/verify-otp',
+  otpVerifyLimiter,
+  verifyOtpHandler
+);
+
+router.post(
+  '/register',
+  validateRequest(clinicOwnerRegisterSchema),
+  registerClinicOwnerHandler
+);
+
 // ── Clinic owner phone verification — Firebase Phone Auth ─────────────────────
 router.post(
   '/clinic-owner/verify-firebase-phone',

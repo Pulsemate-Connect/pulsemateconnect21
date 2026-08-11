@@ -101,7 +101,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     try {
       await axios.post('/auth/send-otp', {
         mobile: formData.mobile,
-        purpose: view === 'signup' ? 'VERIFY_MOBILE' : 'LOGIN',
+        purpose: view === 'signup' ? 'SIGNUP' : 'LOGIN',
       });
       
       setView('otp');
@@ -170,10 +170,12 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       const response = await axios.post('/auth/verify-otp', {
         mobile: formData.mobile,
         otp: otpValue,
+        name: formData.name || undefined,
+        role: 'CLINIC_OWNER',
       });
       
       if (response.data.success) {
-        const { user, token } = response.data.data;
+        const { user, accessToken: token } = response.data.data;
         
         if (user.role !== 'CLINIC_OWNER') {
           toast.error('This login is only for clinic owners');
@@ -193,41 +195,6 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSignup = async () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
-    try {
-      const response = await axios.post('/auth/register', {
-        name: formData.name,
-        email: formData.email,
-        mobile: formData.mobile,
-        otp: formData.otp.join(''),
-        role: 'CLINIC_OWNER',
-      });
-      
-      if (response.data.success) {
-        const { user, token } = response.data.data;
-        storeLogin({ user, token });
-        toast.success('Registration successful!');
-        onClose();
-        navigate('/clinic/onboarding/step-1');
-      }
-    } catch (error) {
-      console.error('Register error:', error);
-      toast.error(error.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetModal = () => {
-    setView('login');
-    setFormData({ name: '', email: '', mobile: '', otp: ['', '', '', '', '', ''], agreeTerms: false });
-    setErrors({});
-    setCountdown(0);
   };
 
   return (

@@ -1318,17 +1318,38 @@ const firebasePhoneLoginHandler = async (req, res, next) => {
  */
 const sendOtpHandler = async (req, res, next) => {
   try {
-    const { mobileNumber } = req.body;
+    const { mobileNumber, mobile, purpose = 'LOGIN' } = req.body;
+    
+    // Support both 'mobile' and 'mobileNumber' fields
+    const phoneNumber = mobile || mobileNumber;
     
     // Validate input
-    if (!mobileNumber) {
+    if (!phoneNumber) {
       return sendError(res, 'Mobile number is required', 400);
     }
 
     // Clean and validate mobile number
-    const cleanNumber = mobileNumber.replace(/\D/g, '').replace(/^91/, '');
+    const cleanNumber = phoneNumber.replace(/\D/g, '').replace(/^91/, '');
     if (cleanNumber.length !== 10) {
       return sendError(res, 'Invalid mobile number format. Please enter 10-digit number.', 400);
+    }
+
+    // Validate purpose
+    const validPurposes = ['LOGIN', 'SIGNUP', 'VERIFY_MOBILE', 'RESET_PASSWORD'];
+    if (!validPurposes.includes(purpose)) {
+      return sendError(res, 'Invalid OTP purpose', 400);
+    }
+
+    // For signup/registration, check if user already exists
+    if (purpose === 'SIGNUP' || purpose === 'VERIFY_MOBILE') {
+      const existingUser = await prisma.user.findUnique({
+        where: { mobile: cleanNumber },
+        select: { id: true, role: true },
+      });
+      
+      if (existingUser) {
+        return sendError(res, 'User with this mobile number already exists. Please login instead.', 409);
+      }
     }
 
     // ✅ TEST MODE: Use fixed OTP for specific test numbers in development
@@ -1343,21 +1364,22 @@ const sendOtpHandler = async (req, res, next) => {
       const testVerificationId = `TEST-${Date.now()}-${cleanNumber}`;
       
       // Store in database for verification
-      await prisma.otpAttempt.create({
+      await prisma.otpVerification.create({
         data: {
-          mobileNumber: cleanNumber,
-          verificationId: testVerificationId,
-          provider: 'TEST_MODE',
-          expiresAt: new Date(Date.now() + 300 * 1000) // 5 minutes
+          mobile: cleanNumber,
+          purpose: purpose,
+          otpHash: await hashPassword(testOtp),
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+          attempts: 0,
+          maxAttempts: 5,
         }
       });
 
-      logger.info(`[Auth] 🧪 TEST OTP: ${testOtp} for ${cleanNumber} (verificationId: ${testVerificationId})`);
+      logger.info(`[Auth] 🧪 TEST OTP: ${testOtp} for ${cleanNumber}`);
 
       return sendSuccess(res, {
-        verificationId: testVerificationId,
-        expiresIn: 300,
         message: `TEST MODE: OTP is ${testOtp}`,
+        expiresIn: 300,
         _testMode: true,
         _testOtp: testOtp // Only send in dev mode
       });
@@ -1370,22 +1392,23 @@ const sendOtpHandler = async (req, res, next) => {
     // Send OTP via Message Central
     const result = await messageCentralService.sendOTP(cleanNumber, 6);
 
-    // Log OTP attempt (for analytics only, not rate limiting)
-    await prisma.otpAttempt.create({
+    // Store OTP verification record
+    await prisma.otpVerification.create({
       data: {
-        mobileNumber: result.mobileNumber,
-        verificationId: result.verificationId,
-        provider: 'MESSAGE_CENTRAL',
-        expiresAt: new Date(Date.now() + result.timeout * 1000)
+        mobile: cleanNumber,
+        purpose: purpose,
+        otpHash: await hashPassword(result.otp || ''), // Hash the OTP for security
+        expiresAt: new Date(Date.now() + result.timeout * 1000),
+        attempts: 0,
+        maxAttempts: 5,
       }
     });
 
-    logger.info(`[Auth] OTP sent to ${result.mobileNumber} via Message Central`);
+    logger.info(`[Auth] OTP sent to ${result.mobileNumber} via Message Central for purpose: ${purpose}`);
 
     return sendSuccess(res, {
-      verificationId: result.verificationId,
+      message: 'OTP sent successfully',
       expiresIn: result.timeout,
-      message: 'OTP sent successfully'
     });
   } catch (error) {
     logger.error('[Auth] Send OTP error:', error);
@@ -1401,11 +1424,14 @@ const sendOtpHandler = async (req, res, next) => {
  */
 const verifyOtpHandler = async (req, res, next) => {
   try {
-    const { verificationId, otp, mobileNumber } = req.body;
+    const { otp, mobileNumber, mobile, name, role = 'PATIENT' } = req.body;
+
+    // Support both 'mobile' and 'mobileNumber' fields
+    const phoneNumber = mobile || mobileNumber;
 
     // Validate input
-    if (!verificationId || !otp || !mobileNumber) {
-      return sendError(res, 'Verification ID, OTP, and mobile number are required', 400);
+    if (!otp || !phoneNumber) {
+      return sendError(res, 'OTP and mobile number are required', 400);
     }
 
     // Clean OTP
@@ -1415,14 +1441,21 @@ const verifyOtpHandler = async (req, res, next) => {
     }
 
     // Clean mobile number
-    const cleanNumber = mobileNumber.replace(/\D/g, '').replace(/^91/, '');
+    const cleanNumber = phoneNumber.replace(/\D/g, '').replace(/^91/, '');
+    if (cleanNumber.length !== 10) {
+      return sendError(res, 'Invalid mobile number format.', 400);
+    }
+
+    // Validate role
+    const validRoles = ['PATIENT', 'CLINIC_OWNER'];
+    const userRole = validRoles.includes(role) ? role : 'PATIENT';
 
     // ✅ TEST MODE: Validate test OTP for test numbers
     const isTestMode = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_OTP === 'true';
     const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
     const testOtp = process.env.TEST_OTP_CODE || '123456';
     
-    if (isTestMode && verificationId.startsWith('TEST-') && testNumbers.includes(cleanNumber)) {
+    if (isTestMode && testNumbers.includes(cleanNumber)) {
       logger.info(`[Auth] 🧪 TEST MODE: Verifying test OTP for ${cleanNumber}`);
       
       // Check if test OTP matches
@@ -1431,61 +1464,72 @@ const verifyOtpHandler = async (req, res, next) => {
         return sendError(res, 'Invalid OTP. For test mode, use: ' + testOtp, 401);
       }
 
-      // Check if verification ID exists and is not expired
-      const otpAttempt = await prisma.otpAttempt.findFirst({
+      // Check if verification record exists and is not expired
+      const otpRecord = await prisma.otpVerification.findFirst({
         where: {
-          verificationId,
-          mobileNumber: cleanNumber,
-          provider: 'TEST_MODE',
-          expiresAt: { gte: new Date() }
-        }
+          mobile: cleanNumber,
+          expiresAt: { gte: new Date() },
+          isUsed: false,
+        },
+        orderBy: { createdAt: 'desc' },
       });
 
-      if (!otpAttempt) {
-        return sendError(res, 'Invalid or expired verification ID', 401);
+      if (!otpRecord) {
+        return sendError(res, 'OTP expired or not found. Please request a new one.', 401);
       }
 
       logger.info(`[Auth] 🧪 TEST MODE: OTP verified successfully for ${cleanNumber}`);
       
-      // Continue with user login/registration using cleanNumber
-      const mobile = cleanNumber;
-      
-      // Find or create user
+      // Mark OTP as used
+      await prisma.otpVerification.update({
+        where: { id: otpRecord.id },
+        data: { isUsed: true, verifiedAt: new Date() },
+      });
+
+      // Find or create user based on role
       let user = await prisma.user.findUnique({
-        where: { mobile },
+        where: { mobile: cleanNumber },
         include: baseUserInclude,
       });
 
       let isNewUser = false;
       if (!user) {
-        // New user - create patient account
+        // Create new user with specified role
+        const userData = {
+          mobile: cleanNumber,
+          role: userRole,
+          approvalStatus: userRole === 'PATIENT' ? 'VERIFIED' : 'PENDING',
+          isPhoneVerified: true,
+          authProvider: 'TEST_MODE',
+        };
+
+        if (name) userData.name = name;
+
+        if (userRole === 'PATIENT') {
+          userData.patientProfile = { create: {} };
+        } else if (userRole === 'CLINIC_OWNER') {
+          userData.clinicOwnerProfile = { create: { profileCompleted: false } };
+        }
+
         user = await prisma.user.create({
-          data: {
-            mobile,
-            role: 'PATIENT',
-            approvalStatus: 'VERIFIED',
-            isPhoneVerified: true,
-            authProvider: 'TEST_MODE',
-            patientProfile: { create: {} },
-          },
+          data: userData,
           include: baseUserInclude,
         });
         isNewUser = true;
-        logger.info(`[Auth] 🧪 TEST MODE: New patient registered: ${user.id} (${mobile})`);
-      } else if (user.role !== 'PATIENT') {
-        return sendError(res, 'This phone belongs to a staff account. Use staff login.', 403);
+        logger.info(`[Auth] 🧪 TEST MODE: New ${userRole} registered: ${user.id} (${cleanNumber})`);
       } else {
-        // Existing patient - update login time
+        // Existing user - update login time
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
             isPhoneVerified: true,
             lastLoginAt: new Date(),
             authProvider: 'TEST_MODE',
+            ...(name && !user.name ? { name } : {}),
           },
           include: baseUserInclude,
         });
-        logger.info(`[Auth] 🧪 TEST MODE: Patient login: ${user.id} (${mobile})`);
+        logger.info(`[Auth] 🧪 TEST MODE: ${user.role} login: ${user.id} (${cleanNumber})`);
       }
 
       // Issue JWT tokens
@@ -1493,7 +1537,7 @@ const verifyOtpHandler = async (req, res, next) => {
 
       await createAuditLog({
         userId: user.id,
-        action: isNewUser ? 'PATIENT_REGISTERED_TEST_MODE' : 'PATIENT_LOGIN_TEST_MODE',
+        action: isNewUser ? `${user.role}_REGISTERED_TEST_MODE` : `${user.role}_LOGIN_TEST_MODE`,
         entityType: 'User',
         entityId: user.id,
         ipAddress: req.ip,
@@ -1512,76 +1556,95 @@ const verifyOtpHandler = async (req, res, next) => {
       );
     }
 
-    // ✅ PRODUCTION: Validate OTP via Message Central
-    let validation;
-    try {
-      console.log('[Auth] 🔍 Validating OTP with Message Central');
-      console.log('[Auth] 📋 VerificationId:', verificationId);
-      console.log('[Auth] 📋 OTP length:', cleanOtp.length);
-      console.log('[Auth] 📋 Mobile:', mobileNumber);
-      
-      validation = await messageCentralService.validateOTP(verificationId, cleanOtp);
-      
-      console.log('[Auth] ✅ Message Central validation successful');
-      console.log('[Auth] 📥 Validation result:', JSON.stringify(validation, null, 2));
-    } catch (error) {
-      console.error('[Auth] ❌ OTP validation failed');
-      console.error('[Auth] Error message:', error.message);
-      console.error('[Auth] Error stack:', error.stack);
-      
-      // Log the actual Message Central error if available
-      if (error.response) {
-        console.error('[Auth] 📥 Message Central HTTP Status:', error.response.status);
-        console.error('[Auth] 📥 Message Central Response:', JSON.stringify(error.response.data, null, 2));
-      }
-      
-      logger.error('[Auth] OTP validation failed:', error.message);
-      return sendError(res, error.message || 'Invalid or expired OTP', 401);
+    // ✅ PRODUCTION: Validate OTP from database
+    const otpRecord = await prisma.otpVerification.findFirst({
+      where: {
+        mobile: cleanNumber,
+        expiresAt: { gte: new Date() },
+        isUsed: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord) {
+      return sendError(res, 'OTP expired or not found. Please request a new one.', 401);
     }
 
-    if (!validation.success) {
-      return sendError(res, 'Invalid or expired OTP', 401);
+    // Check max attempts
+    if (otpRecord.attempts >= otpRecord.maxAttempts) {
+      return sendError(res, 'Maximum OTP attempts exceeded. Please request a new OTP.', 401);
     }
 
-    // OTP is valid - now handle user login/registration
-    const mobile = validation.mobileNumber;
+    // Verify OTP
+    const isValid = await verifyPassword(cleanOtp, otpRecord.otpHash);
+    
+    if (!isValid) {
+      // Increment attempts
+      await prisma.otpVerification.update({
+        where: { id: otpRecord.id },
+        data: { attempts: otpRecord.attempts + 1 },
+      });
+      
+      const remainingAttempts = otpRecord.maxAttempts - (otpRecord.attempts + 1);
+      return sendError(
+        res,
+        `Invalid OTP. ${remainingAttempts} attempts remaining.`,
+        401
+      );
+    }
+
+    // Mark OTP as used
+    await prisma.otpVerification.update({
+      where: { id: otpRecord.id },
+      data: { isUsed: true, verifiedAt: new Date() },
+    });
+
+    logger.info(`[Auth] OTP verified successfully for ${cleanNumber}`);
 
     // Find or create user
     let user = await prisma.user.findUnique({
-      where: { mobile },
+      where: { mobile: cleanNumber },
       include: baseUserInclude,
     });
 
     let isNewUser = false;
     if (!user) {
-      // New user - create patient account
+      // Create new user with specified role
+      const userData = {
+        mobile: cleanNumber,
+        role: userRole,
+        approvalStatus: userRole === 'PATIENT' ? 'VERIFIED' : 'PENDING',
+        isPhoneVerified: true,
+        authProvider: 'MESSAGE_CENTRAL',
+      };
+
+      if (name) userData.name = name;
+
+      if (userRole === 'PATIENT') {
+        userData.patientProfile = { create: {} };
+      } else if (userRole === 'CLINIC_OWNER') {
+        userData.clinicOwnerProfile = { create: { profileCompleted: false } };
+      }
+
       user = await prisma.user.create({
-        data: {
-          mobile,
-          role: 'PATIENT',
-          approvalStatus: 'VERIFIED',
-          isPhoneVerified: true,
-          authProvider: 'MESSAGE_CENTRAL',
-          patientProfile: { create: {} },
-        },
+        data: userData,
         include: baseUserInclude,
       });
       isNewUser = true;
-      logger.info(`[Auth] New patient registered: ${user.id} (${mobile})`);
-    } else if (user.role !== 'PATIENT') {
-      return sendError(res, 'This phone belongs to a staff account. Use staff login.', 403);
+      logger.info(`[Auth] New ${userRole} registered: ${user.id} (${cleanNumber})`);
     } else {
-      // Existing patient - update login time
+      // Existing user - update login time
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
           isPhoneVerified: true,
           lastLoginAt: new Date(),
           authProvider: 'MESSAGE_CENTRAL',
+          ...(name && !user.name ? { name } : {}),
         },
         include: baseUserInclude,
       });
-      logger.info(`[Auth] Patient login: ${user.id} (${mobile})`);
+      logger.info(`[Auth] ${user.role} login: ${user.id} (${cleanNumber})`);
     }
 
     // Issue JWT tokens
@@ -1589,7 +1652,7 @@ const verifyOtpHandler = async (req, res, next) => {
 
     await createAuditLog({
       userId: user.id,
-      action: isNewUser ? 'PATIENT_REGISTERED_MESSAGE_CENTRAL' : 'PATIENT_LOGIN_MESSAGE_CENTRAL',
+      action: isNewUser ? `${user.role}_REGISTERED_MESSAGE_CENTRAL` : `${user.role}_LOGIN_MESSAGE_CENTRAL`,
       entityType: 'User',
       entityId: user.id,
       ipAddress: req.ip,
