@@ -17,6 +17,7 @@ import PendingVerificationPage from './pages/auth/PendingVerificationPage';
 import PortalLandingPage from './pages/auth/PortalLandingPage';
 import AdminLoginPage from './pages/auth/AdminLoginPage';
 import PublicHomePage from './pages/public/PublicHomePage';
+import ClinicPartnerPage from './pages/public/ClinicPartnerPage';
 import PrivacyPolicyPage from './pages/public/PrivacyPolicyPage';
 import TermsPage from './pages/public/TermsPage';
 import DeleteAccountPage from './pages/public/DeleteAccountPage';
@@ -60,6 +61,8 @@ import OwnerAppointments from './pages/owner/OwnerAppointments';
 import QueueOverview from './pages/owner/QueueOverview';
 import SessionManagement from './pages/owner/SessionManagement';
 import ClinicOnboarding from './pages/clinic/onboarding/ClinicOnboarding';
+import Step1ClinicInfo from './pages/clinic/onboarding/steps/Step1ClinicInfo';
+import ClinicPartnerPage from './pages/public/ClinicPartnerPage';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
@@ -81,6 +84,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<PublicRoute><PublicHomePage /></PublicRoute>} />
       <Route path="/portal" element={<PublicRoute><PortalLandingPage /></PublicRoute>} />
+      <Route path="/clinic-partner" element={<PublicRoute><ClinicPartnerPage /></PublicRoute>} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/delete-account" element={<DeleteAccountPage />} />
@@ -96,14 +100,23 @@ const AppRoutes = () => {
       <Route path="/accessibility" element={<AccessibilityPage />} />
       <Route path="/copyright" element={<CopyrightPage />} />
       <Route path="/open-source" element={<OpenSourcePage />} />
+      
+      {/* Clinic Partner Landing Page */}
+      <Route path="/clinic-partner" element={<ClinicPartnerPage />} />
+      
+      {/* TEST ROUTE - Clinic Onboarding without auth (for testing only) */}
+      <Route path="/test/clinic-onboarding" element={<Step1ClinicInfo />} />
+      
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/staff/login" element={<PublicRoute><StaffLoginPage /></PublicRoute>} />
       <Route path="/login/:role" element={<PublicRoute><RoleLoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/register/doctor" element={<PublicRoute><DoctorRegisterPage /></PublicRoute>} />
-      <Route path="/register/clinic-owner" element={<PublicRoute><ClinicOwnerRegisterPage /></PublicRoute>} />
+      {/* OLD ROUTE - Replaced by /clinic-partner with modal auth */}
+      {/* <Route path="/register/clinic-owner" element={<PublicRoute><ClinicOwnerRegisterPage /></PublicRoute>} /> */}
       <Route path="/portal/apply-doctor" element={<PublicRoute><DoctorRegisterPage /></PublicRoute>} />
-      <Route path="/portal/apply-clinic" element={<PublicRoute><ClinicOwnerRegisterPage /></PublicRoute>} />
+      {/* OLD ROUTE - Commented out in favor of /clinic-partner */}
+      {/* <Route path="/portal/apply-clinic" element={<PublicRoute><ClinicOwnerRegisterPage /></PublicRoute>} /> */}
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
       <Route path="/verification-pending" element={<ProtectedRoute requiredRole={['CLINIC_OWNER', 'DOCTOR']}><PendingVerificationPage /></ProtectedRoute>} />
