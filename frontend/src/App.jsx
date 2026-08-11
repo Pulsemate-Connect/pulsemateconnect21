@@ -100,9 +100,6 @@ const AppRoutes = () => {
       <Route path="/copyright" element={<CopyrightPage />} />
       <Route path="/open-source" element={<OpenSourcePage />} />
       
-      {/* Clinic Partner Landing Page */}
-      <Route path="/clinic-partner" element={<ClinicPartnerPage />} />
-      
       {/* TEST ROUTE - Clinic Onboarding without auth (for testing only) */}
       <Route path="/test/clinic-onboarding" element={<Step1ClinicInfo />} />
       

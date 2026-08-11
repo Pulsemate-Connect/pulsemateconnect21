@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import axios from '../../api/axios';
 
-const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
-  const [mode, setMode] = useState(initialMode); // 'login' | 'register'
-  const [step, setStep] = useState('input'); // 'input' | 'otp'
-  const [loginMethod, setLoginMethod] = useState('mobile'); // 'mobile' | 'email'
+const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
+  // View states: 'login' | 'signup' | 'emailLogin' | 'otp'
+  const [view, setView] = useState(initialMode === 'register' ? 'signup' : 'login');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   
@@ -15,10 +14,12 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
     name: '',
     email: '',
     mobile: '',
-    otp: '',
+    otp: ['', '', '', '', '', ''],
+    agreeTerms: false,
   });
   
   const [errors, setErrors] = useState({});
+  const otpInputRefs = useRef([]);
   const navigate = useNavigate();
   const { login: storeLogin } = useAuthStore();
 
@@ -30,46 +31,62 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
     }
   }, [countdown]);
 
-  // Close modal on Escape key
+  // Close modal on Escape key and manage body scroll
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape') onClose();
     };
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.body.style.overflow = 'unset';
+      };
     }
   }, [isOpen, onClose]);
+
+  // Auto-focus first OTP input
+  useEffect(() => {
+    if (view === 'otp' && otpInputRefs.current[0]) {
+      otpInputRefs.current[0].focus();
+    }
+  }, [view]);
 
   if (!isOpen) return null;
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (mode === 'register') {
-      if (!formData.name || formData.name.length < 2) {
+    // Validate mobile number (Indian format)
+    if (view === 'login' || view === 'signup') {
+      if (!formData.mobile || !/^[6-9]\d{9}$/.test(formData.mobile)) {
+        newErrors.mobile = 'Please enter a valid 10-digit mobile number';
+      }
+    }
+
+    // Validate email
+    if (view === 'emailLogin' || view === 'signup') {
+      if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
+    }
+
+    // Validate name for signup
+    if (view === 'signup') {
+      if (!formData.name || formData.name.trim().length < 2) {
         newErrors.name = 'Name must be at least 2 characters';
       }
-      if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = 'Valid email is required';
+      if (!formData.agreeTerms) {
+        newErrors.agreeTerms = 'You must agree to the Terms of Service';
       }
     }
 
-    if (mode === 'login' && loginMethod === 'email') {
-      if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = 'Valid email is required';
-      }
-    }
-
-    if (mode === 'register' || loginMethod === 'mobile') {
-      if (!formData.mobile || !/^[6-9]\d{9}$/.test(formData.mobile)) {
-        newErrors.mobile = 'Valid 10-digit mobile number required';
-      }
-    }
-
-    if (step === 'otp') {
-      if (!formData.otp || formData.otp.length !== 6) {
-        newErrors.otp = 'Enter 6-digit OTP';
+    // Validate OTP
+    if (view === 'otp') {
+      const otpValue = formData.otp.join('');
+      if (otpValue.length !== 6) {
+        newErrors.otp = 'Please enter the complete 6-digit OTP';
       }
     }
 
@@ -82,14 +99,12 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
 
     setLoading(true);
     try {
-      const payload = {
+      await axios.post('/auth/send-otp', {
         mobile: formData.mobile,
-        purpose: mode === 'register' ? 'VERIFY_MOBILE' : 'LOGIN',
-      };
-
-      await axios.post('/auth/send-otp', payload);
+        purpose: view === 'signup' ? 'VERIFY_MOBILE' : 'LOGIN',
+      });
       
-      setStep('otp');
+      setView('otp');
       setCountdown(30);
       toast.success('OTP sent successfully!');
     } catch (error) {
@@ -100,76 +115,104 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
     }
   };
 
+  const handleOtpChange = (index, value) => {
+    const newValue = value.replace(/\D/g, '').slice(0, 1);
+    const newOtp = [...formData.otp];
+    newOtp[index] = newValue;
+    setFormData({ ...formData, otp: newOtp });
+
+    // Auto-focus next input
+    if (newValue && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    // Clear error
+    if (errors.otp) {
+      setErrors({ ...errors, otp: '' });
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !formData.otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const newOtp = [...formData.otp];
+    
+    for (let i = 0; i < pastedData.length; i++) {
+      newOtp[i] = pastedData[i];
+    }
+    
+    setFormData({ ...formData, otp: newOtp });
+    
+    const nextIndex = Math.min(pastedData.length, 5);
+    otpInputRefs.current[nextIndex]?.focus();
+  };
+
   const handleResendOTP = () => {
     if (countdown === 0) {
-      setFormData({ ...formData, otp: '' });
+      setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
       handleSendOTP();
     }
   };
 
-  const handleLogin = async () => {
+  const handleVerifyOTP = async () => {
     if (!validateForm()) return;
 
+    const otpValue = formData.otp.join('');
     setLoading(true);
+    
     try {
-      const payload = {
+      const response = await axios.post('/auth/verify-otp', {
         mobile: formData.mobile,
-        otp: formData.otp,
-      };
-
-      const response = await axios.post('/auth/verify-otp', payload);
+        otp: otpValue,
+      });
       
       if (response.data.success) {
         const { user, token } = response.data.data;
         
-        // Check if user is CLINIC_OWNER
         if (user.role !== 'CLINIC_OWNER') {
           toast.error('This login is only for clinic owners');
           return;
         }
 
-        // Store auth data
         storeLogin({ user, token });
-        
         toast.success('Login successful!');
         onClose();
-        
-        // Redirect to onboarding
         navigate('/clinic/onboarding/step-1');
       }
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Invalid OTP');
+      console.error('Verify OTP error:', error);
+      toast.error(error.response?.data?.message || 'Invalid OTP. Please try again.');
+      setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+      otpInputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegister = async () => {
+  const handleSignup = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
-      const payload = {
+      const response = await axios.post('/auth/register', {
         name: formData.name,
         email: formData.email,
         mobile: formData.mobile,
-        otp: formData.otp,
+        otp: formData.otp.join(''),
         role: 'CLINIC_OWNER',
-      };
-
-      const response = await axios.post('/auth/register', payload);
+      });
       
       if (response.data.success) {
         const { user, token } = response.data.data;
-        
-        // Store auth data
         storeLogin({ user, token });
-        
         toast.success('Registration successful!');
         onClose();
-        
-        // Redirect to onboarding
         navigate('/clinic/onboarding/step-1');
       }
     } catch (error) {
@@ -180,254 +223,324 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'register' }) => {
     }
   };
 
-  const handleSubmit = () => {
-    if (mode === 'login') {
-      handleLogin();
-    } else {
-      handleRegister();
-    }
-  };
-
   const resetModal = () => {
-    setStep('input');
-    setFormData({ name: '', email: '', mobile: '', otp: '' });
+    setView('login');
+    setFormData({ name: '', email: '', mobile: '', otp: ['', '', '', '', '', ''], agreeTerms: false });
     setErrors({});
     setCountdown(0);
   };
 
-  const switchMode = (newMode) => {
-    setMode(newMode);
-    resetModal();
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">PulseMate Connect</h2>
-            <p className="text-sm text-gray-600 mt-1">Partner with us</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.70)', backdropFilter: 'blur(2px)' }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div 
+        className="bg-white rounded-lg relative"
+        style={{ 
+          width: '30vw', 
+          minWidth: '400px', 
+          maxWidth: '600px', 
+          maxHeight: 'calc(100vh - 2rem)',
+          borderRadius: '8px'
+        }}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute text-gray-600 hover:text-gray-900 transition-colors z-10"
+          style={{ top: '24px', right: '24px' }}
+          aria-label="Close"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
 
-        {/* Tabs */}
-        <div className="flex border-b">
-          <button
-            onClick={() => switchMode('login')}
-            className={`flex-1 py-4 font-semibold transition ${
-              mode === 'login'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => switchMode('register')}
-            className={`flex-1 py-4 font-semibold transition ${
-              mode === 'register'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Register
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          {step === 'input' ? (
+        <div className="overflow-y-auto" style={{ padding: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
+          {/* LOGIN VIEW */}
+          {view === 'login' && (
             <>
-              {/* Register Form */}
-              {mode === 'register' && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your full name"
-                    />
-                    {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+              <h2 style={{ fontSize: '32px', fontWeight: 400, color: '#555555', marginBottom: '32px', lineHeight: '1.2' }}>
+                Login
+              </h2>
+              
+              {/* Phone Input */}
+              <div className="mb-6">
+                <div 
+                  className="flex items-center border rounded-md overflow-hidden"
+                  style={{ height: '56px', borderColor: errors.mobile ? '#EF4444' : '#D5D5D5' }}
+                >
+                  <div className="flex items-center px-4 border-r h-full cursor-pointer" style={{ borderRightColor: '#D5D5D5' }}>
+                    <span className="mr-2">🇮🇳</span>
+                    <span className="text-base">+91</span>
+                    <svg className="w-4 h-4 ml-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="your.email@example.com"
-                    />
-                    {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-                  </div>
-                </>
-              )}
-
-              {/* Login: Method Toggle */}
-              {mode === 'login' && (
-                <div className="mb-4">
-                  <div className="flex gap-2 mb-4">
-                    <button
-                      onClick={() => setLoginMethod('mobile')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
-                        loginMethod === 'mobile'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Mobile
-                    </button>
-                    <button
-                      onClick={() => setLoginMethod('email')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
-                        loginMethod === 'email'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Email
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Mobile Input */}
-              {(mode === 'register' || loginMethod === 'mobile') && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mobile Number *
-                  </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-50 rounded-l-lg text-gray-700">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      value={formData.mobile}
-                      onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter 10-digit mobile number"
-                      maxLength={10}
-                    />
-                  </div>
-                  {errors.mobile && <p className="text-red-500 text-sm mt-1">{errors.mobile}</p>}
-                </div>
-              )}
-
-              {/* Email Input for Login */}
-              {mode === 'login' && loginMethod === 'email' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address *
-                  </label>
                   <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="your.email@example.com"
+                    type="tel"
+                    value={formData.mobile}
+                    onChange={(e) => {
+                      setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) });
+                      if (errors.mobile) setErrors({ ...errors, mobile: '' });
+                    }}
+                    placeholder="Phone"
+                    className="flex-1 h-full px-4 outline-none text-base"
+                    maxLength={10}
                   />
-                  {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
                 </div>
-              )}
+                {errors.mobile && <p className="text-red-600 text-sm mt-1">{errors.mobile}</p>}
+              </div>
 
+              {/* Send OTP Button */}
               <button
                 onClick={handleSendOTP}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-300 disabled:cursor-not-allowed"
+                className="w-full rounded-md text-white font-medium mb-4"
+                style={{ height: '52px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 500 }}
               >
-                {loading ? 'Sending...' : 'Send OTP'}
+                {loading ? 'Sending...' : 'Send One Time Password'}
               </button>
+
+              {/* Divider */}
+              <div className="flex items-center my-5">
+                <div className="flex-1 border-t" style={{ borderColor: '#D5D5D5' }}></div>
+                <span className="px-3 text-sm text-gray-500">or</span>
+                <div className="flex-1 border-t" style={{ borderColor: '#D5D5D5' }}></div>
+              </div>
+
+              {/* Continue with Email */}
+              <button
+                onClick={() => setView('emailLogin')}
+                className="w-full flex items-center justify-center gap-3 border rounded-md hover:bg-gray-50 transition"
+                style={{ height: '50px', borderColor: '#D5D5D5', fontSize: '17px' }}
+              >
+                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span className="text-gray-800">Continue with Email</span>
+              </button>
+
+              {/* Footer Divider */}
+              <div className="border-t my-6" style={{ borderColor: '#D5D5D5' }}></div>
+
+              {/* Create Account Link */}
+              <p className="text-center text-base">
+                <span style={{ color: '#555555' }}>New to PulseMate Connect? </span>
+                <button 
+                  onClick={() => setView('signup')}
+                  className="font-medium hover:underline"
+                  style={{ color: '#2F73E8' }}
+                >
+                  Create account
+                </button>
+              </p>
             </>
-          ) : (
+          )}
+          {/* EMAIL LOGIN VIEW */}
+          {view === 'emailLogin' && (
             <>
-              {/* OTP Input */}
+              <h2 style={{ fontSize: '32px', fontWeight: 400, color: '#555555', marginBottom: '32px', lineHeight: '1.2' }}>
+                Login with Email
+              </h2>
+              
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter OTP *
-                </label>
-                <p className="text-sm text-gray-600 mb-4">
-                  We've sent a 6-digit OTP to +91 {formData.mobile}
-                </p>
                 <input
-                  type="text"
-                  value={formData.otp}
-                  onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
-                  placeholder="000000"
-                  maxLength={6}
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) setErrors({ ...errors, email: '' });
+                  }}
+                  placeholder="Email address"
+                  className="w-full px-4 border rounded-md outline-none"
+                  style={{ height: '56px', borderColor: errors.email ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
                 />
-                {errors.otp && <p className="text-red-500 text-sm mt-1 text-center">{errors.otp}</p>}
+                {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
               </div>
 
               <button
-                onClick={handleSubmit}
+                onClick={() => {/* Email login logic */}}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-300 disabled:cursor-not-allowed mb-4"
+                className="w-full rounded-md text-white font-medium mb-4"
+                style={{ height: '52px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 500 }}
               >
-                {loading ? 'Verifying...' : mode === 'login' ? 'Verify & Login' : 'Verify & Register'}
+                Continue
               </button>
 
-              {/* Resend OTP */}
-              <div className="text-center">
-                {countdown > 0 ? (
-                  <p className="text-sm text-gray-600">
-                    Resend OTP in <span className="font-semibold">{countdown}s</span>
-                  </p>
-                ) : (
-                  <button
-                    onClick={handleResendOTP}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Resend OTP
-                  </button>
-                )}
-              </div>
-
               <button
-                onClick={resetModal}
-                className="w-full mt-4 text-sm text-gray-600 hover:text-gray-800"
+                onClick={() => setView('login')}
+                className="text-sm hover:underline"
+                style={{ color: '#555555' }}
               >
-                ← Change mobile number
+                ← Back to login options
               </button>
             </>
           )}
 
-          {/* Switch Mode Link */}
-          <div className="mt-6 text-center text-sm">
-            {mode === 'login' ? (
-              <p className="text-gray-600">
-                Don't have an account?{' '}
-                <button onClick={() => switchMode('register')} className="text-blue-600 font-medium hover:text-blue-700">
-                  Register
-                </button>
-              </p>
-            ) : (
-              <p className="text-gray-600">
-                Already have an account?{' '}
-                <button onClick={() => switchMode('login')} className="text-blue-600 font-medium hover:text-blue-700">
+          {/* SIGNUP VIEW */}
+          {view === 'signup' && (
+            <>
+              <h2 style={{ fontSize: '32px', fontWeight: 400, color: '#555555', marginBottom: '32px', lineHeight: '1.2' }}>
+                Create your clinic partner account
+              </h2>
+              
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    if (errors.name) setErrors({ ...errors, name: '' });
+                  }}
+                  placeholder="Full name"
+                  className="w-full px-4 border rounded-md outline-none"
+                  style={{ height: '56px', borderColor: errors.name ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
+                />
+                {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
+              </div>
+
+              <div className="mb-4">
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) setErrors({ ...errors, email: '' });
+                  }}
+                  placeholder="Email address"
+                  className="w-full px-4 border rounded-md outline-none"
+                  style={{ height: '56px', borderColor: errors.email ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
+                />
+                {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
+              </div>
+
+              <div className="mb-4">
+                <div 
+                  className="flex items-center border rounded-md overflow-hidden"
+                  style={{ height: '56px', borderColor: errors.mobile ? '#EF4444' : '#D5D5D5' }}
+                >
+                  <div className="flex items-center px-4 border-r h-full cursor-pointer" style={{ borderRightColor: '#D5D5D5' }}>
+                    <span className="mr-2">🇮🇳</span>
+                    <span className="text-base">+91</span>
+                    <svg className="w-4 h-4 ml-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <input
+                    type="tel"
+                    value={formData.mobile}
+                    onChange={(e) => {
+                      setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) });
+                      if (errors.mobile) setErrors({ ...errors, mobile: '' });
+                    }}
+                    placeholder="Phone number"
+                    className="flex-1 h-full px-4 outline-none text-base"
+                    maxLength={10}
+                  />
+                </div>
+                {errors.mobile && <p className="text-red-600 text-sm mt-1">{errors.mobile}</p>}
+              </div>
+
+              <div className="mb-6">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.agreeTerms}
+                    onChange={(e) => {
+                      setFormData({ ...formData, agreeTerms: e.target.checked });
+                      if (errors.agreeTerms) setErrors({ ...errors, agreeTerms: '' });
+                    }}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I agree to PulseMate Connect's{' '}
+                    <a href="/terms" className="text-blue-600 hover:underline">Terms of Service</a>
+                    {' '}and{' '}
+                    <a href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</a>.
+                  </span>
+                </label>
+                {errors.agreeTerms && <p className="text-red-600 text-sm mt-1">{errors.agreeTerms}</p>}
+              </div>
+
+              <button
+                onClick={handleSendOTP}
+                disabled={loading}
+                className="w-full rounded-md text-white font-medium mb-4"
+                style={{ height: '52px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 500 }}
+              >
+                {loading ? 'Creating account...' : 'Create account'}
+              </button>
+
+              <p className="text-center text-base">
+                <span style={{ color: '#555555' }}>Already have an account? </span>
+                <button 
+                  onClick={() => setView('login')}
+                  className="font-medium hover:underline"
+                  style={{ color: '#2F73E8' }}
+                >
                   Login
                 </button>
               </p>
-            )}
-          </div>
+            </>
+          )}
+
+          {/* OTP VERIFICATION VIEW */}
+          {view === 'otp' && (
+            <>
+              <h2 style={{ fontSize: '32px', fontWeight: 400, color: '#555555', marginBottom: '12px', lineHeight: '1.2' }}>
+                Verify your phone
+              </h2>
+              <p style={{ fontSize: '16px', color: '#666666', marginBottom: '32px' }}>
+                We've sent a 6-digit OTP to <span style={{ fontWeight: 500, color: '#111111' }}>+91 {formData.mobile}</span>
+              </p>
+
+              <div className="flex gap-3 justify-center mb-6">
+                {formData.otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (otpInputRefs.current[index] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    value={digit}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                    onPaste={index === 0 ? handleOtpPaste : undefined}
+                    maxLength={1}
+                    className="text-center border rounded-md outline-none"
+                    style={{ width: '48px', height: '52px', fontSize: '20px', fontWeight: 500, borderColor: '#D5D5D5' }}
+                  />
+                ))}
+              </div>
+              {errors.otp && <p className="text-red-600 text-sm text-center mb-4">{errors.otp}</p>}
+
+              <button
+                onClick={handleVerifyOTP}
+                disabled={loading}
+                className="w-full rounded-md text-white font-medium mb-4"
+                style={{ height: '52px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 500 }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Continue'}
+              </button>
+
+              <div className="text-center mb-4">
+                {countdown > 0 ? (
+                  <p className="text-sm text-gray-600">
+                    Didn't receive the code? <span className="text-gray-400">Resend in {countdown}s</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Didn't receive the code?{' '}
+                    <button onClick={handleResendOTP} className="font-medium hover:underline" style={{ color: '#2F73E8' }}>
+                      Resend OTP
+                    </button>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
