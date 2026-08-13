@@ -201,10 +201,10 @@ const ClinicPartnerPage = () => {
       </nav>
 
       {/* Hero Section - Add 10% padding left and right */}
-      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-white px-[10vw]">
-        {/* Background Image - Optimized loading */}
+      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 px-[10vw]">
+        {/* Background Image - Optimized loading with gradient fallback */}
         <div 
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center opacity-40"
           style={{
             backgroundImage: 'url("/images/clinic-hero.jpg")',
             backgroundPosition: 'center calc(50% - 80px)',
@@ -214,18 +214,18 @@ const ClinicPartnerPage = () => {
           aria-label="Modern clinic interior"
         />
         {/* Dark overlay for text readability */}
-        <div className="absolute inset-0 bg-black/30" style={{ clipPath: 'inset(0 0 38px 0)' }} />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/50 via-blue-800/40 to-blue-900/60" style={{ clipPath: 'inset(0 0 38px 0)' }} />
         
         {/* Content with padding for fixed nav */}
         <div className="relative max-w-6xl mx-auto text-center z-10 w-full px-4 -mt-32">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-8 leading-tight md:leading-tight max-w-6xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-8 leading-tight md:leading-tight max-w-6xl mx-auto text-white drop-shadow-lg">
             <span className="block sm:inline">Partner with PulseMate Connect and</span><br className="hidden sm:block" />
             <span className="block sm:inline">Grow your clinic</span>
           </h1>
           <div className="flex justify-center">
             <button
               onClick={handleApplyClick}
-              className="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition shadow-lg"
+              className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition shadow-lg"
             >
               Register your clinic
             </button>

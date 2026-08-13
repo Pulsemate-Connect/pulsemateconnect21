@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
 import PulsemateLogo from '../../components/PulsemateLogo';
 
@@ -65,6 +66,8 @@ const PulseMateLogo = () => (
 );
 
 const PublicHomePage = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
   return (
     <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f3fbff_0%,#ffffff_48%,#f6f9ff_100%)] text-slate-900">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -79,6 +82,7 @@ const PublicHomePage = () => {
             <PulseMateLogo />
           </Link>
 
+          {/* Desktop Navigation */}
           <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-600 lg:flex">
             <a href="#home" className="transition hover:text-sky-700">Home</a>
             <a href="#find-doctors" className="transition hover:text-sky-700">Find Doctors</a>
@@ -87,10 +91,11 @@ const PublicHomePage = () => {
             <a href="#about" className="transition hover:text-sky-700">About</a>
           </nav>
 
-          <div className="flex items-center gap-3">
+          {/* Desktop Buttons */}
+          <div className="hidden items-center gap-3 lg:flex">
             <Link
               to="/portal"
-              className="hidden rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:inline-flex"
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             >
               Clinic Portal
             </Link>
@@ -101,7 +106,59 @@ const PublicHomePage = () => {
               Login
             </Link>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 rounded-lg hover:bg-slate-100 transition"
+            aria-label="Toggle menu"
+          >
+            <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-sky-100 bg-white/95 backdrop-blur-xl">
+            <nav className="mx-auto max-w-7xl px-4 py-4 space-y-3">
+              <a href="#home" className="block py-2 text-sm font-semibold text-slate-600 hover:text-sky-700 transition">
+                Home
+              </a>
+              <a href="#find-doctors" className="block py-2 text-sm font-semibold text-slate-600 hover:text-sky-700 transition">
+                Find Doctors
+              </a>
+              <a href="#clinics" className="block py-2 text-sm font-semibold text-slate-600 hover:text-sky-700 transition">
+                Clinics
+              </a>
+              <Link to="/clinic-partner" className="block py-2 text-sm font-semibold text-slate-600 hover:text-sky-700 transition">
+                Clinic Partner
+              </Link>
+              <a href="#about" className="block py-2 text-sm font-semibold text-slate-600 hover:text-sky-700 transition">
+                About
+              </a>
+              <div className="pt-3 border-t border-slate-200 space-y-2">
+                <Link
+                  to="/portal"
+                  className="block text-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  Clinic Portal
+                </Link>
+                <Link
+                  to="/login"
+                  className="block text-center rounded-full bg-[linear-gradient(135deg,#0ea5e9_0%,#2563eb_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_16px_35px_rgba(37,99,235,0.22)] transition hover:brightness-105"
+                >
+                  Login
+                </Link>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main id="home" className="relative z-10">
