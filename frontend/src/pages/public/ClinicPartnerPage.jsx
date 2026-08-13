@@ -200,8 +200,8 @@ const ClinicPartnerPage = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-white">
+      {/* Hero Section - Add 10% padding left and right */}
+      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-white px-[10vw]">
         {/* Background Image - Optimized loading */}
         <div 
           className="absolute inset-0 bg-cover bg-center"
@@ -234,7 +234,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* Floating Onboarding Card - Overlaps Hero */}
-      <div className="relative -mt-64 mb-12 px-4 z-20">
+      <div className="relative -mt-48 mb-12 px-4 sm:px-8 lg:px-[10vw] z-20">
         <div className="w-full md:w-[85%] lg:w-[75%] xl:w-[65%] mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Content - 2 columns */}
@@ -357,7 +357,7 @@ const ClinicPartnerPage = () => {
 
       {/* Benefits Section - Redesigned */}
       <section className="bg-white py-16">
-        <div className="max-w-[1250px] mx-auto px-4">
+        <div className="max-w-[1250px] mx-auto px-4 sm:px-8 lg:px-[10vw]">
           {/* Heading with Dividers */}
           <div className="flex items-center justify-center mb-14">
             <div className="flex-1 h-[1px] bg-[#B8BEC8]"></div>
@@ -516,7 +516,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* Testimonials Section - What our clinic partners say */}
-      <section className="py-20 px-4" style={{ backgroundColor: '#EEF4FF' }}>
+      <section className="py-20 px-4 sm:px-8 lg:px-[10vw]" style={{ backgroundColor: '#EEF4FF' }}>
         <div className="max-w-[1250px] mx-auto">
           {/* Heading */}
           <h2 
@@ -733,7 +733,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* Who Is This For Section */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-20 px-4 sm:px-8 lg:px-[10vw] bg-white">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
             Who Is PulseMate For?
@@ -752,7 +752,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* Trust Section */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4 sm:px-8 lg:px-[10vw]">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-6 text-gray-900">
             Built for Modern Clinic Operations
@@ -764,7 +764,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-20 px-4 sm:px-8 lg:px-[10vw] bg-white">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
             Frequently Asked Questions
@@ -805,7 +805,7 @@ const ClinicPartnerPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
+      <footer className="bg-gray-900 text-white py-12 px-4 sm:px-8 lg:px-[10vw]">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             {/* Company Info */}

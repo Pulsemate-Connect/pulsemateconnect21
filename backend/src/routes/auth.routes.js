@@ -5,6 +5,11 @@ const {
   clinicOwnerVerifyEmailOtpHandler,
   clinicOwnerUploadDocumentHandler,
   registerClinicOwnerHandler,
+  saveClinicOnboardingStep1Handler,
+  saveServicesOperationsHandler,
+  saveClinicDocumentsHandler,
+  submitClinicApplicationHandler,
+  getClinicOnboardingDataHandler,
   doctorVerifyFirebasePhoneHandler,
   registerDoctorHandler,
   loginHandler,
@@ -21,6 +26,10 @@ const {
   patientFirebasePhoneLoginHandler,
   sendOtpHandler,
   verifyOtpHandler,
+  checkMobileVerificationHandler,
+  checkUserExistsHandler,
+  sendRegistrationEmailOtp,
+  verifyRegistrationEmailOtp,
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
@@ -111,6 +120,31 @@ router.post(
   verifyOtpHandler
 );
 
+// Check if mobile number is already verified
+router.get(
+  '/check-mobile-verification/:mobile',
+  checkMobileVerificationHandler
+);
+
+// Check if user exists (for login validation)
+router.get(
+  '/check-user-exists',
+  checkUserExistsHandler
+);
+
+// ── Email OTP Registration (Clinic Partner) ───────────────────────────────────
+router.post(
+  '/register-email-otp/send',
+  otpSendLimiter, // Reuse existing rate limiter
+  sendRegistrationEmailOtp
+);
+
+router.post(
+  '/register-email-otp/verify',
+  otpVerifyLimiter, // Reuse existing rate limiter
+  verifyRegistrationEmailOtp
+);
+
 router.post(
   '/register',
   validateRequest(clinicOwnerRegisterSchema),
@@ -136,6 +170,28 @@ router.get('/verify-email-token', emailVerificationVerifyLimiter, validateQuery(
 // ── Clinic owner document upload + registration ───────────────────────────────
 router.post('/clinic-owner/upload-document', clinicOwnerUpload.single('file'), clinicOwnerUploadDocumentHandler);
 router.get('/pincode/:pincode', lookupPincodeHandler);
+
+// ── Clinic onboarding (save draft steps) ──────────────────────────────────────
+router.get('/clinic-owner/get-onboarding-data', getClinicOnboardingDataHandler);
+router.post('/clinic-owner/save-clinic-information', saveClinicOnboardingStep1Handler);
+router.post('/clinic-owner/save-services-operations', saveServicesOperationsHandler);
+router.post('/clinic-owner/save-clinic-documents', 
+  clinicOwnerUpload.fields([
+    { name: 'clinicRegistrationCertificate', maxCount: 1 },
+    { name: 'medicalLicense', maxCount: 1 },
+    { name: 'ownerIdProof', maxCount: 1 },
+    { name: 'gstCertificate', maxCount: 1 },
+    { name: 'clinicLogo', maxCount: 1 },
+    { name: 'clinicExterior', maxCount: 1 },
+    { name: 'clinicReception', maxCount: 1 },
+    { name: 'clinicConsultation', maxCount: 1 },
+  ]),
+  saveClinicDocumentsHandler
+);
+
+// Step 4: Submit Final Application
+router.post('/clinic-owner/submit-application', submitClinicApplicationHandler);
+
 router.post('/clinic-owner/register', validateRequest(clinicOwnerRegisterSchema), registerClinicOwnerHandler);
 
 // ── Doctor phone verification — Firebase Phone Auth ───────────────────────────

@@ -84,14 +84,40 @@ const firebasePhoneVerifyLimiter = createLimiter({
 
 // OTP Send Rate Limiter - Prevents SMS spam
 const otpSendLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 OTP sends per hour per phone number
-  message: 'Too many OTP requests. Please try again after an hour.',
+  windowMs: process.env.NODE_ENV === 'development' ? 10 * 60 * 1000 : 60 * 60 * 1000, // Dev: 10 min, Prod: 1 hour
+  max: process.env.NODE_ENV === 'development' ? 20 : 5, // Dev: 20 requests, Prod: 5 requests
+  message: 'Too many OTP requests. Please try again later.',
   keyGenerator: (req) => {
-    // Use phone number from request body for per-user limiting
-    const phone = req.body?.mobileNumber?.replace(/\D/g, '');
-    // Fallback to IP if phone not provided (shouldn't happen in normal flow)
-    return phone ? `otp_send:${phone}` : `otp_send_ip:${req.ip}`;
+    // Use phone number or email from request body for per-user limiting
+    const phone = req.body?.mobile?.replace(/\D/g, '') || req.body?.mobileNumber?.replace(/\D/g, '') || req.body?.phoneNumber?.replace(/\D/g, '');
+    const email = req.body?.email?.toLowerCase();
+    
+    if (email) {
+      return `otp_send:email:${email}`;
+    } else if (phone) {
+      return `otp_send:phone:${phone}`;
+    }
+    // Fallback to IP if neither phone nor email provided
+    return `otp_send_ip:${req.ip}`;
+  },
+  skip: (req) => {
+    // Skip rate limiting for test numbers and test emails in development
+    if (process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_OTP === 'true') {
+      // Check test phone numbers
+      const phone = req.body?.mobile?.replace(/\D/g, '') || req.body?.mobileNumber?.replace(/\D/g, '') || req.body?.phoneNumber?.replace(/\D/g, '');
+      const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
+      if (phone && testNumbers.includes(phone)) {
+        return true; // Skip rate limiting for test numbers
+      }
+      
+      // Check test emails
+      const email = req.body?.email?.toLowerCase();
+      const testEmails = (process.env.TEST_OTP_EMAILS || 'test@example.com,demo@example.com,admin@test.com').split(',');
+      if (email && testEmails.includes(email)) {
+        return true; // Skip rate limiting for test emails
+      }
+    }
+    return false;
   },
 });
 
@@ -101,8 +127,34 @@ const otpVerifyLimiter = createLimiter({
   max: 10, // 10 verification attempts per 15 minutes per phone
   message: 'Too many verification attempts. Please try again in 15 minutes.',
   keyGenerator: (req) => {
-    const phone = req.body?.mobileNumber?.replace(/\D/g, '');
-    return phone ? `otp_verify:${phone}` : `otp_verify_ip:${req.ip}`;
+    const phone = req.body?.mobile?.replace(/\D/g, '') || req.body?.mobileNumber?.replace(/\D/g, '');
+    const email = req.body?.email?.toLowerCase();
+    
+    if (email) {
+      return `otp_verify:email:${email}`;
+    } else if (phone) {
+      return `otp_verify:phone:${phone}`;
+    }
+    return `otp_verify_ip:${req.ip}`;
+  },
+  skip: (req) => {
+    // Skip rate limiting for test numbers and test emails in development
+    if (process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_OTP === 'true') {
+      // Check test phone numbers
+      const phone = req.body?.mobile?.replace(/\D/g, '') || req.body?.mobileNumber?.replace(/\D/g, '');
+      const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
+      if (phone && testNumbers.includes(phone)) {
+        return true; // Skip rate limiting for test numbers
+      }
+      
+      // Check test emails
+      const email = req.body?.email?.toLowerCase();
+      const testEmails = (process.env.TEST_OTP_EMAILS || 'test@example.com,demo@example.com,admin@test.com').split(',');
+      if (email && testEmails.includes(email)) {
+        return true; // Skip rate limiting for test emails
+      }
+    }
+    return false;
   },
 });
 

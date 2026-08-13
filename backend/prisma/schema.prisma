@@ -30,6 +30,8 @@ model User {
   firebaseUid          String?               @unique
   /// Auth provider used — e.g. FIREBASE_PHONE, EMAIL_PASSWORD (staff)
   authProvider         String?
+  /// Clinic onboarding draft data (JSON field for Step 1, 2, 3, 4 progress)
+  clinicOnboardingData Json?
   /// Set when user requests account deletion. Hard-deleted by cron after 10 days.
   deletionRequestedAt  DateTime?
   createdAdmins            AdminProfile[]              @relation("AdminCreator")

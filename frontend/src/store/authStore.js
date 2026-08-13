@@ -30,6 +30,18 @@ const useAuthStore = create(
           isLoading: false,
         });
       },
+      
+      // Alias for setAuth - used by clinic auth modal
+      login: (payload) => {
+        const { user, token } = payload;
+        console.log('[AuthStore] login called (alias for setAuth):', { user: user?.id, role: user?.role });
+        set({
+          user: normalizeUser(user),
+          accessToken: token,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      },
 
       clearAuth: () => {
         console.log('[AuthStore] clearAuth called');

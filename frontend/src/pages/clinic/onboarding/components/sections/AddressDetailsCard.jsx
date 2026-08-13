@@ -3,7 +3,7 @@ import FormInput from '../shared/FormInput';
 import FormSelect from '../shared/FormSelect';
 import { INDIAN_STATES } from '../../../../../utils/constants/clinicTypes';
 
-const AddressDetailsCard = ({ register, errors }) => {
+const AddressDetailsCard = ({ register, errors, watch, autoFilledFields = {} }) => {
   // Convert state names to select options
   const stateOptions = INDIAN_STATES.map(state => ({
     value: state,
@@ -17,97 +17,97 @@ const AddressDetailsCard = ({ register, errors }) => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           Add more address details
         </h2>
-        <p className="text-sm text-gray-600">
-          Provide complete address information for your clinic.
-        </p>
       </div>
 
       {/* Form Fields */}
       <div className="space-y-5">
-        {/* Address Line 1 */}
-        <FormInput
-          label="Address Line 1"
-          name="addressLine1"
-          placeholder="Building / clinic number, street"
-          required
-          register={register}
-          error={errors?.addressLine1?.message}
-          helpText="e.g., Shop No. 12, MG Road"
-        />
-
-        {/* Address Line 2 */}
-        <FormInput
-          label="Address Line 2"
-          name="addressLine2"
-          placeholder="Area / locality"
-          required
-          register={register}
-          error={errors?.addressLine2?.message}
-          helpText="e.g., Koramangala 4th Block"
-        />
-
-        {/* Landmark (Optional) */}
-        <FormInput
-          label="Landmark"
-          name="landmark"
-          placeholder="Nearby landmark (optional)"
-          register={register}
-          error={errors?.landmark?.message}
-          helpText="e.g., Near Sony World Signal, Opposite ICICI Bank"
-        />
-
-        {/* City and State Row */}
+        {/* 3 Left + 3 Right Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* City */}
-          <FormInput
-            label="City"
-            name="city"
-            placeholder="City"
-            required
-            register={register}
-            error={errors?.city?.message}
-          />
+          {/* Left Column - 3 Fields */}
+          <div className="space-y-5">
+            {/* Shop no. / building no. (optional) */}
+            <FormInput
+              name="addressLine1"
+              placeholder="Shop no. / building no. (optional)"
+              register={register}
+              watch={watch}
+              error={errors?.addressLine1?.message}
+              showLabel={false}
+            />
 
-          {/* State */}
-          <FormSelect
-            label="State"
-            name="state"
-            options={stateOptions}
-            placeholder="Select state"
-            required
-            register={register}
-            error={errors?.state?.message}
-          />
-        </div>
+            {/* Area / Sector / Locality* */}
+            <FormInput
+              name="locality"
+              placeholder="Area / Sector / Locality"
+              required
+              register={register}
+              watch={watch}
+              error={errors?.locality?.message}
+              showLabel={false}
+            />
 
-        {/* Pincode and Country Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Pincode */}
-          <FormInput
-            label="Pincode"
-            name="pincode"
-            type="tel"
-            placeholder="6-digit pincode"
-            maxLength={6}
-            required
-            register={register}
-            error={errors?.pincode?.message}
-          />
+            {/* Landmark (Optional) */}
+            <FormInput
+              name="landmark"
+              placeholder="Landmark (Optional)"
+              register={register}
+              watch={watch}
+              error={errors?.landmark?.message}
+              showLabel={false}
+            />
+          </div>
 
-          {/* Country (Read-only) */}
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700">
-              Country
-              <span className="text-red-500 ml-1">*</span>
-            </label>
-            <div className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-sm">
-              India
-            </div>
-            <p className="text-xs text-gray-500">
-              Currently, PulseMate Connect is available only in India
-            </p>
+          {/* Right Column - 3 Fields */}
+          <div className="space-y-5">
+            {/* Floor / tower (optional) */}
+            <FormInput
+              name="addressLine2"
+              placeholder="Floor / tower (optional)"
+              register={register}
+              watch={watch}
+              error={errors?.addressLine2?.message}
+              showLabel={false}
+            />
+
+            {/* City */}
+            <FormInput
+              name="city"
+              placeholder="City"
+              required
+              register={register}
+              watch={watch}
+              error={errors?.city?.message}
+              showLabel={false}
+              readOnly={autoFilledFields.city}
+            />
+
+            {/* Pincode */}
+            <FormInput
+              name="pincode"
+              type="tel"
+              placeholder="Pincode"
+              maxLength={6}
+              required
+              register={register}
+              watch={watch}
+              error={errors?.pincode?.message}
+              showLabel={false}
+              readOnly={autoFilledFields.pincode}
+            />
           </div>
         </div>
+
+        {/* Full Width Field Below */}
+        <FormSelect
+          name="state"
+          options={stateOptions}
+          placeholder="State"
+          required
+          register={register}
+          error={errors?.state?.message}
+          showLabel={false}
+          disabled={autoFilledFields.state}
+        />
       </div>
 
       {/* Important Note */}

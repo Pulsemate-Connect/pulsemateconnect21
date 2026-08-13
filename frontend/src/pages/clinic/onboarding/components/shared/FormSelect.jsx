@@ -11,11 +11,17 @@ const FormSelect = ({
   placeholder = 'Select an option',
   helpText,
   className = '',
+  showLabel = true, // New prop to control label visibility
   ...props
 }) => {
+  // Create placeholder with asterisk if required and no label is shown
+  const enhancedPlaceholder = !showLabel && required && placeholder 
+    ? `${placeholder} *` 
+    : placeholder;
+
   return (
     <div className={`space-y-1.5 ${className}`}>
-      {label && (
+      {label && showLabel && (
         <label htmlFor={name} className="block text-sm font-medium text-gray-700">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
@@ -36,12 +42,12 @@ const FormSelect = ({
               ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'
               : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
             }
-            ${disabled ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}
+            ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
             focus:outline-none focus:ring-4
           `}
           {...props}
         >
-          <option value="">{placeholder}</option>
+          <option value="">{enhancedPlaceholder}</option>
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

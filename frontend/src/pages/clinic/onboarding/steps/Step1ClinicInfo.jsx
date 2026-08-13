@@ -11,9 +11,18 @@ import OwnerDetailsCard from '../components/sections/OwnerDetailsCard';
 import PrimaryContactCard from '../components/sections/PrimaryContactCard';
 import ClinicLocationCard from '../components/sections/ClinicLocationCard';
 import AddressDetailsCard from '../components/sections/AddressDetailsCard';
+import useAuthStore from '../../../../store/authStore';
 
 const Step1ClinicInfo = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore(); // Get authenticated user
+  
+  // Track which address fields are auto-filled (read-only)
+  const [autoFilledFields, setAutoFilledFields] = React.useState({
+    city: false,
+    pincode: false,
+    state: false,
+  });
   
   const {
     register,
@@ -38,6 +47,7 @@ const Step1ClinicInfo = () => {
       longitude: null,
       addressLine1: '',
       addressLine2: '',
+      locality: '',
       landmark: '',
       city: '',
       state: '',
@@ -54,14 +64,29 @@ const Step1ClinicInfo = () => {
       try {
         const parsed = JSON.parse(savedData);
         Object.keys(parsed).forEach(key => {
-          setValue(key, parsed[key]);
+          // Don't override email from localStorage - always use authenticated user's email
+          if (key !== 'ownerEmail') {
+            setValue(key, parsed[key]);
+          }
         });
         toast.success('Restored your previous progress');
       } catch (error) {
         console.error('Failed to restore saved data:', error);
       }
     }
-  }, [setValue]);
+    
+    // Pre-fill owner details from authenticated user
+    if (user) {
+      if (user.email) {
+        setValue('ownerEmail', user.email);
+        console.log('[Step1] Pre-filled owner email from auth:', user.email);
+      }
+      if (user.name) {
+        setValue('ownerName', user.name);
+        console.log('[Step1] Pre-filled owner name from auth:', user.name);
+      }
+    }
+  }, [setValue, user]);
 
   // Auto-save to localStorage on form changes
   useEffect(() => {
@@ -93,25 +118,35 @@ const Step1ClinicInfo = () => {
 
   const onSubmit = async (data) => {
     try {
-      console.log('Step 1 Form Data:', data);
+      console.log('Clinic Information Form Data:', data);
       
-      // TODO: Call API to save Step 1 data
-      // await saveStep1Data(data);
-      
+      // Save Clinic Information data to database
+      const response = await fetch('/api/auth/clinic-owner/save-clinic-information', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to save clinic information');
+      }
+
+      console.log('[ClinicInformation] Data saved to database:', result);
       toast.success('Clinic information saved successfully!');
       
-      // Clear localStorage for this step
+      // Clear localStorage for this step since it's now in database
       localStorage.removeItem('clinic_onboarding_step1');
       
       // Navigate to Step 2
-      // navigate('/clinic/onboarding/step-2');
-      
-      // For now, just show success
-      toast.success('Step 1 completed! (Step 2 coming soon)');
+      navigate('/clinic/onboarding/step-2');
       
     } catch (error) {
-      console.error('Failed to submit Step 1:', error);
-      toast.error(error.response?.data?.message || 'Failed to save clinic information');
+      console.error('Failed to submit Clinic Information:', error);
+      toast.error(error.message || 'Failed to save clinic information');
     }
   };
 
@@ -119,15 +154,12 @@ const Step1ClinicInfo = () => {
 
   return (
     <OnboardingLayout currentStep={1} completedSteps={[]}>
-      <form onSubmit={handleSubmit(onSubmit)} className="max-w-4xl mx-auto py-12 space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 py-8">
         {/* Page Header */}
-        <div className="space-y-3">
-          <h1 className="text-3xl font-bold text-gray-900">
+        <div>
+          <h1 className="text-4xl font-semibold text-gray-900">
             Clinic Information
           </h1>
-          <p className="text-base text-gray-600">
-            Tell us about your clinic so we can create your PulseMate Connect profile.
-          </p>
         </div>
 
         {/* Section 1: Clinic Details */}
@@ -155,15 +187,19 @@ const Step1ClinicInfo = () => {
 
         {/* Section 4: Clinic Location */}
         <ClinicLocationCard
+          register={register}
           setValue={setValue}
           watch={watch}
           errors={errors}
+          setAutoFilledFields={setAutoFilledFields}
         />
 
         {/* Section 5: Address Details */}
         <AddressDetailsCard
           register={register}
           errors={errors}
+          watch={watch}
+          autoFilledFields={autoFilledFields}
         />
 
         {/* Validation Summary (if errors exist) */}

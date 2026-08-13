@@ -62,6 +62,7 @@ import QueueOverview from './pages/owner/QueueOverview';
 import SessionManagement from './pages/owner/SessionManagement';
 import ClinicOnboarding from './pages/clinic/onboarding/ClinicOnboarding';
 import Step1ClinicInfo from './pages/clinic/onboarding/steps/Step1ClinicInfo';
+import PendingApprovalDashboard from './pages/clinic/dashboard/PendingApprovalDashboard';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
@@ -152,7 +153,9 @@ const AppRoutes = () => {
       <Route path="/owner/appointments" element={<Navigate to="/clinic/appointments" replace />} />
       <Route path="/owner/queue" element={<Navigate to="/clinic/queue" replace />} />
       <Route path="/clinic/dashboard" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><OwnerDashboard /></ProtectedRoute>} />
-      <Route path="/clinic/onboarding/*" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicOnboarding /></ProtectedRoute>} />
+      <Route path="/clinic/dashboard/pending" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><PendingApprovalDashboard /></ProtectedRoute>} />
+      {/* Allow both CLINIC_OWNER and PATIENT to access onboarding - PATIENT users are registering as clinic owners */}
+      <Route path="/clinic/onboarding/*" element={<ProtectedRoute requiredRole={["CLINIC_OWNER", "PATIENT"]}><ClinicOnboarding /></ProtectedRoute>} />
       <Route path="/clinic/edit-resubmit" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicEditResubmit /></ProtectedRoute>} />
       <Route path="/clinic/profile" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />
       <Route path="/clinic/profile/:id" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />

@@ -90,14 +90,19 @@ export const step1Schema = yup.object({
   // Address Details
   addressLine1: yup
     .string()
-    .required('Address line 1 is required')
-    .min(5, 'Minimum 5 characters required')
     .max(200, 'Maximum 200 characters')
-    .trim(),
+    .trim()
+    .notRequired(),
 
   addressLine2: yup
     .string()
-    .required('Area/locality is required')
+    .max(200, 'Maximum 200 characters')
+    .trim()
+    .notRequired(),
+
+  locality: yup
+    .string()
+    .required('Area/Sector/Locality is required')
     .min(3, 'Minimum 3 characters required')
     .max(200, 'Maximum 200 characters')
     .trim(),

@@ -83,6 +83,7 @@ const PublicHomePage = () => {
             <a href="#home" className="transition hover:text-sky-700">Home</a>
             <a href="#find-doctors" className="transition hover:text-sky-700">Find Doctors</a>
             <a href="#clinics" className="transition hover:text-sky-700">Clinics</a>
+            <Link to="/clinic-partner" className="transition hover:text-sky-700">Clinic Partner</Link>
             <a href="#about" className="transition hover:text-sky-700">About</a>
           </nav>
 
@@ -316,6 +317,13 @@ const PublicHomePage = () => {
                     className="mt-6 inline-flex w-full items-center justify-center rounded-[1.2rem] bg-[linear-gradient(135deg,#0ea5e9_0%,#2563eb_100%)] px-5 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(37,99,235,0.24)] transition hover:brightness-105"
                   >
                     Open Clinic Portal
+                  </Link>
+                  
+                  <Link
+                    to="/clinic-partner"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-[1.2rem] border-2 border-white bg-white/10 px-5 py-4 text-base font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                  >
+                    Become a Partner Clinic
                   </Link>
                 </div>
               </div>

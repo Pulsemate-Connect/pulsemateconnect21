@@ -23,48 +23,51 @@ const ClinicDetailsCard = ({ register, errors, watch }) => {
       <div className="space-y-5">
         {/* Clinic Name */}
         <FormInput
-          label="Clinic Name"
           name="clinicName"
-          placeholder="Enter clinic name"
+          placeholder="Clinic Name"
           required
           register={register}
+          watch={watch}
           error={errors?.clinicName?.message}
           helpText="This is the official name of your clinic"
+          showLabel={false}
         />
 
         {/* Clinic Type */}
         <FormSelect
-          label="Clinic Type"
           name="clinicType"
           options={CLINIC_TYPES}
-          placeholder="Select clinic type"
+          placeholder="Clinic Type"
           required
           register={register}
           error={errors?.clinicType?.message}
           helpText="Choose the category that best describes your clinic"
+          showLabel={false}
         />
 
         {/* Other Clinic Type (conditional) */}
         {showOtherField && (
           <FormInput
-            label="Specify Clinic Type"
             name="clinicTypeOther"
-            placeholder="Enter your clinic type"
+            placeholder="Specify Clinic Type"
             required
             register={register}
+            watch={watch}
             error={errors?.clinicTypeOther?.message}
             maxLength={50}
+            showLabel={false}
           />
         )}
 
         {/* Display Name (Optional) */}
         <FormInput
-          label="Clinic Display Name"
           name="displayName"
-          placeholder="Name shown to patients (optional)"
+          placeholder="Clinic Display Name (optional)"
           register={register}
+          watch={watch}
           error={errors?.displayName?.message}
           helpText="If different from the official name, e.g., 'ABC Clinic - Jayanagar Branch'"
+          showLabel={false}
         />
       </div>
     </div>

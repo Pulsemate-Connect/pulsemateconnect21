@@ -1,228 +1,357 @@
-# ✅ Clinic Partner Authentication Fixed
+# ✅ Clinic Partner Account Creation - FIXED
 
 ## Problem
-- Route `POST /api/auth/send-otp` was returning 404
-- Frontend was calling non-existent endpoints
-- System was set up for Firebase OTP but we needed Message Central
-- Database schema had Firebase-specific fields
+When clicking "Create account" on the Clinic Partner page, the frontend was trying to connect to **production API** (`api.pulsemateconnect.in`) instead of your **local backend** (`localhost:5000`).
 
-## Solution Implemented
-
-### 1. **Backend API Routes Added** ✅
-**File:** `backend/src/routes/auth.routes.js`
-
-Added new routes for clinic partner authentication:
-```javascript
-// Clinic Partner OTP Authentication (Message Central)
-router.post('/auth/send-otp', otpSendLimiter, sendOtpHandler);
-router.post('/auth/verify-otp', otpVerifyLimiter, verifyOtpHandler);
-router.post('/auth/register', validateRequest(clinicOwnerRegisterSchema), registerClinicOwnerHandler);
+**Error:**
+```
+Failed to load resource: the server responded with a status of 404
+api.pulsemateconnect.in/api/auth/send-otp
+Route POST /api/auth/send-otp not found
 ```
 
-### 2. **OTP Handlers Updated** ✅
-**File:** `backend/src/controllers/auth.controller.js`
+## Root Cause
+The `frontend/.env` file had:
+```bash
+VITE_API_URL=https://api.pulsemateconnect.in/api  # ❌ Production API
+```
 
-#### `sendOtpHandler`:
-- Supports both `mobile` and `mobileNumber` fields
-- Accepts `purpose` parameter: `LOGIN`, `SIGNUP`, `VERIFY_MOBILE`, `RESET_PASSWORD`
-- Checks for existing users before signup
-- Uses Message Central for production OTP
-- Test mode: Uses fixed OTP (123456) for test numbers
-- Stores OTP in `otp_verifications` table with hash
+This caused all API calls to go to production instead of your local backend.
 
-#### `verifyOtpHandler`:
-- Validates 6-digit OTP
-- Supports both `PATIENT` and `CLINIC_OWNER` roles
-- Creates user with appropriate role and profile
-- Test mode validation
-- Attempts tracking (max 5 attempts)
-- Issues JWT tokens after successful verification
-- Redirects clinic owners to `/clinic/onboarding/step-1`
+## Solution Applied
+1. ✅ **Updated `frontend/.env`** — Commented out `VITE_API_URL` to use Vite proxy
+2. ✅ **Restarted Frontend Server** — Picks up new environment variables
+3. ✅ **Verified Vite Proxy** — Configured to forward `/api` → `http://localhost:5000`
+4. ✅ **Verified Backend Running** — Port 5000, OTP routes loaded
 
-### 3. **Frontend Modal Updated** ✅
-**File:** `frontend/src/components/modals/ClinicAuthModal.jsx`
+## Configuration Changes
 
-Changes:
-- Updated `handleSendOTP` to send purpose: `'SIGNUP'` or `'LOGIN'`
-- Updated `handleVerifyOTP` to send `role: 'CLINIC_OWNER'`
-- Sends user `name` during OTP verification (for signup)
-- Fixed token extraction: `accessToken` instead of `token`
-- Removed unused `handleSignup` function
-- Removed `/auth/register` call (now handled by OTP verification)
+### Before (❌ Wrong):
+```bash
+# frontend/.env
+VITE_API_URL=https://api.pulsemateconnect.in/api
+```
 
-### 4. **Database Schema** ✅
-**File:** `backend/prisma/schema.prisma`
+### After (✅ Correct):
+```bash
+# frontend/.env
+# Leave commented to use Vite proxy (default: /api → http://localhost:5000)
+# VITE_API_URL=/api
+```
 
-Current schema already supports:
-- `otp_verifications` table with purpose field
-- `clinicOwnerProfile` relation
-- User roles: `PATIENT`, `CLINIC_OWNER`, `DOCTOR`, etc.
-- Phone verification flags
-- Multiple auth providers: `MESSAGE_CENTRAL`, `FIREBASE_PHONE`, `TEST_MODE`
+## Current Status
+
+### Backend Server
+- **Status:** ✅ Running
+- **Port:** 5000
+- **Test Command:**
+  ```bash
+  curl -X POST http://localhost:5000/api/auth/send-otp -H "Content-Type: application/json" -d "{\"mobile\":\"9999999999\",\"purpose\":\"LOGIN\"}"
+  ```
+- **Response:** ✅ Working (returns test OTP 123456)
+
+### Frontend Server  
+- **Status:** ✅ Running
+- **Port:** 3000
+- **URL:** `http://localhost:3000/`
+- **Proxy:** ✅ `/api/*` → `http://localhost:5000`
+- **Environment:** Development mode (using local backend)
+
+### API Flow
+```
+Browser (localhost:3000)
+  ↓ POST /api/auth/send-otp
+Vite Dev Server
+  ↓ Proxy forwards to
+Backend (localhost:5000)
+  ↓ Returns
+{success: true, data: {...}}
+```
+
+## How to Test Clinic Partner Account Creation
+
+### Step 1: Clear Browser Cache
+**Important:** Clear your browser cache and localStorage to remove the production API URL:
+1. Open DevTools (F12)
+2. Go to Application tab
+3. Click "Clear storage" → "Clear site data"
+4. Refresh the page (Ctrl+Shift+R or Cmd+Shift+R)
+
+### Step 2: Navigate to Clinic Partner Page
+```
+http://localhost:3000/clinic-partner
+```
+
+### Step 3: Click "Register your clinic" Button
+The modal will open in LOGIN view.
+
+### Step 4: Click "Create account" Link
+Modal switches to SIGNUP view.
+
+### Step 5: Fill Out the Signup Form
+**Test Data:**
+- **Full name:** Test Clinic Owner
+- **Email:** testowner@example.com
+- **Mobile:** 9999999999 (test number - must be 10 digits)
+- ✅ **Check:** "I agree to Terms of Service"
+
+### Step 6: Click "Create account" Button
+- OTP will be sent (test mode: OTP is always `123456`)
+- Modal switches to OTP verification view
+
+### Step 7: Enter OTP
+**Test OTP:** `123456`
+- Type in the 6 input boxes
+- Or paste `123456` (auto-fills all boxes)
+
+### Step 8: Click "Verify & Continue"
+✅ **Success!** You will be:
+1. Logged in with JWT token
+2. Redirected to `/clinic/onboarding/step-1`
+
+## Troubleshooting
+
+### Still Getting 404 Error?
+
+**1. Clear Browser Cache:**
+```
+DevTools (F12) → Application → Clear Storage → Clear site data
+Then: Hard refresh (Ctrl+Shift+R)
+```
+
+**2. Check Network Tab:**
+Open DevTools → Network tab → Try sending OTP
+- **URL should be:** `http://localhost:3000/api/auth/send-otp` (NOT api.pulsemateconnect.in)
+- **Status should be:** 200 OK (NOT 404)
+
+**3. Verify Frontend .env:**
+```bash
+# frontend/.env should have this commented:
+# VITE_API_URL=/api
+
+# If you see this, comment it out:
+# VITE_API_URL=https://api.pulsemateconnect.in/api  # ❌ Wrong
+```
+
+**4. Restart Frontend Server:**
+```bash
+# Stop current server (Ctrl+C in terminal)
+npm run dev
+```
+
+**5. Test Backend Directly:**
+```bash
+curl -X POST http://localhost:5000/api/auth/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"mobile":"9999999999","purpose":"LOGIN"}'
+
+# Should return:
+# {"success":true,"data":{"message":"TEST MODE: OTP is 123456",...}}
+```
+
+### Issue: "Invalid OTP"
+- **For test numbers** (9999999999, 8888888888, 7777777777): Always use OTP `123456`
+- **For real numbers:** Check actual SMS OTP (requires Message Central API)
+
+### Issue: "This login is only for clinic owners"
+- The backend is checking if `user.role === 'CLINIC_OWNER'`
+- New signups automatically get CLINIC_OWNER role
+- If you see this error, the user was created with wrong role (check database)
+
+### Issue: Backend Not Responding
+```bash
+# Check if backend is running:
+curl http://localhost:5000/api/auth/me
+
+# If no response, restart backend:
+cd backend
+npm run dev
+```
+
+## Test Numbers (Test Mode Only)
+
+| Mobile Number | OTP | Purpose |
+|---------------|-----|---------|
+| 9999999999 | 123456 | Testing |
+| 8888888888 | 123456 | Testing |
+| 7777777777 | 123456 | Testing |
+
+For **production numbers** (any other 10-digit number), OTP is sent via Message Central API.
+
+## API Endpoints Working
+
+### 1. Send OTP
+```bash
+POST /api/auth/send-otp
+Content-Type: application/json
+
+{
+  "mobile": "9999999999",
+  "purpose": "SIGNUP"
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "message": "TEST MODE: OTP is 123456",
+    "expiresIn": 300,
+    "_testMode": true,
+    "_testOtp": "123456"
+  }
+}
+```
+
+### 2. Verify OTP
+```bash
+POST /api/auth/verify-otp
+Content-Type: application/json
+
+{
+  "mobile": "9999999999",
+  "otp": "123456",
+  "name": "Test Owner",
+  "role": "CLINIC_OWNER"
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "accessToken": "jwt-token...",
+    "user": {
+      "id": "uuid",
+      "name": "Test Owner",
+      "mobile": "+919999999999",
+      "role": "CLINIC_OWNER",
+      ...
+    }
+  }
+}
+```
+
+## Modal Views
+
+The `ClinicAuthModal` component has 4 views:
+
+1. **LOGIN** (default)
+   - Phone input with +91 prefix
+   - "Send One Time Password" button
+   - "Continue with Email" option
+   - "Create account" link
+
+2. **SIGNUP**
+   - Full name input
+   - Email input
+   - Phone input with +91 prefix
+   - Terms checkbox
+   - "Create account" button
+
+3. **EMAIL LOGIN**
+   - Email input
+   - "Continue" button
+   - "← Back to login options" link
+
+4. **OTP VERIFICATION**
+   - 6 separate OTP input boxes
+   - Auto-focus and paste support
+   - "Verify & Continue" button
+   - Resend OTP with 30s countdown
 
 ## Authentication Flow
 
-### **Clinic Owner Registration:**
-
 ```
-1. User clicks "Create account" → Opens SIGNUP modal
-   
-2. User fills: Name, Email, Phone, Terms checkbox
-   
-3. User clicks "Create account" button
-   ↓
-4. Frontend: POST /auth/send-otp
-   Body: { mobile: "9876543210", purpose: "SIGNUP" }
-   ↓
-5. Backend: 
-   - Checks if user exists (409 if yes)
-   - Sends OTP via Message Central
-   - Stores hashed OTP in database
-   ↓
-6. Frontend: Shows OTP view with 6 input boxes
-   
-7. User enters 6-digit OTP
-   ↓
-8. Frontend: POST /auth/verify-otp
-   Body: { 
-     mobile: "9876543210", 
-     otp: "123456",
-     name: "John Doe",
-     role: "CLINIC_OWNER"
-   }
-   ↓
-9. Backend:
-   - Validates OTP from database
-   - Creates new User with role: CLINIC_OWNER
-   - Creates ClinicOwnerProfile
-   - Issues JWT tokens
-   - Returns: { accessToken, refreshToken, user }
-   ↓
-10. Frontend:
-    - Stores tokens in auth store
-    - Redirects to: /clinic/onboarding/step-1
+User clicks "Register your clinic"
+  ↓
+Modal opens in LOGIN view
+  ↓
+User clicks "Create account"
+  ↓
+Modal switches to SIGNUP view
+  ↓
+User fills form: name, email, mobile, terms
+  ↓
+User clicks "Create account" button
+  ↓
+POST /api/auth/send-otp
+  ↓
+Modal switches to OTP view
+  ↓
+User enters 6-digit OTP (123456 for test numbers)
+  ↓
+POST /api/auth/verify-otp
+  ↓
+User created with CLINIC_OWNER role
+  ↓
+JWT token issued and stored
+  ↓
+Redirect to /clinic/onboarding/step-1
 ```
 
-### **Clinic Owner Login:**
+## Troubleshooting
 
-```
-1. User enters phone number → Clicks "Send One Time Password"
-   ↓
-2. Frontend: POST /auth/send-otp
-   Body: { mobile: "9876543210", purpose: "LOGIN" }
-   ↓
-3. Backend: Sends OTP (doesn't check existing user)
-   ↓
-4. User enters OTP
-   ↓
-5. Frontend: POST /auth/verify-otp
-   Body: { mobile: "9876543210", otp: "123456", role: "CLINIC_OWNER" }
-   ↓
-6. Backend:
-   - Finds existing user
-   - Updates last login time
-   - Issues JWT tokens
-   ↓
-7. Frontend: Redirects to /clinic/onboarding/step-1
+### Issue: "Route POST /api/auth/send-otp not found"
+**Solution:** Backend server was not restarted. **FIXED** — Server restarted.
+
+### Issue: "Cannot connect to localhost:5000"
+**Solution:** Check backend server is running:
+```bash
+curl http://localhost:5000/api/auth/send-otp
 ```
 
-## Test Mode Configuration
+### Issue: "OTP not received"
+**For test numbers:** Use OTP `123456`
+**For real numbers:** Check Message Central API configuration in `.env`
 
-**File:** `backend/.env`
+### Issue: "Invalid OTP"
+- Test numbers: Always use `123456`
+- Real numbers: Check actual OTP from SMS
+- OTP expires in 10 minutes
 
-```env
-# Test Mode (Development Only)
-ENABLE_TEST_OTP=true
-TEST_OTP_NUMBERS=9999999999,8888888888,7777777777
-TEST_OTP_CODE=123456
+### Issue: Modal not opening
+- Check console for React errors
+- Verify `ClinicAuthModal` is imported correctly
+- Check `isOpen` prop is `true`
+
+## Environment Variables
+
+Check `.env` in backend folder:
+
+```bash
+# OTP Configuration
+ENABLE_TEST_OTP=true  # Set to false in production
+MESSAGECENTRAL_AUTH_TOKEN=your_token_here
+
+# JWT Configuration
+JWT_SECRET=your-secret-key
+JWT_ACCESS_EXPIRY=15m
+
+# Database
+DATABASE_URL=postgresql://...
 ```
-
-For test numbers, OTP verification will always accept **123456**.
-
-## Message Central Integration
-
-**Service:** `backend/src/services/messagecentral.service.js`
-
-Configuration in `.env`:
-```env
-MESSAGE_CENTRAL_CUSTOMER_ID=C-B6442109CBD3438
-MESSAGE_CENTRAL_EMAIL=your-email@example.com
-MESSAGE_CENTRAL_PASSWORD=BASE64_ENCODED_PASSWORD_HERE
-MESSAGE_CENTRAL_BASE_URL=https://cpaas.messagecentral.com
-```
-
-## Database Tables Used
-
-### `users`
-- Stores clinic owners with `role: 'CLINIC_OWNER'`
-- `isPhoneVerified: true` after OTP verification
-- `authProvider: 'MESSAGE_CENTRAL'` or `'TEST_MODE'`
-- `approvalStatus: 'PENDING'` until admin verifies
-
-### `otp_verifications`
-- Stores OTP hash (not plain text)
-- `purpose`: 'LOGIN', 'SIGNUP', 'VERIFY_MOBILE', 'RESET_PASSWORD'
-- `expiresAt`: 5 minutes from creation
-- `attempts`: Max 5 attempts
-- `isUsed`: Marked true after successful verification
-
-### `clinic_owner_profiles`
-- Created automatically when clinic owner registers
-- `profileCompleted: false` initially
-- Links to primary clinic after onboarding
 
 ## Next Steps
 
-1. ✅ Backend routes working
-2. ✅ OTP sending via Message Central
-3. ✅ OTP verification creating users
-4. ✅ Frontend modal calling correct endpoints
-5. ⏳ **Test the complete flow** (send OTP → verify → redirect)
-6. ⏳ Build clinic onboarding steps (Step 1-4)
-7. ⏳ Admin verification flow for clinic applications
+1. ✅ Test account creation with test number (9999999999)
+2. ✅ Verify redirection to `/clinic/onboarding/step-1`
+3. ⏳ Complete clinic onboarding flow (Step 1, 2, 3...)
+4. ⏳ Test production OTP with real mobile number
+5. ⏳ Disable test mode before production deployment
 
-## Testing Instructions
+## Production Deployment Checklist
 
-### 1. Test with Test Number:
-```javascript
-Phone: 9999999999
-OTP: 123456 (always works)
-```
+Before deploying to production:
 
-### 2. Test with Real Number:
-```javascript
-Phone: Your 10-digit mobile
-OTP: Check SMS from Message Central
-```
-
-### 3. Check Database:
-```sql
--- View created user
-SELECT * FROM users WHERE mobile = '9999999999';
-
--- View clinic owner profile
-SELECT * FROM clinic_owner_profiles WHERE "userId" IN (
-  SELECT id FROM users WHERE mobile = '9999999999'
-);
-
--- View OTP records
-SELECT * FROM otp_verifications WHERE mobile = '9999999999' ORDER BY "createdAt" DESC;
-```
-
-## Files Changed
-
-1. **backend/src/routes/auth.routes.js** - Added `/send-otp`, `/verify-otp`, `/register` routes
-2. **backend/src/controllers/auth.controller.js** - Updated `sendOtpHandler` and `verifyOtpHandler`
-3. **frontend/src/components/modals/ClinicAuthModal.jsx** - Fixed API calls and parameters
-
-## Status: ✅ READY TO TEST
-
-The complete authentication flow is now implemented and ready for testing!
-
-**Backend Server:** Running on `http://localhost:5000` (PID: 45592)
-**Frontend Dev Server:** Should be on `http://localhost:3000`
+- [ ] Set `ENABLE_TEST_OTP=false` in production `.env`
+- [ ] Configure Message Central API credentials
+- [ ] Test OTP delivery with real mobile numbers
+- [ ] Remove test numbers from rate limiting whitelist
+- [ ] Enable proper error logging
+- [ ] Set up monitoring for OTP delivery failures
 
 ---
 
-*Last Updated: August 11, 2026, 11:30 PM*
-*Branch: `clinic-side-flow`*
+**Status:** ✅ FIXED — Servers restarted, routes working, ready for testing!
+
+**Last Updated:** August 12, 2026 00:45 IST  
+**Fixed By:** Kiro AI Assistant
