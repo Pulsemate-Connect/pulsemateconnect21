@@ -97,7 +97,7 @@ const ClinicPartnerPage = () => {
       {/* Navigation Bar - Fixed at top */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white shadow-sm' : 'bg-transparent shadow-none'
+          isScrolled ? 'bg-white shadow-sm' : 'bg-black/40 backdrop-blur-sm shadow-none'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -105,7 +105,7 @@ const ClinicPartnerPage = () => {
             {/* Logo Section */}
             <div className="flex items-center">
               <div className="flex flex-col">
-                <span className="text-xl font-bold">
+                <span className="text-lg sm:text-xl font-bold">
                   <span className={`transition-colors duration-300 ${isScrolled ? 'text-blue-600' : 'text-white'}`}>
                     PulseMate{' '}
                   </span>
@@ -115,7 +115,7 @@ const ClinicPartnerPage = () => {
                 </span>
                 <span
                   className={`text-xs text-center -mt-1 transition-colors duration-300 ${
-                    isScrolled ? 'text-gray-500' : 'text-white/80'
+                    isScrolled ? 'text-gray-500' : 'text-white'
                   }`}
                 >
                   — Clinic Partner —
@@ -129,7 +129,7 @@ const ClinicPartnerPage = () => {
                 <div className="relative">
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all duration-300 ${
                       isScrolled ? 'hover:bg-gray-100' : 'hover:bg-white/10'
                     }`}
                   >
@@ -149,7 +149,7 @@ const ClinicPartnerPage = () => {
                     </span>
                     <svg
                       className={`w-4 h-4 transition-all duration-300 ${
-                        isScrolled ? 'text-gray-500' : 'text-white/80'
+                        isScrolled ? 'text-gray-500' : 'text-white'
                       } ${showProfileMenu ? 'rotate-180' : ''}`}
                       fill="none"
                       stroke="currentColor"
@@ -186,7 +186,7 @@ const ClinicPartnerPage = () => {
               ) : (
                 <button
                   onClick={handleLoginClick}
-                  className={`px-6 py-2 font-semibold border-2 rounded-lg transition-all duration-300 ${
+                  className={`px-4 sm:px-6 py-2 text-sm sm:text-base font-semibold border-2 rounded-lg transition-all duration-300 ${
                     isScrolled
                       ? 'text-blue-600 border-blue-600 hover:bg-blue-50'
                       : 'text-white border-white hover:bg-white hover:text-blue-600'
