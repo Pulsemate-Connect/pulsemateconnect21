@@ -725,6 +725,49 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       },
     });
 
+    // Extract clinic data from onboarding steps
+    const step1 = onboardingData.clinicInformation || {};
+    const step2 = onboardingData.servicesOperations || {};
+    const step3 = onboardingData.clinicDocuments || {};
+
+    // Create Clinic record for admin approval
+    const clinic = await prisma.clinic.create({
+      data: {
+        name: step1.clinicName,
+        ownerId: updatedUser.id,
+        phone: step1.phone || updatedUser.mobile,
+        email: step1.email,
+        address: step1.address,
+        city: step1.city,
+        district: step1.district,
+        state: step1.state,
+        pincode: step1.pincode,
+        landmark: step1.landmark,
+        latitude: step1.latitude ? parseFloat(step1.latitude) : null,
+        longitude: step1.longitude ? parseFloat(step1.longitude) : null,
+        googleMapsLocation: step1.googleMapsLocation,
+        clinicType: step1.clinicType,
+        clinicRegistrationNumber: step1.clinicRegistrationNumber,
+        approvalStatus: 'PENDING',
+        submittedAt: new Date(),
+        // Step 2 data
+        specialties: step2.services || [],
+        openingHours: step2.operatingHours ? JSON.stringify(step2.operatingHours) : null,
+        consultationModes: step2.appointmentModes || [],
+        facilities: step2.facilities || [],
+        languagesSpoken: step2.languages || [],
+        // Step 3 data
+        licenseDocumentUrl: step3.clinicLicense,
+        medicalEstablishmentCertificateUrl: step3.medicalCertificate,
+        gstCertificateUrl: step3.gstCertificate,
+        panCardUrl: step3.panCard,
+        gstNumber: step3.gstNumber,
+        panNumber: step3.panNumber,
+        isActive: false,  // Inactive until approved
+      },
+    });
+
+    logger.info(`[Onboarding] Clinic record created: ${clinic.id} for user ${updatedUser.id}`);
     logger.info(`[Onboarding] Application submitted for user ${updatedUser.id}, status: PENDING`);
 
     // TODO: Send confirmation email to clinic owner
@@ -734,6 +777,7 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       res,
       {
         userId: updatedUser.id,
+        clinicId: clinic.id,
         step: 'partnerAgreement',
         submitted: true,
         approvalStatus: updatedUser.approvalStatus,
