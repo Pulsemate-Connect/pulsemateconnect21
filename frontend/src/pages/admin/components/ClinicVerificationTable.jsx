@@ -72,10 +72,92 @@ const COLS = [
 const ClinicVerificationTable = ({ clinics, loading }) => {
   const navigate = useNavigate();
 
+  // Mobile card view
+  const MobileCard = ({ clinic: c }) => {
+    const dateStr = c.submittedAt || c.createdAt;
+    const formatted = dateStr
+      ? new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—';
+    const initial  = (c.name || '?').charAt(0).toUpperCase();
+    const avColor  = avatarColor(c.name);
+
+    return (
+      <div className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 ${avColor}`}>
+              {initial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-gray-900 text-sm truncate">{c.name || '—'}</h3>
+              <p className="text-xs text-gray-500">{c.owner?.name || '—'}</p>
+            </div>
+          </div>
+          <StatusBadge status={c.approvalStatus} />
+        </div>
+
+        {/* Details */}
+        <div className="space-y-2 text-xs mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-16">Type:</span>
+            <TypeBadge type={c.clinicType} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-16">Location:</span>
+            <span className="text-gray-700">{[c.city, c.state].filter(Boolean).join(', ') || '—'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-16">Mobile:</span>
+            <span className="text-gray-700 font-mono">{c.owner?.mobile || '—'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-16">Submitted:</span>
+            <span className="text-gray-600">{formatted}</span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate(`/admin/clinics/verify/${c.id}`)}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
+                       text-white bg-blue-600 text-sm font-semibold
+                       hover:bg-blue-700 active:scale-95 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            View Details
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <>
+      {/* Mobile view - Cards */}
+      <div className="lg:hidden space-y-3">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="border border-gray-200 rounded-xl p-4 bg-white">
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-4 bg-gray-100 rounded w-3/4" />
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  <div className="h-3 bg-gray-100 rounded w-2/3" />
+                </div>
+              </div>
+            ))
+          : clinics.map((c) => <MobileCard key={c.id} clinic={c} />)}
+      </div>
+
+      {/* Desktop view - Table */}
+      <div className="hidden lg:block">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
 
           {/* Head */}
           <thead>
@@ -199,6 +281,8 @@ const ClinicVerificationTable = ({ clinics, loading }) => {
         </table>
       </div>
     </div>
+      </div>
+    </>
   );
 };
 
