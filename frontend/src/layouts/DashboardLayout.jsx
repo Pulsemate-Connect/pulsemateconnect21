@@ -238,7 +238,7 @@ const DashboardLayout = ({ children }) => {
       </div>
 
       {/* Main (80% width on desktop) */}
-      <div className="flex-1 lg:pl-[20%] flex flex-col min-h-screen">
+      <div className="flex-1 lg:ml-[20%] flex flex-col min-h-screen w-full lg:w-4/5">
         {/* Top bar */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 lg:px-6 h-14 flex items-center gap-4">
           <button
