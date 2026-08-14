@@ -111,13 +111,23 @@ const AdminDashboard = () => {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  const isRoot = currentUser?.adminLevel === 'ROOT';
-  const canApprove = ['ROOT', 'SUPER_ADMIN', 'SUPPORT'].includes(currentUser?.adminLevel);
+  const isRoot = currentUser?.adminLevel === 'ROOT' || currentUser?.adminProfile?.level === 'ROOT';
+  const canApprove = ['ROOT', 'SUPER_ADMIN', 'SUPPORT'].includes(currentUser?.adminLevel || currentUser?.adminProfile?.level);
 
   useEffect(() => {
+    console.log('[AdminDashboard] Current user:', currentUser);
+    console.log('[AdminDashboard] Admin level:', currentUser?.adminLevel || currentUser?.adminProfile?.level);
+    
     getAdminDashboard()
-      .then((r) => setData(r.data.data))
-      .catch(() => toast.error('Failed to load dashboard'))
+      .then((r) => {
+        console.log('[AdminDashboard] Dashboard data loaded:', r.data.data);
+        setData(r.data.data);
+      })
+      .catch((err) => {
+        console.error('[AdminDashboard] Failed to load dashboard:', err.response || err);
+        const errorMsg = err.response?.data?.message || 'Failed to load dashboard';
+        toast.error(errorMsg);
+      })
       .finally(() => setLoading(false));
   }, []);
 
