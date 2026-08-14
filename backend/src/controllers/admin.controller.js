@@ -1049,9 +1049,15 @@ const getClinicDetail = async (req, res, next) => {
       include: {
         owner: {
           select: {
-            id: true, name: true, mobile: true, email: true,
-            isPhoneVerified: true, isEmailVerified: true,
-            approvalStatus: true, createdAt: true,
+            id: true, 
+            name: true, 
+            mobile: true, 
+            email: true,
+            isPhoneVerified: true, 
+            isEmailVerified: true,
+            approvalStatus: true, 
+            createdAt: true,
+            clinicOnboardingData: true, // Include the 4-step registration form data
           },
         },
         verificationLogs: {
@@ -1060,7 +1066,14 @@ const getClinicDetail = async (req, res, next) => {
       },
     });
     if (!clinic) return sendError(res, 'Clinic not found', 404);
-    return sendSuccess(res, { clinic });
+    
+    // Attach clinicOnboardingData to clinic object for easier access in frontend
+    const clinicWithOnboarding = {
+      ...clinic,
+      clinicOnboardingData: clinic.owner?.clinicOnboardingData || null,
+    };
+    
+    return sendSuccess(res, { clinic: clinicWithOnboarding });
   } catch (error) {
     next(error);
   }
