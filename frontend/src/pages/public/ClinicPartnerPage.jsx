@@ -202,11 +202,11 @@ const ClinicPartnerPage = () => {
 
       {/* Hero Section - Add 10% padding left and right */}
       <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 px-[10vw]">
-        {/* Background Image - Using reliable external URL */}
+        {/* Background Image - Local image with gradient fallback */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-50"
+          className="absolute inset-0 bg-cover bg-center opacity-60"
           style={{
-            backgroundImage: 'url("https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=2053&auto=format&fit=crop")',
+            backgroundImage: 'url("/images/clinic-hero.jpg")',
             backgroundPosition: 'center center',
             clipPath: 'inset(0 0 38px 0)',
           }}
@@ -214,7 +214,7 @@ const ClinicPartnerPage = () => {
           aria-label="Modern clinic interior"
         />
         {/* Dark overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 via-blue-800/30 to-blue-900/50" style={{ clipPath: 'inset(0 0 38px 0)' }} />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/30 via-blue-800/20 to-blue-900/40" style={{ clipPath: 'inset(0 0 38px 0)' }} />
         
         {/* Content with padding for fixed nav */}
         <div className="relative max-w-6xl mx-auto text-center z-10 w-full px-4 -mt-32">
