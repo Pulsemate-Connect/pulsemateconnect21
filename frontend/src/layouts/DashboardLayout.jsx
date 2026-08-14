@@ -225,8 +225,8 @@ const DashboardLayout = ({ children }) => {
         />
       )}
 
-      {/* Sidebar — desktop (fixed, 260px) */}
-      <div className="hidden lg:flex lg:flex-col lg:w-[260px] lg:fixed lg:inset-y-0 z-10">
+      {/* Sidebar — desktop (fixed, 20% width) */}
+      <div className="hidden lg:flex lg:flex-col lg:w-1/5 lg:fixed lg:inset-y-0 z-10">
         <Sidebar />
       </div>
 
@@ -237,8 +237,8 @@ const DashboardLayout = ({ children }) => {
         <Sidebar />
       </div>
 
-      {/* Main */}
-      <div className="flex-1 lg:pl-[260px] flex flex-col min-h-screen">
+      {/* Main (80% width on desktop) */}
+      <div className="flex-1 lg:pl-[20%] flex flex-col min-h-screen">
         {/* Top bar */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 lg:px-6 h-14 flex items-center gap-4">
           <button
