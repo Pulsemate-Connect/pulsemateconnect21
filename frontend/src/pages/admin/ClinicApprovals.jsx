@@ -10,6 +10,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import StatusBadge from '../../components/ui/StatusBadge';
+import ClinicApplicationDetail from '../../components/admin/ClinicApplicationDetail';
 import toast from 'react-hot-toast';
 
 const TABS = [
@@ -52,6 +53,7 @@ const ClinicApprovals = () => {
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [selectedClinic, setSelectedClinic] = useState(null);
   const [decisionState, setDecisionState] = useState({
     open: false,
     entityType: null,
@@ -261,6 +263,7 @@ const ClinicApprovals = () => {
 
                       <ActionPanel
                         busy={actionLoading === clinic.id}
+                        onViewDetails={() => setSelectedClinic(clinic)}
                         onApprove={() => openDecisionModal('clinic', clinic, 'VERIFIED')}
                         onReject={() => openDecisionModal('clinic', clinic, 'REJECTED')}
                         onSuspend={() => openDecisionModal('clinic', clinic, 'SUSPENDED')}
@@ -345,6 +348,27 @@ const ClinicApprovals = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Clinic Application Detail Modal */}
+      {selectedClinic && (
+        <ClinicApplicationDetail
+          clinic={selectedClinic}
+          onClose={() => setSelectedClinic(null)}
+          onApprove={() => {
+            setSelectedClinic(null);
+            openDecisionModal('clinic', selectedClinic, 'VERIFIED');
+          }}
+          onReject={() => {
+            setSelectedClinic(null);
+            openDecisionModal('clinic', selectedClinic, 'REJECTED');
+          }}
+          onSuspend={() => {
+            setSelectedClinic(null);
+            openDecisionModal('clinic', selectedClinic, 'SUSPENDED');
+          }}
+          isLoading={actionLoading === selectedClinic?.id}
+        />
+      )}
     </DashboardLayout>
   );
 };
@@ -356,8 +380,15 @@ const SummaryCard = ({ label, value, tone }) => (
   </div>
 );
 
-const ActionPanel = ({ busy, onApprove, onReject, onSuspend }) => (
+const ActionPanel = ({ busy, onViewDetails, onApprove, onReject, onSuspend }) => (
   <div className="flex min-w-[190px] flex-col gap-2">
+    <button
+      type="button"
+      onClick={onViewDetails}
+      className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+    >
+      View Details
+    </button>
     <button
       type="button"
       onClick={onApprove}
