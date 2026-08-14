@@ -201,10 +201,10 @@ const ClinicPartnerPage = () => {
       </nav>
 
       {/* Hero Section - Add 10% padding left and right */}
-      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 px-[10vw]">
-        {/* Background Image - Local image with gradient fallback */}
+      <section className="relative text-white overflow-hidden min-h-screen flex items-center bg-gray-900 px-[10vw]">
+        {/* Background Image - Full opacity, no blue overlay */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-60"
+          className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage: 'url("/images/clinic-hero.jpg")',
             backgroundPosition: 'center center',
@@ -213,8 +213,8 @@ const ClinicPartnerPage = () => {
           role="img"
           aria-label="Modern clinic interior"
         />
-        {/* Dark overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/30 via-blue-800/20 to-blue-900/40" style={{ clipPath: 'inset(0 0 38px 0)' }} />
+        {/* Subtle dark overlay for text readability only */}
+        <div className="absolute inset-0 bg-black/30" style={{ clipPath: 'inset(0 0 38px 0)' }} />
         
         {/* Content with padding for fixed nav */}
         <div className="relative max-w-6xl mx-auto text-center z-10 w-full px-4 -mt-32">
