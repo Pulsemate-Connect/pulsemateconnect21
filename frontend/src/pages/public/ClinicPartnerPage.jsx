@@ -97,7 +97,7 @@ const ClinicPartnerPage = () => {
       {/* Navigation Bar - Fixed at top */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white shadow-sm' : 'bg-black/40 backdrop-blur-sm shadow-none'
+          isScrolled ? 'bg-white shadow-sm' : 'bg-transparent'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -208,13 +208,12 @@ const ClinicPartnerPage = () => {
           style={{
             backgroundImage: 'url("/images/clinic-hero.jpg")',
             backgroundPosition: 'center center',
-            clipPath: 'inset(0 0 38px 0)',
           }}
           role="img"
           aria-label="Modern clinic interior"
         />
         {/* Subtle dark overlay for text readability only */}
-        <div className="absolute inset-0 bg-black/30" style={{ clipPath: 'inset(0 0 38px 0)' }} />
+        <div className="absolute inset-0 bg-black/30" />
         
         {/* Content with padding for fixed nav */}
         <div className="relative max-w-6xl mx-auto text-center z-10 w-full px-4 -mt-32">
