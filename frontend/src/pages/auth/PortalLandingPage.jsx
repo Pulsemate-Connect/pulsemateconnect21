@@ -14,7 +14,7 @@ const portalCards = [
   {
     title: 'Apply as Clinic',
     description: 'Start onboarding your clinic, staff and operational workflows.',
-    href: '/portal/apply-clinic',
+    href: '/clinic-partner',
     icon: 'building',
     tint: 'from-emerald-500 to-teal-600',
   },
@@ -213,7 +213,7 @@ const PortalLandingPage = () => {
                     Open Staff Portal
                   </Link>
                   <Link
-                    to="/portal/apply-clinic"
+                    to="/clinic-partner"
                     className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     Apply as Clinic

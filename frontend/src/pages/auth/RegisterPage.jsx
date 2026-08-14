@@ -461,7 +461,7 @@ const RegisterPage = () => {
             Applying as a{' '}
             <Link to="/register/doctor" className="font-semibold text-green-600 hover:text-green-700">Doctor</Link>
             {' '}or{' '}
-            <Link to="/register/clinic-owner" className="font-semibold text-orange-600 hover:text-orange-700">Clinic Owner</Link>
+            <Link to="/clinic-partner" className="font-semibold text-orange-600 hover:text-orange-700">Clinic Owner</Link>
             ?
           </p>
           <p className="text-xs text-gray-400">

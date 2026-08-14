@@ -16,7 +16,7 @@ const FAQ = [
   },
   {
     q: 'How do I register my clinic on PulseMate Connect?',
-    a: 'Visit pulsemateconnect.in/register/clinic-owner and complete the registration form. You will need to upload your clinic registration documents. Our team will review and verify your application within 2–3 business days.',
+    a: 'Visit pulsemateconnect.in/clinic-partner and click "Register your clinic". Complete the email/mobile OTP verification and then fill out the 4-step onboarding form. Our team will review and verify your application within 1-3 business days.',
   },
   {
     q: 'Is my medical and personal data safe with PulseMate?',

@@ -127,7 +127,7 @@ const SelectRolePage = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/register/clinic-owner')}
+            onClick={() => navigate('/clinic-partner')}
             className="rounded-2xl border border-orange-200 bg-white px-4 py-4 text-left transition hover:border-orange-400 hover:bg-orange-50"
           >
             <p className="text-sm font-semibold text-orange-700">Clinic apply</p>
