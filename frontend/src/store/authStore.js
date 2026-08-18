@@ -74,16 +74,27 @@ const useAuthStore = create(
       },
 
       checkAuth: async () => {
-        // If we already have a token, skip the API call and just set loading to false
-        const { accessToken } = get();
-        if (accessToken) {
-          console.log('[AuthStore] Token exists, setting isLoading to false');
-          set((state) => ({ ...state, isLoading: false }));
+        const { accessToken, isAuthenticated } = get();
+        
+        // If we have a token and are authenticated, just set loading to false
+        if (accessToken && isAuthenticated) {
+          console.log('[AuthStore] Already authenticated, setting isLoading to false');
+          set({ isLoading: false });
           return;
         }
 
-        console.log('[AuthStore] No token, checking /auth/me');
-        set((state) => ({ ...state, isLoading: true }));
+        // If no token, don't make API call - just set loading to false
+        // This prevents unnecessary 401 errors on initial page load
+        if (!accessToken) {
+          console.log('[AuthStore] No token in storage, skipping auth check');
+          set({ isLoading: false });
+          return;
+        }
+
+        // Only reach here if we have a token but not authenticated flag
+        // (shouldn't happen normally due to persist middleware)
+        console.log('[AuthStore] Have token but not authenticated, checking /auth/me');
+        set({ isLoading: true });
         try {
           const response = await getMe();
           const { user } = response.data.data;
@@ -92,8 +103,8 @@ const useAuthStore = create(
             isAuthenticated: true,
             isLoading: false,
           });
-        } catch (_) {
-          console.log('[AuthStore] No persisted session found');
+        } catch (error) {
+          console.log('[AuthStore] Session check failed:', error.response?.status || error.message);
           set({
             user: null,
             accessToken: null,

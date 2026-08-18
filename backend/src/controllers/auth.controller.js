@@ -137,6 +137,20 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
   if (user.approvalStatus === 'REJECTED') {
     return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
   }
+  // Block login for users in pending/review states (primarily clinic owners)
+  if (user.approvalStatus === 'PENDING') {
+    return sendError(res, 'Your clinic application is pending verification. Please wait for admin approval.', 403);
+  }
+  if (user.approvalStatus === 'UNDER_REVIEW') {
+    return sendError(res, 'Your clinic application is currently under review. Please wait for admin approval.', 403);
+  }
+  if (user.approvalStatus === 'CHANGES_REQUIRED') {
+    return sendError(res, 'Your clinic application requires changes. Please check your email for details or contact support.', 403);
+  }
+  // Final check: only allow VERIFIED users (except SUPER_ADMIN who may have different rules)
+  if (user.approvalStatus !== 'VERIFIED' && user.role !== 'SUPER_ADMIN') {
+    return sendError(res, 'Your account must be verified before you can log in.', 403);
+  }
   if (!user.isActive) {
     return sendError(res, 'Account is disabled', 403);
   }
@@ -574,12 +588,35 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
     // Local storage provides path
     const getFileUrl = (file) => {
       if (!file) return null;
-      // Cloudinary provides secure_url or url
+      
+      // Cloudinary provides secure_url or url (starts with http)
       if (file.path && file.path.startsWith('http')) {
         return file.path;
       }
-      // For local storage, we'll use the path (this will be converted to a URL by the frontend)
-      return file.path || null;
+      
+      // For local storage (multer), extract only the relative path
+      // file.path could be:
+      //   - C:\Users\...\backend\uploads\clinic-owner\file.png (Windows absolute)
+      //   - /home/user/backend/uploads/clinic-owner/file.png (Unix absolute)
+      //   - uploads/clinic-owner/file.png (relative - ideal)
+      if (file.path) {
+        const filePath = file.path;
+        
+        // Normalize path separators to forward slashes
+        const normalizedPath = filePath.replace(/\\/g, '/');
+        
+        // Find 'uploads' in the path and extract from there
+        const uploadsMatch = normalizedPath.match(/uploads\/.*$/);
+        if (uploadsMatch) {
+          return uploadsMatch[0]; // Returns: uploads/clinic-owner/file.png
+        }
+        
+        // If no 'uploads' found, log warning and return null
+        logger.warn(`[Onboarding] Could not extract relative path from: ${filePath}`);
+        return null;
+      }
+      
+      return null;
     };
 
     // Build clinic photos object with individual photos
@@ -589,6 +626,17 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
       reception: getFileUrl(files.clinicReception?.[0]),
       consultation: getFileUrl(files.clinicConsultation?.[0]),
     };
+
+    // DEBUG: Log what paths we extracted
+    logger.info(`[Onboarding] Extracted file paths:`, {
+      logo: clinicPhotos.logo,
+      exterior: clinicPhotos.exterior,
+      documents: {
+        registration: getFileUrl(files.clinicRegistrationCertificate?.[0]),
+        license: getFileUrl(files.medicalLicense?.[0]),
+        idProof: getFileUrl(files.ownerIdProof?.[0]),
+      }
+    });
 
     // Prepare Clinic Documents data object
     const clinicDocumentsData = {
@@ -701,10 +749,21 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       completedAt: new Date().toISOString(),
     };
 
-    // Update user with final submission
+    // Extract clinic data from onboarding steps FIRST (we need this for user update)
+    const step1 = onboardingData.clinicInformation || {};
+    const step2 = onboardingData.servicesOperations || {};
+    const step3 = onboardingData.clinicDocuments || {};
+
+    // Update user with final submission AND email/mobile from Step 1
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
+        // Only update email if user doesn't have one (don't overwrite existing email)
+        email: user.email || step1.ownerEmail,
+        // Only update mobile if user doesn't have one (don't overwrite existing mobile)
+        mobile: user.mobile || step1.ownerMobile,
+        // Update name if provided in Step 1 and user doesn't have one
+        name: user.name || step1.ownerName || partnerAgreementData.ownerName,
         approvalStatus: 'PENDING',
         clinicOnboardingData: {
           ...onboardingData,
@@ -725,19 +784,14 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       },
     });
 
-    // Extract clinic data from onboarding steps
-    const step1 = onboardingData.clinicInformation || {};
-    const step2 = onboardingData.servicesOperations || {};
-    const step3 = onboardingData.clinicDocuments || {};
-
     // Create Clinic record for admin approval
     const clinic = await prisma.clinic.create({
       data: {
         name: step1.clinicName,
         ownerId: updatedUser.id,
-        phone: step1.phone || updatedUser.mobile,
-        email: step1.email,
-        address: step1.address,
+        phone: step1.primaryContactPhone || step1.ownerMobile || updatedUser.mobile,
+        email: step1.ownerEmail || updatedUser.email,
+        address: step1.addressLine1 || step1.address,
         city: step1.city,
         district: step1.district,
         state: step1.state,
@@ -753,12 +807,12 @@ const submitClinicApplicationHandler = async (req, res, next) => {
         // Step 2 data
         specialties: step2.services || [],
         openingHours: step2.operatingHours ? JSON.stringify(step2.operatingHours) : null,
-        consultationModes: step2.appointmentModes || [],
+        consultationModes: step2.appointmentModes || step2.consultationTypes || [],
         facilities: step2.facilities || [],
         languagesSpoken: step2.languages || [],
         // Step 3 data
-        licenseDocumentUrl: step3.clinicLicense,
-        medicalEstablishmentCertificateUrl: step3.medicalCertificate,
+        licenseDocumentUrl: step3.clinicLicense || step3.clinicRegistrationCertificate,
+        medicalEstablishmentCertificateUrl: step3.medicalCertificate || step3.medicalEstablishmentLicense,
         gstCertificateUrl: step3.gstCertificate,
         panCardUrl: step3.panCard,
         gstNumber: step3.gstNumber,
@@ -1259,7 +1313,6 @@ const registerDoctorHandler = async (req, res, next) => {
             consultationFee,
             onlineAvailable: onlineConsultationEnabled,
             offlineAvailable: true,
-            marketplaceVisible: false,
           },
         },
       },
@@ -2274,11 +2327,14 @@ const verifyOtpHandler_Legacy = async (req, res, next) => {
 
 /**
  * POST /api/auth/register-email-otp/send
- * Send OTP to email for clinic partner registration
+ * Send OTP to email for clinic partner registration OR login
+ * @param {string} email - User's email
+ * @param {string} name - User's name (optional for login)
+ * @param {string} purpose - 'SIGNUP' (registration) or 'LOGIN' (existing user login)
  */
 const sendRegistrationEmailOtp = async (req, res, next) => {
   try {
-    const { email, name } = req.body;
+    const { email, name, purpose = 'SIGNUP' } = req.body;
     const cleanEmail = email.toLowerCase().trim();
     
     // Validate email format
@@ -2297,18 +2353,33 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
       },
     });
     
-    // Check if existing user has a pending application
-    if (existingUser) {
-      if (existingUser.approvalStatus === 'PENDING') {
-        return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
+    // Different validation for SIGNUP vs LOGIN
+    if (purpose === 'SIGNUP') {
+      // For registration, reject if email already exists with active/pending account
+      if (existingUser) {
+        if (existingUser.approvalStatus === 'PENDING') {
+          return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
+        }
+        
+        if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          return sendError(res, 'A user with this email already exists. Please use login instead.', 409);
+        }
+        
+        // For other statuses (REJECTED, etc), allow (they can re-register)
+        logger.info(`[Auth] Existing user found for ${cleanEmail} with status ${existingUser.approvalStatus}, allowing re-registration`);
+      }
+    } else if (purpose === 'LOGIN') {
+      // For login, require that email exists
+      if (!existingUser) {
+        return sendError(res, 'Email not registered. Please create an account first.', 404);
       }
       
-      if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
-        return sendError(res, 'A user with this email already exists and is active.', 409);
+      // Check if user is not CLINIC_OWNER
+      if (existingUser.role !== 'CLINIC_OWNER') {
+        return sendError(res, 'This email is registered with a different account type. Please use the appropriate login page.', 403);
       }
       
-      // For other statuses, log and allow (they can add CLINIC_OWNER role)
-      logger.info(`[Auth] Existing user found for ${cleanEmail} with role ${existingUser.role}`);
+      logger.info(`[Auth] Sending login OTP to existing user ${cleanEmail} with status ${existingUser.approvalStatus}`);
     }
     
     // Check if test email
@@ -2323,7 +2394,7 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
       await prisma.otpVerification.create({
         data: {
           mobile: cleanEmail, // Reuse mobile field for email
-          purpose: 'SIGNUP',
+          purpose: purpose === 'LOGIN' ? 'LOGIN' : 'SIGNUP',
           otpHash: await hashPassword(testOtp),
           expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
           attempts: 0,
@@ -2346,13 +2417,13 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
     
     // Send email via Resend
     const { sendClinicOwnerVerificationOtpEmail } = require('../services/email.service');
-    await sendClinicOwnerVerificationOtpEmail(cleanEmail, otp, name);
+    await sendClinicOwnerVerificationOtpEmail(cleanEmail, otp, name || 'User');
     
     // Store OTP hash in database
     await prisma.otpVerification.create({
       data: {
         mobile: cleanEmail, // Reuse mobile field for email
-        purpose: 'SIGNUP',
+        purpose: purpose === 'LOGIN' ? 'LOGIN' : 'SIGNUP',
         otpHash: await hashPassword(otp),
         expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
         attempts: 0,
@@ -2360,7 +2431,7 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
       }
     });
     
-    logger.info(`[Auth] OTP sent to ${cleanEmail} via email`);
+    logger.info(`[Auth] OTP sent to ${cleanEmail} via email for ${purpose}`);
     
     return sendSuccess(res, {
       message: 'OTP sent successfully to your email',
@@ -2386,11 +2457,11 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
       return sendError(res, 'Invalid OTP format', 400);
     }
     
-    // Find OTP record
+    // Find OTP record - check both SIGNUP and LOGIN purposes
     const otpRecord = await prisma.otpVerification.findFirst({
       where: {
         mobile: cleanEmail, // We stored email in mobile field
-        purpose: 'SIGNUP',
+        purpose: { in: ['SIGNUP', 'LOGIN'] }, // ✅ FIX: Accept both SIGNUP and LOGIN
         expiresAt: { gte: new Date() },
         isUsed: false,
       },
@@ -2444,7 +2515,7 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
           mobile: placeholderMobile, // Placeholder mobile (required field)
           name: name,
           role: 'CLINIC_OWNER',
-          approvalStatus: 'VERIFIED', // Set to VERIFIED so user can complete onboarding
+          approvalStatus: 'PENDING', // ✅ FIX: Set to PENDING - must complete onboarding and get admin approval
           isEmailVerified: true,
           authProvider: 'EMAIL_OTP',
           clinicOwnerProfile: { create: { profileCompleted: false } },
@@ -2465,8 +2536,29 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
         },
         include: baseUserInclude,
       });
-      logger.info(`[Auth] ${user.role} login via email OTP: ${user.id} (${cleanEmail})`);
+      logger.info(`[Auth] ${user.role} login via email OTP: ${user.id} (${cleanEmail}), status: ${user.approvalStatus}`);
     }
+
+    // ✅ SECURITY FIX: Block login only for REJECTED and SUSPENDED clinic owners (existing users)
+    // Allow PENDING, UNDER_REVIEW, CHANGES_REQUIRED to login and see their dashboard
+    if (!isNewUser && user.role === 'CLINIC_OWNER') {
+      if (user.approvalStatus === 'REJECTED') {
+        logger.warn(`[Auth] Login blocked: CLINIC_OWNER ${user.id} status is REJECTED`);
+        return sendError(res, 'Your clinic registration has been rejected by the admin. Please contact support for more information.', 403);
+      }
+      
+      if (user.approvalStatus === 'SUSPENDED') {
+        logger.warn(`[Auth] Login blocked: CLINIC_OWNER ${user.id} status is SUSPENDED`);
+        return sendError(res, 'Your clinic account has been suspended. Please contact support.', 403);
+      }
+    }
+
+    // ✅ Check if user has a clinic registered
+    const hasClinic = user.role === 'CLINIC_OWNER' 
+      ? await prisma.clinic.count({ where: { ownerId: user.id } }) > 0
+      : false;
+
+    logger.info(`[Auth] hasClinic check: userId=${user.id}, role=${user.role}, isNewUser=${isNewUser}, hasClinic=${hasClinic}`);
 
     // Issue JWT tokens
     const tokens = await issueAuthTokens(res, user, req);
@@ -2477,16 +2569,29 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
       entityType: 'User',
       entityId: user.id,
       ipAddress: req.ip,
-      metadata: { provider: 'EMAIL_OTP' },
+      metadata: { provider: 'EMAIL_OTP', isNewUser, hasClinic },
     });
+
+    // ✅ DEBUG: Log the complete response data structure
+    const responseData = {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { ...toAuthUser(user), isNewUser, hasClinic },
+    };
+    
+    logger.info(`[Auth] Response data structure: ${JSON.stringify({
+      hasAccessToken: !!responseData.accessToken,
+      hasRefreshToken: !!responseData.refreshToken,
+      userId: responseData.user?.id,
+      userRole: responseData.user?.role,
+      isNewUser: responseData.user?.isNewUser,
+      hasClinic: responseData.user?.hasClinic,
+      allUserKeys: Object.keys(responseData.user || {})
+    }, null, 2)}`);
 
     return sendSuccess(
       res,
-      {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        user: { ...toAuthUser(user), isNewUser },
-      },
+      responseData,
       isNewUser ? 'Account created successfully' : 'Login successful'
     );
   } catch (error) {
@@ -2627,15 +2732,34 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       
       // ✅ SAVE TO DATABASE: Create or update user with verified phone (even for test mode)
       try {
-        // Check if user already exists
-        let user = await prisma.user.findUnique({
-          where: { mobile: mobileNumber },
+        // Check if user already exists - try both with and without +91 prefix
+        let user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { mobile: normalizedPhone }, // With +91
+              { mobile: mobileNumber },     // Without +91
+            ]
+          },
           include: baseUserInclude,
         });
         
         if (user) {
-          // User exists - update verification status and issue login tokens
+          // User exists - CHECK APPROVAL STATUS before allowing login (TEST MODE)
           logger.info(`[OTP] 🧪 TEST MODE: Updating existing user ${user.id} phone verification status`);
+          
+          // Block login only for SUSPENDED and REJECTED users
+          // Allow PENDING, UNDER_REVIEW, CHANGES_REQUIRED to login and see their status
+          if (user.approvalStatus === 'SUSPENDED') {
+            return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+          }
+          if (user.approvalStatus === 'REJECTED') {
+            return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
+          }
+          if (!user.isActive) {
+            return sendError(res, 'Account is disabled', 403);
+          }
+          
+          // Update verification status
           user = await prisma.user.update({
             where: { id: user.id },
             data: {
@@ -2733,15 +2857,34 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       // Normalize mobile number for database
       const dbMobile = normalizedPhone.replace(/^\+91/, '');
       
-      // Check if user already exists
-      let user = await prisma.user.findUnique({
-        where: { mobile: dbMobile },
+      // Check if user already exists - try both with and without +91 prefix
+      let user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { mobile: normalizedPhone }, // With +91
+            { mobile: dbMobile },         // Without +91
+          ]
+        },
         include: baseUserInclude,
       });
       
       if (user) {
-        // User exists - update verification status and issue login tokens
+        // User exists - CHECK APPROVAL STATUS before allowing login
         logger.info(`[OTP] Updating existing user ${user.id} phone verification status`);
+        
+        // Block login only for SUSPENDED and REJECTED users
+        // Allow PENDING, UNDER_REVIEW, CHANGES_REQUIRED to login and see their status
+        if (user.approvalStatus === 'SUSPENDED') {
+          return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+        }
+        if (user.approvalStatus === 'REJECTED') {
+          return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
+        }
+        if (!user.isActive) {
+          return sendError(res, 'Account is disabled', 403);
+        }
+        
+        // Update verification status
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
@@ -2862,10 +3005,16 @@ const checkUserExistsHandler = async (req, res, next) => {
         return sendError(res, 'Invalid Indian mobile number', 400);
       }
       
-      logger.info(`[Auth] Checking if user exists with mobile: ${mobileNumber}`);
+      logger.info(`[Auth] Checking if user exists with mobile: ${mobileNumber} or ${normalizedPhone}`);
       
-      user = await prisma.user.findUnique({
-        where: { mobile: mobileNumber },
+      // ✅ FIX: Search with both formats (with and without +91 prefix)
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { mobile: normalizedPhone }, // With +91
+            { mobile: mobileNumber },     // Without +91
+          ]
+        },
         select: {
           id: true,
           mobile: true,
@@ -2986,6 +3135,406 @@ const checkMobileVerificationHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/doctor/send-mobile-otp - Send mobile OTP for doctor login
+ * Public route - sends OTP to doctor's mobile number
+ */
+const doctorSendMobileOtpLogin = async (req, res, next) => {
+  try {
+    const { mobile } = req.body;
+
+    if (!mobile) {
+      return sendError(res, 'Mobile number is required', 400);
+    }
+
+    const normalizedMobile = normalizeMobileNumber(mobile);
+
+    // Find doctor user with this mobile
+    const user = await prisma.user.findFirst({
+      where: {
+        mobile: normalizedMobile,
+        role: 'DOCTOR',
+      },
+    });
+
+    if (!user) {
+      return sendError(res, 'No doctor account found with this mobile number', 404);
+    }
+
+    if (!user.isPhoneVerified) {
+      return sendError(res, 'Mobile number not verified. Please complete your profile verification first.', 403);
+    }
+
+    if (user.approvalStatus === 'SUSPENDED') {
+      return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+    }
+
+    if (user.approvalStatus === 'REJECTED') {
+      return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
+    }
+
+    // Generate 6-digit OTP
+    const testNumbers = (process.env.TEST_OTP_NUMBERS || '').split(',');
+    const cleanMobile = normalizedMobile.replace(/\D/g, '').replace(/^91/, '');
+    const isTestNumber = process.env.ENABLE_TEST_OTP === 'true' && testNumbers.includes(cleanMobile);
+    
+    // Use fixed OTP for test numbers, random for real numbers
+    const otp = isTestNumber ? (process.env.TEST_OTP_CODE || '123456') : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Hash OTP before storing
+    const bcrypt = require('bcryptjs');
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Store OTP hash in database
+    await prisma.otpVerification.create({
+      data: {
+        mobile: normalizedMobile,
+        otpHash,
+        expiresAt,
+        purpose: 'LOGIN',
+      },
+    });
+
+    // Send OTP via SMS (or log for test numbers)
+    if (isTestNumber) {
+      // Test number - just log OTP
+      logger.info(`[DoctorLogin] 🧪 TEST MODE - OTP for ${normalizedMobile}: ${otp}`);
+      console.log(`\n═══════════════════════════════════════`);
+      console.log(`📱 DOCTOR LOGIN OTP`);
+      console.log(`Mobile: ${normalizedMobile}`);
+      console.log(`OTP: ${otp}`);
+      console.log(`═══════════════════════════════════════\n`);
+    } else {
+      // Real number - send via Message Central SMS API
+      try {
+        const axios = require('axios');
+        const authToken = await messageCentralService.generateAuthToken();
+        
+        const smsMessage = `Your PulseMate doctor login OTP is: ${otp}. Valid for 10 minutes. Do not share with anyone.`;
+        
+        // Message Central MessageNow SMS API
+        const smsResponse = await axios.post(
+          `${process.env.MESSAGE_CENTRAL_BASE_URL || 'https://cpaas.messagecentral.com'}/core/v1/sms`,
+          {
+            to: cleanMobile,
+            message: smsMessage,
+            type: 'TXN',
+            countryCode: '91'
+          },
+          {
+            headers: {
+              'authToken': authToken,
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000
+          }
+        );
+
+        if (smsResponse.data && smsResponse.data.responseCode === 200) {
+          logger.info(`[DoctorLogin] ✅ SMS sent to ${normalizedMobile}`);
+          console.log(`[DoctorLogin] ✓ SMS delivered successfully`);
+        } else {
+          throw new Error(`SMS API returned error: ${JSON.stringify(smsResponse.data)}`);
+        }
+      } catch (smsError) {
+        logger.error(`[DoctorLogin] ❌ SMS send failed:`, {
+          error: smsError.message,
+          response: smsError.response?.data,
+          status: smsError.response?.status
+        });
+        
+        // Fallback: Log OTP for manual verification
+        console.log(`\n⚠️  SMS SEND FAILED - Manual OTP for ${normalizedMobile}: ${otp}\n`);
+      }
+    }
+
+    logger.info(`[DoctorLogin] Mobile OTP sent to ${normalizedMobile}`);
+
+    return sendSuccess(res, {}, 'OTP sent to your mobile number');
+  } catch (error) {
+    logger.error('[DoctorLogin] Send mobile OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/doctor/verify-mobile-otp - Verify mobile OTP and login doctor
+ * Public route - verifies OTP and issues auth tokens
+ */
+const doctorVerifyMobileOtpLogin = async (req, res, next) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    if (!mobile || !otp) {
+      return sendError(res, 'Mobile number and OTP are required', 400);
+    }
+
+    const normalizedMobile = normalizeMobileNumber(mobile);
+
+    // Find doctor user
+    const user = await prisma.user.findFirst({
+      where: {
+        mobile: normalizedMobile,
+        role: 'DOCTOR',
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'No doctor account found', 404);
+    }
+
+    // Find all valid OTP records for this mobile
+    const otpRecords = await prisma.otpVerification.findMany({
+      where: {
+        mobile: normalizedMobile,
+        purpose: 'LOGIN',
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecords || otpRecords.length === 0) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Find matching OTP using bcrypt comparison
+    const bcrypt = require('bcryptjs');
+    let matchedOtpRecord = null;
+    
+    for (const record of otpRecords) {
+      const isMatch = await bcrypt.compare(otp, record.otpHash);
+      if (isMatch) {
+        matchedOtpRecord = record;
+        break;
+      }
+    }
+
+    if (!matchedOtpRecord) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Mark OTP as used
+    await prisma.otpVerification.update({
+      where: { id: matchedOtpRecord.id },
+      data: { isUsed: true, verifiedAt: new Date() },
+    });
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Issue auth tokens
+    const tokens = await issueAuthTokens(res, user, req);
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'DOCTOR_LOGIN_MOBILE_OTP',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+    });
+
+    logger.info(`[DoctorLogin] Mobile OTP login successful for ${user.name}`);
+
+    return sendSuccess(res, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: toAuthUser(user),
+    }, 'Login successful');
+  } catch (error) {
+    logger.error('[DoctorLogin] Verify mobile OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/doctor/send-email-otp - Send email OTP for doctor login
+ * Public route - sends OTP to doctor's email
+ */
+const doctorSendEmailOtpLogin = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return sendError(res, 'Email is required', 400);
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find doctor user with this email
+    const user = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        role: 'DOCTOR',
+      },
+    });
+
+    if (!user) {
+      return sendError(res, 'No doctor account found with this email', 404);
+    }
+
+    if (!user.isEmailVerified) {
+      return sendError(res, 'Email not verified. Please complete your profile verification first.', 403);
+    }
+
+    if (user.approvalStatus === 'SUSPENDED') {
+      return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+    }
+
+    if (user.approvalStatus === 'REJECTED') {
+      return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Hash OTP before storing
+    const bcrypt = require('bcryptjs');
+    const tokenHash = await bcrypt.hash(otp, 10);
+
+    // Store OTP hash in database
+    await prisma.emailVerification.create({
+      data: {
+        email: normalizedEmail,
+        tokenHash,
+        expiresAt,
+        purpose: 'LOGIN',
+      },
+    });
+
+    // Send OTP via email
+    const testEmails = (process.env.TEST_OTP_EMAILS || '').split(',');
+    
+    if (process.env.ENABLE_TEST_OTP === 'true' && testEmails.includes(normalizedEmail)) {
+      // Test email - just log OTP
+      logger.info(`[DoctorLogin] 🧪 TEST MODE - OTP for ${normalizedEmail}: ${otp}`);
+      console.log(`\n═══════════════════════════════════════`);
+      console.log(`📧 DOCTOR LOGIN OTP`);
+      console.log(`Email: ${normalizedEmail}`);
+      console.log(`OTP: ${otp}`);
+      console.log(`═══════════════════════════════════════\n`);
+    } else {
+      // Real email - send via email service
+      try {
+        const { sendEmailOtp } = require('../services/email.service');
+        await sendEmailOtp(normalizedEmail, user.name, otp);
+        logger.info(`[DoctorLogin] ✅ Email sent to ${normalizedEmail}`);
+      } catch (emailError) {
+        logger.error(`[DoctorLogin] ❌ Failed to send email:`, emailError.message);
+        // Don't throw error - OTP is stored, user can still verify
+        console.log(`\n⚠️  EMAIL FAILED - Manual OTP for ${normalizedEmail}: ${otp}\n`);
+      }
+    }
+
+    logger.info(`[DoctorLogin] Email OTP sent to ${normalizedEmail}`);
+
+    return sendSuccess(res, {}, 'OTP sent to your email address');
+  } catch (error) {
+    logger.error('[DoctorLogin] Send email OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/doctor/verify-email-otp - Verify email OTP and login doctor
+ * Public route - verifies OTP and issues auth tokens
+ */
+const doctorVerifyEmailOtpLogin = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return sendError(res, 'Email and OTP are required', 400);
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find doctor user
+    const user = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        role: 'DOCTOR',
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'No doctor account found', 404);
+    }
+
+    // Find all valid OTP records for this email
+    const otpRecords = await prisma.emailVerification.findMany({
+      where: {
+        email: normalizedEmail,
+        purpose: 'LOGIN',
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecords || otpRecords.length === 0) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Find matching OTP using bcrypt comparison
+    const bcrypt = require('bcryptjs');
+    let matchedOtpRecord = null;
+    
+    for (const record of otpRecords) {
+      const isMatch = await bcrypt.compare(otp, record.tokenHash);
+      if (isMatch) {
+        matchedOtpRecord = record;
+        break;
+      }
+    }
+
+    if (!matchedOtpRecord) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Mark OTP as used
+    await prisma.emailVerification.update({
+      where: { id: matchedOtpRecord.id },
+      data: { isUsed: true, verifiedAt: new Date() },
+    });
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Issue auth tokens
+    const tokens = await issueAuthTokens(res, user, req);
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'DOCTOR_LOGIN_EMAIL_OTP',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+    });
+
+    logger.info(`[DoctorLogin] Email OTP login successful for ${user.name}`);
+
+    return sendSuccess(res, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: toAuthUser(user),
+    }, 'Login successful');
+  } catch (error) {
+    logger.error('[DoctorLogin] Verify email OTP error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   // Firebase Phone Auth
   patientFirebasePhoneLoginHandler,
@@ -3008,6 +3557,12 @@ module.exports = {
   clinicOwnerVerifyEmailOtpHandler,
   clinicOwnerSendEmailVerificationHandler: clinicOwnerSendEmailOtpHandler,
   clinicOwnerVerifyEmailHandler: clinicOwnerVerifyEmailOtpHandler,
+  
+  // ✅ NEW: Doctor OTP Login
+  doctorSendMobileOtpLogin,
+  doctorVerifyMobileOtpLogin,
+  doctorSendEmailOtpLogin,
+  doctorVerifyEmailOtpLogin,
   
   // Onboarding
   saveClinicOnboardingStep1Handler,

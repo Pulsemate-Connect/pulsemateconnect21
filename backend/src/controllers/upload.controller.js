@@ -142,9 +142,94 @@ const uploadDoctorPhoto = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/upload/doctor-document - Upload doctor document (public - uses token)
+ */
+const uploadDoctorDocument = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+
+    const { invitationToken, documentType } = req.body;
+
+    if (!invitationToken) {
+      return sendError(res, 'Invitation token is required', 400);
+    }
+
+    // Verify invitation token
+    const invitation = await prisma.doctorInvitation.findUnique({
+      where: { invitationToken },
+    });
+
+    if (!invitation) {
+      return sendError(res, 'Invalid invitation token', 404);
+    }
+
+    // Check token expiration
+    if (new Date() > invitation.tokenExpiresAt) {
+      return sendError(res, 'Invitation token has expired', 410);
+    }
+
+    const fileUrl = getFileUrl(req.file.filename, req);
+
+    return sendSuccess(res, { 
+      url: fileUrl,
+      filename: req.file.originalname,
+      size: req.file.size,
+      documentType 
+    }, 'Document uploaded successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/upload/doctor-profile-photo - Upload doctor profile photo (public - uses token)
+ */
+const uploadDoctorProfilePhoto = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+
+    const { invitationToken } = req.body;
+
+    if (!invitationToken) {
+      return sendError(res, 'Invitation token is required', 400);
+    }
+
+    // Verify invitation token
+    const invitation = await prisma.doctorInvitation.findUnique({
+      where: { invitationToken },
+    });
+
+    if (!invitation) {
+      return sendError(res, 'Invalid invitation token', 404);
+    }
+
+    // Check token expiration
+    if (new Date() > invitation.tokenExpiresAt) {
+      return sendError(res, 'Invitation token has expired', 410);
+    }
+
+    const fileUrl = getFileUrl(req.file.filename, req);
+
+    return sendSuccess(res, { 
+      url: fileUrl,
+      filename: req.file.originalname,
+      size: req.file.size
+    }, 'Profile photo uploaded successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   uploadClinicLogo,
   uploadClinicCover,
   uploadClinicDocument,
   uploadDoctorPhoto,
+  uploadDoctorDocument,
+  uploadDoctorProfilePhoto,
 };

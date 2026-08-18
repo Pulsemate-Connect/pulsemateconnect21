@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { getMyClinics, getStaff, getDoctorInvites, addStaff, updateStaffStatus } from '../../api/clinic.api';
-import { getMarketplaceDoctors, inviteDoctorToClinic } from '../../api/marketplace.api';
+import { getMyClinics, getStaff, getDoctorInvites, addStaff, updateStaffStatus, inviteDoctor, getPendingInvitations } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
@@ -15,17 +14,10 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
   const [staff, setStaff] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ mobile: '', name: '', email: '', password: '' });
+  const [addForm, setAddForm] = useState({ mobile: '', name: '', email: '', specialization: '' });
   const [isAdding, setIsAdding] = useState(false);
-  const [marketplaceDoctors, setMarketplaceDoctors] = useState([]);
-  const [marketplaceLoading, setMarketplaceLoading] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(null);
   const [doctorInvites, setDoctorInvites] = useState([]);
-  const [marketplaceFilters, setMarketplaceFilters] = useState({
-    specialization: '',
-    city: '',
-    experienceYears: '',
-  });
+  const [pendingInvitations, setPendingInvitations] = useState([]);
 
   useEffect(() => {
     const fetchClinics = async () => {
@@ -50,14 +42,19 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
   useEffect(() => {
     if (selectedClinic && staffRole === 'DOCTOR') {
       fetchDoctorInvites();
+      fetchPendingInvitations();
     }
   }, [selectedClinic, staffRole]);
 
-  useEffect(() => {
-    if (staffRole === 'DOCTOR') {
-      fetchMarketplaceDoctors();
+  const fetchPendingInvitations = async () => {
+    if (!selectedClinic || staffRole !== 'DOCTOR') return;
+    try {
+      const res = await getPendingInvitations(selectedClinic.id);
+      setPendingInvitations(res.data.data?.invitations || []);
+    } catch (_) {
+      // Silently fail - not critical
     }
-  }, [staffRole]);
+  };
 
   const fetchStaff = async () => {
     if (!selectedClinic) return;
@@ -74,11 +71,42 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
     e.preventDefault();
     setIsAdding(true);
     try {
-      await addStaff(selectedClinic.id, { ...addForm, role: staffRole });
-      toast.success(`${staffRole === 'DOCTOR' ? 'Doctor' : 'Receptionist'} added!`);
-      setShowAddModal(false);
-      setAddForm({ mobile: '', name: '', email: '', password: '' });
-      fetchStaff();
+      if (staffRole === 'DOCTOR') {
+        // ✅ NEW WORKFLOW: Send invitation only (minimal info)
+        const formattedMobile = addForm.mobile.startsWith('+91') 
+          ? addForm.mobile 
+          : `+91${addForm.mobile}`;
+        
+        await inviteDoctor(selectedClinic.id, { 
+          name: addForm.name,
+          mobile: formattedMobile,
+          email: addForm.email, // Now required
+          specialization: addForm.specialization || undefined,
+        });
+        
+        toast.success('Doctor invitation sent! They will receive an SMS/notification to accept.');
+        setShowAddModal(false);
+        setAddForm({ mobile: '', name: '', email: '', specialization: '' });
+        
+        // Reload invitations lists
+        fetchDoctorInvites();
+        fetchPendingInvitations();
+      } else {
+        // RECEPTIONIST: Keep old workflow (direct add with credentials)
+        const formattedMobile = addForm.mobile.startsWith('+91') 
+          ? addForm.mobile 
+          : `+91${addForm.mobile}`;
+        
+        await addStaff(selectedClinic.id, { 
+          ...addForm, 
+          mobile: formattedMobile,
+          role: staffRole 
+        });
+        toast.success('Receptionist added!');
+        setShowAddModal(false);
+        setAddForm({ mobile: '', name: '', email: '', specialization: '' });
+        fetchStaff();
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add staff');
     } finally {
@@ -106,55 +134,8 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
     }
   };
 
-  const fetchMarketplaceDoctors = async () => {
-    setMarketplaceLoading(true);
-    try {
-      const params = Object.fromEntries(
-        Object.entries(marketplaceFilters).filter(([, value]) => value !== '')
-      );
-      const res = await getMarketplaceDoctors(params);
-      setMarketplaceDoctors(res.data.data?.doctors || []);
-    } catch (_) {
-      toast.error('Failed to load marketplace doctors');
-    } finally {
-      setMarketplaceLoading(false);
-    }
-  };
-
-  const handleMarketplaceSearch = async (e) => {
-    e.preventDefault();
-    fetchMarketplaceDoctors();
-  };
-
-  const handleInviteDoctor = async (doctorId, doctorFee) => {
-    if (!selectedClinic) {
-      toast.error('Select a clinic first');
-      return;
-    }
-
-    setInviteLoading(doctorId);
-    try {
-      await inviteDoctorToClinic(doctorId, {
-        clinicId: selectedClinic.id,
-        consultationFee: doctorFee,
-      });
-      toast.success('Doctor invitation sent');
-      fetchDoctorInvites();
-      fetchMarketplaceDoctors();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send invitation');
-    } finally {
-      setInviteLoading(null);
-    }
-  };
-
   const title = staffRole === 'DOCTOR' ? 'Doctors' : 'Receptionists';
   const connectedDoctorUserIds = new Set(staff.map((member) => member.user?.id).filter(Boolean));
-  const inviteStatusByDoctorId = new Map(
-    doctorInvites
-      .filter((invite) => invite.removedAt === null || invite.inviteStatus !== 'REMOVED')
-      .map((invite) => [invite.doctorId, invite])
-  );
 
   return (
     <DashboardLayout>
@@ -168,125 +149,6 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
             </button>
           )}
         </div>
-
-        {staffRole === 'DOCTOR' && (
-          <div className="card mb-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-text-primary">Doctor Marketplace</h2>
-                <p className="mt-1 text-sm text-text-muted">Search verified doctors, review their current clinic presence, and send invitations to your clinic.</p>
-              </div>
-              <form onSubmit={handleMarketplaceSearch} className="grid gap-3 sm:grid-cols-4">
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="Specialization"
-                  value={marketplaceFilters.specialization}
-                  onChange={(e) => setMarketplaceFilters((prev) => ({ ...prev, specialization: e.target.value }))}
-                />
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="City"
-                  value={marketplaceFilters.city}
-                  onChange={(e) => setMarketplaceFilters((prev) => ({ ...prev, city: e.target.value }))}
-                />
-                <input
-                  type="number"
-                  className="input"
-                  placeholder="Min years"
-                  value={marketplaceFilters.experienceYears}
-                  onChange={(e) => setMarketplaceFilters((prev) => ({ ...prev, experienceYears: e.target.value }))}
-                  min={0}
-                />
-                <button type="submit" className="btn-primary">Search</button>
-              </form>
-            </div>
-
-            <div className="mt-5">
-              {marketplaceLoading ? (
-                <div className="flex justify-center py-8"><LoadingSpinner /></div>
-              ) : marketplaceDoctors.length === 0 ? (
-                <EmptyState
-                  icon="🩺"
-                  title="No marketplace doctors found"
-                  description="Try adjusting the filters or wait for more approved doctors."
-                />
-              ) : (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                  {marketplaceDoctors.map((doctor) => {
-                    const isConnected = connectedDoctorUserIds.has(doctor.user?.id);
-                    const existingInvite = inviteStatusByDoctorId.get(doctor.id);
-                    const pendingInvite = existingInvite?.inviteStatus === 'PENDING';
-
-                    return (
-                      <div key={doctor.id} className="rounded-2xl border border-border bg-white p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-semibold text-text-primary">{doctor.user?.name}</h3>
-                              <span className="badge badge-info text-xs">{doctor.specialization || 'General'}</span>
-                            </div>
-                            <p className="mt-1 text-sm text-text-muted">{doctor.qualification || 'Qualification not provided'}</p>
-                            <p className="text-sm text-text-muted">{doctor.user?.mobile}{doctor.user?.email ? ` · ${doctor.user.email}` : ''}</p>
-                          </div>
-                          <StatusBadge status="VERIFIED" />
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-text-muted">
-                          <p>Experience: <span className="font-medium text-text-primary">{doctor.experienceYears ?? 0} yrs</span></p>
-                          <p>Online: <span className="font-medium text-text-primary">{doctor.onlineAvailable ? 'Yes' : 'No'}</span></p>
-                          <p>Offline: <span className="font-medium text-text-primary">{doctor.offlineAvailable ? 'Yes' : 'No'}</span></p>
-                        </div>
-
-                        {doctor.bio ? (
-                          <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">{doctor.bio}</p>
-                        ) : null}
-
-                        <div className="mt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Current clinics</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {doctor.doctorClinics?.length
-                              ? doctor.doctorClinics.map((clinicLink) => (
-                                  <span key={clinicLink.id} className="badge badge-gray text-xs">
-                                    {clinicLink.clinic?.name}{clinicLink.clinic?.city ? ` · ${clinicLink.clinic.city}` : ''}
-                                  </span>
-                                ))
-                              : <span className="text-sm text-text-muted">No active clinic associations yet</span>}
-                          </div>
-                        </div>
-
-                        <div className="mt-5 flex justify-end">
-                          <div className="flex items-center gap-3">
-                            {existingInvite ? <StatusBadge status={existingInvite.inviteStatus} /> : null}
-                            <button
-                              type="button"
-                              onClick={() => handleInviteDoctor(doctor.id, doctor.consultationFee)}
-                              disabled={!selectedClinic || isConnected || pendingInvite || inviteLoading === doctor.id}
-                              className="btn-primary min-w-[150px] disabled:opacity-50"
-                            >
-                              {inviteLoading === doctor.id
-                                ? 'Sending...'
-                                : isConnected
-                                  ? 'Already on clinic'
-                                  : pendingInvite
-                                    ? 'Invite pending'
-                                    : existingInvite?.inviteStatus === 'REJECTED'
-                                      ? 'Re-invite doctor'
-                                      : existingInvite?.inviteStatus === 'REMOVED'
-                                        ? 'Invite again'
-                                        : 'Send invite'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Clinic selector */}
         {clinics.length > 1 && (
@@ -388,6 +250,43 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
                 </div>
               </div>
             )}
+            
+            {/* ✅ NEW: Show pending invitations from DoctorInvitation table */}
+            {staffRole === 'DOCTOR' && pendingInvitations.length > 0 && (
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-text-primary">Pending Invitations</h2>
+                  <span className="badge badge-warning text-xs">{pendingInvitations.length} pending</span>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  These doctors have been invited but haven't accepted yet. They will receive SMS/email notifications.
+                </p>
+                <div className="space-y-3">
+                  {pendingInvitations.map((invitation) => (
+                    <div key={invitation.id} className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-text-primary">{invitation.name}</p>
+                          <StatusBadge status={invitation.status} />
+                        </div>
+                        <p className="mt-1 text-sm text-text-muted">
+                          {invitation.mobile}
+                          {invitation.email ? ` · ${invitation.email}` : ''}
+                        </p>
+                        {invitation.specialization && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            Specialization: {invitation.specialization}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        Sent {new Date(invitation.createdAt).toLocaleDateString('en-IN')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -396,64 +295,141 @@ const ManageStaff = ({ staffRole = 'DOCTOR' }) => {
       <Modal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title={`Add ${staffRole === 'DOCTOR' ? 'Doctor' : 'Receptionist'}`}
+        title={`${staffRole === 'DOCTOR' ? 'Invite Doctor' : 'Add Receptionist'}`}
       >
         <form onSubmit={handleAddStaff} className="space-y-4">
-          <div>
-            <label className="label">Mobile Number *</label>
-            <input
-              type="tel"
-              className="input"
-              value={addForm.mobile}
-              onChange={(e) => setAddForm({ ...addForm, mobile: e.target.value })}
-              placeholder="+91 9876543210"
-              required
-            />
-          </div>
-          <div>
-            <label className="label">Full Name</label>
-            <input
-              type="text"
-              className="input"
-              value={addForm.name}
-              onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-              placeholder="Dr. John Doe"
-            />
-          </div>
-          <div>
-            <label className="label">
-              Email {staffRole === 'DOCTOR' && <span className="text-red-500">*</span>}
-            </label>
-            <input
-              type="email"
-              className="input"
-              value={addForm.email}
-              onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-              placeholder="doctor@example.com"
-              required={staffRole === 'DOCTOR'}
-            />
-            {staffRole === 'DOCTOR' && (
-              <p className="text-sm text-gray-500 mt-1">
-                Login credentials will be sent to this email
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="label">Password (for staff login)</label>
-            <input
-              type="password"
-              className="input"
-              value={addForm.password}
-              onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-              placeholder="Minimum 6 characters"
-            />
-          </div>
+          {staffRole === 'DOCTOR' ? (
+            <>
+              {/* ✅ NEW: Doctor Invitation Form (Minimal Info) */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>📨 Invitation Workflow:</strong> Enter the doctor's name and mobile number. 
+                  They will receive an invitation to join your clinic and will complete their own 
+                  professional profile for PulseMate admin verification.
+                </p>
+              </div>
+              
+              <div>
+                <label className="label">Doctor Full Name *</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="Dr. John Doe"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Full legal name of the doctor</p>
+              </div>
+              
+              <div>
+                <label className="label">Mobile Number *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">+91</span>
+                  <input
+                    type="tel"
+                    className="input pl-12"
+                    value={addForm.mobile}
+                    onChange={(e) => {
+                      const cleaned = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setAddForm({ ...addForm, mobile: cleaned });
+                    }}
+                    placeholder="9876543210"
+                    maxLength="10"
+                    pattern="[0-9]{10}"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Invitation will be sent to this mobile number & email</p>
+              </div>
+              
+              <div>
+                <label className="label">Email *</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  placeholder="doctor@example.com"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Invitation will be sent to mobile number & this email</p>
+              </div>
+              
+              <div>
+                <label className="label">Specialization (Optional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={addForm.specialization}
+                  onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value })}
+                  placeholder="e.g., General Physician, Cardiologist"
+                />
+                <p className="text-xs text-gray-500 mt-1">Optional: Helps identify the doctor</p>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* RECEPTIONIST: Keep old form (requires all details) */}
+              <div>
+                <label className="label">Mobile Number *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">+91</span>
+                  <input
+                    type="tel"
+                    className="input pl-12"
+                    value={addForm.mobile}
+                    onChange={(e) => {
+                      const cleaned = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setAddForm({ ...addForm, mobile: cleaned });
+                    }}
+                    placeholder="9876543210"
+                    maxLength="10"
+                    pattern="[0-9]{10}"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Enter 10-digit mobile number</p>
+              </div>
+              <div>
+                <label className="label">Full Name</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  placeholder="receptionist@example.com"
+                />
+              </div>
+              <div>
+                <label className="label">Password (for staff login)</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={addForm.password}
+                  onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                  placeholder="Minimum 6 characters"
+                />
+              </div>
+            </>
+          )}
+          
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setShowAddModal(false)} className="btn-ghost flex-1">
               Cancel
             </button>
             <button type="submit" className="btn-primary flex-1" disabled={isAdding}>
-              {isAdding ? <LoadingSpinner size="sm" className="mx-auto" /> : 'Add Staff'}
+              {isAdding ? <LoadingSpinner size="sm" className="mx-auto" /> : staffRole === 'DOCTOR' ? 'Send Invitation' : 'Add Staff'}
             </button>
           </div>
         </form>

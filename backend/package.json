@@ -11,7 +11,15 @@
     "test:watch": "jest --config jest.config.js --watch",
     "test:queue": "jest --config jest.config.js --testPathPattern='reception|booking|queue|availability' --verbose --no-coverage",
     "test:unit": "jest --config jest.config.js --testPathPattern='unit' --verbose --no-coverage",
-    "test:integration": "jest --config jest.config.js --testPathPattern='integration' --verbose --no-coverage"
+    "test:integration": "jest --config jest.config.js --testPathPattern='integration' --verbose --no-coverage",
+    "test:qa": "jest --config jest.config.js --testPathPattern='tests/qa/scenarios' --runInBand --verbose --no-coverage",
+    "test:qa-smoke": "node tests/qa/scripts/runSmokeTest.js",
+    "test:qa-full": "node tests/qa/scripts/runFullRegression.js",
+    "test:generate-data": "node tests/qa/scripts/generateTestData.js",
+    "test:report": "node tests/qa/scripts/generateReport.js",
+    "test:automated": "node tests/automated/all-tests.js",
+    "test:schedule": "node tests/schedule/clinic-schedule.test.js",
+    "test:20": "node tests/automated/all-tests.js"
   },
   "keywords": [
     "healthcare",
@@ -22,7 +30,9 @@
   "license": "MIT",
   "dependencies": {
     "@prisma/client": "5.22.0",
+    "axios": "^1.19.0",
     "bcryptjs": "^2.4.3",
+    "chalk": "^6.0.0",
     "cloudinary": "1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

@@ -47,3 +47,9 @@ export const stopClinicBookings = (clinicId) =>
 
 export const resumeClinicBookings = (clinicId) =>
   api.post(`/clinics/${clinicId}/bookings/resume`);
+
+export const inviteDoctor = (clinicId, data) =>
+  api.post(`/clinics/${clinicId}/invite-doctor`, data);
+
+export const getPendingInvitations = (clinicId) =>
+  api.get(`/clinics/${clinicId}/pending-invitations`);

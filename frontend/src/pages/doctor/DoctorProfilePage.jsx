@@ -1,18 +1,11 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { getDoctorProfile, updateDoctorProfile } from '../../api/doctor.api';
-import { getMyDoctorInvitations, respondToDoctorInvitation } from '../../api/marketplace.api';
+import { updateDoctorProfile } from '../../api/doctor.api';
+import { getMyCompleteProfile } from '../../api/doctorProfile.api';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
-
-const SPECIALIZATIONS = [
-  'Cardiologist', 'General Physician', 'Dermatologist', 'Orthopedic',
-  'Pediatrician', 'Gynecologist', 'Neurologist', 'Psychiatrist', 'ENT',
-  'Ophthalmologist', 'Dentist', 'Urologist', 'Gastroenterologist', 'Physiotherapist', 'Other',
-];
 
 const DoctorProfilePage = () => {
   const { user, updateUser } = useAuthStore();
@@ -21,30 +14,21 @@ const DoctorProfilePage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
-  const [invitations, setInvitations] = useState([]);
-  const [inviteLoading, setInviteLoading] = useState(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const [profileRes, invitesRes] = await Promise.all([
-          getDoctorProfile(),
-          getMyDoctorInvitations(),
-        ]);
-        const prof = profileRes.data.data.profile;
-        setProfile(prof);
-        setInvitations(invitesRes.data.data?.invitations || []);
+        const profileRes = await getMyCompleteProfile();
+        const completeProfile = profileRes.data.data;
+        setProfile(completeProfile);
+        
+        // Initialize form with editable fields only
         setFormData({
-          specialization: prof.specialization || '',
-          experienceYears: prof.experienceYears || 0,
-          education: prof.education || '',
-          consultationFee: prof.consultationFee || 0,
-          bio: prof.bio || '',
-          avgConsultationMins: prof.avgConsultationMins || 10,
-          onlineAvailable: prof.onlineAvailable || false,
-          offlineAvailable: prof.offlineAvailable || true,
+          consultationFee: completeProfile.consultationFee || 0,
+          avgConsultationMins: completeProfile.avgConsultationMins || 10,
         });
       } catch (err) {
+        console.error('Error fetching profile:', err);
         toast.error('Failed to load profile');
       } finally {
         setIsLoading(false);
@@ -64,11 +48,12 @@ const DoctorProfilePage = () => {
             ? 'Invitation rejected'
             : 'You left the clinic'
       );
+      // Refresh with complete profile API
       const [profileRes, invitesRes] = await Promise.all([
-        getDoctorProfile(),
+        getMyCompleteProfile(), // Changed from getDoctorProfile()
         getMyDoctorInvitations(),
       ]);
-      setProfile(profileRes.data.data.profile);
+      setProfile(profileRes.data.data); // No .profile nesting
       setInvitations(invitesRes.data.data?.invitations || []);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update invitation');
@@ -77,16 +62,42 @@ const DoctorProfilePage = () => {
     }
   };
 
+  const handleEditClick = () => {
+    // Only allow editing consultation fee and average duration
+    setFormData({
+      consultationFee: profile.consultationFee || 0,
+      avgConsultationMins: profile.avgConsultationMins || 10,
+    });
+    setIsEditing(true);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
+    
+    // Validate inputs
+    if (!formData.consultationFee || formData.consultationFee < 0) {
+      toast.error('Please enter a valid consultation fee');
+      return;
+    }
+    
+    if (!formData.avgConsultationMins || formData.avgConsultationMins < 5 || formData.avgConsultationMins > 120) {
+      toast.error('Consultation duration must be between 5 and 120 minutes');
+      return;
+    }
+    
     setIsSaving(true);
     try {
-      await updateDoctorProfile(formData);
-      // Refresh
-      const res = await getDoctorProfile();
-      setProfile(res.data.data.profile);
+      // Only send editable fields to API
+      await updateDoctorProfile({
+        consultationFee: formData.consultationFee,
+        avgConsultationMins: formData.avgConsultationMins,
+      });
+      
+      // Refresh profile
+      const res = await getMyCompleteProfile();
+      setProfile(res.data.data);
       setIsEditing(false);
-      toast.success('Profile updated!');
+      toast.success('Consultation settings updated successfully!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Update failed');
     } finally {
@@ -109,7 +120,7 @@ const DoctorProfilePage = () => {
     formData.append('photo', file);
     try {
       const res = await api.post('/upload/doctor-photo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setProfile((p) => ({ ...p, profileImage: res.data.data.url }));
+      setProfile((p) => ({ ...p, profilePhotoUrl: res.data.data.url })); // Changed from profileImage
       toast.success('Profile photo updated!');
     } catch {
       toast.error('Upload failed');
@@ -122,7 +133,7 @@ const DoctorProfilePage = () => {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-text-primary">My Profile</h1>
           {!isEditing && (
-            <button onClick={() => setIsEditing(true)} className="btn-outline">Edit Profile</button>
+            <button onClick={handleEditClick} className="btn-outline">Edit Profile</button>
           )}
         </div>
 
@@ -130,8 +141,8 @@ const DoctorProfilePage = () => {
         <div className="card mb-6">
           <div className="flex items-center gap-4">
             <div className="relative">
-              {profile?.profileImage ? (
-                <img src={profile.profileImage} alt="Profile" className="w-16 h-16 rounded-2xl object-cover" />
+              {profile?.profilePhotoUrl ? (
+                <img src={profile.profilePhotoUrl} alt="Profile" className="w-16 h-16 rounded-2xl object-cover" />
               ) : (
                 <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center">
                   <span className="text-primary-700 font-bold text-2xl">
@@ -166,19 +177,29 @@ const DoctorProfilePage = () => {
         </div>
 
         {/* Clinics */}
-        {profile?.doctorClinics?.length > 0 && (
+        {profile?.clinics?.length > 0 && (
           <div className="card mb-6">
             <h3 className="font-semibold text-text-primary mb-3">Associated Clinics</h3>
             <div className="space-y-2">
-              {profile.doctorClinics.map((dc) => (
-                <div key={dc.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+              {profile.clinics.map((clinicAssoc) => (
+                <div key={clinicAssoc.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                   <div>
-                    <p className="font-medium text-text-primary text-sm">{dc.clinic?.name}</p>
-                    <p className="text-xs text-text-muted">{dc.clinic?.city}</p>
+                    <p className="font-medium text-text-primary text-sm">{clinicAssoc.clinicName}</p>
+                    <p className="text-xs text-text-muted">{clinicAssoc.clinicCity}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      clinicAssoc.inviteStatus === 'ACCEPTED'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {clinicAssoc.inviteStatus}
+                    </span>
                   </div>
-                  <div className="text-right text-xs text-text-muted">
-                    <p>{dc.startTime} – {dc.endTime}</p>
-                  </div>
+                  {clinicAssoc.isActive && (
+                    <div className="text-right text-xs text-text-muted">
+                      <p>Consultation: ₹{clinicAssoc.consultationFee || profile.consultationFee}</p>
+                      <p className="text-green-600 font-medium">Active</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -186,155 +207,49 @@ const DoctorProfilePage = () => {
         )}
 
         <div className="card mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-text-primary">Clinic Invitations</h3>
-            <span className="badge badge-info text-xs">{invitations.length} total</span>
-          </div>
-
-          {invitations.length === 0 ? (
-            <p className="text-sm text-text-muted">No clinic invitations yet. Approved clinics will appear here once they invite you.</p>
+          <h3 className="font-semibold text-text-primary mb-3">Clinic Associations</h3>
+          {(!profile?.clinics || profile.clinics.length === 0) ? (
+            <p className="text-sm text-text-muted">No clinic associations yet. Approved clinics can invite you to join them.</p>
           ) : (
-            <div className="space-y-3">
-              {invitations.map((invite) => (
-                <div key={invite.id} className="rounded-xl border border-border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-text-primary">{invite.clinic?.name}</p>
-                        <StatusBadge status={invite.inviteStatus} />
-                      </div>
-                      <p className="mt-1 text-sm text-text-muted">
-                        {[invite.clinic?.city, invite.clinic?.state].filter(Boolean).join(', ') || 'Location unavailable'}
-                      </p>
-                      <p className="text-sm text-text-muted">
-                        {invite.startTime && invite.endTime ? `${invite.startTime} - ${invite.endTime}` : ''}
-                      </p>
-                      {invite.availableDays?.length ? (
-                        <p className="text-xs text-text-muted mt-1">Days: {invite.availableDays.join(', ')}</p>
-                      ) : null}
-                    </div>
-                    {invite.inviteStatus === 'PENDING' ? (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleInvitationAction(invite.id, 'REJECT')}
-                          disabled={inviteLoading === invite.id}
-                          className="btn-outline text-sm py-2 px-3"
-                        >
-                          Reject
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInvitationAction(invite.id, 'ACCEPT')}
-                          disabled={inviteLoading === invite.id}
-                          className="btn-primary text-sm py-2 px-3"
-                        >
-                          {inviteLoading === invite.id ? 'Saving...' : 'Accept'}
-                        </button>
-                      </div>
-                    ) : invite.inviteStatus === 'ACCEPTED' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleInvitationAction(invite.id, 'LEAVE')}
-                        disabled={inviteLoading === invite.id}
-                        className="btn-outline text-sm py-2 px-3 text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        {inviteLoading === invite.id ? 'Saving...' : 'Leave clinic'}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-text-success">You are associated with {profile.clinics.length} clinic{profile.clinics.length !== 1 ? 's' : ''}.</p>
           )}
         </div>
 
-        {/* Profile form */}
+        {/* Profile form - ONLY CONSULTATION SETTINGS EDITABLE */}
         <div className="card">
           {isEditing ? (
             <form onSubmit={handleSave} className="space-y-4">
+              <h3 className="font-semibold text-text-primary mb-3 pb-2 border-b">Edit Consultation Settings</h3>
+              <p className="text-sm text-text-muted mb-4">
+                Only consultation fee and average duration can be updated. Other profile details are set during registration and verified by admin.
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Specialization</label>
-                  <select
-                    className="input"
-                    value={formData.specialization}
-                    onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                  >
-                    <option value="">Select specialization</option>
-                    {SPECIALIZATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Experience (years)</label>
+                  <label className="label">Consultation Fee (₹) *</label>
                   <input
                     type="number"
                     className="input"
-                    value={formData.experienceYears}
-                    onChange={(e) => setFormData({ ...formData, experienceYears: parseInt(e.target.value) || 0 })}
-                    min={0}
-                  />
-                </div>
-                <div>
-                  <label className="label">Consultation Fee (₹)</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={formData.consultationFee}
+                    value={formData.consultationFee || 0}
                     onChange={(e) => setFormData({ ...formData, consultationFee: parseFloat(e.target.value) || 0 })}
                     min={0}
+                    step="50"
+                    required
                   />
+                  <p className="text-xs text-text-muted mt-1">Enter your consultation fee</p>
                 </div>
                 <div>
-                  <label className="label">Avg. Consultation (min)</label>
+                  <label className="label">Avg. Consultation Duration (minutes) *</label>
                   <input
                     type="number"
                     className="input"
-                    value={formData.avgConsultationMins}
+                    value={formData.avgConsultationMins || 10}
                     onChange={(e) => setFormData({ ...formData, avgConsultationMins: parseInt(e.target.value) || 10 })}
-                    min={1}
-                    max={60}
+                    min={5}
+                    max={120}
+                    step="5"
+                    required
                   />
-                </div>
-              </div>
-              <div>
-                <label className="label">Education / Qualifications</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={formData.education}
-                  onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                  placeholder="MBBS, MD - Cardiology, AIIMS"
-                />
-              </div>
-              <div>
-                <label className="label">Bio</label>
-                <textarea
-                  className="input resize-none"
-                  rows={3}
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  placeholder="Brief professional bio..."
-                />
-              </div>
-              {/* Availability toggles */}
-              <div>
-                <label className="label">Availability</label>
-                <div className="flex gap-4">
-                  {[
-                    { key: 'offlineAvailable', label: '🏥 Offline / In-Person' },
-                    { key: 'onlineAvailable', label: '💻 Online' },
-                  ].map(({ key, label }) => (
-                    <label key={key} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData[key]}
-                        onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
-                        className="w-4 h-4 text-primary-600 rounded"
-                      />
-                      <span className="text-sm text-text-primary">{label}</span>
-                    </label>
-                  ))}
+                  <p className="text-xs text-text-muted mt-1">Typical appointment length</p>
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
@@ -345,19 +260,203 @@ const DoctorProfilePage = () => {
               </div>
             </form>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: 'Specialization', value: profile?.specialization || '—' },
-                { label: 'Experience', value: profile?.experienceYears ? `${profile.experienceYears} years` : '—' },
-                { label: 'Avg. Consultation', value: profile?.avgConsultationMins ? `${profile.avgConsultationMins} min` : '—' },
-                { label: 'Education', value: profile?.education || '—' },
-                { label: 'Bio', value: profile?.bio || '—' },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="text-xs text-text-muted font-medium uppercase tracking-wide">{label}</p>
-                  <p className="text-text-primary mt-0.5 text-sm">{value}</p>
+            // VIEW MODE - Display all onboarding data
+            <div className="space-y-6">
+              {/* Personal Information Section */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Personal Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Full Legal Name</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.fullLegalName || user?.name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Date of Birth</p>
+                    <p className="text-text-primary mt-0.5 text-sm">
+                      {profile?.dateOfBirth 
+                        ? new Date(profile.dateOfBirth).toLocaleDateString('en-IN', { 
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric' 
+                          })
+                        : '—'
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Gender</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.gender || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Mobile</p>
+                    <p className="text-text-primary mt-0.5 text-sm flex items-center gap-2">
+                      {profile?.maskedMobile || user?.mobile || '—'}
+                      {profile?.isPhoneVerified && <span className="text-green-600 text-xs">✓ Verified</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Email</p>
+                    <p className="text-text-primary mt-0.5 text-sm flex items-center gap-2">
+                      {profile?.maskedEmail || '—'}
+                      {profile?.isEmailVerified && <span className="text-green-600 text-xs">✓ Verified</span>}
+                    </p>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Professional Information Section - INCLUDING REGISTRATION NUMBER */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Professional Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Medical System</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.medicalSystem || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Qualification</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.qualification || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Specialization</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.specialization || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Experience</p>
+                    <p className="text-text-primary mt-0.5 text-sm">
+                      {profile?.experienceYears ? `${profile.experienceYears} years` : '—'}
+                    </p>
+                  </div>
+                  {/* REGISTRATION DETAILS - VISIBLE TO DOCTOR */}
+                  <div className="sm:col-span-2 pt-2 border-t">
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Medical Registration Number</p>
+                    <p className="text-text-primary mt-0.5 text-sm font-mono">{profile?.medicalRegistrationNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Registration Authority</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.registrationAuthority || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Registration Year</p>
+                    <p className="text-text-primary mt-0.5 text-sm">{profile?.registrationYear || '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Document Verification Status */}
+              {profile?.documentStatus && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Document Verification</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(profile.documentStatus).map(([key, status]) => (
+                      <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-700 capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                        <span className={`text-xs font-medium px-2 py-1 rounded ${
+                          status === 'Verified' || status === 'Submitted' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Professional Experience */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Professional Experience</h4>
+                <div className="space-y-3">
+                  {profile?.languagesKnown && profile.languagesKnown.length > 0 && (
+                    <div>
+                      <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Languages Known</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {profile.languagesKnown.map((lang) => (
+                          <span key={lang} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                            {lang}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {profile?.areasOfExpertise && profile.areasOfExpertise.length > 0 && (
+                    <div>
+                      <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Areas of Expertise</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {profile.areasOfExpertise.map((area) => (
+                          <span key={area} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {profile?.bio && (
+                    <div>
+                      <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Professional Bio</p>
+                      <p className="text-text-primary mt-1 text-sm leading-relaxed">{profile.bio}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Consultation Settings */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Consultation Settings</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Consultation Fee</p>
+                    <p className="text-text-primary mt-0.5 text-sm">
+                      {profile?.consultationFee ? `₹${profile.consultationFee}` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wide">Average Duration</p>
+                    <p className="text-text-primary mt-0.5 text-sm">
+                      {profile?.avgConsultationMins ? `${profile.avgConsultationMins} minutes` : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verification Status */}
+              {profile?.verificationStatus && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Verification Status</h4>
+                  <div className="p-4 rounded-lg bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        profile.verificationStatus === 'VERIFIED'
+                          ? 'bg-green-100 text-green-700'
+                          : profile.verificationStatus === 'PENDING'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {profile.verificationStatus}
+                      </span>
+                      {profile.verificationStatus === 'VERIFIED' && (
+                        <span className="text-green-600 text-sm">✓ PulseMate Verified Doctor</span>
+                      )}
+                    </div>
+                    {profile.profileCompletion && (
+                      <div className="mt-3">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Profile Completion</span>
+                          <span>{profile.profileCompletion}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all"
+                            style={{ width: `${profile.profileCompletion}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

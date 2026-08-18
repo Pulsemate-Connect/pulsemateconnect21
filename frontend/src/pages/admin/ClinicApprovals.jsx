@@ -271,38 +271,112 @@ const ClinicApprovals = () => {
                     </div>
                   </div>
                 ))
-              : doctors.map((doctor) => (
-                  <div key={doctor.id} className="card">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-text-primary">{doctor.name}</h3>
-                          <StatusBadge status={doctor.approvalStatus} />
-                          <span className="badge badge-info text-xs">{doctor.doctorProfile?.specialization || 'Specialization not set'}</span>
-                        </div>
-                        <div className="grid gap-2 text-sm text-text-muted sm:grid-cols-2">
-                          <p>Phone: {doctor.mobile}</p>
-                          <p>Email: {doctor.email || 'Not provided'}</p>
-                          <p>Qualification: {doctor.doctorProfile?.qualification || 'Not provided'}</p>
-                          <p>Experience: {doctor.doctorProfile?.experienceYears ?? 0} years</p>
-                          <p>Registration: {doctor.doctorProfile?.medicalRegistrationNumber || 'Not provided'}</p>
-                        </div>
-                        <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
-                          <p><span className="font-semibold">Bio:</span> {doctor.doctorProfile?.bio || 'Not provided'}</p>
-                          <p className="mt-2"><span className="font-semibold">Languages:</span> {doctor.doctorProfile?.languagesKnown?.length ? doctor.doctorProfile.languagesKnown.join(', ') : 'Not provided'}</p>
-                          <p className="mt-2"><span className="font-semibold">Certificates:</span> {doctor.doctorProfile?.certificates?.length ? doctor.doctorProfile.certificates.join(', ') : 'Not provided'}</p>
-                        </div>
-                      </div>
+              : doctors.map((doctor) => {
+                  const profile = doctor.doctorProfile || {};
+                  const invitation = doctor.invitation || {};
+                  
+                  return (
+                    <div key={doctor.id} className="card">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-text-primary">
+                              {profile.fullLegalName || doctor.name}
+                            </h3>
+                            <StatusBadge status={profile.verificationStatus || 'PENDING'} />
+                            {profile.medicalSystem && (
+                              <span className="badge badge-success text-xs">{profile.medicalSystem}</span>
+                            )}
+                            {profile.specialization && (
+                              <span className="badge badge-info text-xs">{profile.specialization}</span>
+                            )}
+                          </div>
+                          
+                          {/* Basic Info */}
+                          <div className="grid gap-2 text-sm text-text-muted sm:grid-cols-2">
+                            <p>Mobile: {doctor.mobile}</p>
+                            <p>Email: {doctor.email || 'Not provided'}</p>
+                            <p>Gender: {profile.gender || 'Not provided'}</p>
+                            <p>DOB: {profile.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-IN') : 'Not provided'}</p>
+                            {invitation.clinic && (
+                              <p>Invited by: {invitation.clinic.name}</p>
+                            )}
+                            {profile.profileSubmittedAt && (
+                              <p>Submitted: {new Date(profile.profileSubmittedAt).toLocaleDateString('en-IN')}</p>
+                            )}
+                          </div>
 
-                      <ActionPanel
-                        busy={actionLoading === doctor.id}
-                        onApprove={() => openDecisionModal('doctor', doctor, 'VERIFIED')}
-                        onReject={() => openDecisionModal('doctor', doctor, 'REJECTED')}
-                        onSuspend={() => openDecisionModal('doctor', doctor, 'SUSPENDED')}
-                      />
+                          {/* Professional Information */}
+                          <div className="rounded-2xl bg-blue-50 p-4 text-sm text-blue-900">
+                            <p className="font-semibold mb-2">Professional Information</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <p><span className="font-semibold">Qualification:</span> {profile.qualification || 'Not provided'}</p>
+                              <p><span className="font-semibold">Experience:</span> {profile.experienceYears ?? 0} years</p>
+                              <p><span className="font-semibold">Registration No:</span> {profile.medicalRegistrationNumber || 'Not provided'}</p>
+                              <p><span className="font-semibold">Registration Authority:</span> {profile.registrationAuthority || 'Not provided'}</p>
+                              <p><span className="font-semibold">Registration Year:</span> {profile.registrationYear || 'Not provided'}</p>
+                              <p><span className="font-semibold">Consultation Fee:</span> {profile.consultationFee ? `₹${profile.consultationFee}` : 'Not set'}</p>
+                            </div>
+                          </div>
+
+                          {/* Bio & Languages */}
+                          <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
+                            {profile.bio && (
+                              <>
+                                <p className="font-semibold">About:</p>
+                                <p className="mt-1">{profile.bio}</p>
+                              </>
+                            )}
+                            {profile.languagesKnown?.length > 0 && (
+                              <p className="mt-2">
+                                <span className="font-semibold">Languages:</span> {profile.languagesKnown.join(', ')}
+                              </p>
+                            )}
+                            {profile.areasOfExpertise?.length > 0 && (
+                              <p className="mt-2">
+                                <span className="font-semibold">Expertise:</span> {profile.areasOfExpertise.join(', ')}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Documents */}
+                          {profile.certificates && Array.isArray(profile.certificates) && profile.certificates.length > 0 && (
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                              <p className="font-semibold text-slate-900 mb-2">Uploaded Documents</p>
+                              <div className="space-y-2">
+                                {profile.certificates.map((doc, idx) => (
+                                  <div key={idx} className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-medium text-xs">{doc.type?.replace(/_/g, ' ').toUpperCase()}</p>
+                                      <p className="text-gray-400 text-xs">{doc.fileName}</p>
+                                    </div>
+                                    {doc.url && (
+                                      <a
+                                        href={doc.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-blue-600 text-xs underline"
+                                      >
+                                        View
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <ActionPanel
+                          busy={actionLoading === doctor.id}
+                          onApprove={() => openDecisionModal('doctor', doctor, 'VERIFIED')}
+                          onReject={() => openDecisionModal('doctor', doctor, 'REJECTED')}
+                          onSuspend={() => openDecisionModal('doctor', doctor, 'SUSPENDED')}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
           </div>
         )}
       </div>
@@ -382,13 +456,15 @@ const SummaryCard = ({ label, value, tone }) => (
 
 const ActionPanel = ({ busy, onViewDetails, onApprove, onReject, onSuspend }) => (
   <div className="flex min-w-[190px] flex-col gap-2">
-    <button
-      type="button"
-      onClick={onViewDetails}
-      className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-    >
-      View Details
-    </button>
+    {onViewDetails && (
+      <button
+        type="button"
+        onClick={onViewDetails}
+        className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+      >
+        View Details
+      </button>
+    )}
     <button
       type="button"
       onClick={onApprove}

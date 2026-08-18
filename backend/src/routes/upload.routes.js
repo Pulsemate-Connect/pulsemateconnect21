@@ -7,6 +7,8 @@ const {
   uploadClinicCover,
   uploadClinicDocument,
   uploadDoctorPhoto,
+  uploadDoctorDocument,
+  uploadDoctorProfilePhoto,
 } = require('../controllers/upload.controller');
 
 // Clinic uploads (owner only)
@@ -37,6 +39,18 @@ router.post('/doctor-photo',
   authorize('DOCTOR'),
   upload.single('photo'),
   uploadDoctorPhoto
+);
+
+// Doctor document uploads (public - uses invitation token in request body)
+router.post('/doctor-document',
+  upload.single('document'),
+  uploadDoctorDocument
+);
+
+// Doctor profile photo upload (public - uses invitation token)
+router.post('/doctor-profile-photo',
+  upload.single('photo'),
+  uploadDoctorProfilePhoto
 );
 
 module.exports = router;

@@ -4,7 +4,7 @@ export const getTodayAppointments = () =>
   api.get('/doctor/today');
 
 export const getDoctorAppointments = (params) =>
-  api.get('/doctor/appointments', { params });
+  api.get('/patient/appointments', { params }); // Shared endpoint with patients
 
 export const startConsultation = (id) =>
   api.patch(`/doctor/appointments/${id}/start`);
@@ -20,6 +20,16 @@ export const getDoctorProfile = () =>
 
 export const updateDoctorProfile = (data) =>
   api.patch('/doctor/profile', data);
+
+// ── Doctor Invitations ───────────────────────────────────────────────────────
+
+/** GET /doctor/invitations - Get all clinic invitations for logged-in doctor */
+export const getMyDoctorInvitations = () =>
+  api.get('/doctor/invitations');
+
+/** POST /doctor/invitations/:inviteId/respond - Accept/reject/leave clinic invitation */
+export const respondToDoctorInvitation = (inviteId, action) =>
+  api.post(`/doctor/invitations/${inviteId}/respond`, { action }); // action: 'ACCEPT', 'REJECT', 'LEAVE'
 
 // ── Schedule management ───────────────────────────────────────────────────────
 

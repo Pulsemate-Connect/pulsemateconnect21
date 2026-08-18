@@ -28,7 +28,6 @@ const patientRoutes = require('./routes/patient.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const approvalRoutes = require('./routes/approval.routes');
-const marketplaceRoutes = require('./routes/marketplace.routes');
 const sessionRoutes = require('./routes/session.routes');
 const availabilityRoutes = require('./routes/availability.routes');
 const deviceTokenRoutes = require('./routes/deviceToken.routes');
@@ -42,6 +41,7 @@ const notificationEnhancedRoutes = require('./routes/notification-enhanced.route
 const notificationTestRoutes = require('./routes/notification.test.routes');
 const clinicOnboardingRoutes = require('./routes/clinic/onboarding.routes');
 const locationRoutes = require('./routes/clinic/location.routes');
+const clinicScheduleRoutes = require('./routes/clinicSchedule.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -330,7 +330,6 @@ app.use('/api/reception', receptionRoutes);
 app.use('/api/patient', patientRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/approvals', approvalRoutes);
-app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/device-token', deviceTokenRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -342,6 +341,8 @@ app.use('/api/notifications', notificationTestRoutes); // Test endpoints for deb
 app.use('/api/clinic/onboarding', clinicOnboardingRoutes);
 // ✅ NEW: Location/geocoding routes
 app.use('/api/location', locationRoutes);
+// ✅ NEW: Clinic Schedule & Timings routes
+app.use('/api/clinic', clinicScheduleRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);

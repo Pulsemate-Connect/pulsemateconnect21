@@ -62,9 +62,23 @@ const authorizeRoles = (...roles) => (req, res, next) => {
 
 const requireVerifiedAccount = (req, res, next) => {
   if (!req.user) return sendError(res, 'Authentication required', 401);
-  if (req.user.approvalStatus !== 'VERIFIED') {
-    return sendError(res, 'Your account is pending verification', 403);
+  
+  if (req.user.approvalStatus === 'PENDING') {
+    return sendError(res, 'Your account is pending admin approval. You will be notified once approved.', 403);
   }
+  
+  if (req.user.approvalStatus === 'UNDER_REVIEW') {
+    return sendError(res, 'Your account is under review. Please wait for admin approval.', 403);
+  }
+  
+  if (req.user.approvalStatus === 'CHANGES_REQUIRED') {
+    return sendError(res, 'Changes are required for your account. Please check your email for details.', 403);
+  }
+  
+  if (req.user.approvalStatus !== 'VERIFIED') {
+    return sendError(res, 'Your account verification is pending', 403);
+  }
+  
   next();
 };
 

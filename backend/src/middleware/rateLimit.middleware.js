@@ -1,11 +1,18 @@
 const rateLimit = require('express-rate-limit');
 
-// ✅ SECURITY FIX: Never skip rate limiting, even in development
+// ✅ SECURITY FIX: Never skip rate limiting in production
+// 🧪 TEST MODE: Allow disabling rate limiting for automated tests
 const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
   rateLimit({
     windowMs,
     max,
-    skip: () => false, // ✅ CRITICAL: Never skip rate limiting
+    skip: (req) => {
+      // Skip rate limiting if test mode is enabled
+      if (process.env.DISABLE_RATE_LIMIT_FOR_TESTS === 'true') {
+        return true;
+      }
+      return false;
+    },
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: keyGenerator || ((req) => req.ip),
@@ -17,7 +24,7 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) =>
 
 const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 5, // ✅ SECURITY: Reduced from 20 to 5 attempts
+  max: process.env.NODE_ENV === 'development' ? 50 : 5, // ✅ Dev: 50 attempts, Prod: 5 attempts
   message: 'Too many login attempts. Please try again later.',
   // Key by email/identifier so each user gets their own counter
   keyGenerator: (req) => (req.body?.identifier || req.body?.email || req.ip).toLowerCase(),

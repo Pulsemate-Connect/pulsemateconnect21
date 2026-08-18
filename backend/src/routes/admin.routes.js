@@ -3,6 +3,7 @@ const {
   getDashboard,
   getPendingClinics,
   getPendingDoctors,
+  getAllDoctors,
   approveClinic,
   rejectClinic,
   approveDoctor,
@@ -37,7 +38,7 @@ router.delete('/admins/:id', requireAdminLevel('ROOT'), deleteAdminAccount);
 router.get('/pending-clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingClinics);
 router.get('/pending-doctors', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingDoctors);
 router.patch('/users/:id/status', requireAdminLevel('ROOT', 'SUPER_ADMIN'), updateUserStatus);
-router.post('/reset-database', requireAdminLevel('ROOT'), resetDatabase);
+router.post('/reset-database', requireAdminLevel('ROOT', 'SUPER_ADMIN'), resetDatabase);
 
 // ── Clinic management ──────────────────────────────────────────────────────
 router.get('/all-clinics/stats', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getClinicStats);
@@ -49,6 +50,10 @@ router.patch('/clinics/:clinicId/request-changes', requireAdminLevel('ROOT', 'SU
 router.patch('/clinics/:clinicId/suspend', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), suspendClinic);
 
 // ── Doctor management ──────────────────────────────────────────────────────
+const { getAdminVerificationProfile } = require('../controllers/doctorProfile.controller');
+
+router.get('/all-doctors', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getAllDoctors);
+router.get('/doctors/:doctorId/verification', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getAdminVerificationProfile); // New: Complete verification view
 router.patch('/doctors/:doctorId/approve', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), approveDoctor);
 router.patch('/doctors/:doctorId/reject', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), validateRequest(approvalSchema), rejectDoctor);
 

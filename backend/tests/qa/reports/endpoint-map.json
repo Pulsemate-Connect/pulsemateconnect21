@@ -1,0 +1,822 @@
+{
+  "auth": [
+    {
+      "method": "POST",
+      "path": "/api/auth/patient/firebase-phone-login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/patient/send-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/patient/verify-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/send-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/verify-otp"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/check-mobile-verification/:mobile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/check-user-exists"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register-email-otp/send"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register-email-otp/verify"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/verify-firebase-phone"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/send-email-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/verify-email-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/send-email-verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/clinic-owner/verify-email"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/send-email-verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/verify-email-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/upload-document"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/pincode/:pincode"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/clinic-owner/get-onboarding-data"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/save-clinic-information"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/save-services-operations"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/save-clinic-documents"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/submit-application"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic-owner/register"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/verify-firebase-phone"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/register"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/send-mobile-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/verify-mobile-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/send-email-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/doctor/verify-email-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/forgot-password"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/verify-reset-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/reset-password"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout-all"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/admin/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/clinic/receptionists"
+    }
+  ],
+  "clinic": [
+    {
+      "method": "PATCH",
+      "path": "/api/admin/clinics/:clinicId/approve"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/clinics/:clinicId/reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/clinics/:clinicId/request-changes"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/clinics/:clinicId/suspend"
+    },
+    {
+      "method": "GET",
+      "path": "/api/approval/clinics/pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/approval/clinics/:clinicId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/my"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/my-status"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clinic/my-resubmit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/receptionists"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/doctors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/doctors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/doctors/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/doctors/:id/profile"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/clinic/doctors/:id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clinic/doctors/:id/status"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/clinic/doctors/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/my-sessions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/:clinicId/sessions"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/clinic/sessions/:sessionId"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/clinic/sessions/:sessionId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clinic/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/:id/invite-doctor"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/pending-invitations"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clinic/:id/staff"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/staff"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/doctor-invites"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clinic/:id/staff/:staffId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/revenue"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/booking-metrics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinic/:id/appointments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clinicSession/:clinicId/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/clinic/:clinicId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/clinic/:clinicId/quick"
+    },
+    {
+      "method": "POST",
+      "path": "/api/holiday/clinic/:clinicId/holidays"
+    },
+    {
+      "method": "GET",
+      "path": "/api/holiday/clinic/:clinicId/holidays"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/holiday/clinic/:clinicId/holidays/:holidayId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessionAvailability/clinics/:clinicId/sessions/availability"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/clinic-logo"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/clinic-cover"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/clinic-document"
+    }
+  ],
+  "doctor": [
+    {
+      "method": "GET",
+      "path": "/api/admin/doctors/:doctorId/verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/doctors/:doctorId/approve"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/doctors/:doctorId/reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/approval/doctors/pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/approval/doctors/:doctorUserId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/doctors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/invitation/:token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/accept"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/decline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/send-mobile-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/verify-mobile-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/send-email-otp"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/invitation/:token/verify-email-otp"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/invitation/:token/verification-status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/profile/by-token/:token"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/doctor/profile/:invitationToken"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/profile/:invitationToken/submit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/onboarding/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/today"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/appointments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/me/profile"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/doctor/me/profile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/:id/public-profile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/profile"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/doctor/profile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/doctor/:doctorId/availability"
+    },
+    {
+      "method": "POST",
+      "path": "/api/doctor/availability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/doctors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/doctors/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessionAvailability/doctor/:doctorId/sessions/availability"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/doctor-photo"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/doctor-document"
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/doctor-profile-photo"
+    }
+  ],
+  "admin": [
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/admins"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/admins/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/pending-clinics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/pending-doctors"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/users/:id/status"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/reset-database"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/all-clinics/stats"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/all-clinics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/all-clinics/:clinicId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/all-doctors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/deletion-requests"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/deletion-requests/:id/cancel"
+    }
+  ],
+  "patient": [
+    {
+      "method": "GET",
+      "path": "/api/patient/nearby"
+    },
+    {
+      "method": "POST",
+      "path": "/api/patient/appointments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/appointments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/appointments/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/queue/:appointmentId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/patient/appointments/:id/cancel"
+    },
+    {
+      "method": "GET",
+      "path": "/api/patient/profile"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/patient/profile"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/patient/account"
+    }
+  ],
+  "other": [
+    {
+      "method": "GET",
+      "path": "/api/availability/:doctorId/availability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/availability/:doctorId/slots"
+    },
+    {
+      "method": "POST",
+      "path": "/api/availability/availability"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/availability/availability"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/availability/availability/:id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/availability/availability/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/campaign/"
+    },
+    {
+      "method": "GET",
+      "path": "/api/campaign/"
+    },
+    {
+      "method": "GET",
+      "path": "/api/campaign/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/campaign/:id/send"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/campaign/:id/pause"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/campaign/:id/resume"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/campaign/:id/stop"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/campaign/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/enhanced"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/comparison"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/charts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/transactions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard-enhanced/:clinicId/widget-preferences"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/dashboard-enhanced/:clinicId/widget-preferences"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deviceToken/register"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deviceToken/deactivate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification-enhanced/"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification-enhanced/unread-count"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification-enhanced/search"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notification-enhanced/:notificationId/read"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notification-enhanced/mark-all-read"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notification-enhanced/:notificationId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification-enhanced/preferences"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notification-enhanced/preferences"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notification-enhanced/test"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification/"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification/my"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification/unread-count"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notification/:id/read"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notification/read-all"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notification.test/test"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification.test/tokens"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification.test/firebase-status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payment/booking-status"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payment/initiate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payment/verify"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payment/my"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payment/refund"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payment/status/:orderId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payment/cash"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payment/appointment/:appointmentId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/reception/queue/:doctorId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/reception/walk-in"
+    },
+    {
+      "method": "POST",
+      "path": "/api/reception/follow-up"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue/:queueItemId/check-in"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue/:queueId/call-next"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue-item/:id/skip"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue-item/:id/complete"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue/:queueId/pause"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/reception/queue/:queueId/resume"
+    },
+    {
+      "method": "GET",
+      "path": "/api/reception/session-stats/:clinicId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/session/:sessionId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessionAvailability/sessions/validate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhook/razorpay"
+    }
+  ]
+}

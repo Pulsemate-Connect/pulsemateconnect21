@@ -26,7 +26,7 @@ import useAuthStore from '../store/authStore'; // FIX: Use correct store path (s
 export const ROLE_HOME = {
   PATIENT: '/patient/home',
   DOCTOR: '/doctor/dashboard',
-  CLINIC_OWNER: '/owner/dashboard',
+  CLINIC_OWNER: '/clinic/dashboard', // ✅ FIX: Use /clinic/dashboard instead of /owner/dashboard
   RECEPTIONIST: '/receptionist/dashboard',
   SUPER_ADMIN: '/admin/dashboard',
 };
@@ -66,8 +66,55 @@ export default function ProtectedRoute({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    console.log('[ProtectedRoute] Not authenticated, redirecting to login');
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Determine which login page to redirect to based on the route
+    let loginPath = '/login';
+    
+    // Check if the route is patient-specific
+    if (location.pathname.startsWith('/patient')) {
+      loginPath = '/login/patient';
+    } 
+    // Check if the route is doctor-specific
+    else if (location.pathname.startsWith('/doctor')) {
+      loginPath = '/login/doctor';
+    }
+    // Check if the route is receptionist-specific
+    else if (location.pathname.startsWith('/receptionist') || location.pathname.startsWith('/reception')) {
+      loginPath = '/staff/login';
+    }
+    // Check if the route is clinic owner specific
+    else if (location.pathname.startsWith('/clinic') || location.pathname.startsWith('/owner')) {
+      loginPath = '/login'; // Clinic owner login (default)
+    }
+    // Check if the route is admin-specific
+    else if (location.pathname.startsWith('/admin')) {
+      loginPath = '/admin';
+    }
+    
+    console.log(`[ProtectedRoute] Not authenticated, redirecting to ${loginPath}`);
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
+  }
+
+  // ✅ FIX: Check approval status for CLINIC_OWNER users
+  // Backend blocks REJECTED/SUSPENDED users from API endpoints via 403
+  // Frontend should redirect them to login with error message
+  if (user?.role === 'CLINIC_OWNER') {
+    const approvalStatus = user.approvalStatus || user.status;
+    
+    // PENDING/UNDER_REVIEW/CHANGES_REQUIRED users can access dashboard
+    // Dashboard's StatusBanner will show their pending state
+    // Only block REJECTED and SUSPENDED users completely
+    
+    if (approvalStatus === 'REJECTED') {
+      console.log('[ProtectedRoute] CLINIC_OWNER with REJECTED status, blocking access');
+      useAuthStore.getState().clearAuth();
+      return <Navigate to="/login?error=Your clinic registration has been rejected by the admin. Please contact support." replace />;
+    }
+    
+    if (approvalStatus === 'SUSPENDED') {
+      console.log('[ProtectedRoute] CLINIC_OWNER with SUSPENDED status, blocking access');
+      useAuthStore.getState().clearAuth();
+      return <Navigate to="/login?error=Your clinic account has been suspended. Please contact support." replace />;
+    }
   }
 
   // Check role-based access if required

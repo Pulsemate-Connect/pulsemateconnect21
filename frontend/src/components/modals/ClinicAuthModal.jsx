@@ -10,7 +10,8 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [loginMethod, setLoginMethod] = useState('mobile'); // 'mobile' or 'email'
+  // ✅ NEW: Support both email and mobile login for clinic owners
+  const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'mobile'
   
   const [formData, setFormData] = useState({
     name: '',
@@ -18,6 +19,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     mobile: '',
     otp: ['', '', '', '', '', ''],
     agreeTerms: false,
+    verificationId: '', // Store verification ID from OTP send
   });
   
   const [errors, setErrors] = useState({});
@@ -79,15 +81,15 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Validate for login view
+    // Login validation - check based on selected login method
     if (view === 'login') {
-      if (loginMethod === 'mobile') {
-        if (!formData.mobile || !/^[6-9]\d{9}$/.test(formData.mobile)) {
-          newErrors.mobile = 'Please enter a valid 10-digit mobile number';
-        }
-      } else if (loginMethod === 'email') {
+      if (loginMethod === 'email') {
         if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
           newErrors.email = 'Please enter a valid email address';
+        }
+      } else if (loginMethod === 'mobile') {
+        if (!formData.mobile || !/^\d{10}$/.test(formData.mobile)) {
+          newErrors.mobile = 'Please enter a valid 10-digit mobile number';
         }
       }
     }
@@ -123,11 +125,22 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
 
     setLoading(true);
     try {
+      // Format mobile number with +91 prefix for backend
+      const phoneNumber = `+91${formData.mobile}`;
+      
       // First, check if mobile is registered
       const checkResponse = await axios.get(`/auth/check-user-exists?mobile=${formData.mobile}`);
       
       if (!checkResponse.data.data.exists) {
         toast.error('Mobile number not registered. Please create an account first.');
+        setLoading(false);
+        return;
+      }
+
+      // ✅ FIX: Check if user role is CLINIC_OWNER
+      const userRole = checkResponse.data.data.role;
+      if (userRole !== 'CLINIC_OWNER') {
+        toast.error('This mobile number is not registered as a clinic owner. Please use clinic owner login.');
         setLoading(false);
         return;
       }
@@ -139,9 +152,13 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       }
 
       const response = await axios.post('/auth/send-otp', {
-        phoneNumber: formData.mobile, // Backend expects 'phoneNumber'
+        phoneNumber: phoneNumber, // Backend expects 'phoneNumber' with country code
         purpose: 'LOGIN',
       });
+      
+      // ✅ STORE VERIFICATION ID for later use (preserve mobile number)
+      const newFormData = { ...formData, verificationId: response.data.data.verificationId || '' };
+      setFormData(newFormData);
       
       // Check if test mode and show OTP to user
       if (response.data.data._testMode && response.data.data._testOtp) {
@@ -171,6 +188,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       const response = await axios.post('/auth/register-email-otp/send', {
         email: formData.email,
         name: formData.name,
+        purpose: 'SIGNUP', // ✅ FIX: Specify SIGNUP purpose for new registrations
       });
       
       // Check if test mode
@@ -210,6 +228,14 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         return;
       }
 
+      // ✅ FIX: Check if user role is CLINIC_OWNER
+      const userRole = checkResponse.data.data.role;
+      if (userRole !== 'CLINIC_OWNER') {
+        toast.error('This email is not registered as a clinic owner. Please use clinic owner login.');
+        setLoading(false);
+        return;
+      }
+
       // Check if user status is PENDING (allow login to see pending dashboard)
       const userStatus = checkResponse.data.data.status;
       if (userStatus === 'PENDING') {
@@ -219,6 +245,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       const response = await axios.post('/auth/register-email-otp/send', {
         email: formData.email,
         name: '', // Not needed for login
+        purpose: 'LOGIN', // ✅ FIX: Specify LOGIN purpose to allow existing users
       });
       
       if (response.data.data._testMode && response.data.data._testOtp) {
@@ -294,12 +321,23 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
           console.log('[ClinicAuthModal] Mobile OTP resent successfully');
         } else if (formData.email && loginMethod === 'email') {
           console.log('[ClinicAuthModal] Resending email login OTP...');
-          await handleSendEmailLoginOTP(); // Already has validation inside
+          // Resend with LOGIN purpose
+          const response = await axios.post('/auth/register-email-otp/send', {
+            email: formData.email,
+            name: '',
+            purpose: 'LOGIN', // ✅ FIX: Preserve LOGIN purpose on resend
+          });
+          if (response.data.data._testMode && response.data.data._testOtp) {
+            toast.success(`TEST MODE: Your OTP is ${response.data.data._testOtp}`, { duration: 10000 });
+          } else {
+            toast.success('OTP resent to your email!');
+          }
+          setCountdown(60);
           console.log('[ClinicAuthModal] Email login OTP resent successfully');
         } else if (formData.email) {
           // Signup flow - email with name
           console.log('[ClinicAuthModal] Resending email signup OTP...');
-          await handleSendEmailOTP(true); // Skip validation
+          await handleSendEmailOTP(true); // Skip validation (already has SIGNUP purpose)
           console.log('[ClinicAuthModal] Email signup OTP resent successfully');
         } else {
           console.error('[ClinicAuthModal] No mobile or email found for resend');
@@ -322,9 +360,13 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     setLoading(true);
     
     try {
+      // Format mobile number with +91 prefix for backend
+      const phoneNumber = `+91${formData.mobile}`;
+      
       const response = await axios.post('/auth/verify-otp', {
-        phoneNumber: formData.mobile, // Backend expects 'phoneNumber'
+        phoneNumber: phoneNumber, // Backend expects 'phoneNumber' with country code
         otp: otpValue,
+        verificationId: formData.verificationId, // Include verification ID
       });
       
       if (response.data.success) {
@@ -332,26 +374,27 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         if (response.data.data.accessToken && response.data.data.user) {
           const { user, accessToken: token } = response.data.data;
           
+          // Store login and wait a moment for persistence
           storeLogin({ user, token });
           
-          // Check user status for redirect
-          if (user.status === 'PENDING') {
+          // Check user approvalStatus for redirect (use approvalStatus, not status)
+          const approvalStatus = user.approvalStatus || user.status;
+          
+          if (approvalStatus === 'PENDING' || approvalStatus === 'UNDER_REVIEW' || approvalStatus === 'CHANGES_REQUIRED') {
             toast.success('Login successful! Your application is pending approval.');
-            onClose();
-            
-            // Redirect to pending dashboard
-            setTimeout(() => {
-              window.location.href = '/clinic/dashboard/pending';
-            }, 500);
+          } else if (approvalStatus === 'VERIFIED') {
+            toast.success('Login successful!');
           } else {
             toast.success('Login successful!');
-            onClose();
-            
-            // Redirect to clinic onboarding or dashboard
-            setTimeout(() => {
-              window.location.href = '/clinic/onboarding/step-1';
-            }, 500);
           }
+          
+          // Close modal first
+          onClose();
+          
+          // Use navigate instead of window.location to avoid full page reload
+          setTimeout(() => {
+            navigate('/clinic/dashboard');
+          }, 100);
         } else {
           // Just verification (new registration)
           toast.success('Mobile verified successfully!');
@@ -375,6 +418,8 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     const otpValue = formData.otp.join('');
     setLoading(true);
     
+    console.log('[ClinicAuthModal] Verifying email OTP:', formData.email);
+    
     try {
       const response = await axios.post('/auth/register-email-otp/verify', {
         email: formData.email,
@@ -383,33 +428,79 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         role: 'CLINIC_OWNER',
       });
       
+      console.log('[ClinicAuthModal] Email OTP verification response:', response.data);
+      console.log('[ClinicAuthModal] Response data keys:', Object.keys(response.data.data || {}));
+      console.log('[ClinicAuthModal] Full response.data.data:', JSON.stringify(response.data.data, null, 2));
+      
       if (response.data.success) {
+        // ✅ FIX: Extract user object first, then get isNewUser and hasClinic from it
         const { user, accessToken: token } = response.data.data;
+        const { isNewUser, hasClinic } = user; // They're inside the user object!
         
+        console.log('[ClinicAuthModal] Extracted values:', { 
+          userId: user?.id, 
+          role: user?.role, 
+          isNewUser, 
+          hasClinic,
+          approvalStatus: user?.approvalStatus
+        });
+        
+        // Store login
         storeLogin({ user, token });
         
-        // Check user status for redirect
-        if (user.status === 'PENDING') {
+        console.log('[ClinicAuthModal] Login stored in authStore');
+        
+        // ✅ FIX: Better redirect logic based on user state
+        if (user.approvalStatus === 'VERIFIED') {
+          // Approved clinic - go to full dashboard
+          toast.success('Login successful! Welcome back.');
+        } else if (isNewUser === true || hasClinic === false) {
+          // Brand new user OR existing user without clinic - start onboarding
+          toast.success('Registration successful! Please complete your clinic registration.');
+          console.log('[ClinicAuthModal] Will redirect to onboarding');
+        } else if (user.approvalStatus === 'PENDING') {
+          // Existing user with PENDING status - they need to check status or complete onboarding
           toast.success('Login successful! Your application is pending approval.');
-          onClose();
-          
-          // Redirect to pending dashboard
-          setTimeout(() => {
-            window.location.href = '/clinic/dashboard/pending';
-          }, 500);
+          console.log('[ClinicAuthModal] Will redirect to dashboard (pending)');
         } else {
-          toast.success('Registration successful!');
-          onClose();
-          
-          // Redirect to clinic onboarding
-          setTimeout(() => {
-            window.location.href = '/clinic/onboarding/step-1';
-          }, 500);
+          // Fallback - go to dashboard (OwnerDashboard handles all states now)
+          toast.success('Login successful!');
+          console.log('[ClinicAuthModal] Will redirect to dashboard (fallback)');
         }
+        
+        // Close modal first
+        onClose();
+        
+        console.log('[ClinicAuthModal] Modal closed, preparing navigation...');
+        
+        // Use navigate instead of window.location to avoid full page reload
+        setTimeout(() => {
+          if (isNewUser === true || hasClinic === false) {
+            // New user or no clinic - go to onboarding
+            console.log('[ClinicAuthModal] Navigating to: /clinic/onboarding/step-1');
+            navigate('/clinic/onboarding/step-1');
+          } else {
+            // Existing user with clinic - go to dashboard
+            console.log('[ClinicAuthModal] Navigating to: /clinic/dashboard');
+            navigate('/clinic/dashboard');
+          }
+        }, 100);
       }
     } catch (error) {
-      console.error('Verify Email OTP error:', error);
-      toast.error(error.response?.data?.message || 'Invalid OTP. Please try again.');
+      console.error('[ClinicAuthModal] Verify Email OTP error:', error);
+      
+      // ✅ FIX: Handle specific approval status errors
+      const errorMessage = error.response?.data?.message || 'Invalid OTP. Please try again.';
+      const statusCode = error.response?.status;
+      
+      if (statusCode === 403) {
+        // Approval status blocked (PENDING, REJECTED, SUSPENDED)
+        toast.error(errorMessage, { duration: 6000 });
+      } else {
+        // Generic error (invalid OTP, etc.)
+        toast.error(errorMessage);
+      }
+      
       setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
       otpInputRefs.current[0]?.focus();
     } finally {
@@ -531,37 +622,37 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 Login
               </h2>
               
-              {/* Phone Input Card */}
-              {loginMethod === 'mobile' && (
-                <div className="mb-6">
-                  <div 
-                    className="flex items-center border rounded-lg overflow-hidden"
-                    style={{ height: '56px', borderColor: errors.mobile ? '#EF4444' : '#D5D5D5' }}
+              {/* Login Method Toggle */}
+              <div className="mb-6">
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                  <button
+                    onClick={() => setLoginMethod('email')}
+                    className="flex-1 py-2 px-4 rounded-md transition-all font-medium"
+                    style={{
+                      backgroundColor: loginMethod === 'email' ? '#FFFFFF' : 'transparent',
+                      color: loginMethod === 'email' ? '#2F73E8' : '#6B7280',
+                      fontSize: '15px',
+                      boxShadow: loginMethod === 'email' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
                   >
-                    <div className="flex items-center px-4 border-r h-full cursor-pointer" style={{ borderRightColor: '#D5D5D5' }}>
-                      <span className="mr-2">🇮🇳</span>
-                      <span className="text-base">+91</span>
-                      <svg className="w-4 h-4 ml-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    <input
-                      type="tel"
-                      value={formData.mobile}
-                      onChange={(e) => {
-                        setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) });
-                        if (errors.mobile) setErrors({ ...errors, mobile: '' });
-                      }}
-                      placeholder="Phone"
-                      className="flex-1 h-full px-4 outline-none text-base"
-                      maxLength={10}
-                    />
-                  </div>
-                  {errors.mobile && <p className="text-red-600 text-sm mt-1">{errors.mobile}</p>}
+                    Email
+                  </button>
+                  <button
+                    onClick={() => setLoginMethod('mobile')}
+                    className="flex-1 py-2 px-4 rounded-md transition-all font-medium"
+                    style={{
+                      backgroundColor: loginMethod === 'mobile' ? '#FFFFFF' : 'transparent',
+                      color: loginMethod === 'mobile' ? '#2F73E8' : '#6B7280',
+                      fontSize: '15px',
+                      boxShadow: loginMethod === 'mobile' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    Mobile
+                  </button>
                 </div>
-              )}
+              </div>
 
-              {/* Email Input Card */}
+              {/* Email Input */}
               {loginMethod === 'email' && (
                 <div className="mb-6">
                   <input
@@ -579,9 +670,33 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 </div>
               )}
 
+              {/* Mobile Input */}
+              {loginMethod === 'mobile' && (
+                <div className="mb-6">
+                  <div className="flex gap-2">
+                    <div className="flex items-center px-3 border rounded-lg bg-gray-50" style={{ borderColor: '#D5D5D5' }}>
+                      <span style={{ fontSize: '16px', color: '#374151', fontWeight: 500 }}>+91</span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={formData.mobile}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormData({ ...formData, mobile: value });
+                        if (errors.mobile) setErrors({ ...errors, mobile: '' });
+                      }}
+                      placeholder="Mobile Number"
+                      className="flex-1 px-4 border rounded-lg outline-none"
+                      style={{ height: '56px', borderColor: errors.mobile ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
+                    />
+                  </div>
+                  {errors.mobile && <p className="text-red-600 text-sm mt-1">{errors.mobile}</p>}
+                </div>
+              )}
+
               {/* Send OTP Button */}
               <button
-                onClick={loginMethod === 'mobile' ? handleSendMobileOTP : handleSendEmailLoginOTP}
+                onClick={() => loginMethod === 'email' ? handleSendEmailLoginOTP() : handleSendMobileOTP()}
                 disabled={loading}
                 className="w-full rounded-lg text-white font-medium mb-6 transition-all"
                 style={{ 
@@ -596,43 +711,8 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 {loading ? 'Sending...' : 'Send One Time Password'}
               </button>
 
-              {/* Divider with "or" */}
-              <div className="flex items-center my-6">
-                <div className="flex-1 border-t" style={{ borderColor: '#D5D5D5' }}></div>
-                <span className="px-4 text-gray-500 text-sm">or</span>
-                <div className="flex-1 border-t" style={{ borderColor: '#D5D5D5' }}></div>
-              </div>
-
-              {/* Toggle Login Method Button */}
-              <button
-                onClick={() => setLoginMethod(loginMethod === 'mobile' ? 'email' : 'mobile')}
-                className="w-full border rounded-lg flex items-center justify-center gap-3 mb-6 transition-all"
-                style={{ 
-                  height: '52px', 
-                  borderColor: '#D5D5D5',
-                  backgroundColor: '#FFFFFF'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#F9FAFB'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#FFFFFF'}
-              >
-                {loginMethod === 'mobile' ? (
-                  <>
-                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                    </svg>
-                    <span className="font-medium" style={{ color: '#374151', fontSize: '16px' }}>Continue with Email</span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: '20px' }}>📱</span>
-                    <span className="font-medium" style={{ color: '#374151', fontSize: '16px' }}>Continue with Mobile</span>
-                  </>
-                )}
-              </button>
-
               {/* Create Account Link */}
-              <div className="text-center">
+              <div className="text-center mt-6">
                 <span style={{ color: '#6B7280', fontSize: '15px' }}>New to PulseMate Connect? </span>
                 <button 
                   onClick={() => setView('signup')}

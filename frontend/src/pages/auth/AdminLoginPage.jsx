@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginWithPassword, logout } from '../../api/auth.api';
@@ -9,7 +9,7 @@ import PulsemateLogo from '../../components/PulsemateLogo';
 const AdminLoginPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { setAuth, clearAuth } = useAuthStore();
+  const { setAuth, clearAuth, user } = useAuthStore();
   const resetCredentials = location.state?.resetCredentials;
   const [form, setForm] = useState({
     identifier: resetCredentials?.email || '',
@@ -17,6 +17,13 @@ const AdminLoginPage = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Clear any existing non-admin auth on mount
+  useEffect(() => {
+    if (user && user.role !== 'SUPER_ADMIN') {
+      clearAuth();
+    }
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();

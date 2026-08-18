@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { firebasePhoneLogin } from '../../api/auth.api';
 import { initRecaptcha, sendOtpToPhone, verifyPhoneOtp, clearRecaptcha, forceResetRecaptcha } from '../../api/firebaseAuth';
@@ -131,6 +131,18 @@ const LoginPage = () => {
 
   const navigate    = useNavigate();
   const { setAuth } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Display error message from URL query parameter (from redirects due to rejected/suspended accounts)
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      toast.error(error, { duration: 6000 });
+      // Clear the error param from URL
+      searchParams.delete('error');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Clean up reCAPTCHA only on unmount
   useEffect(() => {

@@ -547,6 +547,158 @@ const sendDoctorCredentialsEmail = async (doctorEmail, doctorName, clinicName, t
   return true;
 };
 
+/**
+ * Send doctor invitation email
+ */
+const sendDoctorInvitationEmail = async (doctorEmail, doctorName, clinicName, clinicAddress, clinicCity, invitationToken) => {
+  const acceptLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/doctor/invitation/${invitationToken}`;
+  
+  const subject = `🏥 ${clinicName} invited you to join their clinic on PulseMate`;
+  
+  const text = [
+    `Hello Dr. ${doctorName},`,
+    '',
+    `${clinicName} has invited you to join their clinic on PulseMate Connect.`,
+    '',
+    '📍 Clinic Details:',
+    `Clinic Name: ${clinicName}`,
+    `Location: ${clinicAddress}, ${clinicCity}`,
+    '',
+    'To accept this invitation and complete your professional profile:',
+    acceptLink,
+    '',
+    '✅ Next Steps:',
+    '1. Click the link above or log in to PulseMate with your mobile number',
+    '2. Accept the invitation',
+    '3. Complete your professional profile with your credentials',
+    '4. Submit for PulseMate admin verification',
+    '5. Once verified, you will be active at this clinic',
+    '',
+    '💡 Important:',
+    '• You will provide your own professional credentials and documents',
+    '• PulseMate admin will verify your qualifications before activation',
+    '• This ensures patient safety and trust',
+    '',
+    'If you did not expect this invitation, you can safely ignore this email.',
+    '',
+    'Thank you,',
+    'PulseMate Team',
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:600px">
+      <div style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);padding:24px;border-radius:12px 12px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:22px">🏥 Clinic Invitation</h2>
+      </div>
+      
+      <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:32px;border-radius:0 0 12px 12px">
+        <p style="font-size:16px;margin:0 0 20px">Hello <strong>Dr. ${doctorName}</strong>,</p>
+        
+        <p style="font-size:15px;margin:0 0 20px">
+          <strong>${clinicName}</strong> has invited you to join their clinic on PulseMate Connect.
+        </p>
+        
+        <div style="background:#f8fafc;border-left:4px solid #2563eb;padding:16px;margin:20px 0;border-radius:4px">
+          <p style="margin:0 0 8px;font-weight:700;color:#1e40af;font-size:14px">📍 Clinic Details</p>
+          <p style="margin:4px 0;font-size:14px"><strong>Clinic Name:</strong> ${clinicName}</p>
+          <p style="margin:4px 0;font-size:14px"><strong>Location:</strong> ${clinicAddress}, ${clinicCity}</p>
+        </div>
+        
+        <p style="font-size:15px;margin:20px 0">To accept this invitation and join the clinic:</p>
+        
+        <div style="text-align:center;margin:28px 0">
+          <a href="${acceptLink}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:16px;box-shadow:0 4px 6px rgba(37,99,235,0.2)">Accept Invitation</a>
+        </div>
+        
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:24px 0">
+          <p style="margin:0 0 12px;font-weight:700;color:#1e40af;font-size:14px">✅ Next Steps:</p>
+          <ol style="margin:8px 0;padding-left:20px;color:#1e3a8a;font-size:13px">
+            <li style="margin:4px 0">Click the button above or log in to PulseMate</li>
+            <li style="margin:4px 0">Accept the invitation</li>
+            <li style="margin:4px 0">Complete your professional profile with your credentials</li>
+            <li style="margin:4px 0">Submit for PulseMate admin verification</li>
+            <li style="margin:4px 0">Once verified, you will be active at this clinic</li>
+          </ol>
+        </div>
+        
+        <div style="background:#fef3c7;border:1px solid#fde68a;border-radius:8px;padding:16px;margin:24px 0">
+          <p style="margin:0 0 8px;font-weight:700;color:#d97706;font-size:14px">💡 Important:</p>
+          <ul style="margin:8px 0;padding-left:20px;color:#78350f;font-size:13px">
+            <li style="margin:4px 0">You will provide your own professional credentials and documents</li>
+            <li style="margin:4px 0">PulseMate admin will verify your qualifications before activation</li>
+            <li style="margin:4px 0">This ensures patient safety and trust</li>
+          </ul>
+        </div>
+        
+        <p style="color:#6b7280;font-size:13px;margin:24px 0 0">
+          If you did not expect this invitation, you can safely ignore this email.
+        </p>
+        
+        <div style="border-top:1px solid #e5e7eb;margin-top:32px;padding-top:20px">
+          <p style="color:#9ca3af;font-size:13px;margin:0">
+            Thank you,<br>
+            <strong style="color:#6b7280">PulseMate Team</strong>
+          </p>
+        </div>
+      </div>
+    </div>`;
+
+  const sent = await sendTransactionalEmail({ to: doctorEmail, subject, text, html });
+  if (!sent) logEmail(subject, doctorEmail, text);
+  return true;
+};
+
+/**
+ * Send Email OTP for verification
+ */
+const sendEmailOtp = async (userEmail, userName, otp) => {
+  const subject = 'Verify your email - PulseMate Connect';
+  const text = [
+    `Hi ${userName || 'Doctor'},`,
+    '',
+    `Your email verification code is: ${otp}`,
+    '',
+    'This code will expire in 10 minutes.',
+    '',
+    'If you did not request this code, please ignore this email.',
+    '',
+    'Best regards,',
+    'PulseMate Team',
+  ].join('\n');
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">🏥 PulseMate Connect</h1>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+        <h2 style="color: #333; margin-top: 0;">Email Verification</h2>
+        <p style="color: #555; font-size: 16px; line-height: 1.6;">Hi ${userName || 'Doctor'},</p>
+        
+        <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+          <p style="color: #666; margin-bottom: 10px;">Your verification code is:</p>
+          <div style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: monospace;">
+            ${otp}
+          </div>
+        </div>
+        
+        <p style="color: #888; font-size: 14px;">⏰ This code will expire in 10 minutes.</p>
+        <p style="color: #888; font-size: 14px;">If you did not request this code, please ignore this email.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <p style="color: #999; font-size: 12px; margin: 0;">
+            Best regards,<br>
+            The PulseMate Team
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return sendTransactionalEmail({ to: userEmail, subject, text, html });
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendPasswordChangedEmail,
@@ -561,4 +713,6 @@ module.exports = {
   sendClinicSuspendedEmail,
   sendClinicResubmittedEmail,
   sendDoctorCredentialsEmail,
+  sendDoctorInvitationEmail,
+  sendEmailOtp,
 };

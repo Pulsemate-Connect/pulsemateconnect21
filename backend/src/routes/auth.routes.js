@@ -30,6 +30,10 @@ const {
   checkUserExistsHandler,
   sendRegistrationEmailOtp,
   verifyRegistrationEmailOtp,
+  doctorSendMobileOtpLogin,
+  doctorVerifyMobileOtpLogin,
+  doctorSendEmailOtpLogin,
+  doctorVerifyEmailOtpLogin,
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
@@ -204,6 +208,12 @@ router.post(
 
 // ── Doctor registration ───────────────────────────────────────────────────────
 router.post('/doctor/register', validateRequest(doctorRegisterSchema), registerDoctorHandler);
+
+// ✅ NEW: Doctor OTP Login Routes
+router.post('/doctor/send-mobile-otp', otpSendLimiter, doctorSendMobileOtpLogin);
+router.post('/doctor/verify-mobile-otp', otpVerifyLimiter, doctorVerifyMobileOtpLogin);
+router.post('/doctor/send-email-otp', otpSendLimiter, doctorSendEmailOtpLogin);
+router.post('/doctor/verify-email-otp', otpVerifyLimiter, doctorVerifyEmailOtpLogin);
 
 // ── Common auth ───────────────────────────────────────────────────────────────
 router.post('/login', loginLimiter, validateRequest(commonLoginSchema), loginHandler);

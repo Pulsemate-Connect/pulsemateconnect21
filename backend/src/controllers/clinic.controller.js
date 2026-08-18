@@ -2,8 +2,10 @@ const prisma = require('../config/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/response');
 const { createAuditLog } = require('../services/audit.service');
 const { hashValue, generateTempPassword } = require('../utils/crypto');
-const { sendDoctorCredentialsEmail } = require('../services/email.service');
+const { sendDoctorCredentialsEmail, sendDoctorInvitationEmail } = require('../services/email.service');
 const { createDoctorSchema, updateDoctorSchema } = require('../validators/doctor.validator');
+const { normalizeMobileNumber } = require('../utils/mobile');
+const logger = require('../config/logger');
 
 /**
  * POST /api/clinics - Create clinic
@@ -218,8 +220,9 @@ const getClinic = async (req, res, next) => {
           where: { isActive: true },
           include: {
             user: {
-              select: { id: true, name: true, mobile: true, email: true, role: true },
-              include: { doctorProfile: true },
+              include: {
+                doctorProfile: true,
+              },
             },
           },
         },
@@ -292,6 +295,177 @@ const updateClinic = async (req, res, next) => {
 
     return sendSuccess(res, { clinic }, 'Clinic updated successfully');
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/clinics/:id/invite-doctor - Send invitation to doctor
+ * Clinic owner provides minimal info: name + mobile (+ optional email/specialization)
+ * Doctor will accept invitation and complete their own profile
+ */
+const inviteDoctorSimple = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+    const { name, mobile, email, specialization } = req.body;
+
+    // Validate required fields
+    if (!name || !mobile || !email) {
+      return sendError(res, 'Name, mobile, and email are required', 400);
+    }
+
+    logger.info(`[InviteDoctor] Clinic ${clinicId} inviting: ${name}, ${mobile}, ${email}`);
+
+    // Verify clinic ownership and verification status
+    const clinic = await prisma.clinic.findFirst({
+      where: {
+        id: clinicId,
+        ownerId: req.user.role === 'SUPER_ADMIN' ? undefined : req.user.id,
+        approvalStatus: 'VERIFIED', // Only verified clinics can invite
+      },
+    });
+
+    if (!clinic) {
+      return sendError(res, 'Clinic not found, access denied, or clinic not verified', 404);
+    }
+
+    // Normalize mobile number
+    const normalizedMobile = normalizeMobileNumber(mobile);
+
+    // Check if invitation already exists
+    const existingInvitation = await prisma.doctorInvitation.findFirst({
+      where: {
+        clinicId,
+        doctorMobile: normalizedMobile,
+        status: 'INVITATION_SENT', // Check for pending invitations
+      },
+    });
+
+    if (existingInvitation) {
+      return sendError(res, 'An active invitation already exists for this mobile number', 409);
+    }
+
+    // Generate unique invitation token
+    const invitationToken = require('crypto').randomBytes(32).toString('hex');
+    const tokenExpiresAt = new Date();
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 7); // 7 days validity
+
+    // Create invitation record
+    const invitation = await prisma.doctorInvitation.create({
+      data: {
+        clinicId,
+        invitedById: req.user.id,
+        doctorName: name,
+        doctorMobile: normalizedMobile,
+        doctorEmail: email, // Now required
+        specialization: specialization || null,
+        invitationToken,
+        tokenExpiresAt,
+        status: 'INVITATION_SENT',
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+          },
+        },
+      },
+    });
+
+    // Send invitation SMS/notification to doctor
+    try {
+      // TODO: Implement SMS sending for invitations
+      // For now, we rely on email notifications
+      // Future: Integrate with SMS provider to send:
+      // "You've been invited to join {clinicName} on PulseMate. Check your email or login to accept."
+      logger.info(`[InviteDoctor] SMS notification pending for: ${normalizedMobile}`);
+    } catch (smsError) {
+      logger.error('[InviteDoctor] Failed to send SMS:', smsError);
+      // Don't fail the request if SMS fails
+    }
+
+    // Send invitation email if provided
+    if (email) {
+      try {
+        await sendDoctorInvitationEmail(
+          email,
+          name,
+          clinic.name,
+          clinic.address,
+          clinic.city,
+          invitation.invitationToken
+        );
+        logger.info(`[InviteDoctor] Invitation email sent to: ${email}`);
+      } catch (emailError) {
+        logger.error('[InviteDoctor] Failed to send email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'DOCTOR_INVITATION_SENT',
+      entityType: 'DoctorInvitation',
+      entityId: invitation.id,
+      metadata: { clinicId, doctorMobile: normalizedMobile, doctorName: name },
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(
+      res,
+      {
+        invitation: {
+          id: invitation.id,
+          doctorName: invitation.doctorName,
+          doctorMobile: invitation.doctorMobile,
+          doctorEmail: invitation.doctorEmail,
+          specialization: invitation.specialization,
+          status: invitation.status,
+          invitationToken: invitation.invitationToken,
+          tokenExpiresAt: invitation.tokenExpiresAt,
+          createdAt: invitation.createdAt,
+          clinic: invitation.clinic,
+        },
+      },
+      'Doctor invitation sent successfully',
+      201
+    );
+  } catch (error) {
+    logger.error('[InviteDoctor] Error:', error);
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clinics/:id/pending-invitations - Get pending doctor invitations
+ */
+const getPendingInvitations = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+
+    // Verify ownership
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({
+        where: { id: clinicId, ownerId: req.user.id },
+      });
+      if (!clinic) return sendError(res, 'Clinic not found or access denied', 404);
+    }
+
+    const invitations = await prisma.doctorInvitation.findMany({
+      where: {
+        clinicId,
+        status: 'INVITATION_SENT',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, { invitations });
+  } catch (error) {
+    logger.error('[GetPendingInvitations] Error:', error);
     next(error);
   }
 };
@@ -917,45 +1091,49 @@ const getClinicDoctors = async (req, res, next) => {
       return sendError(res, 'No clinic found', 404);
     }
 
-    // Build where clause
+    // Build where clause for DoctorClinic relationship
     const where = {
       clinicId: clinic.id,
-      role: 'DOCTOR',
     };
 
-    if (status) {
-      where.isActive = status === 'ACTIVE';
+    if (status === 'ACTIVE') {
+      where.isActive = true;
+      where.inviteStatus = 'ACCEPTED'; // ✅ Fixed: Changed from 'APPROVED' to 'ACCEPTED'
+    } else if (status === 'INACTIVE') {
+      where.isActive = false;
     }
 
-    // Get doctors
-    const [doctors, total] = await Promise.all([
-      prisma.clinicStaff.findMany({
+    // Get doctors via DoctorClinic relationship
+    const [doctorClinics, total] = await Promise.all([
+      prisma.doctorClinic.findMany({
         where,
         skip: parseInt(skip),
         take: parseInt(limit),
         include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              mobile: true,
-              isActive: true,
-              lastLoginAt: true,
-              createdAt: true,
-            },
+          doctor: {
             include: {
-              doctorProfile: {
+              user: {
                 select: {
                   id: true,
-                  specialization: true,
-                  qualification: true,
-                  experienceYears: true,
-                  consultationFee: true,
-                  profileStatus: true,
-                  verificationStatus: true,
-                  gender: true,
-                  profileImage: true,
+                  name: true,
+                  email: true,
+                  mobile: true,
+                  isActive: true,
+                  approvalStatus: true,
+                  lastLoginAt: true,
+                  createdAt: true,
+                },
+              },
+              invitation: {
+                where: {
+                  clinicId: clinic.id,
+                },
+                select: {
+                  id: true,
+                  status: true,
+                  createdAt: true,
+                  acceptedAt: true,
+                  verifiedAt: true,
                 },
               },
             },
@@ -963,45 +1141,43 @@ const getClinicDoctors = async (req, res, next) => {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.clinicStaff.count({ where }),
+      prisma.doctorClinic.count({ where }),
     ]);
 
-    // Get DoctorClinic details for each doctor
-    const doctorIds = doctors
-      .map((d) => d.user.doctorProfile?.id)
-      .filter(Boolean);
-
-    const doctorClinics = await prisma.doctorClinic.findMany({
-      where: {
-        doctorId: { in: doctorIds },
-        clinicId: clinic.id,
-      },
-    });
-
-    // Map doctor clinics to doctor IDs
-    const doctorClinicMap = {};
-    doctorClinics.forEach((dc) => {
-      doctorClinicMap[dc.doctorId] = dc;
-    });
-
     // Format response
-    const formattedDoctors = doctors.map((staff) => ({
-      id: staff.user.id,
-      name: staff.user.name,
-      email: staff.user.email,
-      mobile: staff.user.mobile,
-      isActive: staff.isActive,
-      lastLoginAt: staff.user.lastLoginAt,
-      joinedAt: staff.createdAt,
-      profile: staff.user.doctorProfile
-        ? {
-            ...staff.user.doctorProfile,
-            availableDays:
-              doctorClinicMap[staff.user.doctorProfile.id]?.availableDays || [],
-            startTime: doctorClinicMap[staff.user.doctorProfile.id]?.startTime,
-            endTime: doctorClinicMap[staff.user.doctorProfile.id]?.endTime,
-          }
-        : null,
+    const formattedDoctors = doctorClinics.map((dc) => ({
+      id: dc.doctor.user.id,
+      name: dc.doctor.user.name,
+      email: dc.doctor.user.email,
+      mobile: dc.doctor.user.mobile,
+      isActive: dc.isActive,
+      inviteStatus: dc.inviteStatus,
+      roleAtClinic: dc.roleAtClinic,
+      lastLoginAt: dc.doctor.user.lastLoginAt,
+      joinedAt: dc.joinedAt || dc.createdAt,
+      approvalStatus: dc.doctor.user.approvalStatus,
+      adminVerifiedAt: dc.adminVerifiedAt,
+      profile: {
+        id: dc.doctor.id,
+        fullLegalName: dc.doctor.fullLegalName,
+        specialization: dc.doctor.specialization,
+        qualification: dc.doctor.qualification,
+        experienceYears: dc.doctor.experienceYears,
+        consultationFee: dc.consultationFee || dc.doctor.consultationFee,
+        profileStatus: dc.doctor.profileStatus,
+        verificationStatus: dc.doctor.verificationStatus,
+        gender: dc.doctor.gender,
+        profilePhotoUrl: dc.doctor.profilePhotoUrl,
+        bio: dc.doctor.bio,
+        languagesKnown: dc.doctor.languagesKnown,
+        areasOfExpertise: dc.doctor.areasOfExpertise,
+        medicalSystem: dc.doctor.medicalSystem,
+        medicalRegistrationNumber: dc.doctor.medicalRegistrationNumber,
+        availableDays: dc.availableDays || [],
+        startTime: dc.startTime,
+        endTime: dc.endTime,
+      },
+      invitation: dc.doctor.invitation[0] || null,
     }));
 
     // Apply search filter if provided
@@ -1013,12 +1189,16 @@ const getClinicDoctors = async (req, res, next) => {
           d.name?.toLowerCase().includes(searchLower) ||
           d.email?.toLowerCase().includes(searchLower) ||
           d.mobile?.includes(search) ||
-          d.profile?.specialization?.toLowerCase().includes(searchLower)
+          d.profile?.specialization?.toLowerCase().includes(searchLower) ||
+          d.profile?.qualification?.toLowerCase().includes(searchLower)
       );
     }
 
+    logger.info(`[GetClinicDoctors] Clinic ${clinic.id} has ${filteredDoctors.length} doctors`);
+
     return sendPaginated(res, filteredDoctors, total, page, limit);
   } catch (error) {
+    logger.error('[GetClinicDoctors] Error:', error);
     next(error);
   }
 };
@@ -1389,6 +1569,8 @@ module.exports = {
   resubmitClinic,
   getClinic,
   updateClinic,
+  inviteDoctorSimple,
+  getPendingInvitations,
   addStaff,
   getStaff,
   getDoctorInvites,
@@ -1523,31 +1705,4 @@ const getBookingStatus = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
-
-// Export new functions
-module.exports = {
-  createClinic,
-  getMyClinics,
-  getMyClinicStatus,
-  resubmitClinic,
-  getClinic,
-  updateClinic,
-  addStaff,
-  getStaff,
-  getDoctorInvites,
-  updateStaffStatus,
-  getClinicRevenue,
-  getClinicBookingMetrics,
-  getClinicAppointments,
-  createDoctor,
-  getClinicDoctors,
-  getDoctorById,
-  updateDoctor,
-  updateDoctorStatus,
-  deleteDoctor,
-  // ✅ NEW: Booking control
-  stopBookings,
-  resumeBookings,
-  getBookingStatus,
 };

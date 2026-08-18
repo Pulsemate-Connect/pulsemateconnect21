@@ -97,6 +97,7 @@ const decideDoctorApproval = async (req, res, next) => {
     if (!doctor?.doctorProfile) return sendError(res, 'Doctor not found', 404);
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Update user approval status
       const nextUser = await tx.user.update({
         where: { id: doctorUserId },
         data: {
@@ -107,13 +108,31 @@ const decideDoctorApproval = async (req, res, next) => {
         include: { doctorProfile: true },
       });
 
+      // Update doctor profile - THIS IS THE KEY FIX
+      // The getPendingDoctors filters by verificationStatus, so we must update it
       await tx.doctorProfile.update({
         where: { id: doctor.doctorProfile.id },
         data: {
-          approvalStatus: status,
+          verificationStatus: status, // ✅ FIX: Update verificationStatus (not approvalStatus)
+          profileStatus: 'COMPLETE',
           marketplaceVisible: status === 'VERIFIED',
         },
       });
+
+      // Update invitation status if exists
+      if (doctor.doctorProfile.invitationId) {
+        await tx.doctorInvitation.update({
+          where: { id: doctor.doctorProfile.invitationId },
+          data: {
+            status: status === 'VERIFIED' ? 'VERIFIED' : status === 'REJECTED' ? 'REJECTED' : 'INVITATION_SENT',
+            verifiedAt: status === 'VERIFIED' ? new Date() : null,
+            verifiedById: status === 'VERIFIED' ? req.user.id : null,
+            rejectedAt: status === 'REJECTED' ? new Date() : null,
+            rejectedById: status === 'REJECTED' ? req.user.id : null,
+            rejectionReason: status === 'REJECTED' ? reason : null,
+          },
+        });
+      }
 
       return nextUser;
     });

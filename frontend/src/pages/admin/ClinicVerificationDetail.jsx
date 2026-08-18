@@ -267,11 +267,28 @@ const ClinicVerificationDetail = () => {
     </DashboardLayout>
   );
 
+  // Extract data from both Clinic table and clinicOnboardingData (original form)
+  const onboarding = clinic.clinicOnboardingData || {};
+  const step1 = onboarding.clinicInformation || {};
+  const step2 = onboarding.servicesOperations || {};
+  const step3 = onboarding.clinicDocuments || {};
+  const step4 = onboarding.partnerAgreement || {};
+
   const owner = clinic.owner || {};
-  const schedule = Array.isArray(clinic.weeklySchedule) ? clinic.weeklySchedule : [];
+  const schedule = Array.isArray(clinic.weeklySchedule) ? clinic.weeklySchedule : 
+                   (step2.operatingHours ? Object.entries(step2.operatingHours).map(([day, hours]) => ({
+                     day,
+                     enabled: hours.isOpen,
+                     openingTime: hours.from,
+                     closingTime: hours.to,
+                     isOpen: hours.isOpen
+                   })) : []);
   const additionalDocs = Array.isArray(clinic.additionalDocuments)
     ? clinic.additionalDocuments
     : clinic.additionalDocuments?.docs || [];
+
+  // Helper to get value from Clinic table or fallback to onboarding data
+  const getValue = (clinicField, onboardingField) => clinicField || onboardingField || null;
 
   const canApprove       = !['VERIFIED'].includes(clinic.approvalStatus);
   const canReject        = !['REJECTED'].includes(clinic.approvalStatus);
@@ -297,211 +314,546 @@ const ClinicVerificationDetail = () => {
           </div>
         </div>
 
-        {/* ── Section 1: Owner Info ── */}
-        <Section title="Owner Information" icon="👤">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
-            <Field label="Full Name" value={owner.name} />
-            <Field label="Mobile" value={owner.mobile} />
-            <Field label="Mobile Verified" value={clinic.ownerMobileVerified ? '✅ Yes' : '❌ No'} />
-            <Field label="Email" value={owner.email} />
-            <Field label="Email Verified" value={clinic.ownerEmailVerified ? '✅ Yes' : '❌ No'} />
-            <Field label="Account Status" value={owner.approvalStatus} />
+        {/* ── Section 1: Clinic Information (Complete Info from Step 1) ── */}
+        <Section title="Clinic Information" icon="🏥">
+          {/* Clinic Basic Info */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📋 Clinic Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Clinic Name" value={getValue(clinic.name, step1.clinicName)} />
+              <Field label="Clinic Type" value={getValue(clinic.clinicType, step1.clinicType)} />
+              <Field label="Display Name" value={getValue(clinic.displayName, step1.displayName) || '(Same as clinic name)'} />
+              {(clinic.clinicTypeOther || step1.clinicTypeOther) && <Field label="Custom Type" value={getValue(clinic.clinicTypeOther, step1.clinicTypeOther)} />}
+            </div>
           </div>
-        </Section>
 
-        {/* ── Section 2: Clinic Details ── */}
-        <Section title="Clinic Details" icon="🏥">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
-            <Field label="Clinic Name" value={clinic.name} />
-            <Field label="Clinic Type" value={clinic.clinicType} />
-            {clinic.clinicTypeOther && <Field label="Custom Type" value={clinic.clinicTypeOther} />}
-            <Field label="Description" value={clinic.description} />
-            <div className="col-span-2 mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Specialties</p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(clinic.specialties || []).map((s) => (
-                  <span key={s} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">{s}</span>
-                ))}
-                {clinic.specialtyOther && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs">{clinic.specialtyOther}</span>}
+          {/* Owner / Administrator Details */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">👤 Owner / Administrator Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Owner Name" value={step1.ownerName || owner.name || step4.ownerName} />
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Owner Email</p>
+                <p className="text-sm text-gray-800">{step1.ownerEmail || owner.email || <span className="text-gray-400 italic">—</span>}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email Verified</p>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                  owner.isEmailVerified ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {owner.isEmailVerified ? '✅ Yes' : '❌ No'}
+                </span>
+              </div>
+              <Field label="Owner Mobile" value={step1.ownerMobile || owner.mobile} />
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Mobile Verified</p>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                  (step1.mobileVerified || owner.isPhoneVerified) ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {(step1.mobileVerified || owner.isPhoneVerified) ? '✅ Yes' : '❌ No'}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Logo and Cover Image preview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {/* Logo */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Clinic Logo</p>
-              <SafeImage
-                src={clinic.clinicLogoUrl}
-                alt="Clinic Logo"
-                className="rounded-2xl w-24 h-24 object-contain border border-gray-200 bg-white shadow-sm"
-                fallbackClassName="w-24 h-24"
-                fallbackIcon="🏥"
-                fallbackText="No Logo"
+          {/* Clinic's Primary Contact */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📞 Clinic's Primary Contact</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field 
+                label="Primary Contact Number" 
+                value={step1.sameAsOwner ? `${step1.ownerMobile} (Same as owner)` : (step1.primaryContactPhone || clinic.phone)} 
               />
+              {!step1.sameAsOwner && step1.primaryContactPhone && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <p className="text-xs font-semibold text-blue-700 mb-1">ℹ️ Note</p>
+                  <p className="text-xs text-blue-600">Clinic uses a different contact number than owner's mobile</p>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Cover Image */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cover Image</p>
-              <SafeImage
-                src={clinic.clinicCoverImageUrl}
-                alt="Clinic Cover"
-                className="rounded-2xl w-full h-40 object-cover border border-gray-200 shadow-sm"
-                fallbackClassName="w-full h-40"
-                fallbackIcon="🖼️"
-                fallbackText="No Cover Image"
-              />
+          {/* Clinic Location */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📍 Clinic Location and Address</h3>
+            
+            {/* Map Coordinates */}
+            {(step1.latitude || clinic.latitude) && (step1.longitude || clinic.longitude) && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <p className="text-xs font-bold text-blue-700 mb-1">Latitude</p>
+                      <p className="text-sm text-blue-900 font-mono font-semibold">{step1.latitude || clinic.latitude}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-700 mb-1">Longitude</p>
+                      <p className="text-sm text-blue-900 font-mono font-semibold">{step1.longitude || clinic.longitude}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${step1.latitude || clinic.latitude},${step1.longitude || clinic.longitude}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all hover:shadow-lg"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                    </svg>
+                    View Location on Google Maps
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Address Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="md:col-span-3">
+                <Field label="Complete Address" value={step1.addressLine1 || clinic.address} />
+              </div>
+              {step1.addressLine2 && <div className="md:col-span-3"><Field label="Address Line 2" value={step1.addressLine2} /></div>}
+              {step1.locality && <Field label="Locality" value={step1.locality} />}
+              <Field label="Landmark" value={step1.landmark || clinic.landmark} />
+              <Field label="City" value={step1.city || clinic.city} />
+              <Field label="District" value={step1.district || clinic.district} />
+              <Field label="State" value={step1.state || clinic.state} />
+              <Field label="Pincode" value={step1.pincode || clinic.pincode} />
+              <Field label="Country" value={step1.country || 'India'} />
             </div>
           </div>
         </Section>
 
-        {/* ── Section 3: Location ── */}
-        <Section title="Location & Operations" icon="📍">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
-            <Field label="Address" value={clinic.address} />
-            <Field label="Landmark" value={clinic.landmark} />
-            <Field label="Clinic Phone" value={clinic.phone} />
-            <Field label="Pincode" value={clinic.pincode} />
-            <Field label="State" value={clinic.state} />
-            <Field label="District" value={clinic.district} />
-            <Field label="City" value={clinic.city} />
-            <Field label="Alternate Email" value={clinic.alternateEmail} />
-            <Field label="Emergency Contact" value={clinic.emergencyContactNumber} />
-            <Field label="Google Maps" value={clinic.googleMapsLocation} />
-            <Field label="Latitude" value={clinic.latitude} />
-            <Field label="Longitude" value={clinic.longitude} />
+        {/* ── Section 2: Services & Operations (Complete Step 2 Data) ── */}
+        <Section title="Services & Operations" icon="⚕️">
+          {/* Primary Specialties */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">🩺 Primary Specialties</h3>
+            <p className="text-xs text-gray-500 mb-3 italic">Select all specialties your clinic offers</p>
+            <div className="flex flex-wrap gap-2">
+              {/* Show specialties from Step 2 form data */}
+              {(step2.specialties && step2.specialties.length > 0) ? (
+                step2.specialties.map((s) => (
+                  <span key={s} className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm">{s}</span>
+                ))
+              ) : (clinic.specialties && clinic.specialties.length > 0) ? (
+                clinic.specialties.map((s) => (
+                  <span key={s} className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm">{s}</span>
+                ))
+              ) : (
+                <span className="px-4 py-2 rounded-lg bg-gray-50 text-gray-400 text-sm font-medium border border-gray-200">No specialties listed</span>
+              )}
+              
+              {/* Show "Other" specialty if provided */}
+              {(step2.specialtyOther || clinic.specialtyOther) && (
+                <span className="px-4 py-2 rounded-lg bg-purple-50 text-purple-700 text-sm font-semibold border border-purple-200 hover:bg-purple-100 transition-colors shadow-sm">
+                  {step2.specialtyOther || clinic.specialtyOther} <span className="text-xs opacity-70">(Other)</span>
+                </span>
+              )}
+            </div>
           </div>
-          {clinic.latitude && clinic.longitude && (
-            <a
-              href={`https://www.google.com/maps?q=${clinic.latitude},${clinic.longitude}`}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline mt-1"
-            >
-              🗺️ View on Google Maps
-            </a>
+
+          {/* Consultation Types */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">💬 Consultation Types</h3>
+            <p className="text-xs text-gray-500 mb-3 italic">How can patients consult with your doctors?</p>
+            
+            <div className="flex flex-wrap gap-3">
+              {[
+                { label: 'In-Person (Offline)', values: ['IN_PERSON', 'OFFLINE', 'In-Person (Offline)'], icon: '🏥' },
+                { label: 'Video Call (Online)', values: ['VIDEO_CALL', 'ONLINE', 'Video Call (Online)'], icon: '📹' },
+                { label: 'Home Visit', values: ['HOME_VISIT', 'Home Visit'], icon: '🏠' }
+              ].map(({ label, values, icon }) => {
+                // Get consultation types from multiple possible sources
+                const consultationTypes = step2.consultationTypes || clinic.consultationModes || [];
+                
+                // Check if ANY of the possible values match (case-insensitive and trim whitespace)
+                const isActive = Array.isArray(consultationTypes) && values.some(val => 
+                  consultationTypes.some(ct => 
+                    String(ct).trim().toUpperCase() === String(val).trim().toUpperCase()
+                  )
+                );
+                
+                return (
+                  <div key={label} className={`px-4 py-3 rounded-lg text-sm font-semibold border-2 transition-all ${
+                    isActive
+                      ? 'bg-green-50 text-green-700 border-green-300 shadow-sm'
+                      : 'bg-gray-50 text-gray-400 border-gray-200 opacity-50 line-through'
+                  }`}>
+                    <span className="mr-2">{icon}</span>
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Show no consultation types message if empty */}
+            {(!step2.consultationTypes || step2.consultationTypes.length === 0) && 
+             (!clinic.consultationModes || clinic.consultationModes.length === 0) && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-400 italic">
+                No consultation types specified
+              </div>
+            )}
+          </div>
+
+          {/* Operating Hours & Schedule */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">🕐 Operating Hours & Weekly Schedule</h3>
+            <p className="text-xs text-gray-500 mb-3 italic">Define your clinic's operating hours and weekly off days</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Opening Time</p>
+                <div className="px-4 py-2.5 rounded-lg bg-green-50 text-green-700 text-base font-semibold border border-green-200">
+                  {step2.openingTime || '—'}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Closing Time</p>
+                <div className="px-4 py-2.5 rounded-lg bg-red-50 text-red-700 text-base font-semibold border border-red-200">
+                  {step2.closingTime || '—'}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Weekly Off Days</p>
+                <div className="flex flex-wrap gap-2">
+                  {step2.weeklyOffDays && step2.weeklyOffDays.length > 0 ? (
+                    step2.weeklyOffDays.map((day) => (
+                      <span key={day} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-sm font-semibold border border-red-200 uppercase">{day}</span>
+                    ))
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-lg bg-gray-50 text-gray-400 text-sm font-medium border border-gray-200">No off days</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Appointment Mode */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📅 Appointment Mode</h3>
+            <p className="text-xs text-gray-500 mb-3 italic">How do you accept patients at your clinic?</p>
+            <div className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-50 text-blue-700 text-base font-bold border-2 border-blue-200 shadow-sm">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zm0-12H5V5h14v2z"/>
+              </svg>
+              {step2.appointmentMode || 'Not specified'}
+            </div>
+          </div>
+        </Section>
+
+        {/* ── Section 3: Clinic Documents (Step 3 Data) ── */}
+        <Section title="Clinic Documents" icon="📋">
+          {/* Mandatory Documents */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📄 Mandatory Documents</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <DocLink label="Clinic Registration Certificate" url={step3.clinicRegistrationCertificate || clinic.clinicRegistrationCertificate} />
+              <DocLink label="Medical Establishment License" url={step3.medicalLicense || clinic.medicalLicense} />
+              <DocLink label="Owner ID Proof" url={step3.ownerIdProof || clinic.ownerIdProof} />
+            </div>
+          </div>
+
+          {/* Optional Documents */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">📑 Optional Documents</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(step3.gstCertificate || clinic.gstCertificate) && (
+                <DocLink label="GST Certificate" url={step3.gstCertificate || clinic.gstCertificate} />
+              )}
+              {!step3.gstCertificate && !clinic.gstCertificate && (
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-400 italic">No GST certificate uploaded</div>
+              )}
+            </div>
+          </div>
+
+          {/* Clinic Photos */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">🖼️ Clinic Photos</h3>
+            <p className="text-xs text-gray-500 mb-3 italic">Photos help patients recognize and trust your clinic</p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Logo */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Clinic Logo</p>
+                <SafeImage
+                  src={step3.clinicPhotos?.logo || step3.clinicLogo || clinic.clinicLogoUrl}
+                  alt="Clinic Logo"
+                  className="rounded-xl w-full h-32 object-contain border-2 border-gray-200 bg-white shadow-md hover:shadow-lg transition-shadow"
+                  fallbackClassName="w-full h-32"
+                  fallbackIcon="🏥"
+                  fallbackText="No Logo"
+                />
+              </div>
+
+              {/* Exterior */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Clinic Exterior</p>
+                <SafeImage
+                  src={step3.clinicPhotos?.exterior || step3.clinicExterior || clinic.clinicExteriorUrl}
+                  alt="Clinic Exterior"
+                  className="rounded-xl w-full h-32 object-cover border-2 border-gray-200 bg-gray-50 shadow-md hover:shadow-lg transition-shadow"
+                  fallbackClassName="w-full h-32"
+                  fallbackIcon="🏢"
+                  fallbackText="No Photo"
+                />
+              </div>
+
+              {/* Reception */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Reception Area</p>
+                <SafeImage
+                  src={step3.clinicPhotos?.reception || step3.clinicReception || clinic.receptionPhotoUrl}
+                  alt="Reception Area"
+                  className="rounded-xl w-full h-32 object-cover border-2 border-gray-200 bg-gray-50 shadow-md hover:shadow-lg transition-shadow"
+                  fallbackClassName="w-full h-32"
+                  fallbackIcon="🪑"
+                  fallbackText="No Photo"
+                />
+              </div>
+
+              {/* Consultation Room */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Consultation Room</p>
+                <SafeImage
+                  src={step3.clinicPhotos?.consultation || step3.clinicConsultation || clinic.consultationRoomUrl}
+                  alt="Consultation Room"
+                  className="rounded-xl w-full h-32 object-cover border-2 border-gray-200 bg-gray-50 shadow-md hover:shadow-lg transition-shadow"
+                  fallbackClassName="w-full h-32"
+                  fallbackIcon="💊"
+                  fallbackText="No Photo"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Information */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b border-gray-100">ℹ️ Additional Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Clinic Registration Number" value={step3.clinicRegistrationNumber || clinic.clinicRegistrationNumber} />
+              <Field label="GST Number" value={step3.gstNumber || clinic.gstNumber} />
+              {(step3.establishedYear || clinic.establishedYear) && <Field label="Established Year" value={step3.establishedYear || clinic.establishedYear} />}
+            </div>
+          </div>
+        </Section>
+
+        {/* ── Section 4: Partner Agreement (Step 4 Data) ── */}
+        <Section title="Partner Agreement & Compliance" icon="📜">
+          <div className="p-5 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-green-600 rounded-full flex items-center justify-center text-white text-2xl">
+                ✓
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-green-900 mb-3">Clinic Owner Acceptance</h3>
+                <div className="space-y-2 text-sm text-green-800">
+                  {step4.confirmAuthorized && (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Confirmed authorization to register this clinic</span>
+                    </div>
+                  )}
+                  {step4.termsAccepted && (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Read and agreed to PulseMate Connect Clinic Partner Terms & Conditions</span>
+                    </div>
+                  )}
+                  {step4.confirmAccurate && (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Confirmed that information and documents are accurate and complete</span>
+                    </div>
+                  )}
+                  {step4.confirmCompliance && (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Agreed to comply with healthcare, privacy, and data protection requirements</span>
+                    </div>
+                  )}
+                </div>
+                {step4.termsAcceptedAt && (
+                  <div className="mt-4 pt-3 border-t border-green-300">
+                    <p className="text-xs font-semibold text-green-700">
+                      Agreement Accepted: {new Date(step4.termsAcceptedAt).toLocaleString('en-IN', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                    {step4.agreementVersion && (
+                      <p className="text-xs text-green-600 mt-1">Version: {step4.agreementVersion}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* Hidden sections remain commented out below */}
+        {/* ── Section 3: Consultation Modes ── */}
+        {/* TEMPORARILY HIDDEN
+        <Section title="Services & Specialties" icon="⚕️">
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Primary Specialties</p>
+            <div className="flex flex-wrap gap-2">
+              {((clinic.specialties && clinic.specialties.length > 0) ? clinic.specialties : step2.services || []).map((s) => (
+                <span key={s} className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">{s}</span>
+              ))}
+              {!(clinic.specialties?.length || step2.services?.length) && <span className="text-sm text-gray-400 italic">No specialties listed</span>}
+              {(clinic.specialtyOther || step2.specialtyOther) && <span className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-xs">{clinic.specialtyOther || step2.specialtyOther}</span>}
+            </div>
+          </div>
+        </Section>
+        */}
+
+        {/* ── Section 3: Consultation Modes ── */}
+        {/* TEMPORARILY HIDDEN
+        <Section title="Consultation Modes" icon="💬">
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Consultation Types</p>
+            <div className="flex flex-wrap gap-2">
+              {['In-Person (Offline)', 'Video Call (Online)', 'Home Visit'].map((mode, idx) => {
+                const modeKeys = ['OFFLINE', 'ONLINE', 'HOME_VISIT'];
+                const modes = clinic.consultationModes || step2.consultationTypes || step2.appointmentModes || [];
+                const isActive = modes.includes(modeKeys[idx]) || modes.includes(mode);
+                return (
+                  <span key={mode} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                    isActive
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-400 line-through'
+                  }`}>
+                    {mode}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Appointment Mode</p>
+            <div className="inline-flex px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+              {step2.appointmentMode || 'Not specified'}
+            </div>
+          </div>
+        </Section>
+        */}
+
+        {/* ── Section 4: Weekly Timings ── */}
+        {/* TEMPORARILY HIDDEN
+        <Section title="Operating Hours & Weekly Schedule" icon="🕐">
+          <div className="grid grid-cols-3 gap-6 mb-6">
+            <Field label="Opening Time" value={step2.openingTime} />
+            <Field label="Closing Time" value={step2.closingTime} />
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Weekly Off Days</p>
+              <div className="flex flex-wrap gap-2">
+                {step2.weeklyOffDays && step2.weeklyOffDays.length > 0 ? (
+                  step2.weeklyOffDays.map((day) => (
+                    <span key={day} className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-xs font-medium">{day}</span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-400 italic">No off days</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {schedule.length > 0 && (
+            <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Detailed Schedule</p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {['Day', 'Status', 'Opening', 'Closing', 'Break Start', 'Break End'].map((h) => (
+                      <th key={h} className="pb-2 pr-4 text-left text-xs font-semibold text-gray-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {DAYS.map((day) => {
+                    const entry = schedule.find((s) => s.day?.toLowerCase() === day.toLowerCase()) || {};
+                    const isWeeklyOff = step2.weeklyOffDays?.includes(day);
+                    return (
+                      <tr key={day}>
+                        <td className="py-2 pr-4 font-medium">{day}</td>
+                        <td className="py-2 pr-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            isWeeklyOff || (entry.enabled === false) || (!entry.openingTime && !entry.isOpen)
+                              ? 'bg-gray-100 text-gray-500'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {isWeeklyOff || (entry.enabled === false) || (!entry.openingTime && !entry.isOpen) ? 'Closed' : 'Open'}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-gray-500">{entry.openingTime || step2.openingTime || '—'}</td>
+                        <td className="py-2 pr-4 text-gray-500">{entry.closingTime || step2.closingTime || '—'}</td>
+                        <td className="py-2 pr-4 text-gray-500">{entry.breakStart || '—'}</td>
+                        <td className="py-2 pr-4 text-gray-500">{entry.breakEnd || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </Section>
+        */}
 
-        {/* ── Section 4: Consultation Modes ── */}
-        <Section title="Consultation Modes" icon="💬">
-          <div className="flex flex-wrap gap-2">
-            {['OFFLINE', 'ONLINE', 'HOME_VISIT', 'VIDEO', 'CHAT'].map((mode) => (
-              <span key={mode} className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                (clinic.consultationModes || []).includes(mode)
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-400 line-through'
-              }`}>
-                {mode.replace('_', ' ')}
-              </span>
-            ))}
-          </div>
-        </Section>
-
-        {/* ── Section 5: Weekly Timings ── */}
-        <Section title="Weekly Timings" icon="🕐">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {['Day', 'Status', 'Opening', 'Closing', 'Break Start', 'Break End'].map((h) => (
-                    <th key={h} className="pb-2 pr-4 text-left text-xs font-semibold text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {DAYS.map((day) => {
-                  const entry = schedule.find((s) => s.day?.toLowerCase() === day.toLowerCase()) || {};
-                  return (
-                    <tr key={day}>
-                      <td className="py-2 pr-4 font-medium">{day}</td>
-                      <td className="py-2 pr-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          entry.enabled !== false && (entry.openingTime || entry.isOpen)
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {entry.enabled !== false && (entry.openingTime || entry.isOpen) ? 'Open' : 'Closed'}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-4 text-gray-500">{entry.openingTime || '—'}</td>
-                      <td className="py-2 pr-4 text-gray-500">{entry.closingTime || '—'}</td>
-                      <td className="py-2 pr-4 text-gray-500">{entry.breakStart || '—'}</td>
-                      <td className="py-2 pr-4 text-gray-500">{entry.breakEnd || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-
-        {/* ── Section 6: Scheduling ── */}
-        <Section title="Scheduling Settings" icon="⚙️">
-          <div className="grid grid-cols-3 gap-6">
-            <Field label="Avg. Consultation Time" value={clinic.avgConsultationMinutes ? `${clinic.avgConsultationMinutes} min` : null} />
-            <Field label="Appointment Slot Duration" value={clinic.appointmentSlotMinutes ? `${clinic.appointmentSlotMinutes} min` : null} />
-            <Field label="Daily Patient Capacity" value={clinic.dailyPatientCapacity} />
-          </div>
-        </Section>
-
-        {/* ── Section 7: Facilities & Services ── */}
+        {/* ── Section 5: Facilities & Patient Services ── */}
+        {/* TEMPORARILY HIDDEN
         <Section title="Facilities & Patient Services" icon="🏗️">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Facilities</p>
               <div className="flex flex-wrap gap-2">
-                {(clinic.facilities || []).map((f) => (
+                {((clinic.facilities && clinic.facilities.length > 0) ? clinic.facilities : step2.facilities || []).map((f) => (
                   <span key={f} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">{f}</span>
                 ))}
-                {!clinic.facilities?.length && <span className="text-sm text-gray-400 italic">None</span>}
+                {!(clinic.facilities?.length || step2.facilities?.length) && <span className="text-sm text-gray-400 italic">None</span>}
               </div>
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Languages Spoken</p>
               <div className="flex flex-wrap gap-2">
-                {(clinic.languagesSpoken || []).map((l) => (
+                {((clinic.languagesSpoken && clinic.languagesSpoken.length > 0) ? clinic.languagesSpoken : step2.languages || []).map((l) => (
                   <span key={l} className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs">{l}</span>
                 ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Payment Methods</p>
-              <div className="flex flex-wrap gap-2">
-                {(clinic.paymentMethods || []).map((p) => (
-                  <span key={p} className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs">{p}</span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Insurance Providers</p>
-              <div className="flex flex-wrap gap-2">
-                {(clinic.insuranceSupported || []).map((i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 text-xs">{i}</span>
-                ))}
-                {!clinic.insuranceSupported?.length && <span className="text-sm text-gray-400 italic">None</span>}
+                {!(clinic.languagesSpoken?.length || step2.languages?.length) && <span className="text-sm text-gray-400 italic">None</span>}
               </div>
             </div>
           </div>
         </Section>
+        */}
 
-        {/* ── Section 8: Verification & Compliance ── */}
-        <Section title="Verification & Compliance" icon="📋">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
-            <Field label="Registration Number" value={clinic.clinicRegistrationNumber} />
-            {/* clinicLicenseDocument stores the file URL — show it only as a doc link, not raw text */}
-            <Field label="GST Number" value={clinic.gstNumber} />
-            <Field label="PAN Number" value={clinic.panNumber} />
+        {/* ── Section 6: Documents & Compliance ── */}
+        {/* TEMPORARILY HIDDEN
+        <Section title="Documents & Compliance" icon="📋">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 mb-4">
+            <Field label="Clinic Registration Number" value={getValue(clinic.clinicRegistrationNumber, step1.clinicRegistrationNumber) || getValue(null, step3.clinicRegistrationNumber)} />
+            <Field label="GST Number" value={getValue(clinic.gstNumber, step3.gstNumber)} />
+            <Field label="Established Year" value={step1.establishedYear} />
           </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <DocLink label="Clinic License" url={clinic.licenseDocumentUrl || clinic.clinicLicenseDocument} />
-            <DocLink label="Medical Establishment Certificate" url={clinic.medicalEstablishmentCertificateUrl} />
-            <DocLink label="GST Certificate" url={clinic.gstCertificateUrl} />
-            <DocLink label="PAN Card" url={clinic.panCardUrl} />
+            <DocLink label="Clinic Registration Certificate" url={clinic.licenseDocumentUrl || clinic.clinicLicenseDocument || step3.clinicRegistrationCertificate || step3.clinicLicense} />
+            <DocLink label="Medical Establishment License" url={clinic.medicalEstablishmentCertificateUrl || step3.medicalEstablishmentLicense || step3.medicalCertificate} />
+            <DocLink label="Owner ID Proof" url={step3.ownerIdProof || step3.ownerIdProofUrl} />
+            <DocLink label="GST Certificate (Optional)" url={clinic.gstCertificateUrl || step3.gstCertificate} />
           </div>
+
           {additionalDocs.length > 0 && (
-            <div className="mt-3">
+            <div className="mt-4">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Additional Documents</p>
               <div className="flex flex-wrap gap-2">
                 {additionalDocs.map((url, i) => (
@@ -514,6 +866,7 @@ const ClinicVerificationDetail = () => {
             </div>
           )}
         </Section>
+        */}
 
         {/* ── Verification Log ── */}
         {clinic.verificationLogs?.length > 0 && (

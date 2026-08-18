@@ -36,6 +36,9 @@ export const getPendingClinicApprovals = () =>
 export const getPendingDoctorApprovals = () =>
   api.get('/admin/pending-doctors');
 
+export const getAllDoctors = (params) =>
+  api.get('/admin/all-doctors', { params });
+
 export const decideClinicApproval = (clinicId, data) =>
   api.patch(`/approvals/clinics/${clinicId}`, data);
 

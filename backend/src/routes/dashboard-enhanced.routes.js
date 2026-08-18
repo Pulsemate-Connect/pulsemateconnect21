@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate } = require('../middleware/auth.middleware');
+const { authenticate, requireVerifiedAccount } = require('../middleware/auth.middleware');
 const { cache: cacheMiddleware } = require('../middleware/cache.middleware');
 const {
   getEnhancedDashboard,
@@ -24,12 +24,14 @@ const {
   widgetPreferencesBodySchema,
 } = require('../validations/dashboard.validation');
 
+// ─── All routes require authentication and verified account status ─────────────
+router.use(authenticate, requireVerifiedAccount); // ✅ FIX: Require approved/verified account
+
 // ─── Enhanced Dashboard Routes (all prefixed with /:clinicId) ─────────────────
 
 // GET /:clinicId/enhanced — aggregate metrics for the selected period
 router.get(
   '/:clinicId/enhanced',
-  authenticate,
   validateQuery(enhancedDashboardQuerySchema),
   cacheMiddleware(60),
   getEnhancedDashboard
@@ -38,7 +40,6 @@ router.get(
 // GET /:clinicId/comparison — current vs previous period deltas
 router.get(
   '/:clinicId/comparison',
-  authenticate,
   validateQuery(enhancedDashboardQuerySchema),
   cacheMiddleware(60),
   getComparisonData
@@ -47,7 +48,6 @@ router.get(
 // GET /:clinicId/charts — all 8 chart data series
 router.get(
   '/:clinicId/charts',
-  authenticate,
   validateQuery(enhancedDashboardQuerySchema),
   cacheMiddleware(60),
   getChartData
@@ -56,7 +56,6 @@ router.get(
 // GET /:clinicId/transactions — paginated payment list
 router.get(
   '/:clinicId/transactions',
-  authenticate,
   validateQuery(transactionsQuerySchema),
   getTransactions
 );
@@ -64,21 +63,18 @@ router.get(
 // GET /:clinicId/doctors — lightweight doctor list for filter dropdown
 router.get(
   '/:clinicId/doctors',
-  authenticate,
   getDoctorList
 );
 
 // GET /:clinicId/widget-preferences — fetch saved widget config
 router.get(
   '/:clinicId/widget-preferences',
-  authenticate,
   getWidgetPreferences
 );
 
 // PUT /:clinicId/widget-preferences — save widget config
 router.put(
   '/:clinicId/widget-preferences',
-  authenticate,
   validateBody(widgetPreferencesBodySchema),
   saveWidgetPreferences
 );

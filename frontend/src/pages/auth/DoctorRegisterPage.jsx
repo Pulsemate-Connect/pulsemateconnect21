@@ -77,7 +77,7 @@ const DoctorRegisterPage = () => {
           <div className="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3">
             <p className="text-sm font-medium text-green-800">Verification required</p>
             <p className="mt-1 text-sm text-green-700">
-              Approved doctors become visible in the marketplace and can accept clinic invitations.
+              Approved doctors can accept clinic invitations and manage patient appointments.
             </p>
           </div>
 

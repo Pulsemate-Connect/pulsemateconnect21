@@ -5,15 +5,16 @@ const {
   decideClinicApproval,
   decideDoctorApproval,
 } = require('../controllers/approval.controller');
-const { authenticate, requireRole, requireAdminLevel } = require('../middleware/auth.middleware');
+const { authenticateUser, requireSuperAdmin, requireAdminLevel } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
-router.use(authenticate, requireRole('SUPER_ADMIN'), requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'));
+// Use the same middleware as admin routes
+router.use(authenticateUser, requireSuperAdmin);
 
-router.get('/clinics/pending', listPendingClinics);
-router.get('/doctors/pending', listPendingDoctors);
-router.patch('/clinics/:clinicId', decideClinicApproval);
-router.patch('/doctors/:doctorUserId', decideDoctorApproval);
+router.get('/clinics/pending', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), listPendingClinics);
+router.get('/doctors/pending', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), listPendingDoctors);
+router.patch('/clinics/:clinicId', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), decideClinicApproval);
+router.patch('/doctors/:doctorUserId', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), decideDoctorApproval);
 
 module.exports = router;

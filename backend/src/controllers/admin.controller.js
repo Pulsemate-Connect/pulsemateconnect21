@@ -1,7 +1,9 @@
 const prisma = require('../config/database');
+const logger = require('../config/logger');
 const { sendSuccess, sendError } = require('../utils/response');
 const { createAuditLog } = require('../services/audit.service');
 const { hashPassword } = require('../utils/hash');
+const { revokeAllUserTokens } = require('../services/token.service');
 const {
   sendClinicApprovedEmail,
   sendClinicRejectedEmail,
@@ -184,8 +186,12 @@ const getPendingClinics = async (req, res, next) => {
 
 const getPendingDoctors = async (req, res, next) => {
   try {
-    const doctors = await prisma.doctorProfile.findMany({
-      where: { approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] } },
+    // Get doctors with PENDING verification status from DoctorProfile
+    const doctorProfiles = await prisma.doctorProfile.findMany({
+      where: { 
+        verificationStatus: 'PENDING',
+        profileStatus: 'COMPLETE'
+      },
       include: {
         user: {
           select: {
@@ -194,14 +200,208 @@ const getPendingDoctors = async (req, res, next) => {
             email: true,
             mobile: true,
             approvalStatus: true,
+            createdAt: true,
+          },
+        },
+        invitation: {
+          select: {
+            id: true,
+            clinic: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            invitedBy: {
+              select: {
+                name: true,
+              },
+            },
+            createdAt: true,
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { profileSubmittedAt: 'asc' },
     });
+
+    // Transform to match expected format
+    const doctors = doctorProfiles.map(profile => ({
+      id: profile.user.id,
+      name: profile.user.name,
+      email: profile.user.email,
+      mobile: profile.user.mobile,
+      approvalStatus: profile.user.approvalStatus,
+      createdAt: profile.user.createdAt,
+      doctorProfile: {
+        id: profile.id,
+        fullLegalName: profile.fullLegalName,
+        dateOfBirth: profile.dateOfBirth,
+        gender: profile.gender,
+        profilePhotoUrl: profile.profilePhotoUrl,
+        medicalSystem: profile.medicalSystem,
+        qualification: profile.qualification,
+        specialization: profile.specialization,
+        medicalRegistrationNumber: profile.medicalRegistrationNumber,
+        registrationAuthority: profile.registrationAuthority,
+        registrationYear: profile.registrationYear,
+        experienceYears: profile.experienceYears,
+        languagesKnown: profile.languagesKnown,
+        bio: profile.bio,
+        consultationFee: profile.consultationFee,
+        areasOfExpertise: profile.areasOfExpertise,
+        certificates: profile.certificates,
+        profileStatus: profile.profileStatus,
+        verificationStatus: profile.verificationStatus,
+        profileSubmittedAt: profile.profileSubmittedAt,
+        profileCompletionPercentage: profile.profileCompletionPercentage,
+      },
+      invitation: profile.invitation,
+    }));
 
     return sendSuccess(res, { doctors }, 'Pending doctors fetched');
   } catch (error) {
+    logger.error('[GetPendingDoctors] Error:', error);
+    next(error);
+  }
+};
+
+const getAllDoctors = async (req, res, next) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 50, 
+      status, 
+      specialization, 
+      search 
+    } = req.query;
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const where = {
+      profileStatus: 'COMPLETE' // Only show doctors with complete profiles
+    };
+
+    // Filter by verification status
+    if (status && status !== 'ALL') {
+      if (status === 'SUSPENDED') {
+        // For suspended, check user's approvalStatus
+        where.user = {
+          approvalStatus: 'SUSPENDED'
+        };
+      } else {
+        where.verificationStatus = status;
+      }
+    }
+
+    // Filter by specialization
+    if (specialization && specialization !== 'ALL') {
+      where.specialization = specialization;
+    }
+
+    // Search filter
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      where.OR = [
+        { fullLegalName: { contains: searchTerm, mode: 'insensitive' } },
+        { medicalRegistrationNumber: { contains: searchTerm, mode: 'insensitive' } },
+        { specialization: { contains: searchTerm, mode: 'insensitive' } },
+        { user: { 
+          OR: [
+            { name: { contains: searchTerm, mode: 'insensitive' } },
+            { email: { contains: searchTerm, mode: 'insensitive' } },
+            { mobile: { contains: searchTerm } },
+          ]
+        }},
+      ];
+    }
+
+    const [doctorProfiles, total] = await Promise.all([
+      prisma.doctorProfile.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              mobile: true,
+              approvalStatus: true,
+              createdAt: true,
+            },
+          },
+          invitation: {
+            select: {
+              id: true,
+              clinic: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              invitedBy: {
+                select: {
+                  name: true,
+                },
+              },
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { profileSubmittedAt: 'desc' },
+      }),
+      prisma.doctorProfile.count({ where }),
+    ]);
+
+    // Transform to match expected format
+    const doctors = doctorProfiles.map(profile => ({
+      id: profile.user.id,
+      name: profile.user.name,
+      email: profile.user.email,
+      mobile: profile.user.mobile,
+      approvalStatus: profile.user.approvalStatus,
+      createdAt: profile.user.createdAt,
+      doctorProfile: {
+        id: profile.id,
+        fullLegalName: profile.fullLegalName,
+        dateOfBirth: profile.dateOfBirth,
+        gender: profile.gender,
+        profilePhotoUrl: profile.profilePhotoUrl,
+        medicalSystem: profile.medicalSystem,
+        qualification: profile.qualification,
+        specialization: profile.specialization,
+        medicalRegistrationNumber: profile.medicalRegistrationNumber,
+        registrationAuthority: profile.registrationAuthority,
+        registrationYear: profile.registrationYear,
+        experienceYears: profile.experienceYears,
+        languagesKnown: profile.languagesKnown,
+        bio: profile.bio,
+        consultationFee: profile.consultationFee,
+        areasOfExpertise: profile.areasOfExpertise,
+        certificates: profile.certificates,
+        profileStatus: profile.profileStatus,
+        verificationStatus: profile.verificationStatus,
+        profileSubmittedAt: profile.profileSubmittedAt,
+        profileCompletionPercentage: profile.profileCompletionPercentage,
+      },
+      invitation: profile.invitation,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: 'Doctors fetched',
+      data: {
+        doctors,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(total / Number(limit)),
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('[GetAllDoctors] Error:', error);
     next(error);
   }
 };
@@ -250,6 +450,11 @@ const approveClinic = async (req, res, next) => {
 
       return { clinic: verifiedClinic };
     });
+
+    // ✅ FIX: Revoke all refresh tokens for the clinic owner
+    // This forces them to re-login and get a fresh JWT with updated approvalStatus: 'VERIFIED'
+    await revokeAllUserTokens(clinic.ownerId);
+    logger.info(`[Admin] Revoked all tokens for clinic owner ${clinic.ownerId} after approval`);
 
     // Send email notification (fire-and-forget)
     if (clinic.owner?.email) {
@@ -317,6 +522,11 @@ const rejectClinic = async (req, res, next) => {
       return { clinic: rejectedClinic };
     });
 
+    // ✅ FIX: Revoke all refresh tokens for the clinic owner
+    // This forces them to re-login and blocks access (rejected users can't login)
+    await revokeAllUserTokens(clinic.ownerId);
+    logger.info(`[Admin] Revoked all tokens for clinic owner ${clinic.ownerId} after rejection`);
+
     if (clinic.owner?.email) {
       sendClinicRejectedEmail(clinic.owner.email, clinic.owner.name, clinic.name, rejectReason).catch(() => { });
     }
@@ -338,83 +548,239 @@ const rejectClinic = async (req, res, next) => {
 
 const approveDoctor = async (req, res, next) => {
   try {
-    const { doctorId } = req.params;
+    const { doctorId } = req.params; // This is the user ID
 
-    const profile = await prisma.doctorProfile.findUnique({ where: { id: doctorId } });
-    if (!profile) return sendError(res, 'Doctor profile not found', 404);
+    const user = await prisma.user.findUnique({ 
+      where: { id: doctorId },
+      include: {
+        doctorProfile: true,
+      },
+    });
+    
+    if (!user || !user.doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
+
+    const profile = user.doctorProfile;
+    
+    // ✅ FIX: Load invitation separately using invitationId
+    let invitation = null;
+    if (profile.invitationId) {
+      invitation = await prisma.doctorInvitation.findUnique({
+        where: { id: profile.invitationId },
+        include: {
+          clinic: true,
+        },
+      });
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Update doctor profile verification status
       const doctorProfile = await tx.doctorProfile.update({
-        where: { id: doctorId },
+        where: { id: profile.id },
         data: {
-          approvalStatus: 'VERIFIED',
+          verificationStatus: 'VERIFIED',
+          profileStatus: 'COMPLETE',
           marketplaceVisible: true,
+          approvalStatus: 'VERIFIED', // Add this for backward compatibility
         },
       });
 
-      const user = await tx.user.update({
-        where: { id: profile.userId },
+      // Update user approval status
+      const updatedUser = await tx.user.update({
+        where: { id: doctorId },
         data: {
           approvalStatus: 'VERIFIED',
           rejectionReason: null,
         },
       });
 
-      return { doctorProfile, user };
+      // ✅ CREATE CLINIC-DOCTOR RELATIONSHIP
+      let clinicDoctor = null;
+      if (invitation && invitation.clinicId) {
+        // Check if relationship already exists
+        const existing = await tx.doctorClinic.findUnique({
+          where: {
+            doctorId_clinicId: {
+              doctorId: profile.id,
+              clinicId: invitation.clinicId,
+            },
+          },
+        });
+
+        if (existing) {
+          // Update existing relationship
+          clinicDoctor = await tx.doctorClinic.update({
+            where: { id: existing.id },
+            data: {
+              inviteStatus: 'ACCEPTED',
+              isActive: true,
+              adminVerifiedAt: new Date(),
+              adminVerifiedById: req.user.id,
+            },
+          });
+          logger.info(`[ApproveDoctor] ✅ Updated existing clinic-doctor relationship: Doctor ${profile.id} → Clinic ${invitation.clinicId}`);
+        } else {
+          // Create new relationship
+          clinicDoctor = await tx.doctorClinic.create({
+            data: {
+              doctorId: profile.id,
+              clinicId: invitation.clinicId,
+              inviteStatus: 'ACCEPTED',
+              roleAtClinic: invitation.specialization || 'CONSULTANT',
+              consultationFee: profile.consultationFee,
+              isActive: true,
+              joinedAt: new Date(),
+              adminVerifiedAt: new Date(),
+              adminVerifiedById: req.user.id,
+            },
+          });
+          logger.info(`[ApproveDoctor] ✅ Created new clinic-doctor relationship: Doctor ${profile.id} → Clinic ${invitation.clinicId}`);
+        }
+      } else {
+        logger.warn(`[ApproveDoctor] ⚠️  No invitation found for doctor ${profile.id}, skipping clinic link`);
+      }
+
+      // Update invitation status if exists
+      if (invitation) {
+        await tx.doctorInvitation.update({
+          where: { id: invitation.id },
+          data: {
+            status: 'VERIFIED',
+            verifiedAt: new Date(),
+            verifiedById: req.user.id,
+          },
+        });
+
+        // Create verification log
+        await tx.doctorVerificationLog.create({
+          data: {
+            doctorProfileId: profile.id,
+            adminId: req.user.id,
+            oldStatus: 'PENDING',
+            newStatus: 'VERIFIED',
+            action: 'APPROVED',
+            adminNotes: 'Doctor profile approved by admin',
+          },
+        });
+      }
+
+      return { doctorProfile, user: updatedUser, clinicDoctor };
     });
 
     await createAuditLog({
       userId: req.user.id,
       action: 'DOCTOR_APPROVED',
       entityType: 'DoctorProfile',
-      entityId: doctorId,
+      entityId: profile.id,
+      metadata: { 
+        doctorUserId: doctorId,
+        clinicId: invitation?.clinicId,
+        clinicName: invitation?.clinic?.name,
+      },
       ipAddress: req.ip,
     });
 
-    return sendSuccess(res, updated, 'Doctor approved successfully');
+    logger.info(`[ApproveDoctor] ✅ Doctor ${user.name} (${doctorId}) approved by admin ${req.user.id} for clinic ${invitation?.clinic?.name}`);
+
+    return sendSuccess(res, updated, 'Doctor approved successfully and added to clinic');
   } catch (error) {
+    logger.error('[ApproveDoctor] Error:', error);
     next(error);
   }
 };
 
 const rejectDoctor = async (req, res, next) => {
   try {
-    const { doctorId } = req.params;
+    const { doctorId } = req.params; // This is the user ID
     const { rejectionReason } = req.body;
 
-    const profile = await prisma.doctorProfile.findUnique({ where: { id: doctorId } });
-    if (!profile) return sendError(res, 'Doctor profile not found', 404);
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return sendError(res, 'Rejection reason is required', 400);
+    }
+
+    const user = await prisma.user.findUnique({ 
+      where: { id: doctorId },
+      include: {
+        doctorProfile: {
+          include: {
+            invitation: true,
+          },
+        },
+      },
+    });
+    
+    if (!user || !user.doctorProfile) {
+      return sendError(res, 'Doctor profile not found', 404);
+    }
+
+    const profile = user.doctorProfile;
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Update doctor profile verification status
       const doctorProfile = await tx.doctorProfile.update({
-        where: { id: doctorId },
+        where: { id: profile.id },
         data: {
-          approvalStatus: 'REJECTED',
+          verificationStatus: 'REJECTED',
           marketplaceVisible: false,
         },
       });
 
-      const user = await tx.user.update({
-        where: { id: profile.userId },
+      // Update user approval status
+      const updatedUser = await tx.user.update({
+        where: { id: doctorId },
         data: {
           approvalStatus: 'REJECTED',
-          rejectionReason: rejectionReason || 'Doctor profile rejected',
+          rejectionReason: rejectionReason.trim(),
         },
       });
 
-      return { doctorProfile, user };
+      // Update invitation status if exists
+      if (profile.invitationId) {
+        await tx.doctorInvitation.update({
+          where: { id: profile.invitationId },
+          data: {
+            status: 'REJECTED',
+            rejectedAt: new Date(),
+            rejectedById: req.user.id,
+            rejectionReason: rejectionReason.trim(),
+          },
+        });
+
+        // Create verification log
+        await tx.doctorVerificationLog.create({
+          data: {
+            doctorProfileId: profile.id,
+            adminId: req.user.id,
+            oldStatus: 'PENDING',
+            newStatus: 'REJECTED',
+            action: 'REJECTED',
+            reason: rejectionReason.trim(),
+            adminNotes: `Rejected: ${rejectionReason.trim()}`,
+          },
+        });
+      }
+
+      return { doctorProfile, user: updatedUser };
     });
 
     await createAuditLog({
       userId: req.user.id,
       action: 'DOCTOR_REJECTED',
       entityType: 'DoctorProfile',
-      entityId: doctorId,
+      entityId: profile.id,
+      metadata: { 
+        doctorUserId: doctorId,
+        rejectionReason: rejectionReason.trim(),
+      },
       ipAddress: req.ip,
     });
 
+    logger.info(`[RejectDoctor] Doctor ${user.name} (${doctorId}) rejected by admin ${req.user.id}`);
+
     return sendSuccess(res, updated, 'Doctor rejected successfully');
   } catch (error) {
+    logger.error('[RejectDoctor] Error:', error);
     next(error);
   }
 };
@@ -714,42 +1080,85 @@ const resetDatabase = async (req, res, next) => {
       name: req.user.name,
     };
 
-    const adminPasswordHash = await hashPassword(process.env.ROOT_ADMIN_PASSWORD || 'ChangeMe@2024!');
+    // ✅ Fetch BOTH admin accounts before reset
+    const [rootAdmin, superAdmin] = await Promise.all([
+      prisma.user.findUnique({
+        where: { email: process.env.ROOT_ADMIN_EMAIL || 'shubham27052002@gmail.com' },
+        select: { id: true, email: true, passwordHash: true },
+      }),
+      prisma.user.findUnique({
+        where: { email: 'sahilnaik1515@gmail.com' },
+        select: { id: true, email: true, passwordHash: true },
+      }),
+    ]);
 
-    const adminUser = await prisma.$transaction(async (tx) => {
-      await tx.auditLog.deleteMany();
-      await tx.fcmToken.deleteMany();
-      await tx.payment.deleteMany();
-      await tx.queueItem.deleteMany();
-      await tx.queue.deleteMany();
-      await tx.appointment.deleteMany();
-      await tx.doctorClinic.deleteMany();
-      await tx.clinicStaff.deleteMany();
-      await tx.receptionistProfile.deleteMany();
-      await tx.adminProfile.deleteMany();
-      await tx.doctorProfile.deleteMany();
-      await tx.patientProfile.deleteMany();
-      await tx.passwordResetToken.deleteMany();
-      await tx.refreshToken.deleteMany();
-      await tx.session.deleteMany();
-      await tx.otpVerification.deleteMany();
-      await tx.clinic.deleteMany();
-      await tx.user.deleteMany();
+    // Preserve passwords or use defaults
+    const rootPasswordHash = rootAdmin?.passwordHash || await hashPassword(process.env.ROOT_ADMIN_PASSWORD || 'shubham27*');
+    const superPasswordHash = superAdmin?.passwordHash || await hashPassword('Nkabu18$');
 
-      const createdAdmin = await tx.user.create({
+    const admins = await prisma.$transaction(async (tx) => {
+      // ✅ FIX: Use TRUNCATE CASCADE with ALL tables (except _prisma_migrations)
+      await tx.$executeRaw`
+        TRUNCATE TABLE 
+          "admin_profiles",
+          "appointments",
+          "audit_logs",
+          "broadcast_notifications",
+          "clinic_doctors",
+          "clinic_holidays",
+          "clinic_owner_profiles",
+          "clinic_sessions",
+          "clinic_staff",
+          "clinic_verification_logs",
+          "clinics",
+          "dashboard_widget_preferences",
+          "doctor_availability",
+          "doctor_invitations",
+          "doctor_profiles",
+          "doctor_verification_documents",
+          "doctor_verification_logs",
+          "email_verifications",
+          "fcm_tokens",
+          "firebase_phone_verifications",
+          "notification_campaigns",
+          "notification_delivery_log",
+          "notification_preferences",
+          "notification_reads",
+          "notification_templates",
+          "notifications",
+          "otp_attempts",
+          "otp_verifications",
+          "password_reset_tokens",
+          "patient_profiles",
+          "payments",
+          "prescriptions",
+          "queue_items",
+          "queues",
+          "receptionist_profiles",
+          "refresh_tokens",
+          "reminder_sent",
+          "scheduled_notifications",
+          "sessions",
+          "user_notifications",
+          "users"
+        CASCADE
+      `;
+
+      // Create ROOT admin
+      const createdRootAdmin = await tx.user.create({
         data: {
-          name: process.env.ROOT_ADMIN_NAME || 'Root Admin',
-          mobile: process.env.ROOT_ADMIN_MOBILE || '+919000000001',
-          email: process.env.ROOT_ADMIN_EMAIL || 'admin@pulsemateconnect.in',
+          name: process.env.ROOT_ADMIN_NAME || 'Shubham',
+          mobile: process.env.ROOT_ADMIN_MOBILE || '+919876543210',
+          email: process.env.ROOT_ADMIN_EMAIL || 'shubham27052002@gmail.com',
           role: 'SUPER_ADMIN',
           approvalStatus: 'VERIFIED',
-          passwordHash: adminPasswordHash,
+          passwordHash: rootPasswordHash,
           isPhoneVerified: true,
           isEmailVerified: true,
           isActive: true,
           adminProfile: {
             create: {
-              level: ROOT_ADMIN_LEVEL,
+              level: 'ROOT',
             },
           },
         },
@@ -758,33 +1167,76 @@ const resetDatabase = async (req, res, next) => {
         },
       });
 
+      // Create SUPER_ADMIN (Sahil)
+      const createdSuperAdmin = await tx.user.create({
+        data: {
+          name: 'Sahil Naik',
+          mobile: '+917022818878',
+          email: 'sahilnaik1515@gmail.com',
+          role: 'SUPER_ADMIN',
+          approvalStatus: 'VERIFIED',
+          passwordHash: superPasswordHash,
+          isPhoneVerified: true,
+          isEmailVerified: true,
+          isActive: true,
+          adminProfile: {
+            create: {
+              level: 'SUPER_ADMIN',
+              createdById: createdRootAdmin.id,
+            },
+          },
+        },
+        include: {
+          adminProfile: true,
+        },
+      });
+
+      // Create audit log
       await tx.auditLog.create({
         data: {
-          userId: createdAdmin.id,
+          userId: createdRootAdmin.id,
           action: 'DATABASE_RESET',
           entityType: 'System',
           metadata: {
             triggeredBy,
             resetAt: new Date().toISOString(),
-            bootstrapAdminEmail: createdAdmin.email,
+            adminsCreated: [
+              { email: createdRootAdmin.email, level: 'ROOT' },
+              { email: createdSuperAdmin.email, level: 'SUPER_ADMIN' },
+            ],
           },
           ipAddress: req.ip,
         },
       });
 
-      return createdAdmin;
+      return { root: createdRootAdmin, super: createdSuperAdmin };
+    }, {
+      maxWait: 30000, // 30 seconds
+      timeout: 60000, // 60 seconds
     });
+
+    logger.info('[ResetDatabase] ✅ Database reset successfully');
+    logger.info(`[ResetDatabase] ✅ ROOT admin: ${admins.root.email}`);
+    logger.info(`[ResetDatabase] ✅ SUPER_ADMIN: ${admins.super.email}`);
 
     return sendSuccess(
       res,
       {
-        admin: {
-          email: adminUser.email,
-        },
+        admins: [
+          {
+            email: admins.root.email,
+            level: 'ROOT',
+          },
+          {
+            email: admins.super.email,
+            level: 'SUPER_ADMIN',
+          },
+        ],
       },
-      'Database reset successfully. Sign in again with the recreated admin account using the configured credentials.'
+      'Database reset successfully. Both admin accounts preserved with same passwords.'
     );
   } catch (error) {
+    logger.error('[ResetDatabase] Error:', error);
     next(error);
   }
 };
@@ -1083,6 +1535,7 @@ module.exports = {
   getDashboard,
   getPendingClinics,
   getPendingDoctors,
+  getAllDoctors,
   approveClinic,
   rejectClinic,
   approveDoctor,

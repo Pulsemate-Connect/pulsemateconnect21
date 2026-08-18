@@ -1,2 +1,0 @@
-Trigger deploy - apply clinic owner profile migration
-Timestamp: 2026-07-25 16:15:00

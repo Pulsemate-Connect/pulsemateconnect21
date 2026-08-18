@@ -1,9 +1,0 @@
-node_modules
-.expo
-.git
-android\build
-android\app\build
-android\.gradle
-.gradle
-build
-*.log

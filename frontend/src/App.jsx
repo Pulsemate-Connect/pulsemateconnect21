@@ -47,6 +47,11 @@ import DoctorAppointments from './pages/doctor/DoctorAppointments';
 import DoctorQueue from './pages/doctor/DoctorQueue';
 import DoctorProfilePage from './pages/doctor/DoctorProfilePage';
 import DoctorSchedulePage from './pages/doctor/DoctorSchedulePage';
+import DoctorInvitationAccept from './pages/doctor/DoctorInvitationAccept';
+import DoctorVerification from './pages/doctor/DoctorVerification';
+import DoctorProfileComplete from './pages/doctor/DoctorProfileComplete';
+import DoctorProfilePending from './pages/doctor/DoctorProfilePending';
+import DoctorLoginPage from './pages/auth/DoctorLoginPage';
 
 import ReceptionDashboard from './pages/receptionist/ReceptionDashboard';
 import TodayQueue from './pages/receptionist/TodayQueue';
@@ -54,7 +59,6 @@ import WalkInBooking from './pages/receptionist/WalkInBooking';
 import FollowUpBooking from './pages/receptionist/FollowUpBooking';
 
 import OwnerDashboard from './pages/owner/OwnerDashboard';
-import ClinicProfile from './pages/owner/ClinicProfile';
 import ClinicEditResubmit from './pages/owner/ClinicEditResubmit';
 import ManageStaff from './pages/owner/ManageStaff';
 import OwnerAppointments from './pages/owner/OwnerAppointments';
@@ -62,13 +66,15 @@ import QueueOverview from './pages/owner/QueueOverview';
 import SessionManagement from './pages/owner/SessionManagement';
 import ClinicOnboarding from './pages/clinic/onboarding/ClinicOnboarding';
 import Step1ClinicInfo from './pages/clinic/onboarding/steps/Step1ClinicInfo';
-import PendingApprovalDashboard from './pages/clinic/dashboard/PendingApprovalDashboard';
+import ClinicSchedulePage from './pages/clinic/ClinicSchedulePage';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
+import DoctorManagement from './pages/admin/DoctorManagement';
 import UsersManagement from './pages/admin/UsersManagement';
 import ClinicVerification from './pages/admin/ClinicVerification';
 import ClinicVerificationDetail from './pages/admin/ClinicVerificationDetail';
 import AdminNotifications from './pages/admin/AdminNotifications';
+import AdminSettings from './pages/admin/AdminSettings';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import NotificationSettingsPage from './pages/notifications/NotificationSettingsPage';
 
@@ -130,6 +136,11 @@ const AppRoutes = () => {
       <Route path="/patient/payments" element={<ProtectedRoute requiredRole="PATIENT"><MyPayments /></ProtectedRoute>} />
 
       <Route path="/doctor" element={<Navigate to="/doctor/dashboard" replace />} />
+      <Route path="/doctor/login" element={<PublicRoute><DoctorLoginPage /></PublicRoute>} />
+      <Route path="/doctor/invitation/:token" element={<DoctorInvitationAccept />} />
+      <Route path="/doctor/verification/:token" element={<DoctorVerification />} />
+      <Route path="/doctor/profile/complete/:token" element={<DoctorProfileComplete />} />
+      <Route path="/doctor/profile/pending" element={<DoctorProfilePending />} />
       <Route path="/doctor/dashboard" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorDashboard /></ProtectedRoute>} />
       <Route path="/doctor/appointments" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorAppointments /></ProtectedRoute>} />
       <Route path="/doctor/queue" element={<ProtectedRoute requiredRole="DOCTOR"><DoctorQueue /></ProtectedRoute>} />
@@ -146,32 +157,30 @@ const AppRoutes = () => {
       <Route path="/receptionist/follow-up" element={<ProtectedRoute requiredRole="RECEPTIONIST"><FollowUpBooking /></ProtectedRoute>} />
 
       <Route path="/owner" element={<Navigate to="/clinic/dashboard" replace />} />
-      <Route path="/owner/clinic" element={<Navigate to="/clinic/profile" replace />} />
-      <Route path="/owner/clinic/:id" element={<Navigate to="/clinic/profile" replace />} />
       <Route path="/owner/doctors" element={<Navigate to="/clinic/doctors" replace />} />
       <Route path="/owner/receptionists" element={<Navigate to="/clinic/receptionists" replace />} />
       <Route path="/owner/appointments" element={<Navigate to="/clinic/appointments" replace />} />
       <Route path="/owner/queue" element={<Navigate to="/clinic/queue" replace />} />
       <Route path="/clinic/dashboard" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><OwnerDashboard /></ProtectedRoute>} />
-      <Route path="/clinic/dashboard/pending" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><PendingApprovalDashboard /></ProtectedRoute>} />
       {/* Allow both CLINIC_OWNER and PATIENT to access onboarding - PATIENT users are registering as clinic owners */}
       <Route path="/clinic/onboarding/*" element={<ProtectedRoute requiredRole={["CLINIC_OWNER", "PATIENT"]}><ClinicOnboarding /></ProtectedRoute>} />
       <Route path="/clinic/edit-resubmit" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicEditResubmit /></ProtectedRoute>} />
-      <Route path="/clinic/profile" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />
-      <Route path="/clinic/profile/:id" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicProfile /></ProtectedRoute>} />
       <Route path="/clinic/doctors" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ManageStaff staffRole="DOCTOR" /></ProtectedRoute>} />
       <Route path="/clinic/receptionists" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ManageStaff staffRole="RECEPTIONIST" /></ProtectedRoute>} />
       <Route path="/clinic/appointments" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><OwnerAppointments /></ProtectedRoute>} />
       <Route path="/clinic/queue" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><QueueOverview /></ProtectedRoute>} />
       <Route path="/clinic/sessions" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><SessionManagement /></ProtectedRoute>} />
+      <Route path="/clinic/:clinicId/schedule" element={<ProtectedRoute requiredRole="CLINIC_OWNER"><ClinicSchedulePage /></ProtectedRoute>} />
 
       <Route path="/admin" element={<PublicRoute><AdminLoginPage /></PublicRoute>} />
       <Route path="/admin/dashboard" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/clinics" element={<Navigate to="/admin/clinics/verify" replace />} />
       <Route path="/admin/clinics/verify" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><ClinicVerification /></ProtectedRoute>} />
       <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><ClinicVerificationDetail /></ProtectedRoute>} />
+      <Route path="/admin/doctors" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><DoctorManagement /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><UsersManagement /></ProtectedRoute>} />
       <Route path="/admin/notifications" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><AdminNotifications /></ProtectedRoute>} />
+      <Route path="/admin/settings" element={<ProtectedRoute requiredRole="SUPER_ADMIN"><AdminSettings /></ProtectedRoute>} />
 
       <Route path="/notifications" element={<ProtectedRoute requiredRole={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationsPage /></ProtectedRoute>} />
       <Route path="/notifications/settings" element={<ProtectedRoute requiredRole={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationSettingsPage /></ProtectedRoute>} />

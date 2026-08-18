@@ -3,7 +3,7 @@
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'node',
-  testMatch: ['**/__tests__/**/*.test.js'],
+  testMatch: ['**/__tests__/**/*.test.js', '**/tests/qa/**/*.spec.js'],
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/controllers/**/*.js',
@@ -14,6 +14,7 @@ module.exports = {
   coverageThreshold: {
     global: { lines: 30, functions: 17, branches: 13, statements: 30 },
   },
+  testTimeout: 60000, // 60 seconds for QA tests
   // Socket integration test has its own mocks and must NOT run setup.js
   // All other tests use the Prisma mock setup
   projects: [
@@ -35,6 +36,15 @@ module.exports = {
       setupFilesAfterEnv: [],
       clearMocks: true,
       restoreMocks: true,
+    },
+    {
+      displayName: 'qa-tests',
+      testEnvironment: 'node',
+      testMatch: ['**/tests/qa/**/*.spec.js'],
+      setupFilesAfterEnv: [],
+      clearMocks: false,
+      restoreMocks: false,
+      testTimeout: 60000,
     },
   ],
 };
