@@ -26,6 +26,21 @@ router.get('/nearby', getNearby);
 // Protected patient routes — also allow DOCTOR role to use patient features for themselves
 router.use(authenticate);
 
+// ✅ DEBUG ENDPOINT: Check user's current role and auth status
+router.get('/debug/auth-info', (req, res) => {
+  return res.json({
+    userId: req.user.id,
+    role: req.user.role,
+    name: req.user.name,
+    mobile: req.user.mobile,
+    approvalStatus: req.user.approvalStatus,
+    isActive: req.user.isActive,
+    isPhoneVerified: req.user.isPhoneVerified,
+    authProvider: req.user.authProvider,
+    message: 'If role is not PATIENT, please logout and login again to refresh your token',
+  });
+});
+
 router.post('/appointments', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), validate(bookAppointmentSchema), bookAppointment);
 router.get('/appointments', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), getMyAppointments);
 

@@ -102,6 +102,18 @@ const authenticateUser = async (req, res, next) => {
 const authorizeRoles = (...roles) => (req, res, next) => {
   if (!req.user) return sendError(res, 'Authentication required', 401);
   if (!roles.includes(req.user.role)) {
+    // ✅ ENHANCED DEBUGGING: Log authorization failures for troubleshooting
+    console.error('[AUTH FAILURE]', {
+      timestamp: new Date().toISOString(),
+      userId: req.user.id,
+      userName: req.user.name,
+      userRole: req.user.role,
+      requiredRoles: roles,
+      endpoint: req.originalUrl || req.url,
+      method: req.method,
+      approvalStatus: req.user.approvalStatus,
+      isActive: req.user.isActive,
+    });
     return sendError(res, 'You do not have permission to perform this action', 403);
   }
   next();
