@@ -34,44 +34,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    chunkSizeWarningLimit: 1500,
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          // Split large vendor libraries into separate chunks
-          if (id.includes('node_modules')) {
-            // Heavy export libraries - load only when needed
-            if (id.includes('xlsx')) return 'vendor-xlsx';
-            if (id.includes('jspdf')) return 'vendor-jspdf';
-            if (id.includes('html2canvas')) return 'vendor-html2canvas';
-            
-            // Core React ecosystem (keep together to avoid circular deps)
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') || id.includes('scheduler')) {
-              return 'vendor-react';
-            }
-            
-            // Charts library
-            if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
-            
-            // Maps (separate from react to avoid circular)
-            if (id.includes('leaflet')) return 'vendor-maps';
-            
-            // Firebase
-            if (id.includes('firebase') || id.includes('@firebase')) return 'vendor-firebase';
-            
-            // Socket.IO
-            if (id.includes('socket.io-client')) return 'vendor-socket';
-            
-            // HTTP client
-            if (id.includes('axios')) return 'vendor-http';
-            
-            // State management
-            if (id.includes('zustand')) return 'vendor-state';
-            
-            // Other vendor code (keep separate)
-            return 'vendor-other';
-          }
-        },
+        manualChunks: undefined, // Let Vite handle chunking automatically
       },
     },
   },
