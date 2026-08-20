@@ -103,7 +103,7 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<PublicRoute><PublicHomePage /></PublicRoute>} />
+      <Route path="/" element={<PublicHomePage />} />
       <Route path="/portal" element={<PublicRoute><Suspense fallback={<PageLoader />}><PortalLandingPage /></Suspense></PublicRoute>} />
       <Route path="/clinic-partner" element={<PublicRoute><Suspense fallback={<PageLoader />}><ClinicPartnerPage /></Suspense></PublicRoute>} />
       <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><PrivacyPolicyPage /></Suspense>} />
