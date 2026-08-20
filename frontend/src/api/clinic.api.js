@@ -1,0 +1,55 @@
+import api from './axios';
+
+export const createClinic = (data) =>
+  api.post('/clinics', data);
+
+export const getMyClinics = () =>
+  api.get('/clinics/my');
+
+export const getMyClinicStatus = () =>
+  api.get('/clinics/my-status');
+
+export const resubmitClinic = (data) =>
+  api.patch('/clinics/my-resubmit', data);
+
+export const getClinic = (id) =>
+  api.get(`/clinics/${id}`);
+
+export const updateClinic = (id, data) =>
+  api.patch(`/clinics/${id}`, data);
+
+export const addStaff = (clinicId, data) =>
+  api.post(`/clinics/${clinicId}/staff`, data);
+
+export const getStaff = (clinicId) =>
+  api.get(`/clinics/${clinicId}/staff`);
+
+export const getDoctorInvites = (clinicId) =>
+  api.get(`/clinics/${clinicId}/doctor-invites`);
+
+export const updateStaffStatus = (clinicId, staffId, isActive) =>
+  api.patch(`/clinics/${clinicId}/staff/${staffId}/status`, { isActive });
+
+export const getClinicAppointments = (clinicId, params) =>
+  api.get(`/clinics/${clinicId}/appointments`, { params });
+
+export const getClinicRevenue = (clinicId, period = 'today') =>
+  api.get(`/clinics/${clinicId}/revenue`, { params: { period } });
+
+export const getClinicSessions = (clinicId) =>
+  api.get(`/clinics/${clinicId}/sessions`);
+
+export const getClinicBookingMetrics = (clinicId, params) =>
+  api.get(`/clinics/${clinicId}/booking-metrics`, { params });
+
+export const stopClinicBookings = (clinicId) =>
+  api.post(`/clinics/${clinicId}/bookings/stop`);
+
+export const resumeClinicBookings = (clinicId) =>
+  api.post(`/clinics/${clinicId}/bookings/resume`);
+
+export const inviteDoctor = (clinicId, data) =>
+  api.post(`/clinics/${clinicId}/invite-doctor`, data);
+
+export const getPendingInvitations = (clinicId) =>
+  api.get(`/clinics/${clinicId}/pending-invitations`);

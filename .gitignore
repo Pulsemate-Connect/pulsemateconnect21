@@ -1,0 +1,118 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Environment files — NEVER commit ──────────────────────────────────────────
+.env
+.env.*
+!.env.example
+.env.local
+.env.*.local
+.env.production
+.env.development
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# ── Security - Secrets & Credentials ──────────────────────────────────────────
+credentials/
+credentials.json
+secrets/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+firebase-admin-sdk.json
+google-services.json.secret
+service-account.json
+KEYSTORE-CREDENTIALS.md
+@shubhamskkk__pulsemate-app.jks
+google-play-key.json
+
+# ── Expo ──────────────────────────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+build/
+out/
+
+# ── Native ────────────────────────────────────────────────────────────────────
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/ios
+# android is committed so EAS uses our custom build.gradle
+# /android
+
+# ── Metro ─────────────────────────────────────────────────────────────────────
+.metro-health-check*
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+logs/
+backend/logs/
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+*.pem
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+coverage/
+
+# ── Uploaded user files (use S3 in production) ────────────────────────────────
+backend/uploads/
+
+# ── Firebase / Google credentials — NEVER commit (but google-services.json is committed for EAS) ─────
+GoogleService-Info.plist
+
+# ── Google Play service account key — NEVER commit ───────────────────────────
+google-play-key.json
+
+# ── Keystore credentials — NEVER commit (contains passwords and fingerprints) ─
+KEYSTORE-CREDENTIALS.md
+@shubhamskkk__pulsemate-app.jks
+
+# ── Typescript ────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ── AI editor configs ─────────────────────────────────────────────────────────
+.claude/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+
+# ── Misc junk ─────────────────────────────────────────────────────────────────
+*.zip
+*.pdf
+*.jpeg
+*.jpg
+*.png
+!assets/**
+
+# ── Docker local volumes ──────────────────────────────────────────────────────
+postgres_data/
+redis_data/
+
+# ── Build artifacts - APK/AAB files (too large for GitHub) ───────────────────
+*.apk
+*.aab
+*.ipa

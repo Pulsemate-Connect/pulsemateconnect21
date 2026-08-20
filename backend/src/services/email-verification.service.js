@@ -1,0 +1,163 @@
+const crypto = require('crypto');
+const emailVerificationRepository = require('../repositories/email-verification.repository');
+const { hashToken } = require('../utils/hash');
+const logger = require('../config/logger');
+const { sendClinicOwnerVerificationOtpEmail } = require('./email.service');
+
+const EMAIL_VERIFICATION_EXPIRY_MINUTES = parseInt(process.env.EMAIL_VERIFICATION_EXPIRY_MINUTES || '10', 10);
+const EMAIL_VERIFICATION_MAX_ATTEMPTS = parseInt(process.env.EMAIL_VERIFICATION_MAX_ATTEMPTS || '5', 10);
+const EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = parseInt(process.env.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS || '60', 10);
+
+const generateEmailOtp = () => String(crypto.randomInt(100000, 999999));
+
+const sendEmailVerification = async (email, ownerName) => {
+  const normalizedEmail = email.toLowerCase();
+  const recent = await emailVerificationRepository.findRecentActive(
+    normalizedEmail,
+    'CLINIC_OWNER_REGISTER',
+    new Date(Date.now() - EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000)
+  );
+
+  if (recent) {
+    const secondsLeft = Math.ceil((recent.createdAt.getTime() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000);
+    console.log(`[DEV EMAIL OTP] Cooldown active for ${normalizedEmail}, ${secondsLeft}s left`);
+    const error = new Error(`Please wait ${secondsLeft} seconds before requesting a new verification email`);
+    error.status = 429;
+    throw error;
+  }
+
+  await emailVerificationRepository.invalidateOutstanding(normalizedEmail, 'CLINIC_OWNER_REGISTER');
+
+  const rawToken = generateEmailOtp();
+  await emailVerificationRepository.create({
+    email: normalizedEmail,
+    purpose: 'CLINIC_OWNER_REGISTER',
+    tokenHash: hashToken(rawToken),
+    expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MINUTES * 60 * 1000),
+    maxAttempts: EMAIL_VERIFICATION_MAX_ATTEMPTS,
+  });
+
+  logger.info(`[EMAIL OTP] Sending to ${normalizedEmail}`);
+  
+  try {
+    await sendClinicOwnerVerificationOtpEmail(normalizedEmail, rawToken, ownerName);
+    logger.info(`[EMAIL OTP] Sent successfully to ${normalizedEmail}`);
+  } catch (emailError) {
+    // Log the error but don't fail — OTP is still stored, user can get it from logs
+    logger.error(`[EMAIL OTP] Failed to send email to ${normalizedEmail}: ${emailError.message}`);
+    logger.warn(`[EMAIL OTP FALLBACK] Code for ${normalizedEmail}: ${rawToken}`);
+    console.log(`\n⚠️  Email delivery failed. OTP for ${normalizedEmail}: ${rawToken}\n`);
+  }
+
+  return {
+    message: 'Verification code sent successfully',
+    // Show OTP in non-production for easy testing
+    ...(process.env.NODE_ENV !== 'production' ? { otp: rawToken } : {}),
+  };
+};
+
+const verifyEmailVerificationToken = async (emailOrToken, rawTokenMaybe) => {
+  const hasEmailAndOtp = Boolean(rawTokenMaybe);
+  const tokenValue = String(hasEmailAndOtp ? rawTokenMaybe : emailOrToken || '').trim();
+  const email = hasEmailAndOtp ? String(emailOrToken || '').toLowerCase() : null;
+  
+  // ✅ TEST MODE: Check if this is a test email and validate with TEST_OTP_CODE
+  const isTestMode = process.env.ENABLE_TEST_OTP === 'true';
+  const testEmails = (process.env.TEST_OTP_EMAILS || 'test@example.com,demo@example.com').split(',').map(e => e.trim());
+  const testOtp = process.env.TEST_OTP_CODE || '123456';
+  
+  if (isTestMode && email && testEmails.includes(email)) {
+    logger.info(`[EMAIL OTP TEST MODE] Verifying test email ${email} with TEST_OTP_CODE`);
+    
+    // For test emails, compare directly with TEST_OTP_CODE
+    if (tokenValue === testOtp) {
+      // Still need to fetch and update the stored record for consistency
+      const stored = await emailVerificationRepository.findLatestValid(email, 'CLINIC_OWNER_REGISTER');
+      
+      if (!stored || stored.isUsed || stored.expiresAt <= new Date()) {
+        const error = new Error('Email verification code is invalid or expired');
+        error.status = 400;
+        throw error;
+      }
+      
+      if (stored.attempts >= stored.maxAttempts) {
+        await emailVerificationRepository.update(stored.id, { isUsed: true });
+        const error = new Error('Maximum verification attempts exceeded. Please request a new email code.');
+        error.status = 429;
+        throw error;
+      }
+      
+      // Mark as verified
+      await emailVerificationRepository.update(stored.id, {
+        attempts: { increment: 1 },
+        isUsed: true,
+        verifiedAt: new Date(),
+      });
+      
+      logger.info(`[EMAIL OTP TEST MODE] ✓ Test email ${email} verified successfully`);
+      return stored;
+    } else {
+      // Wrong test OTP
+      const stored = await emailVerificationRepository.findLatestValid(email, 'CLINIC_OWNER_REGISTER');
+      if (stored) {
+        await emailVerificationRepository.update(stored.id, { attempts: { increment: 1 } });
+        const remaining = Math.max(stored.maxAttempts - (stored.attempts + 1), 0);
+        const error = new Error(`Invalid verification code. ${remaining} attempts remaining.`);
+        error.status = 400;
+        throw error;
+      }
+    }
+  }
+  
+  // ✅ NORMAL MODE: Hash-based verification for non-test emails
+  const tokenHash = hashToken(tokenValue);
+  const stored = hasEmailAndOtp
+    ? await emailVerificationRepository.findLatestValid(email, 'CLINIC_OWNER_REGISTER')
+    : await emailVerificationRepository.findByHash(tokenHash);
+
+  if (!stored || stored.isUsed || stored.expiresAt <= new Date()) {
+    const error = new Error(hasEmailAndOtp ? 'Email verification code is invalid or expired' : 'Email verification link is invalid or expired');
+    error.status = 400;
+    throw error;
+  }
+
+  if (stored.attempts >= stored.maxAttempts) {
+    await emailVerificationRepository.update(stored.id, { isUsed: true });
+    const error = new Error(hasEmailAndOtp ? 'Maximum verification attempts exceeded. Please request a new email code.' : 'Maximum verification attempts exceeded. Please request a new email.');
+    error.status = 429;
+    throw error;
+  }
+
+  const isValid = stored.tokenHash === tokenHash;
+  await emailVerificationRepository.update(stored.id, {
+    attempts: { increment: 1 },
+    ...(isValid ? { isUsed: true, verifiedAt: new Date() } : {}),
+  });
+
+  if (!isValid) {
+    const remaining = Math.max(stored.maxAttempts - (stored.attempts + 1), 0);
+    const error = new Error(
+      hasEmailAndOtp
+        ? `Invalid verification code. ${remaining} attempts remaining.`
+        : `Invalid verification link. ${remaining} attempts remaining.`
+    );
+    error.status = 400;
+    throw error;
+  }
+
+  return stored;
+};
+
+const isEmailVerified = async (email, purpose = 'CLINIC_OWNER_REGISTER') => {
+  const record = await emailVerificationRepository.findLatestVerified(email.toLowerCase(), purpose);
+  return Boolean(record);
+};
+
+module.exports = {
+  sendEmailVerification,
+  verifyEmailVerificationToken,
+  isEmailVerified,
+  EMAIL_VERIFICATION_EXPIRY_MINUTES,
+  EMAIL_VERIFICATION_MAX_ATTEMPTS,
+  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+};

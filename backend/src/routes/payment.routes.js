@@ -1,0 +1,41 @@
+const express = require('express');
+const router = express.Router();
+const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { requirePaymentOwnership } = require('../middleware/ownership.middleware'); // ✅ SECURITY FIX
+const {
+  initiatePayment,
+  verifyPayment,
+  markCashPayment,
+  getPaymentStatus,
+  getPaymentStatusByOrderId,
+  getMyPayments,
+  requestRefund,
+  getBookingStatus,
+} = require('../controllers/payment.controller');
+
+router.use(authenticate);
+
+// Patient routes — also allow DOCTOR, ADMIN, and SUPER_ADMIN roles to book for themselves
+router.get('/booking-status', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), getBookingStatus);
+router.post('/initiate', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), initiatePayment);
+router.post('/verify', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), verifyPayment);
+router.get('/my', authorize('PATIENT', 'DOCTOR', 'ADMIN', 'SUPER_ADMIN'), getMyPayments);
+router.post('/refund', authorize('PATIENT', 'CLINIC_OWNER', 'SUPER_ADMIN'), requestRefund);
+
+// Poll payment status by Razorpay order ID (used after redirect)
+router.get('/status/:orderId',
+  authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
+  getPaymentStatusByOrderId
+);
+
+// Staff routes
+router.post('/cash', authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'), markCashPayment);
+
+// ✅ SECURITY FIX: Add ownership validation to payment endpoints
+router.get('/appointment/:appointmentId',
+  authorize('PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'),
+  requirePaymentOwnership,
+  getPaymentStatus
+);
+
+module.exports = router;

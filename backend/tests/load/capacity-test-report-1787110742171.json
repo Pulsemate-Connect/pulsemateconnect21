@@ -1,0 +1,151 @@
+{
+  "stages": [
+    {
+      "totalRequests": 850,
+      "successfulRequests": 59,
+      "failedRequests": 791,
+      "successRate": "6.94",
+      "errorRate": "93.06",
+      "avgLatency": "596",
+      "p50Latency": 3,
+      "p95Latency": 5654,
+      "p99Latency": 9702,
+      "minLatency": 1,
+      "maxLatency": 12028,
+      "errorsByStatus": {
+        "401": 14,
+        "404": 27,
+        "429": 750
+      },
+      "requestsPerSecond": "13.11",
+      "concurrentUsers": 50,
+      "testDuration": "64.84",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    },
+    {
+      "totalRequests": 1663,
+      "successfulRequests": 71,
+      "failedRequests": 1592,
+      "successRate": "4.27",
+      "errorRate": "95.73",
+      "avgLatency": "716",
+      "p50Latency": 3,
+      "p95Latency": 6816,
+      "p99Latency": 17027,
+      "minLatency": 1,
+      "maxLatency": 20420,
+      "errorsByStatus": {
+        "401": 7,
+        "404": 20,
+        "429": 1563,
+        "500": 2
+      },
+      "requestsPerSecond": "25.68",
+      "concurrentUsers": 100,
+      "testDuration": "64.76",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    },
+    {
+      "totalRequests": 3735,
+      "successfulRequests": 65,
+      "failedRequests": 3670,
+      "successRate": "1.74",
+      "errorRate": "98.26",
+      "avgLatency": "304",
+      "p50Latency": 2,
+      "p95Latency": 319,
+      "p99Latency": 14111,
+      "minLatency": 1,
+      "maxLatency": 19415,
+      "errorsByStatus": {
+        "401": 7,
+        "404": 28,
+        "429": 3635
+      },
+      "requestsPerSecond": "57.61",
+      "concurrentUsers": 200,
+      "testDuration": "64.83",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    },
+    {
+      "totalRequests": 8319,
+      "successfulRequests": 125,
+      "failedRequests": 8194,
+      "successRate": "1.50",
+      "errorRate": "98.50",
+      "avgLatency": "272",
+      "p50Latency": 2,
+      "p95Latency": 6,
+      "p99Latency": 13326,
+      "minLatency": 1,
+      "maxLatency": 19963,
+      "errorsByStatus": {
+        "401": 20,
+        "404": 54,
+        "429": 8119,
+        "500": 1
+      },
+      "requestsPerSecond": "87.89",
+      "concurrentUsers": 300,
+      "testDuration": "94.65",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    },
+    {
+      "totalRequests": 11431,
+      "successfulRequests": 142,
+      "failedRequests": 11289,
+      "successRate": "1.24",
+      "errorRate": "98.76",
+      "avgLatency": "193",
+      "p50Latency": 2,
+      "p95Latency": 6,
+      "p99Latency": 10184,
+      "minLatency": 1,
+      "maxLatency": 20475,
+      "errorsByStatus": {
+        "401": 21,
+        "404": 37,
+        "429": 11231
+      },
+      "requestsPerSecond": "120.33",
+      "concurrentUsers": 400,
+      "testDuration": "95.00",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    },
+    {
+      "totalRequests": 4032,
+      "successfulRequests": 84,
+      "failedRequests": 3948,
+      "successRate": "2.08",
+      "errorRate": "97.92",
+      "avgLatency": "8969",
+      "p50Latency": 10015,
+      "p95Latency": 21688,
+      "p99Latency": 22135,
+      "minLatency": 1,
+      "maxLatency": 25601,
+      "errorsByStatus": {
+        "401": 2634,
+        "404": 145,
+        "429": 788,
+        "500": 381
+      },
+      "requestsPerSecond": "36.88",
+      "concurrentUsers": 500,
+      "testDuration": "109.33",
+      "passed": false,
+      "verdict": "❌ FAIL"
+    }
+  ],
+  "summary": {
+    "maxStableConcurrentUsers": 0,
+    "totalRequests": 30030,
+    "totalErrors": 29484,
+    "overallSuccessRate": "1.82"
+  }
+}
