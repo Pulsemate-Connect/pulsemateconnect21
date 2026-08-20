@@ -83,12 +83,12 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false   # set manually in Render dashboard
 
-  # ── Frontend Web (Expo) ──────────────────────────────────────────────────────
+  # ── Frontend Web (Vite/React Dashboard) ──────────────────────────────────────
   - type: web
     name: pulsemate-frontend
     runtime: static
-    rootDir: .
-    buildCommand: npm install --legacy-peer-deps && npx expo install react-dom react-native-web && npx expo export --platform web
+    rootDir: frontend
+    buildCommand: npm install && npm run build
     staticPublishPath: dist
     routes:
       - type: rewrite
@@ -98,9 +98,6 @@ services:
       - path: /*
         name: Cache-Control
         value: public, max-age=0, must-revalidate
-      - path: /_expo/static/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
