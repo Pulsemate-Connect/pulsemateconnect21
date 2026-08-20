@@ -1,0 +1,196 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                     YOU MUST DO THIS MANUALLY                                 ║
+║                  (I cannot access Render dashboard)                           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+I CANNOT FIX THIS FOR YOU BECAUSE:
+  • I don't have access to your Render.com account
+  • I don't have your Render login credentials
+  • Dashboard settings can only be changed by the account owner
+  • This requires manual human action through Render's web interface
+
+═══════════════════════════════════════════════════════════════════════════════
+                        WHAT YOU MUST DO NOW
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Open Render Dashboard
+──────────────────────────────────────────────────────────────────────────────
+
+1. Open your browser
+2. Go to: https://dashboard.render.com
+3. Login with your Render account
+4. You should see a list of your services
+
+STEP 2: Select Frontend Service
+──────────────────────────────────────────────────────────────────────────────
+
+5. Look for a service named: pulsemate-frontend
+   (or similar - it's the service that serves pulsemateconnect.in)
+6. Click on that service name
+7. You'll see the service dashboard
+
+STEP 3: Go to Settings
+──────────────────────────────────────────────────────────────────────────────
+
+8. At the top, you'll see tabs: Events, Logs, Shell, Settings, etc.
+9. Click on the "Settings" tab
+10. Scroll down to the "Build & Deploy" section
+
+STEP 4: Find and Change Root Directory
+──────────────────────────────────────────────────────────────────────────────
+
+11. Look for a field labeled "Root Directory"
+12. It currently says: .
+13. Delete the dot (.)
+14. Type: frontend
+15. (Just the word "frontend" without quotes or slashes)
+
+STEP 5: Find and Change Build Command
+──────────────────────────────────────────────────────────────────────────────
+
+16. Look for a field labeled "Build Command"
+17. It currently says something like:
+    npm install --legacy-peer-deps && npx expo install...
+18. Delete that entire line
+19. Type: npm install && npm run build
+20. (Copy exactly as shown)
+
+STEP 6: Verify Publish Directory
+──────────────────────────────────────────────────────────────────────────────
+
+21. Look for a field labeled "Publish Directory"
+22. It should say: dist
+23. DON'T CHANGE THIS - leave it as "dist"
+
+STEP 7: Save Changes
+──────────────────────────────────────────────────────────────────────────────
+
+24. Scroll to the bottom of the page
+25. Click the "Save Changes" button (it's usually green)
+26. Wait for the confirmation message
+
+STEP 8: Trigger a New Deployment
+──────────────────────────────────────────────────────────────────────────────
+
+27. At the top right, you'll see a "Manual Deploy" button
+28. Click it
+29. Select "Deploy latest commit"
+30. Wait 2-3 minutes for the deployment to complete
+31. You'll see a progress bar and logs
+
+STEP 9: Verify the Fix
+──────────────────────────────────────────────────────────────────────────────
+
+32. Open a new browser tab (or use Incognito mode)
+33. Go to: https://pulsemateconnect.in
+34. Press Ctrl + Shift + R (hard refresh)
+35. You should now see the proper homepage
+
+═══════════════════════════════════════════════════════════════════════════════
+                    WHAT YOU SHOULD SEE AFTER THE FIX
+═══════════════════════════════════════════════════════════════════════════════
+
+Homepage should display:
+  ✓ PulseMate Connect logo at top
+  ✓ "Book appointments without waiting" heading
+  ✓ Trust stats: 5000+ Clinics, 1.2L+ Appointments, 4.9/5 rating
+  ✓ Login with Mobile button
+  ✓ Create Patient Account button
+  ✓ Professional web layout
+
+NOT:
+  ✗ Blank white page
+  ✗ HTML source code visible
+  ✗ Console errors
+
+═══════════════════════════════════════════════════════════════════════════════
+                        COPY THESE EXACT VALUES
+═══════════════════════════════════════════════════════════════════════════════
+
+Root Directory:
+frontend
+
+Build Command:
+npm install && npm run build
+
+Publish Directory:
+dist
+
+(Copy and paste these exactly as shown)
+
+═══════════════════════════════════════════════════════════════════════════════
+                    IF YOU DON'T HAVE RENDER ACCESS
+═══════════════════════════════════════════════════════════════════════════════
+
+Alternative: Deploy to Vercel Instead
+
+1. Install Vercel CLI: npm install -g vercel
+2. Go to frontend directory: cd frontend
+3. Deploy: vercel --prod
+4. Follow the prompts
+5. Add environment variables in Vercel dashboard
+6. Update DNS to point to Vercel
+
+(Detailed instructions in: PRODUCTION_FIX_REQUIRED.md)
+
+═══════════════════════════════════════════════════════════════════════════════
+                        WHY I CAN'T DO THIS FOR YOU
+═══════════════════════════════════════════════════════════════════════════════
+
+• Render dashboard requires login (I don't have your credentials)
+• Dashboard settings are account-specific (only you can access)
+• Two-factor authentication may be required
+• Payment/billing information may be needed
+• Only the account owner can modify service settings
+
+I CAN:
+  ✓ Diagnose the problem (DONE)
+  ✓ Verify the code (DONE)
+  ✓ Test the build (DONE)
+  ✓ Create documentation (DONE)
+  ✓ Tell you exactly what to do (DONE)
+
+I CANNOT:
+  ✗ Login to your Render account
+  ✗ Access Render dashboard
+  ✗ Change Render settings
+  ✗ Deploy for you
+
+═══════════════════════════════════════════════════════════════════════════════
+                            NEED HELP?
+═══════════════════════════════════════════════════════════════════════════════
+
+If you don't know your Render login:
+  • Check your email for Render registration
+  • Look for "Render.com" emails
+  • Try password reset at: https://dashboard.render.com/forgot-password
+
+If you can't find the service:
+  • Look for any service that has "pulsemate" or "frontend" in the name
+  • Check which service is connected to pulsemateconnect.in domain
+  • Look in the "Environment" tab for FRONTEND_URL
+
+If settings won't save:
+  • Check if you're the account owner
+  • Check if there are validation errors
+  • Try logging out and back in
+  • Contact Render support
+
+═══════════════════════════════════════════════════════════════════════════════
+                        ⏰ TIME REQUIRED: 5 MINUTES
+═══════════════════════════════════════════════════════════════════════════════
+
+This is a SIMPLE task:
+  • 2 minutes to update settings
+  • 3 minutes to wait for deployment
+  • 5 minutes total
+
+You're just changing 2 text fields in a web form!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+            👆 FOLLOW THE STEPS ABOVE - I'VE DONE EVERYTHING I CAN
+
+═══════════════════════════════════════════════════════════════════════════════

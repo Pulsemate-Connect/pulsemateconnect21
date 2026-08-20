@@ -1,0 +1,88 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    FIX BLANK PRODUCTION PAGE IN 3 STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+🚨 PROBLEM: https://pulsemateconnect.in shows blank white page
+✅ SOLUTION: Update Render dashboard settings (takes 2 minutes)
+
+───────────────────────────────────────────────────────────────────────────────
+
+STEP 1: Go to Render Dashboard
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Open: https://dashboard.render.com
+2. Click on: pulsemate-frontend
+3. Click: "Settings" tab
+
+───────────────────────────────────────────────────────────────────────────────
+
+STEP 2: Change These Two Settings
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Setting 1: Root Directory                                                   │
+│                                                                             │
+│ Current value:  .                                                           │
+│ Change to:      frontend                                                    │
+│                 └─ (just the word "frontend", no quotes or slashes)         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Setting 2: Build Command                                                    │
+│                                                                             │
+│ Current value:  npm install --legacy-peer-deps && npx expo install...      │
+│ Change to:      npm install && npm run build                               │
+│                 └─ (copy exactly as shown)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+───────────────────────────────────────────────────────────────────────────────
+
+STEP 3: Save and Deploy
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Click: "Save Changes" button (at bottom)
+2. Click: "Manual Deploy" → "Deploy latest commit"
+3. Wait: 2-3 minutes for build to complete
+4. Open: https://pulsemateconnect.in in Incognito mode
+5. Press: Ctrl + Shift + R to hard refresh
+
+───────────────────────────────────────────────────────────────────────────────
+
+✅ DONE! You Should Now See:
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ "Book appointments without waiting" heading
+✓ Trust stats: 5000+ Clinics, 1.2L+ Appointments, 4.9/5 rating
+✓ Login and Register buttons
+✓ Professional web dashboard layout
+
+NOT:
+✗ Blank white page
+✗ Old homepage
+
+───────────────────────────────────────────────────────────────────────────────
+
+⚠️ IMPORTANT:
+═══════════════════════════════════════════════════════════════════════════════
+
+• Don't change "Publish Directory" (leave it as "dist")
+• Don't modify any code files
+• Don't change DNS settings
+• ONLY change the two settings shown in Step 2
+
+───────────────────────────────────────────────────────────────────────────────
+
+📋 Need more details? Read these files:
+═══════════════════════════════════════════════════════════════════════════════
+
+• PRODUCTION_FIX_REQUIRED.md    - Full explanation and alternative options
+• RENDER_DASHBOARD_SETTINGS.txt - Detailed step-by-step with screenshots desc
+• VISUAL_COMPARISON.md          - Visual guide showing what's wrong vs right
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⏰ Time required: 2 minutes to update, 3 minutes to deploy = 5 minutes total
+💰 Cost: Free
+🎯 Difficulty: Easy (just copy-paste two settings)
+
+═══════════════════════════════════════════════════════════════════════════════

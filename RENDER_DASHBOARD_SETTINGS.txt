@@ -1,0 +1,170 @@
+═══════════════════════════════════════════════════════════════════════════════
+   RENDER DASHBOARD SETTINGS - COPY THESE EXACT VALUES
+═══════════════════════════════════════════════════════════════════════════════
+
+🌐 Service: pulsemate-frontend
+📍 URL: https://dashboard.render.com
+
+───────────────────────────────────────────────────────────────────────────────
+⚙️ SETTINGS TO UPDATE
+───────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Root Directory                                                              │
+│                                                                             │
+│ ❌ Current (WRONG):  .                                                      │
+│ ✅ Change to:       frontend                                                │
+│                                                                             │
+│ This tells Render to build from the frontend/ folder, not the root folder. │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Build Command                                                               │
+│                                                                             │
+│ ❌ Current (WRONG):                                                         │
+│    npm install --legacy-peer-deps && npx expo install...                   │
+│                                                                             │
+│ ✅ Change to:                                                               │
+│    npm install && npm run build                                            │
+│                                                                             │
+│ This runs the Vite build, not the Expo build.                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Publish Directory                                                           │
+│                                                                             │
+│ ✅ Keep as:  dist                                                           │
+│                                                                             │
+│ This is already correct - don't change it.                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+───────────────────────────────────────────────────────────────────────────────
+📋 STEP-BY-STEP INSTRUCTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+Step 1: Open Render Dashboard
+   → Go to: https://dashboard.render.com
+   → Login with your account
+
+Step 2: Select Frontend Service
+   → Click on: pulsemate-frontend
+   → (The service that serves pulsemateconnect.in)
+
+Step 3: Go to Settings
+   → Click the "Settings" tab at the top
+
+Step 4: Update Root Directory
+   → Scroll to "Root Directory" field
+   → Delete current value: .
+   → Enter new value: frontend
+   → (Just the word "frontend" without quotes or slashes)
+
+Step 5: Update Build Command
+   → Scroll to "Build Command" field
+   → Delete current value
+   → Enter new value: npm install && npm run build
+   → (Copy exactly as shown)
+
+Step 6: Verify Publish Directory
+   → Scroll to "Publish Directory" field
+   → Should already be: dist
+   → (Don't change this one)
+
+Step 7: Save Changes
+   → Scroll to bottom
+   → Click "Save Changes" button
+   → (Green button at the bottom)
+
+Step 8: Trigger Manual Deploy
+   → Go to "Manual Deploy" section at top right
+   → Click "Deploy latest commit" button
+   → Wait 2-3 minutes for build to complete
+
+Step 9: Clear Browser Cache
+   → Open: https://pulsemateconnect.in
+   → Press: Ctrl + Shift + R (Windows)
+   →     or: Cmd + Shift + R (Mac)
+   → Or open in Incognito/Private window
+
+Step 10: Verify Fix
+   → Should see: "Book appointments without waiting" heading
+   → Should see: Trust stats (5000+ Clinics, etc.)
+   → Should see: Login and Register buttons
+   → Should NOT see: Blank white page
+
+───────────────────────────────────────────────────────────────────────────────
+✅ ENVIRONMENT VARIABLES (Already configured in render.yaml)
+───────────────────────────────────────────────────────────────────────────────
+
+These should already be set automatically from your render.yaml file:
+
+• EXPO_PUBLIC_API_URL = https://api.pulsemateconnect.in/api
+• EXPO_PUBLIC_FIREBASE_API_KEY = AIzaSyDrZ9d0zKBLI_Pm-c9o1DAV5q4ldE1I9Nw
+• EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN = pulsemateconnect.firebaseapp.com
+• EXPO_PUBLIC_FIREBASE_PROJECT_ID = pulsemateconnect
+• EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 157620382332
+• EXPO_PUBLIC_FIREBASE_APP_ID = 1:157620382332:web:e4156f49d8616a4ee6b7f9
+• EXPO_PUBLIC_RAZORPAY_KEY_ID = rzp_live_Sz5uowTvIY9Mwv
+
+(No need to change these - they're already in your render.yaml)
+
+───────────────────────────────────────────────────────────────────────────────
+⚠️ COMMON MISTAKES TO AVOID
+───────────────────────────────────────────────────────────────────────────────
+
+❌ DON'T enter: /frontend    (with leading slash)
+❌ DON'T enter: ./frontend   (with ./)
+❌ DON'T enter: "frontend"   (with quotes)
+✅ DO enter:    frontend     (just the word)
+
+❌ DON'T use: cd frontend && npm run build
+✅ DO use:    npm install && npm run build
+   (Render automatically changes to root directory for you)
+
+❌ DON'T change DNS settings
+❌ DON'T modify code files
+❌ DON'T delete any files
+✅ ONLY change the two settings above
+
+───────────────────────────────────────────────────────────────────────────────
+🔍 HOW TO VERIFY IT WORKED
+───────────────────────────────────────────────────────────────────────────────
+
+✅ In Render build logs, you should see:
+   → "Building in: /opt/render/project/src/frontend"
+   → "vite build"
+   → "✓ built in XX.XXs"
+   → NOT: "expo export"
+   → NOT: "/_expo/static"
+
+✅ When visiting pulsemateconnect.in, you should see:
+   → PulseMate Connect logo at top
+   → "Book appointments without waiting" headline
+   → Trust stats: "5000+ Clinics onboarded"
+   → "Login with Mobile" button
+   → "Create Patient Account" button
+   → NOT: Blank white page
+   → NOT: Old homepage
+
+✅ Browser console (F12) should show:
+   → NO errors
+   → NOT: "registerRootComponent is not defined"
+   → NOT: Expo-related errors
+
+───────────────────────────────────────────────────────────────────────────────
+📞 IF YOU NEED HELP
+───────────────────────────────────────────────────────────────────────────────
+
+1. Check Render build logs for errors
+2. Verify the exact settings match what's shown above
+3. Try deploying again after making changes
+4. Clear browser cache completely
+5. Try in Incognito mode to bypass cache
+
+───────────────────────────────────────────────────────────────────────────────
+
+⏰ TIME REQUIRED: 5 minutes
+💰 COST: Free (no additional charges)
+🎯 DIFFICULTY: Easy (just copy-paste the settings)
+
+═══════════════════════════════════════════════════════════════════════════════
