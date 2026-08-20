@@ -1,0 +1,27 @@
+FIX WEBSITE IN 5 MINUTES - UPLOAD TO HOSTINGER
+===============================================
+
+YOUR WORKING FILES: dist-website.zip (IN THIS FOLDER)
+
+QUICK STEPS:
+============
+
+1. Go to: https://hpanel.hostinger.com
+2. Login
+3. Click "File Manager"
+4. Open "public_html" folder
+5. Delete ALL old files
+6. Click "Upload"
+7. Upload: dist-website.zip (from this folder)
+8. Right-click uploaded file → "Extract"
+9. Extract to: /public_html
+10. Delete the ZIP file
+11. Check: https://pulsemateconnect.in
+12. DONE! Website works! ✅
+
+THAT'S IT! 5 MINUTES!
+
+Your dist-website.zip file contains the working website!
+Just upload and extract it on Hostinger!
+
+GO NOW: https://hpanel.hostinger.com 🚀
