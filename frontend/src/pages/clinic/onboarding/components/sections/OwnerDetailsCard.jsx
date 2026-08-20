@@ -83,6 +83,7 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
 
   const handleSendOTP = async () => {
     if (!mobileValue || mobileValue.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
 
@@ -90,6 +91,8 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
     
     try {
       const phoneNumber = `+91${mobileValue}`;
+      
+      console.log('[OTP] Sending OTP request with phoneNumber:', phoneNumber);
       
       // Check if it's a test number
       const testNumbers = ['9999999999', '8888888888', '7777777777'];
@@ -111,6 +114,8 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
       }
       
       // For real numbers, call API
+      console.log('[OTP] Calling API with payload:', { phoneNumber });
+      
       const response = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: {
