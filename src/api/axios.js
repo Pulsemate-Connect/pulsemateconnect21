@@ -31,7 +31,7 @@ console.log(`
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 10000, // ✅ REDUCED from 30s to 10s — faster failure for cold starts
   headers: {
     'Content-Type': 'application/json',
     'bypass-tunnel-reminder': 'true',

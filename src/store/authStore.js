@@ -12,6 +12,8 @@ let _isSigningOut = false;
 export const getIsSigningOut = () => _isSigningOut;
 
 export const AuthProvider = ({ children }) => {
+  const PERF_AUTH = { start: Date.now(), log: (label) => console.log(`[PERF_AUTH] ${Date.now() - PERF_AUTH.start}ms - ${label}`) };
+  PERF_AUTH.log('AuthProvider initializing');
   console.log('[AuthProvider] Initializing');
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -82,42 +84,66 @@ export const AuthProvider = ({ children }) => {
   }, [signOut]);
 
   useEffect(() => {
+    PERF_AUTH.log('Auth restore effect triggered');
     console.log('[AuthProvider] Starting auth restore');
     const restore = async () => {
       try {
+        PERF_AUTH.log('Reading accessToken from SecureStore');
         console.log('[AuthProvider] Reading accessToken from SecureStore');
         const t = await SecureStore.getItemAsync('accessToken').catch((e) => {
           console.error('[AuthProvider] SecureStore read error:', e);
           return null;
         });
+        PERF_AUTH.log('SecureStore read complete');
         
         if (t) {
+          PERF_AUTH.log('Token found, setting token');
           console.log('[AuthProvider] Token found, setting token');
           setToken(t);
+          
+          // ✅ OPTIMIZATION: Add 3-second timeout to prevent infinite loading
+          // If backend is slow/cold-starting, we'll fail fast and show auth screen
+          const getMeWithTimeout = Promise.race([
+            getMe(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('getMe timeout after 3s')), 3000)
+            )
+          ]);
+          
           try {
+            PERF_AUTH.log('Calling getMe API with 3s timeout');
             console.log('[AuthProvider] Calling getMe API');
-            const res = await getMe();
+            const res = await getMeWithTimeout;
+            PERF_AUTH.log('getMe API response received');
             if (res?.data?.data?.user) {
+              PERF_AUTH.log('User data received, setting user');
               console.log('[AuthProvider] User data received');
               setUser(res.data.data.user);
             } else {
+              PERF_AUTH.log('Invalid getMe response');
               console.log('[AuthProvider] Invalid getMe response');
             }
           } catch (err) {
+            PERF_AUTH.log(`getMe failed: ${err.message}`);
             console.error('[AuthProvider] getMe failed:', err.message);
+            // If timeout or network error, clear tokens and show login
             await SecureStore.deleteItemAsync('accessToken').catch(() => {});
             await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+            setToken(null);
           }
         } else {
+          PERF_AUTH.log('No token found');
           console.log('[AuthProvider] No token found');
         }
       } catch (err) {
+        PERF_AUTH.log(`Restore error: ${err.message}`);
         console.error('[AuthProvider] Restore error:', err.message);
         try {
           await SecureStore.deleteItemAsync('accessToken');
           await SecureStore.deleteItemAsync('refreshToken');
         } catch (e) { console.error('[AuthProvider] Cleanup error:', e); }
       } finally {
+        PERF_AUTH.log('Setting loading to false');
         console.log('[AuthProvider] Setting loading to false');
         setLoading(false);
       }

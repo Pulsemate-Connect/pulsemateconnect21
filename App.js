@@ -2,12 +2,25 @@
 //  PulseMate Connect — App Entry + Premium Splash Screen
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PERFORMANCE INSTRUMENTATION — Measure 5-second startup delay
+// ═══════════════════════════════════════════════════════════════════════════
+const PERF = {
+  appStart: Date.now(),
+  log: (label) => {
+    const elapsed = Date.now() - PERF.appStart;
+    console.log(`[PERF] ${elapsed}ms - ${label}`);
+  }
+};
+PERF.log('APP_START');
+
 // Suppress specific Firebase informational messages
 import { LogBox } from 'react-native';
 LogBox.ignoreLogs([
   'Failed to initialize reCAPTCHA Enterprise config',
 ]);
 
+PERF.log('LogBox configured');
 console.log('[App] Starting import phase');
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,23 +28,30 @@ import Toast from 'react-native-toast-message';
 import {
   View, Text, Image, StyleSheet, Animated, Easing, Dimensions, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+PERF.log('Core imports complete');
 console.log('[App] Core imports complete');
 
+PERF.log('Importing AuthStore...');
 console.log('[App] Importing AuthStore...');
 import { AuthProvider, useAuth } from './src/store/authStore';
+PERF.log('AuthStore imported');
 console.log('[App] AuthStore imported');
 
+PERF.log('Importing Navigators...');
 console.log('[App] Importing Navigators...');
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
+PERF.log('Navigators imported');
 console.log('[App] Navigators imported');
 
+PERF.log('Importing hooks and components...');
 console.log('[App] Importing hooks and components...');
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import MedicalDisclaimerModal from './src/components/MedicalDisclaimerModal';
 import ErrorBoundary from './src/components/ErrorBoundary';
+PERF.log('All imports complete');
 console.log('[App] All imports complete');
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -314,6 +334,29 @@ function SplashScreen() {
 // ─── Root navigator ───────────────────────────────────────────────────────────
 function RootNavigator({ navigationRef }) {
   const { user, loading } = useAuth();
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  // Safety timeout: if loading takes more than 3 seconds, force to auth screen
+  useEffect(() => {
+    if (loading) {
+      PERF.log('RootNavigator loading=true, starting 3s timeout');
+      console.log('[RootNavigator] Loading is true, starting safety timeout');
+      const timer = setTimeout(() => {
+        PERF.log('RootNavigator timeout reached - forcing to auth');
+        console.error('[RootNavigator] Loading timeout reached after 3 seconds - forcing to auth screen');
+        setLoadingTimeout(true);
+      }, 3000); // ✅ REDUCED from 5s to 3s for faster fallback
+      
+      return () => {
+        console.log('[RootNavigator] Loading changed, clearing timeout');
+        clearTimeout(timer);
+      };
+    } else {
+      PERF.log('RootNavigator loading=false');
+      console.log('[RootNavigator] Loading is false');
+      setLoadingTimeout(false);
+    }
+  }, [loading]);
 
   // usePushNotifications must be called unconditionally (Rules of Hooks).
   const safeNavRef = navigationRef ?? { current: null };
@@ -323,8 +366,9 @@ function RootNavigator({ navigationRef }) {
     console.warn('[RootNavigator] Push notifications error (non-fatal):', error?.message);
   }
 
-  // Simple loading screen instead of elaborate splash
-  if (loading) {
+  // Simple loading screen instead of elaborate splash (with timeout protection)
+  if (loading && !loadingTimeout) {
+    PERF.log('Showing loading screen');
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -333,9 +377,11 @@ function RootNavigator({ navigationRef }) {
     );
   }
 
+  PERF.log('Loading complete, rendering navigator');
+  // If timeout reached or loading complete, proceed with navigation
   // When user becomes null (logout/delete), always show AuthNavigator — never crash
   try {
-    return user ? <MainNavigator /> : <AuthNavigator />;
+    return user && !loadingTimeout ? <MainNavigator /> : <AuthNavigator />;
   } catch (error) {
     // Navigation transition error — just show auth screen
     console.warn('[RootNavigator] Navigation render error (non-fatal):', error?.message);

@@ -20,6 +20,7 @@ const useAuthStore = create(
       accessToken: null,
       isAuthenticated: false,
       isLoading: true,
+      _hasHydrated: false, // Track if store has completed hydration
 
       setAuth: (user, accessToken) => {
         console.log('[AuthStore] setAuth called:', { user: user?.id, role: user?.role, accessToken: accessToken?.substring(0, 20) + '...' });
@@ -59,6 +60,7 @@ const useAuthStore = create(
         })),
 
       logout: async () => {
+        console.log('[AuthStore] logout called');
         try {
           await logoutApi();
         } catch (_) {
@@ -74,8 +76,22 @@ const useAuthStore = create(
       },
 
       checkAuth: async () => {
-        const { accessToken, isAuthenticated } = get();
+        const { accessToken, isAuthenticated, _hasHydrated } = get();
         
+        console.log('[AuthStore] checkAuth called:', { 
+          hasToken: !!accessToken, 
+          isAuthenticated, 
+          hasHydrated: _hasHydrated 
+        });
+
+        // Wait for hydration to complete before checking auth
+        if (!_hasHydrated) {
+          console.log('[AuthStore] Waiting for hydration to complete');
+          // Wait a bit and try again
+          await new Promise(resolve => setTimeout(resolve, 50));
+          return get().checkAuth();
+        }
+
         // If we have a token and are authenticated, just set loading to false
         if (accessToken && isAuthenticated) {
           console.log('[AuthStore] Already authenticated, setting isLoading to false');
@@ -86,14 +102,18 @@ const useAuthStore = create(
         // If no token, don't make API call - just set loading to false
         // This prevents unnecessary 401 errors on initial page load
         if (!accessToken) {
-          console.log('[AuthStore] No token in storage, skipping auth check');
-          set({ isLoading: false });
+          console.log('[AuthStore] No token in storage, setting isLoading to false');
+          set({ 
+            isLoading: false,
+            isAuthenticated: false,
+            user: null 
+          });
           return;
         }
 
         // Only reach here if we have a token but not authenticated flag
-        // (shouldn't happen normally due to persist middleware)
-        console.log('[AuthStore] Have token but not authenticated, checking /auth/me');
+        // (shouldn't happen normally due to persist middleware, but handle it)
+        console.log('[AuthStore] Have token but not authenticated flag, validating with backend');
         set({ isLoading: true });
         
         // Add 5-second safety timeout to prevent infinite loading
@@ -107,13 +127,15 @@ const useAuthStore = create(
             timeoutPromise
           ]);
           const { user } = response.data.data;
+          console.log('[AuthStore] Backend validation successful');
           set({
             user: normalizeUser(user),
             isAuthenticated: true,
             isLoading: false,
           });
         } catch (error) {
-          console.log('[AuthStore] Session check failed:', error.response?.status || error.message);
+          console.error('[AuthStore] Session validation failed:', error.response?.status || error.message);
+          // Clear invalid session
           set({
             user: null,
             accessToken: null,
@@ -130,14 +152,28 @@ const useAuthStore = create(
         user: state.user,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
+        // DO NOT persist isLoading or _hasHydrated
       }),
-      onRehydrateStorage: () => (state) => {
-        // After rehydration, set isLoading to false if we have auth data
-        if (state?.accessToken && state?.isAuthenticated) {
-          console.log('[AuthStore] Rehydrated with auth data, setting isLoading to false');
+      onRehydrateStorage: () => (state, error) => {
+        console.log('[AuthStore] onRehydrateStorage callback called');
+        
+        if (error) {
+          console.error('[AuthStore] Rehydration error:', error);
+          return;
+        }
+
+        // Mark hydration as complete and set loading to false
+        // This is critical for second login to work
+        if (state) {
+          console.log('[AuthStore] Hydration complete:', { 
+            hasUser: !!state.user, 
+            hasToken: !!state.accessToken,
+            isAuthenticated: state.isAuthenticated 
+          });
+          
+          // Set both flags to prevent race conditions
+          state._hasHydrated = true;
           state.isLoading = false;
-        } else {
-          console.log('[AuthStore] No auth data after rehydration');
         }
       },
     }

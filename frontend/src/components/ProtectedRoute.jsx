@@ -14,6 +14,7 @@
  */
 
 import { Navigate, useLocation } from 'react-router-dom';
+import React from 'react';
 import useAuthStore from '../store/authStore'; // FIX: Use correct store path (store not stores)
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -51,9 +52,31 @@ export default function ProtectedRoute({
 }) {
   const location = useLocation();
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
-  // Show loading state while checking authentication
-  if (isLoading) {
+  // Safety timeout: if loading takes more than 3 seconds, force to login
+  React.useEffect(() => {
+    if (isLoading) {
+      console.log('[ProtectedRoute] isLoading is true, starting safety timeout');
+      const timer = setTimeout(() => {
+        console.error('[ProtectedRoute] Loading timeout reached - forcing to not loading state');
+        setLoadingTimeout(true);
+        // Force clear loading state in store
+        useAuthStore.getState().clearAuth();
+      }, 3000); // 3 second timeout
+      
+      return () => {
+        console.log('[ProtectedRoute] isLoading changed, clearing timeout');
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('[ProtectedRoute] isLoading is false');
+      setLoadingTimeout(false);
+    }
+  }, [isLoading]);
+
+  // Show loading state while checking authentication (with timeout)
+  if (isLoading && !loadingTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -232,9 +255,31 @@ export function StaffRoute({ children }) {
  */
 export function PublicRoute({ children }) {
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
-  // Show loading state while checking authentication
-  if (isLoading) {
+  // Safety timeout: if loading takes more than 3 seconds, proceed as not authenticated
+  React.useEffect(() => {
+    if (isLoading) {
+      console.log('[PublicRoute] isLoading is true, starting safety timeout');
+      const timer = setTimeout(() => {
+        console.error('[PublicRoute] Loading timeout reached - forcing to not loading state');
+        setLoadingTimeout(true);
+        // Force clear loading state in store
+        useAuthStore.getState().clearAuth();
+      }, 3000); // 3 second timeout
+      
+      return () => {
+        console.log('[PublicRoute] isLoading changed, clearing timeout');
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('[PublicRoute] isLoading is false');
+      setLoadingTimeout(false);
+    }
+  }, [isLoading]);
+
+  // Show loading state while checking authentication (with timeout)
+  if (isLoading && !loadingTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
