@@ -418,7 +418,6 @@ export default function ProfileScreen({ navigation, route }) {
   const [profile,      setProfile]      = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [editSheet,    setEditSheet]    = useState(false);
   const [signingOut,   setSigningOut]   = useState(false);  // loading state for logout/delete
   const mountedRef = useRef(true);
 
@@ -443,18 +442,6 @@ export default function ProfileScreen({ navigation, route }) {
   }, []);
 
   useEffect(() => { load(); }, []);
-
-  // Auto-open edit sheet when navigated from "Complete Profile" button
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      if (route?.params?.openEdit) {
-        setEditSheet(true);
-        // Clear the param so it doesn't re-open on next focus
-        navigation.setParams({ openEdit: false });
-      }
-    });
-    return unsubscribe;
-  }, [navigation, route?.params?.openEdit]);
 
   const handleLogout = () => {
     if (signingOut) return;
@@ -846,14 +833,6 @@ export default function ProfileScreen({ navigation, route }) {
         <Text style={s.deleteHint}>Permanently deletes your account and all personal data.</Text>
 
       </ScrollView>
-
-      {/* ── Edit Sheet ── */}
-      <EditSheet
-        visible={editSheet}
-        profile={profile}
-        onClose={() => setEditSheet(false)}
-        onSaved={handleProfileSaved}
-      />
     </View>
   );
 }

@@ -1,0 +1,150 @@
+═══════════════════════════════════════════════════════════════════════
+  ❌ WHY YOU'RE GETTING "PERMISSION ERROR" AND HOW TO FIX IT
+═══════════════════════════════════════════════════════════════════════
+
+📱 THE PROBLEM:
+
+You're running the OLD version of the app on your phone.
+The code I fixed is in your computer's source files, but your phone
+has the PREVIOUS BUILD installed.
+
+Think of it like this:
+
+    YOUR PHONE                      YOUR COMPUTER
+    ┌─────────────┐                ┌─────────────┐
+    │ OLD APP     │                │ NEW CODE    │
+    │ (installed) │                │ (source)    │
+    │             │                │             │
+    │ Edit Profile│                │ Edit Profile│
+    │      ↓      │                │      ↓      │
+    │ EditSheet ❌│                │ ProfileWiz ✅│
+    │      ↓      │                │             │
+    │ ERROR! ❌   │                └─────────────┘
+    └─────────────┘
+
+═══════════════════════════════════════════════════════════════════════
+  ✅ THE SOLUTION: REBUILD THE APP
+═══════════════════════════════════════════════════════════════════════
+
+STEP 1: Close the app on your phone
+
+STEP 2: Double-click this file:
+        → REBUILD_APP_NOW.bat
+
+STEP 3: Wait 3-5 minutes (the build takes time)
+
+STEP 4: The new app will auto-install on your phone
+
+STEP 5: Open the app and test "Edit Profile" button
+
+═══════════════════════════════════════════════════════════════════════
+
+⏱️ BUILD TIME: 3-5 minutes (grab a coffee ☕)
+
+═══════════════════════════════════════════════════════════════════════
+  📊 WHAT WILL CHANGE AFTER REBUILD
+═══════════════════════════════════════════════════════════════════════
+
+BEFORE (Current):                   AFTER (Fixed):
+┌──────────────────────┐            ┌──────────────────────┐
+│ Profile Screen       │            │ Profile Screen       │
+│                      │            │                      │
+│ Click "Edit Profile" │            │ Click "Edit Profile" │
+│         ↓            │            │         ↓            │
+│ EditSheet modal ❌   │            │ ProfileWizard ✅     │
+│         ↓            │            │         ↓            │
+│ "Permission Error"❌ │            │ 6-Step Form ✅       │
+└──────────────────────┘            │                      │
+                                    │ Step 1: Name         │
+                                    │ Step 2: Gender       │
+                                    │ Step 3: DOB          │
+                                    │ Step 4: City         │
+                                    │ Step 5: Emergency    │
+                                    │ Step 6: Medical      │
+                                    │         ↓            │
+                                    │ Success Animation ✅ │
+                                    │         ↓            │
+                                    │ Return to Profile ✅ │
+                                    └──────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════
+  🚀 QUICK START (DO THIS NOW!)
+═══════════════════════════════════════════════════════════════════════
+
+1. Close app on phone
+2. Double-click: REBUILD_APP_NOW.bat
+3. Wait for "BUILD COMPLETE!" message
+4. Test Edit Profile button
+5. See ProfileWizard with 6 steps! 🎉
+
+═══════════════════════════════════════════════════════════════════════
+  ❓ WHY CAN'T I JUST REFRESH THE APP?
+═══════════════════════════════════════════════════════════════════════
+
+React Native apps are NATIVE APPS, not web apps.
+
+WEB APPS:                           MOBILE APPS:
+✅ Refresh = new code               ❌ Refresh = same code
+✅ Auto-deploy                      ❌ Must rebuild
+✅ Instant updates                  ❌ 3-5 min build time
+
+Think of it like Windows software:
+- You can't "refresh" Microsoft Word to get a new version
+- You have to INSTALL a new build
+- Same with React Native mobile apps
+
+═══════════════════════════════════════════════════════════════════════
+  🔧 IF BUILD FAILS
+═══════════════════════════════════════════════════════════════════════
+
+Error: "Device not found"
+→ Enable USB Debugging on your phone
+→ Connect USB cable
+→ Run: adb devices (should show your device)
+
+Error: "Port already in use"
+→ Close all terminals/PowerShell windows
+→ Run: taskkill /F /IM node.exe /T
+→ Wait 5 seconds
+→ Rebuild again
+
+Error: "Android SDK not found"
+→ Install Android Studio first
+→ Then rebuild
+
+═══════════════════════════════════════════════════════════════════════
+  ✅ VERIFICATION AFTER REBUILD
+═══════════════════════════════════════════════════════════════════════
+
+1. Open app on phone
+2. Go to Profile tab (bottom right)
+3. Click "Edit Profile" button (blue button in profile card)
+4. You should see:
+   ✅ Colored header (blue for step 1)
+   ✅ "Complete Your Profile" title
+   ✅ "Step 1 of 6" subtitle
+   ✅ Progress bar (0-16% for step 1)
+   ✅ Large person icon
+   ✅ "Full Name" input field
+   ✅ Continue button
+
+5. If you see EditSheet modal with "City: Karwar" → OLD VERSION (rebuild failed)
+6. If you see ProfileWizard with steps → NEW VERSION (success!) ✅
+
+═══════════════════════════════════════════════════════════════════════
+  📞 STILL STUCK?
+═══════════════════════════════════════════════════════════════════════
+
+Send me:
+1. Screenshot of the error
+2. Output from: git log --oneline -1
+3. Output from: adb devices
+4. Metro bundler logs (if visible)
+
+═══════════════════════════════════════════════════════════════════════
+
+🚀 ACTION REQUIRED NOW:
+
+    Double-click → REBUILD_APP_NOW.bat
+
+═══════════════════════════════════════════════════════════════════════
