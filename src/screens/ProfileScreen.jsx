@@ -650,7 +650,7 @@ export default function ProfileScreen({ navigation, route }) {
                 <Text style={[s.verifiedText, { color: AMBER }]}>Verification Pending</Text>
               </View>
             )}
-            <TouchableOpacity style={s.editBtn} onPress={() => setEditSheet(true)} activeOpacity={0.88}>
+            <TouchableOpacity style={s.editBtn} onPress={() => navigation.navigate('ProfileWizard', { profile, returnTo: 'Profile' })} activeOpacity={0.88}>
               <Ionicons name="create-outline" size={15} color={BLUE} />
               <Text style={s.editBtnText}>Edit Profile</Text>
             </TouchableOpacity>
@@ -691,7 +691,7 @@ export default function ProfileScreen({ navigation, route }) {
               bg: AMBER_L,
               label: 'Edit Profile',
               desc: 'Update your details',
-              onPress: () => setEditSheet(true),
+              onPress: () => navigation.navigate('ProfileWizard', { profile, returnTo: 'Profile' }),
             },
           ].map((item, i) => (
             <TouchableOpacity key={i} style={s.actionCard} onPress={item.onPress} activeOpacity={0.85}>

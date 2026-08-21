@@ -485,8 +485,13 @@ export default function ProfileWizardScreen({ route, navigation }) {
       updateUser({ name: res.data.data.user.name });
       setSuccess(true);
       setTimeout(() => {
-        if (returnTo === 'Booking') navigation.goBack();
-        else navigation.reset({ index:0, routes:[{ name:'ProfileTab' }] });
+        if (returnTo === 'Booking') {
+          navigation.goBack();
+        } else if (returnTo === 'Profile') {
+          navigation.goBack();
+        } else {
+          navigation.reset({ index:0, routes:[{ name:'ProfileTab' }] });
+        }
       }, 2400);
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to save profile. Please try again.';
