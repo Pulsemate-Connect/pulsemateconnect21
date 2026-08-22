@@ -808,7 +808,7 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       name: step1.clinicName,
       ownerId: updatedUser.id,
       phone: step1.primaryContactPhone || step1.ownerMobile || updatedUser.mobile,
-      email: step1.ownerEmail || updatedUser.email,
+      // ✅ REMOVED: email field doesn't exist on Clinic model
       address: step1.addressLine1 || step1.address,
       city: step1.city,
       district: step1.district,
