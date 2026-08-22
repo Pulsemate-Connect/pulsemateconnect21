@@ -8,6 +8,7 @@ import { step4Schema } from '../../../../utils/validation/step4Schema';
 import OnboardingLayout from '../components/OnboardingLayout';
 import BottomActionBar from '../components/BottomActionBar';
 import TermsCard from '../components/sections/TermsCard';
+import axios from '../../../../api/axios'; // ✅ FIX: Import axios for authentication
 
 const Step4PartnerAgreement = () => {
   const navigate = useNavigate();
@@ -41,29 +42,17 @@ const Step4PartnerAgreement = () => {
     try {
       console.log('Partner Agreement Form Data:', data);
       
-      // Submit final application to backend
-      const response = await fetch('/api/auth/clinic-owner/submit-application', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          termsAccepted: data.termsAccepted,
-          confirmAuthorized: data.confirmAuthorized,
-          confirmAccurate: data.confirmAccurate,
-          confirmCompliance: data.confirmCompliance,
-          termsAcceptedAt: new Date().toISOString(),
-          agreementVersion: 'v1.0-draft', // Track agreement version
-        }),
+      // ✅ FIX: Use axios instead of fetch to include authentication headers
+      const response = await axios.post('/auth/clinic-owner/submit-application', {
+        termsAccepted: data.termsAccepted,
+        confirmAuthorized: data.confirmAuthorized,
+        confirmAccurate: data.confirmAccurate,
+        confirmCompliance: data.confirmCompliance,
+        termsAcceptedAt: new Date().toISOString(),
+        agreementVersion: 'v1.0-draft', // Track agreement version
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to submit application');
-      }
-
-      console.log('[PartnerAgreement] Application submitted:', result);
+      console.log('[PartnerAgreement] Application submitted:', response.data);
       
       // Mark as submitted
       setIsSubmitted(true);
@@ -73,7 +62,7 @@ const Step4PartnerAgreement = () => {
       
     } catch (error) {
       console.error('Failed to submit application:', error);
-      toast.error(error.message || 'Failed to submit application');
+      toast.error(error.response?.data?.message || error.message || 'Failed to submit application');
     }
   };
 
