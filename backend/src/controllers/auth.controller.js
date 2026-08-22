@@ -2411,16 +2411,26 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
     if (purpose === 'SIGNUP') {
       // For registration, reject if email already exists with active/pending account
       if (existingUser) {
+        // ✅ SPECIAL CASE: If user is PENDING but has NO clinic data (incomplete onboarding),
+        // allow them to continue by treating this as a LOGIN to resume onboarding
         if (existingUser.approvalStatus === 'PENDING') {
-          return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
-        }
-        
-        if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          const hasClinicData = existingUser.clinicOnboardingData !== null;
+          
+          if (!hasClinicData) {
+            // User started registration but never completed onboarding
+            // Allow OTP send so they can login and continue
+            logger.info(`[Auth] PENDING user ${cleanEmail} has no clinic data, allowing OTP send to resume onboarding`);
+            // Continue to send OTP (don't return error)
+          } else {
+            // User has completed onboarding and is awaiting admin approval
+            return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
+          }
+        } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
           return sendError(res, 'A user with this email already exists. Please use login instead.', 409);
+        } else {
+          // For other statuses (REJECTED, etc), allow (they can re-register)
+          logger.info(`[Auth] Existing user found for ${cleanEmail} with status ${existingUser.approvalStatus}, allowing re-registration`);
         }
-        
-        // For other statuses (REJECTED, etc), allow (they can re-register)
-        logger.info(`[Auth] Existing user found for ${cleanEmail} with status ${existingUser.approvalStatus}, allowing re-registration`);
       }
     } else if (purpose === 'LOGIN') {
       // For login, require that email exists
@@ -2697,16 +2707,26 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
     if (purpose === 'SIGNUP') {
       // For registration, reject if mobile already exists with active/pending account
       if (existingUser) {
+        // ✅ SPECIAL CASE: If user is PENDING but has NO clinic data (incomplete onboarding),
+        // allow them to continue by treating this as a LOGIN to resume onboarding
         if (existingUser.approvalStatus === 'PENDING') {
-          return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
-        }
-        
-        if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          const hasClinicData = existingUser.clinicOnboardingData !== null;
+          
+          if (!hasClinicData) {
+            // User started registration but never completed onboarding
+            // Allow OTP send so they can login and continue
+            logger.info(`[OTP] PENDING user ${normalizedPhone} has no clinic data, allowing OTP send to resume onboarding`);
+            // Continue to send OTP (don't return error)
+          } else {
+            // User has completed onboarding and is awaiting admin approval
+            return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
+          }
+        } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
           return sendError(res, 'A user with this mobile number already exists. Please use login instead.', 409);
+        } else {
+          // For other statuses (REJECTED, etc), allow (they can re-register)
+          logger.info(`[OTP] Existing user found for ${normalizedPhone} with status ${existingUser.approvalStatus}, allowing re-registration`);
         }
-        
-        // For other statuses (REJECTED, etc), allow (they can re-register)
-        logger.info(`[OTP] Existing user found for ${normalizedPhone} with status ${existingUser.approvalStatus}, allowing re-registration`);
       }
     } else if (purpose === 'LOGIN') {
       // For login, require that mobile exists
