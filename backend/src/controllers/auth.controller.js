@@ -2703,7 +2703,7 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       },
     });
     
-    // Different validation for SIGNUP vs LOGIN
+    // Different validation for SIGNUP vs LOGIN vs ONBOARDING
     if (purpose === 'SIGNUP') {
       // For registration, reject if mobile already exists with active/pending account
       if (existingUser) {
@@ -2740,6 +2740,12 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       }
       
       logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} with status ${existingUser.approvalStatus}`);
+    } else if (purpose === 'ONBOARDING') {
+      // ✅ FIX: For onboarding, skip all validation
+      // User is already authenticated and completing their profile
+      // They can add any mobile number (even if it doesn't exist yet)
+      logger.info(`[OTP] ONBOARDING mode: Skipping validation for ${normalizedPhone}`);
+      // Continue to send OTP (no validation)
     }
     
     // ✅ TEST MODE: Check if this is a test number

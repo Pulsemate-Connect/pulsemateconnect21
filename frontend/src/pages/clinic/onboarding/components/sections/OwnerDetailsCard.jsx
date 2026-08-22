@@ -107,6 +107,7 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
         },
         body: JSON.stringify({
           phoneNumber: phoneNumber,
+          purpose: 'ONBOARDING', // ✅ FIX: Add purpose to skip login validation during onboarding
         }),
       });
 
