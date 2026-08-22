@@ -102,10 +102,10 @@ User → Already submitted once → Edit Step 2 → Submit again
 → Success ✅ (no 409 error)
 ```
 
-### ✅ **Scenario 3: Admin requests changes**
+### **Scenario 3: Admin requests changes**
 ```
 Admin → Request changes → User edits → Resubmit
-→ Existing clinic found (status: CHANGES_REQUESTED)
+→ Existing clinic found (status: CHANGES_REQUIRED)
 → Update existing Clinic record
 → Status: back to PENDING
 → Success ✅
@@ -129,13 +129,13 @@ User has approved clinic → Wants to add another clinic location
 
 ### **Query Logic**
 ```javascript
-// Find PENDING or CHANGES_REQUESTED clinic for this owner
+// Find PENDING or CHANGES_REQUIRED clinic for this owner
 await prisma.clinic.findFirst({
   where: {
     ownerId: updatedUser.id,
     OR: [
       { approvalStatus: 'PENDING' },
-      { approvalStatus: 'CHANGES_REQUESTED' },
+      { approvalStatus: 'CHANGES_REQUIRED' },
     ],
   },
 });
@@ -143,12 +143,13 @@ await prisma.clinic.findFirst({
 
 **Why these statuses?**
 - `PENDING`: Initial submission awaiting admin review
-- `CHANGES_REQUESTED`: Admin asked for edits, user is resubmitting
+- `CHANGES_REQUIRED`: Admin asked for edits, user is resubmitting
 
 **Excluded statuses:**
-- `APPROVED`: User's approved clinic (shouldn't be modified)
+- `VERIFIED`: User's approved clinic (shouldn't be modified)
 - `REJECTED`: User's rejected clinic (shouldn't be modified)
 - `SUSPENDED`: Suspended clinic (shouldn't be modified)
+- `UNDER_REVIEW`: Clinic under review (shouldn't be modified)
 
 ---
 
@@ -269,8 +270,8 @@ TECHNICAL:
 
 ### **What Cannot Happen**:
 - ❌ User cannot update another user's clinic
-- ❌ User cannot modify APPROVED clinics
-- ❌ User cannot modify REJECTED/SUSPENDED clinics
+- ❌ User cannot modify VERIFIED clinics
+- ❌ User cannot modify REJECTED/SUSPENDED/UNDER_REVIEW clinics
 - ❌ Duplicate clinics are not created
 
 ---

@@ -799,7 +799,7 @@ const submitClinicApplicationHandler = async (req, res, next) => {
         ownerId: updatedUser.id,
         OR: [
           { approvalStatus: 'PENDING' },
-          { approvalStatus: 'CHANGES_REQUESTED' },
+          { approvalStatus: 'CHANGES_REQUIRED' },
         ],
       },
     });
