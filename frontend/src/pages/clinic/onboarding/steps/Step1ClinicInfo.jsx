@@ -59,13 +59,32 @@ const Step1ClinicInfo = () => {
 
   // Load saved data from localStorage on mount
   useEffect(() => {
+    // Clear any stale mobile verification data from previous sessions
+    // This ensures mobile number field starts fresh
+    const clearStaleData = () => {
+      const keysToCheck = [
+        'clinic_onboarding_verified_numbers',
+        'clinic_onboarding_editing_mode'
+      ];
+      
+      keysToCheck.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+          console.log(`[Step1] Cleared stale localStorage key: ${key}`);
+        }
+      });
+    };
+    
+    clearStaleData();
+    
     const savedData = localStorage.getItem('clinic_onboarding_step1');
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
         Object.keys(parsed).forEach(key => {
-          // Don't override email from localStorage - always use authenticated user's email
-          if (key !== 'ownerEmail') {
+          // Don't override email or mobile from localStorage - always use fresh data
+          // Email comes from authenticated user, mobile must be entered fresh
+          if (key !== 'ownerEmail' && key !== 'ownerMobile' && key !== 'mobileVerified') {
             setValue(key, parsed[key]);
           }
         });
@@ -75,7 +94,7 @@ const Step1ClinicInfo = () => {
       }
     }
     
-    // Pre-fill owner details from authenticated user
+    // Pre-fill owner details from authenticated user (email and name only, NOT mobile)
     if (user) {
       if (user.email) {
         setValue('ownerEmail', user.email);
@@ -85,6 +104,7 @@ const Step1ClinicInfo = () => {
         setValue('ownerName', user.name);
         console.log('[Step1] Pre-filled owner name from auth:', user.name);
       }
+      // DO NOT pre-fill mobile number - user must enter and verify it fresh each time
     }
   }, [setValue, user]);
 

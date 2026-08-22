@@ -21,28 +21,14 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
   // Restore verified numbers from localStorage on mount
   React.useEffect(() => {
     const checkVerificationStatus = async () => {
-      // First try localStorage (fast) - restore all verified numbers
-      const savedData = localStorage.getItem('clinic_onboarding_verified_numbers');
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setVerifiedNumbers(new Set(parsed));
-            console.log('[OTP] Restored verified numbers from localStorage:', parsed);
-            
-            // If current mobile is in the verified set, mark as verified
-            if (mobileValue && parsed.includes(mobileValue)) {
-              setValue('mobileVerified', true);
-            }
-            return; // Don't check API if localStorage has data
-          }
-        } catch (error) {
-          console.error('[OTP] Failed to restore verification state from localStorage:', error);
-        }
-      }
-
-      // If not in localStorage but we have a mobile value, check database
-      if (mobileValue && mobileValue.length === 10) {
+      // DON'T restore from localStorage - always start fresh for mobile verification
+      // This ensures users must verify their mobile number each time they register
+      
+      // If we have a mobile value, check database only if user is editing existing onboarding data
+      // For new registrations, always require fresh verification
+      const isEditingExisting = localStorage.getItem('clinic_onboarding_editing_mode') === 'true';
+      
+      if (isEditingExisting && mobileValue && mobileValue.length === 10) {
         try {
           console.log('[OTP] Checking database for verification status:', mobileValue);
           const response = await fetch(`/api/auth/check-mobile-verification/${mobileValue}`);
@@ -53,8 +39,6 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
             setVerifiedNumbers(prev => {
               const newSet = new Set(prev);
               newSet.add(mobileValue);
-              // Save to localStorage
-              localStorage.setItem('clinic_onboarding_verified_numbers', JSON.stringify([...newSet]));
               return newSet;
             });
             setValue('mobileVerified', true);
