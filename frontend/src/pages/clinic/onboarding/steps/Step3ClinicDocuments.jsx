@@ -9,6 +9,7 @@ import BottomActionBar from '../components/BottomActionBar';
 import MandatoryDocumentsCard from '../components/sections/MandatoryDocumentsCard';
 import OptionalDocumentsCard from '../components/sections/OptionalDocumentsCard';
 import AdditionalInfoCard from '../components/sections/AdditionalInfoCard';
+import axios from '../../../../api/axios'; // ✅ FIX: Import axios for authentication
 
 const Step3ClinicDocuments = () => {
   const navigate = useNavigate();
@@ -126,19 +127,11 @@ const Step3ClinicDocuments = () => {
       formData.append('clinicRegistrationNumber', data.clinicRegistrationNumber);
       if (data.gstNumber) formData.append('gstNumber', data.gstNumber);
 
-      // Save Step 3 data to database
-      const response = await fetch('/api/auth/clinic-owner/save-clinic-documents', {
-        method: 'POST',
-        body: formData, // Send as multipart/form-data for file uploads
-      });
+      // ✅ FIX: Use axios instead of fetch to include authentication headers
+      // Note: axios automatically detects FormData and sets correct Content-Type
+      const response = await axios.post('/auth/clinic-owner/save-clinic-documents', formData);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to save clinic documents');
-      }
-
-      console.log('[ClinicDocuments] Data saved to database:', result);
+      console.log('[ClinicDocuments] Data saved to database:', response.data);
       
       // Clear localStorage for this step since it's now in database
       localStorage.removeItem('clinic_onboarding_step3');
@@ -149,7 +142,7 @@ const Step3ClinicDocuments = () => {
       
     } catch (error) {
       console.error('Failed to submit Clinic Documents:', error);
-      toast.error(error.message || 'Failed to save clinic documents');
+      toast.error(error.response?.data?.message || error.message || 'Failed to save clinic documents');
     }
   };
 

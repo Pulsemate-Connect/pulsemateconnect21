@@ -12,6 +12,7 @@ import PrimaryContactCard from '../components/sections/PrimaryContactCard';
 import ClinicLocationCard from '../components/sections/ClinicLocationCard';
 import AddressDetailsCard from '../components/sections/AddressDetailsCard';
 import useAuthStore from '../../../../store/authStore';
+import axios from '../../../../api/axios'; // ✅ FIX: Import axios for authentication
 
 const Step1ClinicInfo = () => {
   const navigate = useNavigate();
@@ -140,22 +141,10 @@ const Step1ClinicInfo = () => {
     try {
       console.log('Clinic Information Form Data:', data);
       
-      // Save Clinic Information data to database
-      const response = await fetch('/api/auth/clinic-owner/save-clinic-information', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      // ✅ FIX: Use axios instead of fetch to include authentication headers
+      const response = await axios.post('/auth/clinic-owner/save-clinic-information', data);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to save clinic information');
-      }
-
-      console.log('[ClinicInformation] Data saved to database:', result);
+      console.log('[ClinicInformation] Data saved to database:', response.data);
       toast.success('Clinic information saved successfully!');
       
       // Clear localStorage for this step since it's now in database
@@ -166,7 +155,7 @@ const Step1ClinicInfo = () => {
       
     } catch (error) {
       console.error('Failed to submit Clinic Information:', error);
-      toast.error(error.message || 'Failed to save clinic information');
+      toast.error(error.response?.data?.message || error.message || 'Failed to save clinic information');
     }
   };
 

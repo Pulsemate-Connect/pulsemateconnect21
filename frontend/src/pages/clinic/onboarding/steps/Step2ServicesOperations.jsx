@@ -9,6 +9,7 @@ import BottomActionBar from '../components/BottomActionBar';
 import ServicesCard from '../components/sections/ServicesCard';
 import OperatingHoursCard from '../components/sections/OperatingHoursCard';
 import AppointmentModeCard from '../components/sections/AppointmentModeCard';
+import axios from '../../../../api/axios'; // ✅ FIX: Import axios for authentication
 
 const Step2ServicesOperations = () => {
   const navigate = useNavigate();
@@ -81,22 +82,10 @@ const Step2ServicesOperations = () => {
     try {
       console.log('Services & Operations Form Data:', data);
       
-      // Save Step 2 data to database
-      const response = await fetch('/api/auth/clinic-owner/save-services-operations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      // ✅ FIX: Use axios instead of fetch to include authentication headers
+      const response = await axios.post('/auth/clinic-owner/save-services-operations', data);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to save services & operations');
-      }
-
-      console.log('[ServicesOperations] Data saved to database:', result);
+      console.log('[ServicesOperations] Data saved to database:', response.data);
       toast.success('Services & operations saved successfully!');
       
       // Clear localStorage for this step since it's now in database
@@ -107,7 +96,7 @@ const Step2ServicesOperations = () => {
       
     } catch (error) {
       console.error('Failed to submit Services & Operations:', error);
-      toast.error(error.message || 'Failed to save services & operations');
+      toast.error(error.response?.data?.message || error.message || 'Failed to save services & operations');
     }
   };
 
