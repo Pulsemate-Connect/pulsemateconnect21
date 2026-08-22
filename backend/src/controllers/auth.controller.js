@@ -2661,9 +2661,9 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
  */
 const sendOtpHandler_MessageCentral = async (req, res, next) => {
   try {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, purpose = 'LOGIN' } = req.body;
     
-    logger.info('[OTP] sendOtpHandler_MessageCentral called with phoneNumber:', phoneNumber);
+    logger.info('[OTP] sendOtpHandler_MessageCentral called with phoneNumber:', phoneNumber, 'purpose:', purpose);
     
     if (!phoneNumber) {
       logger.warn('[OTP] Phone number missing in request');
@@ -2680,6 +2680,46 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
     if (mobileNumber.length !== 10 || !/^\d{10}$/.test(mobileNumber)) {
       logger.warn('[OTP] Invalid phone number format:', mobileNumber);
       return sendError(res, 'Invalid Indian mobile number', 400);
+    }
+    
+    // ✅ Check if user exists with this mobile number
+    const existingUser = await prisma.user.findUnique({
+      where: { mobile: normalizedPhone },
+      select: { 
+        id: true, 
+        role: true, 
+        approvalStatus: true,
+        clinicOnboardingData: true 
+      },
+    });
+    
+    // Different validation for SIGNUP vs LOGIN
+    if (purpose === 'SIGNUP') {
+      // For registration, reject if mobile already exists with active/pending account
+      if (existingUser) {
+        if (existingUser.approvalStatus === 'PENDING') {
+          return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
+        }
+        
+        if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          return sendError(res, 'A user with this mobile number already exists. Please use login instead.', 409);
+        }
+        
+        // For other statuses (REJECTED, etc), allow (they can re-register)
+        logger.info(`[OTP] Existing user found for ${normalizedPhone} with status ${existingUser.approvalStatus}, allowing re-registration`);
+      }
+    } else if (purpose === 'LOGIN') {
+      // For login, require that mobile exists
+      if (!existingUser) {
+        return sendError(res, 'Mobile number not registered. Please create an account first.', 404);
+      }
+      
+      // Check if user is not CLINIC_OWNER
+      if (existingUser.role !== 'CLINIC_OWNER') {
+        return sendError(res, 'This mobile number is registered with a different account type. Please use the appropriate login page.', 403);
+      }
+      
+      logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} with status ${existingUser.approvalStatus}`);
     }
     
     // ✅ TEST MODE: Check if this is a test number
