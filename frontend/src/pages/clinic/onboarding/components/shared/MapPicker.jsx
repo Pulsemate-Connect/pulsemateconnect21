@@ -20,6 +20,13 @@ const LocationMarker = ({ position, setPosition }) => {
     },
   });
 
+  // Update map view when position changes externally
+  React.useEffect(() => {
+    if (position) {
+      map.setView([position.lat, position.lng], map.getZoom());
+    }
+  }, [position, map]);
+
   return position ? <Marker position={position} draggable={true} eventHandlers={{
     dragend: (e) => {
       setPosition(e.target.getLatLng());
@@ -35,6 +42,22 @@ const MapPicker = ({
   const [position, setPosition] = useState(initialPosition);
   const [isLocating, setIsLocating] = useState(false);
   const mapRef = useRef(null);
+
+  // Update position when initialPosition changes
+  useEffect(() => {
+    if (initialPosition && initialPosition.lat && initialPosition.lng) {
+      const newPos = {
+        lat: parseFloat(initialPosition.lat),
+        lng: parseFloat(initialPosition.lng)
+      };
+      setPosition(newPos);
+      
+      // Fly to new position if map is ready
+      if (mapRef.current) {
+        mapRef.current.setView([newPos.lat, newPos.lng], 13);
+      }
+    }
+  }, [initialPosition.lat, initialPosition.lng]);
 
   useEffect(() => {
     if (position && onLocationSelect) {
@@ -80,11 +103,14 @@ const MapPicker = ({
           center={[position.lat, position.lng]}
           zoom={13}
           style={{ height, width: '100%' }}
-          ref={mapRef}
+          whenCreated={(mapInstance) => {
+            mapRef.current = mapInstance;
+          }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
           />
           <LocationMarker position={position} setPosition={setPosition} />
         </MapContainer>
