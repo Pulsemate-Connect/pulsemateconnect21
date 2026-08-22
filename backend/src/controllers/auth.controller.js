@@ -793,45 +793,68 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       },
     });
 
-    // Create Clinic record for admin approval
-    const clinic = await prisma.clinic.create({
-      data: {
-        name: step1.clinicName,
+    // Check if clinic already exists for this user
+    let clinic = await prisma.clinic.findFirst({
+      where: {
         ownerId: updatedUser.id,
-        phone: step1.primaryContactPhone || step1.ownerMobile || updatedUser.mobile,
-        email: step1.ownerEmail || updatedUser.email,
-        address: step1.addressLine1 || step1.address,
-        city: step1.city,
-        district: step1.district,
-        state: step1.state,
-        pincode: step1.pincode,
-        landmark: step1.landmark,
-        latitude: step1.latitude ? parseFloat(step1.latitude) : null,
-        longitude: step1.longitude ? parseFloat(step1.longitude) : null,
-        googleMapsLocation: step1.googleMapsLocation,
-        clinicType: step1.clinicType,
-        clinicRegistrationNumber: step1.clinicRegistrationNumber,
-        approvalStatus: 'PENDING',
-        submittedAt: new Date(),
-        // Step 2 data
-        specialties: step2.services || [],
-        openingHours: step2.operatingHours ? JSON.stringify(step2.operatingHours) : null,
-        consultationModes: step2.appointmentModes || step2.consultationTypes || [],
-        facilities: step2.facilities || [],
-        languagesSpoken: step2.languages || [],
-        // Step 3 data
-        licenseDocumentUrl: step3.clinicLicense || step3.clinicRegistrationCertificate,
-        medicalEstablishmentCertificateUrl: step3.medicalCertificate || step3.medicalEstablishmentLicense,
-        gstCertificateUrl: step3.gstCertificate,
-        panCardUrl: step3.panCard,
-        gstNumber: step3.gstNumber,
-        panNumber: step3.panNumber,
-        isActive: false,  // Inactive until approved
+        OR: [
+          { approvalStatus: 'PENDING' },
+          { approvalStatus: 'CHANGES_REQUESTED' },
+        ],
       },
     });
 
-    logger.info(`[Onboarding] Clinic record created: ${clinic.id} for user ${updatedUser.id}`);
-    logger.info(`[Onboarding] Application submitted for user ${updatedUser.id}, status: PENDING`);
+    const clinicData = {
+      name: step1.clinicName,
+      ownerId: updatedUser.id,
+      phone: step1.primaryContactPhone || step1.ownerMobile || updatedUser.mobile,
+      email: step1.ownerEmail || updatedUser.email,
+      address: step1.addressLine1 || step1.address,
+      city: step1.city,
+      district: step1.district,
+      state: step1.state,
+      pincode: step1.pincode,
+      landmark: step1.landmark,
+      latitude: step1.latitude ? parseFloat(step1.latitude) : null,
+      longitude: step1.longitude ? parseFloat(step1.longitude) : null,
+      googleMapsLocation: step1.googleMapsLocation,
+      clinicType: step1.clinicType,
+      clinicRegistrationNumber: step1.clinicRegistrationNumber,
+      approvalStatus: 'PENDING',
+      submittedAt: new Date(),
+      lastResubmittedAt: clinic ? new Date() : undefined, // Track resubmissions
+      // Step 2 data
+      specialties: step2.services || [],
+      openingHours: step2.operatingHours ? JSON.stringify(step2.operatingHours) : null,
+      consultationModes: step2.appointmentModes || step2.consultationTypes || [],
+      facilities: step2.facilities || [],
+      languagesSpoken: step2.languages || [],
+      // Step 3 data
+      licenseDocumentUrl: step3.clinicLicense || step3.clinicRegistrationCertificate,
+      medicalEstablishmentCertificateUrl: step3.medicalCertificate || step3.medicalEstablishmentLicense,
+      gstCertificateUrl: step3.gstCertificate,
+      panCardUrl: step3.panCard,
+      gstNumber: step3.gstNumber,
+      panNumber: step3.panNumber,
+      isActive: false,  // Inactive until approved
+    };
+
+    if (clinic) {
+      // Update existing clinic with new data (resubmission)
+      clinic = await prisma.clinic.update({
+        where: { id: clinic.id },
+        data: clinicData,
+      });
+      logger.info(`[Onboarding] Clinic record updated (resubmission): ${clinic.id} for user ${updatedUser.id}`);
+    } else {
+      // Create new clinic record
+      clinic = await prisma.clinic.create({
+        data: clinicData,
+      });
+      logger.info(`[Onboarding] Clinic record created: ${clinic.id} for user ${updatedUser.id}`);
+    }
+
+    logger.info(`[Onboarding] Application submitted for user ${updatedUser.id}, status: PENDING, clinicId: ${clinic.id}`);
 
     // TODO: Send confirmation email to clinic owner
     // TODO: Send notification to admin for review
