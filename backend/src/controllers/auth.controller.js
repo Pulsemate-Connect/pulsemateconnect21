@@ -727,24 +727,42 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       return sendError(res, 'You must agree to comply with applicable requirements', 400);
     }
 
-    // Get the most recent user with clinic onboarding data
-    // In production, this should come from authenticated session
-    const users = await prisma.user.findMany({
-      where: {
-        clinicOnboardingData: { not: prisma.DbNull },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 1,
-    });
-
-    if (!users || users.length === 0) {
-      return sendError(res, 'No user found. Please complete previous steps first.', 400);
+    // ✅ FIX: Get authenticated user from req.user (set by authenticateUser middleware)
+    if (!req.user) {
+      return sendError(res, 'Authentication required. Please login again.', 401);
     }
 
-    const user = users[0];
+    // Fetch fresh user data with onboarding data
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        mobile: true,
+        name: true,
+        role: true,
+        approvalStatus: true,
+        clinicOnboardingData: true,
+      },
+    });
+
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
 
     // Get existing onboarding data
     const onboardingData = user.clinicOnboardingData || {};
+
+    // Check if user has completed previous steps
+    if (!onboardingData.clinicInformation) {
+      return sendError(res, 'Please complete Step 1: Clinic Information first', 400);
+    }
+    if (!onboardingData.servicesOperations) {
+      return sendError(res, 'Please complete Step 2: Services & Operations first', 400);
+    }
+    if (!onboardingData.clinicDocuments) {
+      return sendError(res, 'Please complete Step 3: Clinic Documents first', 400);
+    }
 
     // Prepare Partner Agreement data with all acceptance fields
     const partnerAgreementData = {

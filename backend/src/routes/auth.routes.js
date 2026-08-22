@@ -194,7 +194,7 @@ router.post('/clinic-owner/save-clinic-documents',
 );
 
 // Step 4: Submit Final Application
-router.post('/clinic-owner/submit-application', submitClinicApplicationHandler);
+router.post('/clinic-owner/submit-application', authenticateUser, requireClinicOwner, submitClinicApplicationHandler);
 
 router.post('/clinic-owner/register', validateRequest(clinicOwnerRegisterSchema), registerClinicOwnerHandler);
 
