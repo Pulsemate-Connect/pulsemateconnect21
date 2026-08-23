@@ -100,7 +100,13 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue, clearErrors }) =>
       // For real numbers, call API
       console.log('[OTP] Calling API with payload:', { phoneNumber });
       
-      const response = await fetch('/api/auth/send-otp', {
+      // ✅ FIX: Use absolute backend URL in production, relative in development
+      const API_URL = import.meta.env.VITE_API_URL || '/api';
+      const endpoint = `${API_URL}/auth/send-otp`;
+      
+      console.log('[OTP] Calling endpoint:', endpoint);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +189,12 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue, clearErrors }) =>
       }
       
       // For real numbers or non-test OTP, call API
-      const response = await fetch('/api/auth/verify-otp', {
+      const API_URL = import.meta.env.VITE_API_URL || '/api';
+      const endpoint = `${API_URL}/auth/verify-otp`;
+      
+      console.log('[OTP] Verifying with endpoint:', endpoint);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
