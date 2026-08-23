@@ -138,32 +138,11 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       }
 
       // ✅ FIX: Check if user role is CLINIC_OWNER
-      const userRole = checkResponse.data.data.role;
-      if (userRole !== 'CLINIC_OWNER' && userRole !== 'PATIENT') {
-        // If it's a DOCTOR, RECEPTIONIST, or other role
-        if (userRole === 'DOCTOR') {
-          toast.error('This mobile number is registered as a doctor. Please use doctor login at /doctor/login');
-        } else if (userRole === 'RECEPTIONIST') {
-          toast.error('This mobile number is registered as staff. Please use staff login at /staff/login');
-        } else {
-          toast.error(`This mobile number is registered as ${userRole}. Please use the appropriate login page.`);
-        }
-        setLoading(false);
-        return;
-      }
+      // ✅ ARCHITECTURE FIX: Don't block authentication based on role
+      // Let backend handle authorization AFTER authentication succeeds
+      // The backend will now allow OTP send regardless of role
       
-      // If it's a PATIENT trying to use clinic partner page, redirect them
-      if (userRole === 'PATIENT') {
-        toast.error('This is for clinic owners. Patients should login at the home page.');
-        setLoading(false);
-        return;
-      }
-
-      // Check if user status is PENDING (allow login to see pending dashboard)
-      const userStatus = checkResponse.data.data.status;
-      if (userStatus === 'PENDING') {
-        console.log('[Login] User has PENDING status, will show pending dashboard after login');
-      }
+      console.log('[ClinicAuthModal] Mobile verified, sending OTP for authentication');
 
       const response = await axios.post('/auth/send-otp', {
         phoneNumber: phoneNumber, // Backend expects 'phoneNumber' with country code
@@ -242,19 +221,11 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         return;
       }
 
-      // ✅ FIX: Check if user role is CLINIC_OWNER
-      const userRole = checkResponse.data.data.role;
-      if (userRole !== 'CLINIC_OWNER') {
-        toast.error('This email is not registered as a clinic owner. Please use clinic owner login.');
-        setLoading(false);
-        return;
-      }
-
-      // Check if user status is PENDING (allow login to see pending dashboard)
-      const userStatus = checkResponse.data.data.status;
-      if (userStatus === 'PENDING') {
-        console.log('[Login] User has PENDING status, will show pending dashboard after login');
-      }
+      // ✅ ARCHITECTURE FIX: Don't block authentication based on role
+      // Let backend handle authorization AFTER authentication succeeds
+      // The backend will now allow OTP send regardless of role
+      
+      console.log('[ClinicAuthModal] Email verified, sending OTP for authentication');
 
       const response = await axios.post('/auth/register-email-otp/send', {
         email: formData.email,

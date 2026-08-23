@@ -2434,12 +2434,11 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
         return sendError(res, 'Email not registered. Please create an account first.', 404);
       }
       
-      // Check if user is not CLINIC_OWNER
-      if (existingUser.role !== 'CLINIC_OWNER') {
-        return sendError(res, 'This email is registered with a different account type. Please use the appropriate login page.', 403);
-      }
+      // ✅ ARCHITECTURE FIX: Allow authentication regardless of role
+      // Authorization will be checked AFTER authentication succeeds
+      // Do NOT block based on role at authentication stage
       
-      logger.info(`[Auth] Sending login OTP to existing user ${cleanEmail} with status ${existingUser.approvalStatus}`);
+      logger.info(`[Auth] Sending login OTP to existing user ${cleanEmail} (role: ${existingUser.role}, status: ${existingUser.approvalStatus})`);
     }
     
     // Check if test email
@@ -2730,12 +2729,11 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
         return sendError(res, 'Mobile number not registered. Please create an account first.', 404);
       }
       
-      // Check if user is not CLINIC_OWNER
-      if (existingUser.role !== 'CLINIC_OWNER') {
-        return sendError(res, 'This mobile number is registered with a different account type. Please use the appropriate login page.', 403);
-      }
+      // ✅ ARCHITECTURE FIX: Allow authentication regardless of role
+      // Authorization will be checked AFTER authentication succeeds
+      // Do NOT block based on role at authentication stage
       
-      logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} with status ${existingUser.approvalStatus}`);
+      logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} (role: ${existingUser.role}, status: ${existingUser.approvalStatus})`);
     } else if (purpose === 'ONBOARDING') {
       // ✅ FIX: For onboarding, CHECK if user already exists with this mobile
       // Block if another user already has this mobile number
