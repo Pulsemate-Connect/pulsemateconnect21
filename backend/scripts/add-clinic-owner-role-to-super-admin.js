@@ -9,7 +9,7 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
-const prisma = new Prisma Client();
+const prisma = new PrismaClient();
 
 async function addClinicOwnerRole() {
   try {
