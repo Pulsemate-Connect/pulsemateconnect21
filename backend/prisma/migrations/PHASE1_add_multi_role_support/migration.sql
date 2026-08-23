@@ -62,7 +62,7 @@ SELECT
     "approvalStatus",
     "createdAt",
     CASE 
-        WHEN "approvalStatus" IN ('VERIFIED', 'APPROVED') THEN "createdAt"
+        WHEN "approvalStatus" = 'VERIFIED' THEN "createdAt"
         ELSE NULL
     END,
     NULL  -- No approvedBy for migrated users
