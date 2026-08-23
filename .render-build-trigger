@@ -1,12 +1,9 @@
-# Force Render to rebuild and deploy new Expo web build
+# Force Render to rebuild and deploy clinic registration fix
 # This file triggers a new deployment when changed
-
-TRIGGER_ID: FORCE_EXPO_BUILD_2026_08_20_10_27_28
-REASON: Fix blank website - deploy new Expo web build
-PREVIOUS_BUILD: Vite (outdated, causing errors)
-NEW_BUILD: Expo web export
+TRIGGER_ID: CLINIC_REGISTRATION_FIX_2026_08_23_11_10_00
+REASON: Fix clinic registration flow - all bugs fixed
+CHANGES: Fixed cross-user data contamination, added auth middleware, centralized service
+BUGS_FIXED: BUG-001, BUG-002, BUG-003
 STATUS: Ready to deploy
-LAST_UPDATE: 2026-08-20 10:27:28
-
-# Render should pick up this change and redeploy with correct render.yaml
-# If this doesn't trigger auto-deploy, you MUST manually deploy on Render dashboard
+LAST_UPDATE: 2026-08-23 11:10:00
+# Render auto-deploy enabled - should trigger on git push
