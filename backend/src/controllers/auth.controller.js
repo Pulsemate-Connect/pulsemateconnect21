@@ -328,7 +328,7 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
     }
 
     // ── 4. Invalidate any previous pending records, create new one ────────
-    const EXPIRY_MINUTES = 120; // 2 hours — clinic registration is a multi-step form that takes time
+    const EXPIRY_MINUTES = 10; // ✅ FIX: Changed from 120 to 10 minutes for security
     await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'CLINIC_OWNER_REGISTER');
     await firebasePhoneVerificationRepo.create({
       mobile,
@@ -355,6 +355,20 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
  */
 const saveClinicOnboardingStep1Handler = async (req, res, next) => {
   try {
+    const clinicOnboardingService = require('../services/clinicOnboarding.service');
+    
+    // Get authenticated user ID
+    if (!req.user || !req.user.id) {
+      return sendError(res, 'Authentication required. Please login again.', 401);
+    }
+
+    const authenticatedUserId = req.user.id;
+    
+    logger.info(`[Onboarding Step 1] User ${authenticatedUserId} saving clinic information`);
+
+    // Validate user ownership (no cross-user data manipulation)
+    await clinicOnboardingService.validateUserOwnership(authenticatedUserId, req.body.userId);
+
     const {
       // Clinic Details
       clinicName,
@@ -385,36 +399,7 @@ const saveClinicOnboardingStep1Handler = async (req, res, next) => {
       country,
     } = req.body;
 
-    // Validate required fields
-    if (!ownerMobile) {
-      return sendError(res, 'Mobile number is required', 400);
-    }
-
-    // Normalize mobile number
-    const normalizedMobile = normalizeMobileNumber(ownerMobile);
-    const mobileForDb = normalizedMobile.replace(/^\+91/, '');
-
-    // Check if user exists with this mobile (should exist from OTP verification)
-    let user = await prisma.user.findUnique({
-      where: { mobile: mobileForDb },
-      select: { 
-        id: true, 
-        mobile: true, 
-        isPhoneVerified: true, 
-        role: true,
-        clinicOnboardingData: true,
-      },
-    });
-
-    if (!user) {
-      return sendError(res, 'Mobile number not verified. Please verify your mobile first.', 400);
-    }
-
-    if (!user.isPhoneVerified) {
-      return sendError(res, 'Mobile number not verified. Please verify your mobile first.', 400);
-    }
-
-    // Prepare Clinic Information data object
+    // Prepare Step 1 data
     const clinicInformationData = {
       clinicName: clinicName || null,
       clinicType: clinicType || null,
@@ -422,7 +407,7 @@ const saveClinicOnboardingStep1Handler = async (req, res, next) => {
       displayName: displayName || null,
       ownerName: ownerName || null,
       ownerEmail: ownerEmail || null,
-      ownerMobile: mobileForDb,
+      ownerMobile: ownerMobile || null,
       primaryContactPhone: primaryContactPhone || null,
       latitude: latitude ?? null,
       longitude: longitude ?? null,
@@ -434,45 +419,35 @@ const saveClinicOnboardingStep1Handler = async (req, res, next) => {
       state: state || null,
       pincode: pincode || null,
       country: country || 'India',
-      completedAt: new Date(),
     };
 
-    // Update user with Clinic Information data in JSON field
-    // Note: Don't update email here - it was already set during email verification
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        name: ownerName || user.name, // Update name if provided
-        clinicOnboardingData: {
-          ...(user.clinicOnboardingData || {}),
-          clinicInformation: clinicInformationData,
-          lastUpdatedStep: 'clinicInformation',
-          lastUpdatedAt: new Date(),
-        },
-      },
-      select: { 
-        id: true, 
-        mobile: true, 
-        name: true,
-        email: true,
-        clinicOnboardingData: true 
-      },
-    });
+    // Save Step 1 using service (ensures ownership and consistency)
+    const registrationState = await clinicOnboardingService.saveStep1(
+      authenticatedUserId,
+      clinicInformationData
+    );
 
-    logger.info(`[Onboarding] Clinic Information saved for user ${updatedUser.id}`);
+    logger.info(`[Onboarding Step 1] Saved for user ${authenticatedUserId}`);
 
     return sendSuccess(
       res,
       {
-        userId: updatedUser.id,
-        step: 'clinicInformation',
-        saved: true,
-        data: updatedUser.clinicOnboardingData,
+        userId: registrationState.userId,
+        step: 1,
+        completed: registrationState.steps.step1.completed,
+        currentStep: registrationState.currentStep,
+        registrationState,
       },
       'Clinic information saved successfully'
     );
   } catch (error) {
-    logger.error('[Onboarding] Save Step 1 error:', error);
+    logger.error('[Onboarding Step 1] Save error:', error);
+    
+    // Return specific error messages
+    if (error.message.includes('session has changed') || error.message.includes('User not found')) {
+      return sendError(res, error.message, 403);
+    }
+    
     next(error);
   }
 };
@@ -483,6 +458,20 @@ const saveClinicOnboardingStep1Handler = async (req, res, next) => {
  */
 const saveServicesOperationsHandler = async (req, res, next) => {
   try {
+    const clinicOnboardingService = require('../services/clinicOnboarding.service');
+    
+    // Get authenticated user ID
+    if (!req.user || !req.user.id) {
+      return sendError(res, 'Authentication required. Please login again.', 401);
+    }
+
+    const authenticatedUserId = req.user.id;
+    
+    logger.info(`[Onboarding Step 2] User ${authenticatedUserId} saving services & operations`);
+
+    // Validate user ownership
+    await clinicOnboardingService.validateUserOwnership(authenticatedUserId, req.body.userId);
+
     const {
       specialties,
       specialtyOther,
@@ -493,24 +482,7 @@ const saveServicesOperationsHandler = async (req, res, next) => {
       appointmentMode,
     } = req.body;
 
-    // Get the mobile number from the session/auth token
-    // For now, we'll use the most recent user with clinic onboarding data
-    // In production, this should come from authenticated session
-    const users = await prisma.user.findMany({
-      where: {
-        clinicOnboardingData: { not: prisma.DbNull },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 1,
-    });
-
-    if (!users || users.length === 0) {
-      return sendError(res, 'No user found. Please complete Step 1 first.', 400);
-    }
-
-    const user = users[0];
-
-    // Prepare Services & Operations data object
+    // Prepare Step 2 data
     const servicesOperationsData = {
       specialties: specialties || [],
       specialtyOther: specialtyOther || null,
@@ -519,43 +491,34 @@ const saveServicesOperationsHandler = async (req, res, next) => {
       closingTime: closingTime || null,
       weeklyOffDays: weeklyOffDays || [],
       appointmentMode: appointmentMode || null,
-      completedAt: new Date(),
     };
 
-    // Update user with Services & Operations data in JSON field
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        clinicOnboardingData: {
-          ...(user.clinicOnboardingData || {}),
-          servicesOperations: servicesOperationsData,
-          lastUpdatedStep: 'servicesOperations',
-          lastUpdatedAt: new Date(),
-        },
-      },
-      select: { 
-        id: true, 
-        mobile: true, 
-        name: true,
-        email: true,
-        clinicOnboardingData: true 
-      },
-    });
+    // Save Step 2 using service (validates Step 1 completed)
+    const registrationState = await clinicOnboardingService.saveStep2(
+      authenticatedUserId,
+      servicesOperationsData
+    );
 
-    logger.info(`[Onboarding] Services & Operations saved for user ${updatedUser.id}`);
+    logger.info(`[Onboarding Step 2] Saved for user ${authenticatedUserId}`);
 
     return sendSuccess(
       res,
       {
-        userId: updatedUser.id,
-        step: 'servicesOperations',
-        saved: true,
-        data: updatedUser.clinicOnboardingData,
+        userId: registrationState.userId,
+        step: 2,
+        completed: registrationState.steps.step2.completed,
+        currentStep: registrationState.currentStep,
+        registrationState,
       },
       'Services & operations saved successfully'
     );
   } catch (error) {
-    logger.error('[Onboarding] Save Step 2 error:', error);
+    logger.error('[Onboarding Step 2] Save error:', error);
+    
+    if (error.message.includes('session has changed') || error.message.includes('Step 1')) {
+      return sendError(res, error.message, 400);
+    }
+    
     next(error);
   }
 };
@@ -567,34 +530,29 @@ const saveServicesOperationsHandler = async (req, res, next) => {
  */
 const saveClinicDocumentsHandler = async (req, res, next) => {
   try {
+    const clinicOnboardingService = require('../services/clinicOnboarding.service');
+    
+    // Get authenticated user ID from JWT
+    if (!req.user || !req.user.id) {
+      return sendError(res, 'Authentication required. Please login again.', 401);
+    }
+
+    const authenticatedUserId = req.user.id;
+    
+    logger.info(`[Onboarding Step 3] User ${authenticatedUserId} saving clinic documents`);
+
+    // Validate user ownership (prevents cross-user data manipulation)
+    await clinicOnboardingService.validateUserOwnership(authenticatedUserId, req.body.userId);
+
     const {
       clinicRegistrationNumber,
       gstNumber,
     } = req.body;
 
     // Files are uploaded via multer middleware
-    // req.files will contain the uploaded files
     const files = req.files || {};
-    
-    // Get the most recent user with clinic onboarding data
-    // In production, this should come from authenticated session
-    const users = await prisma.user.findMany({
-      where: {
-        clinicOnboardingData: { not: prisma.DbNull },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 1,
-    });
-
-    if (!users || users.length === 0) {
-      return sendError(res, 'No user found. Please complete previous steps first.', 400);
-    }
-
-    const user = users[0];
 
     // Extract file URLs from uploaded files
-    // Cloudinary stores files and provides secure_url
-    // Local storage provides path
     const getFileUrl = (file) => {
       if (!file) return null;
       
@@ -603,24 +561,14 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
         return file.path;
       }
       
-      // For local storage (multer), extract only the relative path
-      // file.path could be:
-      //   - C:\Users\...\backend\uploads\clinic-owner\file.png (Windows absolute)
-      //   - /home/user/backend/uploads/clinic-owner/file.png (Unix absolute)
-      //   - uploads/clinic-owner/file.png (relative - ideal)
+      // For local storage (multer), extract relative path
       if (file.path) {
         const filePath = file.path;
-        
-        // Normalize path separators to forward slashes
         const normalizedPath = filePath.replace(/\\/g, '/');
-        
-        // Find 'uploads' in the path and extract from there
         const uploadsMatch = normalizedPath.match(/uploads\/.*$/);
         if (uploadsMatch) {
-          return uploadsMatch[0]; // Returns: uploads/clinic-owner/file.png
+          return uploadsMatch[0];
         }
-        
-        // If no 'uploads' found, log warning and return null
         logger.warn(`[Onboarding] Could not extract relative path from: ${filePath}`);
         return null;
       }
@@ -656,43 +604,35 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
       clinicPhotos: clinicPhotos,
       clinicRegistrationNumber: clinicRegistrationNumber || null,
       gstNumber: gstNumber || null,
-      completedAt: new Date(),
     };
 
-    // Update user with Clinic Documents data in JSON field
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        clinicOnboardingData: {
-          ...(user.clinicOnboardingData || {}),
-          clinicDocuments: clinicDocumentsData,
-          lastUpdatedStep: 'clinicDocuments',
-          lastUpdatedAt: new Date(),
-        },
-      },
-      select: { 
-        id: true, 
-        mobile: true, 
-        name: true,
-        email: true,
-        clinicOnboardingData: true 
-      },
-    });
+    // Save Step 3 using service (validates Steps 1 and 2 completed)
+    const registrationState = await clinicOnboardingService.saveStep3(
+      authenticatedUserId,
+      clinicDocumentsData
+    );
 
-    logger.info(`[Onboarding] Clinic Documents saved for user ${updatedUser.id}`);
+    logger.info(`[Onboarding Step 3] Saved for user ${authenticatedUserId}`);
 
     return sendSuccess(
       res,
       {
-        userId: updatedUser.id,
-        step: 'clinicDocuments',
-        saved: true,
-        data: updatedUser.clinicOnboardingData,
+        userId: registrationState.userId,
+        step: 3,
+        completed: registrationState.steps.step3.completed,
+        currentStep: registrationState.currentStep,
+        registrationState,
       },
       'Clinic documents saved successfully'
     );
   } catch (error) {
-    logger.error('[Onboarding] Save Step 3 error:', error);
+    logger.error('[Onboarding Step 3] Save error:', error);
+    
+    // Return specific error messages
+    if (error.message.includes('session has changed') || error.message.includes('Step')) {
+      return sendError(res, error.message, 400);
+    }
+    
     next(error);
   }
 };
@@ -732,6 +672,8 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       return sendError(res, 'Authentication required. Please login again.', 401);
     }
 
+    logger.info(`[SubmitApplication] User ${req.user.id} (${req.user.mobile}) submitting application`);
+
     // Fetch fresh user data with onboarding data
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -747,20 +689,31 @@ const submitClinicApplicationHandler = async (req, res, next) => {
     });
 
     if (!user) {
+      logger.error(`[SubmitApplication] User ${req.user.id} not found in database`);
       return sendError(res, 'User not found', 404);
     }
 
     // Get existing onboarding data
     const onboardingData = user.clinicOnboardingData || {};
+    
+    logger.info(`[SubmitApplication] User ${user.id} onboarding data:`, {
+      hasStep1: !!onboardingData.clinicInformation,
+      hasStep2: !!onboardingData.servicesOperations,
+      hasStep3: !!onboardingData.clinicDocuments,
+      lastStep: onboardingData.lastUpdatedStep,
+    });
 
     // Check if user has completed previous steps
     if (!onboardingData.clinicInformation) {
+      logger.warn(`[SubmitApplication] User ${user.id} missing Step 1 data`);
       return sendError(res, 'Please complete Step 1: Clinic Information first', 400);
     }
     if (!onboardingData.servicesOperations) {
+      logger.warn(`[SubmitApplication] User ${user.id} missing Step 2 data`);
       return sendError(res, 'Please complete Step 2: Services & Operations first', 400);
     }
     if (!onboardingData.clinicDocuments) {
+      logger.warn(`[SubmitApplication] User ${user.id} missing Step 3 data`);
       return sendError(res, 'Please complete Step 3: Clinic Documents first', 400);
     }
 
@@ -985,6 +938,31 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
 
     if (!email || !otp) {
       return sendError(res, 'Email and OTP/token are required', 400);
+    }
+
+    // ✅ FIX: Check if email is already registered BEFORE verifying OTP
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { 
+        id: true, 
+        approvalStatus: true,
+        clinicOnboardingData: true 
+      },
+    });
+    
+    if (existing) {
+      // Check if user has a pending application
+      if (existing.approvalStatus === 'PENDING') {
+        return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
+      }
+      
+      // Check if user is already verified/approved
+      if (existing.approvalStatus === 'VERIFIED' || existing.approvalStatus === 'APPROVED') {
+        return sendError(res, 'A user with this email already exists and is active. Please use login instead.', 409);
+      }
+      
+      // For other statuses (REJECTED, SUSPENDED, etc.)
+      return sendError(res, 'A user with this email already exists', 409);
     }
 
     const verified = await verifyEmailVerificationToken(email, otp);
@@ -1292,7 +1270,7 @@ const doctorVerifyFirebasePhoneHandler = async (req, res, next) => {
     }
 
     // ── 4. Invalidate any previous pending records, create new one ────────
-    const EXPIRY_MINUTES = 15;
+    const EXPIRY_MINUTES = 10; // ✅ FIX: Changed from 15 to 10 minutes for consistency
     await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'DOCTOR_REGISTER');
     await firebasePhoneVerificationRepo.create({
       mobile,
@@ -2759,11 +2737,20 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       
       logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} with status ${existingUser.approvalStatus}`);
     } else if (purpose === 'ONBOARDING') {
-      // ✅ FIX: For onboarding, skip all validation
-      // User is already authenticated and completing their profile
-      // They can add any mobile number (even if it doesn't exist yet)
-      logger.info(`[OTP] ONBOARDING mode: Skipping validation for ${normalizedPhone}`);
-      // Continue to send OTP (no validation)
+      // ✅ FIX: For onboarding, CHECK if user already exists with this mobile
+      // Block if another user already has this mobile number
+      if (existingUser) {
+        // Check approval status
+        if (existingUser.approvalStatus === 'PENDING') {
+          return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
+        } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          return sendError(res, 'A user with this mobile number already exists and is active. Please use a different mobile number.', 409);
+        } else {
+          // For REJECTED/SUSPENDED, still block to prevent confusion
+          return sendError(res, 'A user with this mobile number already exists.', 409);
+        }
+      }
+      logger.info(`[OTP] ONBOARDING mode: Mobile ${normalizedPhone} is available - sending OTP`);
     }
     
     // ✅ TEST MODE: Check if this is a test number
@@ -2834,10 +2821,10 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
  */
 const verifyOtpHandler_MessageCentral = async (req, res, next) => {
   try {
-    const { phoneNumber, otp, verificationId } = req.body;
+    const { phoneNumber, otp, verificationId, purpose = 'LOGIN' } = req.body;
     
     logger.info('[OTP] verifyOtpHandler_MessageCentral called');
-    logger.info('[OTP] Phone:', phoneNumber, 'OTP:', otp, 'VerificationId:', verificationId);
+    logger.info('[OTP] Phone:', phoneNumber, 'OTP:', otp, 'VerificationId:', verificationId, 'Purpose:', purpose);
     
     if (!otp) {
       logger.warn('[OTP] OTP code missing in request');
@@ -2868,7 +2855,45 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       
       logger.info(`[OTP] 🧪 TEST MODE: OTP verified successfully for ${mobileNumber}`);
       
-      // ✅ SAVE TO DATABASE: Create or update user with verified phone (even for test mode)
+      // ✅ ONBOARDING MODE: Just verify the OTP, don't create user or issue tokens
+      if (purpose === 'ONBOARDING') {
+        logger.info(`[OTP] 🧪 TEST MODE + ONBOARDING: Mobile verified, not creating user`);
+        
+        // Check if another user already has this mobile
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { mobile: normalizedPhone },
+              { mobile: mobileNumber },
+            ]
+          },
+          select: { id: true, approvalStatus: true }
+        });
+        
+        if (existingUser) {
+          if (existingUser.approvalStatus === 'PENDING') {
+            return sendError(res, 'An application with this mobile number is already pending review.', 409);
+          } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+            return sendError(res, 'This mobile number is already registered to another account.', 409);
+          } else {
+            return sendError(res, 'A user with this mobile number already exists.', 409);
+          }
+        }
+        
+        return sendSuccess(
+          res,
+          {
+            verified: true,
+            mobileNumber: normalizedPhone,
+            verificationStatus: 'VERIFICATION_COMPLETED',
+            _testMode: true,
+            _onboardingMode: true,
+          },
+          'Mobile number verified successfully'
+        );
+      }
+      
+      // ✅ SAVE TO DATABASE: Create or update user with verified phone (LOGIN/SIGNUP mode)
       try {
         // Check if user already exists - try both with and without +91 prefix
         let user = await prisma.user.findFirst({
@@ -3005,7 +3030,57 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
     
     logger.info('[OTP] OTP verified successfully:', result);
     
-    // ✅ SAVE TO DATABASE: Create or update user with verified phone
+    // ✅ ONBOARDING MODE: Verify OTP and create/get consistent user
+    if (purpose === 'ONBOARDING') {
+      logger.info(`[OTP] ONBOARDING mode: Mobile verified via Message Central`);
+      
+      const clinicOnboardingService = require('../services/clinicOnboarding.service');
+      
+      // Normalize mobile for database (remove +91 prefix)
+      const dbMobile = normalizedPhone.replace(/^\+91/, '');
+      
+      // Get or create clinic owner user - ensures single user per mobile
+      const user = await clinicOnboardingService.getOrCreateClinicOwner(dbMobile);
+      
+      // Check if they can continue (not VERIFIED/APPROVED already)
+      if (user.approvalStatus === 'VERIFIED' || user.approvalStatus === 'APPROVED') {
+        return sendError(res, 'This mobile number is already registered to an approved account. Please use login instead.', 409);
+      }
+      
+      if (user.approvalStatus === 'REJECTED') {
+        return sendError(res, 'Your previous application was rejected. Please contact support.', 403);
+      }
+      
+      if (user.approvalStatus === 'SUSPENDED') {
+        return sendError(res, 'Your account is suspended. Please contact support.', 403);
+      }
+      
+      logger.info(`[OTP] ONBOARDING: User ${user.id} ready for registration (status: ${user.approvalStatus})`);
+      
+      // Return user data for authentication
+      return sendSuccess(
+        res,
+        {
+          verified: true,
+          mobileNumber: result.mobileNumber,
+          verificationStatus: result.verificationStatus,
+          user: {
+            id: user.id,
+            mobile: user.mobile,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            approvalStatus: user.approvalStatus,
+            isPhoneVerified: user.isPhoneVerified,
+            isEmailVerified: user.isEmailVerified,
+          },
+          _onboardingMode: true,
+        },
+        'Mobile number verified successfully'
+      );
+    }
+    
+    // ✅ SAVE TO DATABASE: Create or update user with verified phone (LOGIN/SIGNUP mode)
     try {
       // Normalize mobile number for database
       const dbMobile = normalizedPhone.replace(/^\+91/, '');

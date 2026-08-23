@@ -176,10 +176,11 @@ router.post('/clinic-owner/upload-document', clinicOwnerUpload.single('file'), c
 router.get('/pincode/:pincode', lookupPincodeHandler);
 
 // ── Clinic onboarding (save draft steps) ──────────────────────────────────────
-router.get('/clinic-owner/get-onboarding-data', getClinicOnboardingDataHandler);
-router.post('/clinic-owner/save-clinic-information', saveClinicOnboardingStep1Handler);
-router.post('/clinic-owner/save-services-operations', saveServicesOperationsHandler);
+router.get('/clinic-owner/get-onboarding-data', authenticateUser, getClinicOnboardingDataHandler);
+router.post('/clinic-owner/save-clinic-information', authenticateUser, saveClinicOnboardingStep1Handler);
+router.post('/clinic-owner/save-services-operations', authenticateUser, saveServicesOperationsHandler);
 router.post('/clinic-owner/save-clinic-documents', 
+  authenticateUser,
   clinicOwnerUpload.fields([
     { name: 'clinicRegistrationCertificate', maxCount: 1 },
     { name: 'medicalLicense', maxCount: 1 },

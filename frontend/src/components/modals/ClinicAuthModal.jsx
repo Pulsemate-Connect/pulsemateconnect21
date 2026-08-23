@@ -25,7 +25,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [errors, setErrors] = useState({});
   const otpInputRefs = useRef([]);
   const navigate = useNavigate();
-  const { login: storeLogin } = useAuthStore();
+  const { setAuth } = useAuthStore(); // ✅ FIX: Use setAuth instead of non-existent login method
 
   // Countdown timer for OTP resend
   useEffect(() => {
@@ -384,35 +384,43 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       });
       
       if (response.data.success) {
-        // Check if we got login tokens (existing user)
+        // ✅ ALWAYS store auth token if backend provides it
         if (response.data.data.accessToken && response.data.data.user) {
           const { user, accessToken: token } = response.data.data;
           
-          // Store login and wait a moment for persistence
-          storeLogin({ user, token });
+          // ✅ Store auth correctly using setAuth
+          setAuth(user, token);
           
-          // Check user approvalStatus for redirect (use approvalStatus, not status)
-          const approvalStatus = user.approvalStatus || user.status;
+          console.log('[ClinicAuthModal] Auth stored after mobile verification:', { userId: user.id, role: user.role });
           
-          if (approvalStatus === 'PENDING' || approvalStatus === 'UNDER_REVIEW' || approvalStatus === 'CHANGES_REQUIRED') {
-            toast.success('Login successful! Your application is pending approval.');
-          } else if (approvalStatus === 'VERIFIED') {
-            toast.success('Login successful!');
+          // Check if this is onboarding mode (new registration)
+          const isOnboardingMode = response.data.data._onboardingMode === true;
+          
+          if (isOnboardingMode) {
+            // New registration - stay on registration page to complete steps
+            toast.success('Mobile verified successfully! Please complete your clinic registration.');
+            // Don't close modal, don't redirect - user continues with Step 1
           } else {
-            toast.success('Login successful!');
+            // Existing user login - check approval status and redirect
+            const approvalStatus = user.approvalStatus || user.status;
+            
+            if (approvalStatus === 'PENDING' || approvalStatus === 'UNDER_REVIEW' || approvalStatus === 'CHANGES_REQUIRED') {
+              toast.success('Login successful! Your application is pending approval.');
+            } else if (approvalStatus === 'VERIFIED') {
+              toast.success('Login successful!');
+            } else {
+              toast.success('Login successful!');
+            }
+            
+            // Close modal and redirect to dashboard
+            onClose();
+            setTimeout(() => {
+              navigate('/clinic/dashboard');
+            }, 100);
           }
-          
-          // Close modal first
-          onClose();
-          
-          // Use navigate instead of window.location to avoid full page reload
-          setTimeout(() => {
-            navigate('/clinic/dashboard');
-          }, 100);
         } else {
-          // Just verification (new registration)
-          toast.success('Mobile verified successfully!');
-          // Keep on same screen for now
+          // No token returned (shouldn't happen with our backend fix)
+          toast.error('Verification completed but authentication failed. Please try logging in.');
         }
       }
     } catch (error) {
@@ -459,8 +467,8 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
           approvalStatus: user?.approvalStatus
         });
         
-        // Store login
-        storeLogin({ user, token });
+        // ✅ FIX: Store auth correctly using setAuth
+        setAuth(user, token);
         
         console.log('[ClinicAuthModal] Login stored in authStore');
         
