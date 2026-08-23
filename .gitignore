@@ -116,3 +116,5 @@ redis_data/
 *.apk
 *.aab
 *.ipa
+
+ADMIN_CREDENTIALS.txt
