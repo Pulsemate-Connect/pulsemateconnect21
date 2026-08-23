@@ -10,16 +10,21 @@ const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
 const randomId = () => crypto.randomUUID();
 
-const signAccessToken = (user) =>
-  jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-      status: user.approvalStatus,
-    },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: ACCESS_EXPIRY }
-  );
+const signAccessToken = (user, activeRole = null) => {
+  // Multi-role support: Include roles array and activeRole
+  // Backward compatible: Keep 'role' field for old code
+  const payload = {
+    sub: user.id,
+    role: activeRole || user.primaryRole || user.role, // Deprecated, for backward compatibility
+    status: user.approvalStatus,
+    // New multi-role fields:
+    roles: user.roles || [user.role], // All roles user has
+    primaryRole: user.primaryRole || user.role, // User's primary role
+    activeRole: activeRole || user.primaryRole || user.role, // Currently active role
+  };
+
+  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET, { expiresIn: ACCESS_EXPIRY });
+};
 
 const signRefreshToken = (user, jwtId) =>
   jwt.sign(
@@ -78,7 +83,7 @@ const buildTokenPayload = async (user, metadata = {}) => {
   });
 
   return {
-    accessToken: signAccessToken(user),
+    accessToken: signAccessToken(user, metadata.activeRole),
     refreshToken,
     refreshTokenRecord: stored,
     accessTokenMaxAge: ACCESS_COOKIE_MAX_AGE,
@@ -147,6 +152,26 @@ const revokeRoleSessions = async (userId) => {
   await refreshTokenRepository.revokeAllForUser(userId);
 };
 
+/**
+ * Create new access token with different active role
+ * Used for role switching functionality
+ * @param {Object} user - User object with roles
+ * @param {string} newActiveRole - Role to switch to
+ * @returns {string} New access token with updated activeRole
+ */
+const switchRole = (user, newActiveRole) => {
+  // Validate that user has this role
+  const userRoles = user.roles || [user.role];
+  if (!userRoles.includes(newActiveRole)) {
+    const error = new Error(`User does not have ${newActiveRole} role`);
+    error.status = 403;
+    throw error;
+  }
+
+  // Generate new access token with new active role
+  return signAccessToken(user, newActiveRole);
+};
+
 module.exports = {
   ACCESS_EXPIRY,
   REFRESH_EXPIRY,
@@ -165,4 +190,5 @@ module.exports = {
   verifyPhoneVerificationToken,
   signEmailVerificationToken,
   verifyEmailVerificationToken,
+  switchRole, // NEW: Role switching function
 };

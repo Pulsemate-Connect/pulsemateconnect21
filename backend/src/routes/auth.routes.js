@@ -34,6 +34,7 @@ const {
   doctorVerifyMobileOtpLogin,
   doctorSendEmailOtpLogin,
   doctorVerifyEmailOtpLogin,
+  switchRoleHandler, // NEW: Role switching handler
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
@@ -225,6 +226,9 @@ router.post('/refresh', refreshTokenHandler);
 router.post('/logout', logoutHandler);
 router.post('/logout-all', authenticateUser, logoutAllHandler);
 router.get('/me', authenticateUser, getMeHandler);
+
+// ── Multi-role Support ────────────────────────────────────────────────────────
+router.post('/switch-role', authenticateUser, switchRoleHandler);
 
 router.post(
   '/admin/create',

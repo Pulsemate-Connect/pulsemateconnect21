@@ -91,8 +91,17 @@ const authenticateUser = async (req, res, next) => {
       return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
     }
 
+    // Multi-role support: Extract roles from JWT
+    // Backward compatible: Fall back to user.role if JWT doesn't have multi-role fields
     req.user = user;
-    req.auth = decoded;
+    req.auth = {
+      ...decoded,
+      // For backward compatibility, add multi-role fields if they don't exist in old tokens
+      roles: decoded.roles || [decoded.role || user.role],
+      primaryRole: decoded.primaryRole || decoded.role || user.primaryRole || user.role,
+      activeRole: decoded.activeRole || decoded.role || user.primaryRole || user.role,
+    };
+    
     next();
   } catch (error) {
     return sendError(res, error.name === 'TokenExpiredError' ? 'Access token expired' : 'Invalid access token', 401);
@@ -101,18 +110,47 @@ const authenticateUser = async (req, res, next) => {
 
 const authorizeRoles = (...roles) => (req, res, next) => {
   if (!req.user) return sendError(res, 'Authentication required', 401);
-  if (!roles.includes(req.user.role)) {
+  
+  // Multi-role support: Check activeRole from JWT (or fall back to user.role)
+  const userRole = req.auth?.activeRole || req.user.role;
+  
+  if (!roles.includes(userRole)) {
     // ✅ ENHANCED DEBUGGING: Log authorization failures for troubleshooting
     console.error('[AUTH FAILURE]', {
       timestamp: new Date().toISOString(),
       userId: req.user.id,
       userName: req.user.name,
-      userRole: req.user.role,
+      userRole: userRole,
+      userAllRoles: req.auth?.roles || [req.user.role],
       requiredRoles: roles,
       endpoint: req.originalUrl || req.url,
       method: req.method,
       approvalStatus: req.user.approvalStatus,
       isActive: req.user.isActive,
+    });
+    return sendError(res, 'You do not have permission to perform this action', 403);
+  }
+  next();
+};
+
+/**
+ * NEW: Check if user has ANY of the specified roles in their roles array
+ * Useful for endpoints that can be accessed by multiple roles
+ * Example: requireAnyRole('DOCTOR', 'CLINIC_OWNER')
+ */
+const requireAnyRole = (...roles) => (req, res, next) => {
+  if (!req.user) return sendError(res, 'Authentication required', 401);
+  
+  const userRoles = req.auth?.roles || [req.user.role];
+  const hasAnyRole = roles.some(role => userRoles.includes(role));
+  
+  if (!hasAnyRole) {
+    console.error('[AUTH FAILURE] No matching role', {
+      timestamp: new Date().toISOString(),
+      userId: req.user.id,
+      userRoles: userRoles,
+      requiredRoles: roles,
+      endpoint: req.originalUrl || req.url,
     });
     return sendError(res, 'You do not have permission to perform this action', 403);
   }
@@ -184,9 +222,11 @@ const requireVerifiedDoctor = async (req, res, next) => {
 const requireClinicAccess = async (req, res, next) => {
   const clinicId = req.params.clinicId || req.params.id || req.body.clinicId || req.query.clinicId;
   if (!clinicId) return sendError(res, 'Clinic ID is required', 400);
-  if (req.user.role === 'SUPER_ADMIN') return next();
+  
+  const userRole = req.auth?.activeRole || req.user.role;
+  if (userRole === 'SUPER_ADMIN') return next();
 
-  if (req.user.role === 'CLINIC_OWNER') {
+  if (userRole === 'CLINIC_OWNER') {
     const clinic = await prisma.clinic.findFirst({ where: { id: clinicId, ownerId: req.user.id } });
     if (!clinic) return sendError(res, 'You do not have access to this clinic', 403);
     req.clinic = clinic;
@@ -223,6 +263,7 @@ module.exports = {
   authorizeRoles,
   authorize: authorizeRoles,
   requireRole: authorizeRoles,
+  requireAnyRole, // NEW: Check if user has any of the roles
   requireVerifiedAccount,
   requireVerifiedClinic,
   requireClinicVerified: requireVerifiedClinic,

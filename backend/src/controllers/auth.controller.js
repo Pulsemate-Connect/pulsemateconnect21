@@ -3785,6 +3785,78 @@ const doctorVerifyEmailOtpLogin = async (req, res, next) => {
   }
 };
 
+
+/**
+ * POST /api/auth/switch-role
+ * Switch to a different role (multi-role support)
+ * Requires authentication
+ */
+const switchRoleHandler = async (req, res) => {
+  try {
+    const { newRole } = req.body;
+    const userId = req.user.id;
+
+    if (!newRole) {
+      return sendError(res, 'newRole is required', 400);
+    }
+
+    // Validate that the role is valid
+    const validRoles = ['PATIENT', 'DOCTOR', 'CLINIC_OWNER', 'RECEPTIONIST', 'SUPER_ADMIN'];
+    if (!validRoles.includes(newRole)) {
+      return sendError(res, `Invalid role: ${newRole}`, 400);
+    }
+
+    // Get user with roleApprovals
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roleApprovals: {
+          where: {
+            role: newRole,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    // Check if user has this role
+    const userRoles = user.roles || [user.role];
+    if (!userRoles.includes(newRole)) {
+      logger.warn(`[Auth] User ${userId} attempted to switch to role they don't have: ${newRole}`);
+      return sendError(res, `You do not have ${newRole} role`, 403);
+    }
+
+    // Check if role is approved
+    const roleApproval = user.roleApprovals[0];
+    if (!roleApproval) {
+      logger.warn(`[Auth] No approval record found for ${userId} role ${newRole}`);
+      return sendError(res, 'Role approval not found', 404);
+    }
+
+    if (roleApproval.approvalStatus !== 'VERIFIED') {
+      logger.warn(`[Auth] User ${userId} attempted to switch to unapproved role: ${newRole} (status: ${roleApproval.approvalStatus})`);
+      return sendError(res, `${newRole} role is ${roleApproval.approvalStatus.toLowerCase()}. Please wait for approval.`, 403);
+    }
+
+    // Generate new access token with new activeRole
+    const { switchRole } = require('../services/token.service');
+    const newAccessToken = switchRole(user, newRole);
+
+    logger.info(`[Auth] User ${userId} switched role from ${req.auth.activeRole} to ${newRole}`);
+
+    return sendSuccess(res, {
+      accessToken: newAccessToken,
+      activeRole: newRole,
+      message: `Switched to ${newRole} role successfully`,
+    });
+  } catch (error) {
+    logger.error(`[Auth] Error switching role:`, error);
+    return sendError(res, 'Failed to switch role', 500);
+  }
+};
 module.exports = {
   // Firebase Phone Auth
   patientFirebasePhoneLoginHandler,
@@ -3852,4 +3924,6 @@ module.exports = {
   
   // User Info
   getMeHandler,
+  // Multi-role Support
+  switchRoleHandler, // NEW: Role switching handler
 };
