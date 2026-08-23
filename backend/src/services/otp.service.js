@@ -17,7 +17,7 @@ const logger = require('../config/logger');
 const { generateOtp, hashOtp, verifyOtpHash } = require('../utils/hash');
 const { sendOtpSms } = require('./sms.service');
 
-const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
+const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '10', 10);
 const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10);
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
 const SMS_PROVIDER = process.env.SMS_PROVIDER || 'twofactor';

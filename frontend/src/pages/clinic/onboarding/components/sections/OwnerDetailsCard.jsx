@@ -4,7 +4,7 @@ import useAuthStore from '../../../../../store/authStore';
 import toast from 'react-hot-toast';
 import OTPModal from '../modals/OTPModal';
 
-const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
+const OwnerDetailsCard = ({ register, errors, watch, setValue, clearErrors }) => {
   const { user } = useAuthStore(); // Get authenticated user for email display
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -165,7 +165,8 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
       if (isTestNumber && isTestOTP) {
         // Test number with test OTP - verify immediately
         console.log('[OTP] Test verification successful');
-        setValue('mobileVerified', true);
+        setValue('mobileVerified', true, { shouldValidate: true }); // ✅ FIX: Force validation to update
+        clearErrors?.('mobileVerified'); // ✅ FIX: Explicitly clear the error
         
         // Add to verified numbers set
         setVerifiedNumbers(prev => {
@@ -191,6 +192,7 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
           phoneNumber: phoneNumber,
           otp: otp,
           verificationId: verificationId, // Include verification ID
+          purpose: 'ONBOARDING', // ✅ FIX: Add purpose to skip login/user creation
         }),
       });
 
@@ -203,7 +205,8 @@ const OwnerDetailsCard = ({ register, errors, watch, setValue }) => {
       console.log('[OTP] Verified successfully:', data);
       
       // On success:
-      setValue('mobileVerified', true);
+      setValue('mobileVerified', true, { shouldValidate: true }); // ✅ FIX: Force validation to update
+      clearErrors?.('mobileVerified'); // ✅ FIX: Explicitly clear the error
       
       // Add to verified numbers set
       setVerifiedNumbers(prev => {

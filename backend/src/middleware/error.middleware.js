@@ -13,9 +13,14 @@ const errorHandler = (err, req, res, next) => {
 
   // Prisma errors
   if (err.code === 'P2002') {
+    // Log the exact field causing the conflict
+    const field = err.meta?.target ? err.meta.target.join(', ') : 'unknown field';
+    logger.error(`Prisma P2002 Unique Constraint Violation on: ${field}`, { meta: err.meta });
+    
     return res.status(409).json({
       success: false,
-      message: 'A record with this information already exists',
+      message: `A record with this information already exists (${field})`,
+      field: err.meta?.target || [],
     });
   }
 

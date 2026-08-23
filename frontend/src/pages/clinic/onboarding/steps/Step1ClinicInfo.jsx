@@ -30,7 +30,8 @@ const Step1ClinicInfo = () => {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isSubmitting },
+    clearErrors,
+    formState: { errors, isSubmitting, touchedFields },
   } = useForm({
     resolver: yupResolver(step1Schema),
     defaultValues: {
@@ -184,6 +185,7 @@ const Step1ClinicInfo = () => {
           errors={errors}
           watch={watch}
           setValue={setValue}
+          clearErrors={clearErrors}
         />
 
         {/* Section 3: Primary Contact */}
@@ -211,8 +213,8 @@ const Step1ClinicInfo = () => {
           autoFilledFields={autoFilledFields}
         />
 
-        {/* Validation Summary (if errors exist) */}
-        {Object.keys(errors).length > 0 && (
+        {/* Validation Summary (if errors exist) - Hide if only mobileVerified error */}
+        {Object.keys(errors).length > 0 && Object.keys(errors).some(key => key !== 'mobileVerified') && (
           <div className="p-6 bg-red-50 rounded-2xl border-2 border-red-200">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
@@ -225,12 +227,14 @@ const Step1ClinicInfo = () => {
                   Please fix the following errors before proceeding:
                 </p>
                 <ul className="space-y-1 text-sm text-red-700">
-                  {Object.entries(errors).map(([key, error]) => (
-                    <li key={key} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                      {error.message}
-                    </li>
-                  ))}
+                  {Object.entries(errors)
+                    .filter(([key]) => key !== 'mobileVerified') // ✅ FIX: Don't show mobileVerified error in banner (shown inline)
+                    .map(([key, error]) => (
+                      <li key={key} className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        {error.message}
+                      </li>
+                    ))}
                 </ul>
               </div>
             </div>

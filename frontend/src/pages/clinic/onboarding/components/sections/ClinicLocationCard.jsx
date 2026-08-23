@@ -202,7 +202,7 @@ const ClinicLocationCard = ({ register, setValue, watch, errors, setAutoFilledFi
                 value={latInput}
                 onChange={(e) => setLatInput(e.target.value)}
                 onBlur={handleCoordinateChange}
-                className="w-full px-4 py-2.5 text-gray-900 placeholder-gray-400 border rounded-xl transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 bg-white focus:outline-none focus:ring-4"
+                className="w-full px-4 py-2.5 text-gray-900 placeholder-gray-400 border rounded-xl transition-all duration-200 border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500/20 bg-white focus:outline-none focus:ring-4 cursor-text"
               />
               {errors?.latitude && (
                 <p className="text-xs text-red-600 flex items-center gap-1">
@@ -223,7 +223,7 @@ const ClinicLocationCard = ({ register, setValue, watch, errors, setAutoFilledFi
                 value={lngInput}
                 onChange={(e) => setLngInput(e.target.value)}
                 onBlur={handleCoordinateChange}
-                className="w-full px-4 py-2.5 text-gray-900 placeholder-gray-400 border rounded-xl transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 bg-white focus:outline-none focus:ring-4"
+                className="w-full px-4 py-2.5 text-gray-900 placeholder-gray-400 border rounded-xl transition-all duration-200 border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500/20 bg-white focus:outline-none focus:ring-4 cursor-text"
               />
               {errors?.longitude && (
                 <p className="text-xs text-red-600 flex items-center gap-1">
