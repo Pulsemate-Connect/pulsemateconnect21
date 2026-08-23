@@ -102,6 +102,9 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
     envVars:
+      # ✅ FIX: Vite expects VITE_* prefix for env vars (not EXPO_PUBLIC_*)
+      - key: VITE_API_URL
+        value: https://api.pulsemateconnect.in/api
       - key: EXPO_PUBLIC_API_URL
         value: https://api.pulsemateconnect.in/api
       - key: EXPO_PUBLIC_FIREBASE_API_KEY
