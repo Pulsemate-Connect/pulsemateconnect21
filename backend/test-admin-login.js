@@ -1,90 +1,94 @@
+#!/usr/bin/env node
+/**
+ * Test Admin Login - Verify credentials work
+ */
+
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+
 const prisma = new PrismaClient();
 
-async function testAdminLogin() {
-  console.log('='.repeat(80));
-  console.log('TESTING ADMIN LOGIN');
-  console.log('='.repeat(80));
-  
-  const email = 'shubham27052002@gmail.com';
-  const password = 'Admin@12345';
-  
-  // 1. Find user
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      adminProfile: true,
-    },
-  });
+async function testLogin(email, password) {
+  console.log(`\n🔐 Testing login for: ${email}`);
 
-  if (!user) {
-    console.log('❌ User not found');
-    await prisma.$disconnect();
-    return;
+  try {
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { adminProfile: true },
+    });
+
+    if (!user) {
+      console.log(`   ❌ User not found`);
+      return false;
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      console.log(`   ❌ Invalid password`);
+      return false;
+    }
+
+    // Check admin profile
+    if (!user.adminProfile) {
+      console.log(`   ❌ No admin profile found`);
+      return false;
+    }
+
+    // Check if active
+    if (!user.isActive) {
+      console.log(`   ❌ Account is inactive`);
+      return false;
+    }
+
+    // All checks passed
+    console.log(`   ✅ Login successful!`);
+    console.log(`   👤 Name: ${user.name}`);
+    console.log(`   🛡️  Admin Level: ${user.adminProfile.level}`);
+    console.log(`   🎭 Role: ${user.role}`);
+    return true;
+
+  } catch (error) {
+    console.error(`   ❌ Error:`, error.message);
+    return false;
   }
-
-  console.log('\n✅ User Found:');
-  console.log('  ID:', user.id);
-  console.log('  Email:', user.email);
-  console.log('  Role:', user.role);
-  console.log('  Has Password:', !!user.passwordHash);
-  console.log('  Admin Profile:', user.adminProfile ? 'YES' : 'NO');
-  console.log('  Admin Level:', user.adminProfile?.level || 'NULL');
-
-  // 2. Test password
-  if (!user.passwordHash) {
-    console.log('\n❌ No password hash set for user!');
-    console.log('   Run: node setup-admins.js');
-    await prisma.$disconnect();
-    return;
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-  console.log('\n🔐 Password Test:');
-  console.log('  Password Valid:', isPasswordValid ? '✅ YES' : '❌ NO');
-
-  if (!isPasswordValid) {
-    console.log('\n❌ Password is incorrect!');
-    console.log('   Expected password: Admin@12345');
-    await prisma.$disconnect();
-    return;
-  }
-
-  // 3. Generate token (like real login does)
-  const accessToken = jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-      status: user.approvalStatus,
-      roles: [user.role],
-      primaryRole: user.role,
-      activeRole: user.role,
-    },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '15m' }
-  );
-
-  const refreshToken = jwt.sign(
-    {
-      sub: user.id,
-      type: 'refresh',
-    },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '30d' }
-  );
-
-  console.log('\n✅ Tokens Generated Successfully!');
-  console.log('\n' + '='.repeat(80));
-  console.log('LOGIN COMMAND - Copy and paste in browser console:');
-  console.log('='.repeat(80));
-  console.log('\nlocalStorage.setItem("accessToken", "' + accessToken + '");');
-  console.log('localStorage.setItem("refreshToken", "' + refreshToken + '");');
-  console.log('window.location.href = "/admin/dashboard";');
-  console.log('\n' + '='.repeat(80));
-
-  await prisma.$disconnect();
 }
 
-testAdminLogin().catch(console.error);
+async function testAllAdmins() {
+  console.log('🧪 Testing Admin Logins\n');
+  console.log('=' .repeat(60));
+
+  const admins = [
+    { email: 'shubham27052002@gmail.com', password: 'Shubham27*' },
+    { email: 'sahilnaik1515@gmail.com', password: 'Nkabu18$' },
+  ];
+
+  let allPassed = true;
+
+  for (const admin of admins) {
+    const result = await testLogin(admin.email, admin.password);
+    if (!result) allPassed = false;
+  }
+
+  console.log('\n' + '='.repeat(60));
+  
+  if (allPassed) {
+    console.log('\n✅ All admin logins working correctly!');
+    console.log('🌐 Ready to login at: https://pulsemateconnect.in/admin\n');
+  } else {
+    console.log('\n❌ Some logins failed - check errors above\n');
+  }
+
+  await prisma.$disconnect();
+  return allPassed;
+}
+
+testAllAdmins()
+  .then((success) => process.exit(success ? 0 : 1))
+  .catch((error) => {
+    console.error('❌ Test failed:', error);
+    process.exit(1);
+  });

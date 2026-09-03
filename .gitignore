@@ -118,3 +118,4 @@ redis_data/
 *.ipa
 
 ADMIN_CREDENTIALS.txt
+ADMIN_ACCOUNTS_CREATED.md
