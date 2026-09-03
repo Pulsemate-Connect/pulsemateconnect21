@@ -57,29 +57,12 @@ console.log('[App] All imports complete');
 const { width: W, height: H } = Dimensions.get('window');
 console.log('[App] Dimensions:', W, 'x', H);
 
-// Safe asset loading with fallback
+// ⚡ STARTUP OPTIMIZATION: Simplified asset loading with single fallback
 let LOGO;
 try {
-  console.log('[App] Loading logo1.jpeg...');
   LOGO = require('./assets/logo1.jpeg');
-  console.log('[App] logo1.jpeg loaded');
-} catch (e1) {
-  console.log('[App] logo1.jpeg failed:', e1.message);
-  try {
-    console.log('[App] Loading logo.jpeg...');
-    LOGO = require('./assets/logo.jpeg');
-    console.log('[App] logo.jpeg loaded');
-  } catch (e2) {
-    console.log('[App] logo.jpeg failed:', e2.message);
-    try {
-      console.log('[App] Loading android-icon-foreground.png...');
-      LOGO = require('./assets/android-icon-foreground.png');
-      console.log('[App] android-icon-foreground.png loaded');
-    } catch (e3) {
-      console.log('[App] All logo attempts failed, using fallback');
-      LOGO = null;
-    }
-  }
+} catch {
+  LOGO = null; // Use fallback icon instead of cascading tries
 }
 
 // Brand tokens
@@ -336,16 +319,16 @@ function RootNavigator({ navigationRef }) {
   const { user, loading } = useAuth();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
-  // Safety timeout: if loading takes more than 3 seconds, force to auth screen
+  // Safety timeout: if loading takes more than 2 seconds, force to auth screen
   useEffect(() => {
     if (loading) {
-      PERF.log('RootNavigator loading=true, starting 3s timeout');
+      PERF.log('RootNavigator loading=true, starting 2s timeout');
       console.log('[RootNavigator] Loading is true, starting safety timeout');
       const timer = setTimeout(() => {
         PERF.log('RootNavigator timeout reached - forcing to auth');
-        console.error('[RootNavigator] Loading timeout reached after 3 seconds - forcing to auth screen');
+        console.error('[RootNavigator] Loading timeout reached after 2 seconds - forcing to auth screen');
         setLoadingTimeout(true);
-      }, 3000); // ✅ REDUCED from 5s to 3s for faster fallback
+      }, 2000); // ⚡ OPTIMIZED: 2s timeout (down from 3s) since auth is now faster
       
       return () => {
         console.log('[RootNavigator] Loading changed, clearing timeout');
@@ -366,13 +349,14 @@ function RootNavigator({ navigationRef }) {
     console.warn('[RootNavigator] Push notifications error (non-fatal):', error?.message);
   }
 
-  // Simple loading screen instead of elaborate splash (with timeout protection)
+  // ⚡ STARTUP OPTIMIZATION: Minimal loading screen for fastest startup
   if (loading && !loadingTimeout) {
-    PERF.log('Showing loading screen');
+    PERF.log('Showing minimal loading screen');
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' }}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0EA5E9' }}>
+        <StatusBar barStyle="light-content" backgroundColor="#0EA5E9" />
+        {LOGO && <Image source={LOGO} style={{ width: 100, height: 100, borderRadius: 20, marginBottom: 20 }} resizeMode="cover" />}
+        <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
   }

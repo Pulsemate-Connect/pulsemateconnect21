@@ -1074,6 +1074,22 @@ const deleteAdminAccount = async (req, res, next) => {
 
 const resetDatabase = async (req, res, next) => {
   try {
+    // ✅ SECURITY FIX: Double-check environment (defense in depth)
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('[ResetDatabase] ❌ BLOCKED: Attempted database reset in PRODUCTION');
+      await createAuditLog({
+        userId: req.user.id,
+        action: 'DATABASE_RESET_BLOCKED',
+        entityType: 'System',
+        metadata: { 
+          reason: 'Production environment protection',
+          attemptedBy: req.user.email 
+        },
+        ipAddress: req.ip,
+      });
+      return sendError(res, 'Database reset is disabled in production environment', 403);
+    }
+
     const triggeredBy = {
       id: req.user.id,
       email: req.user.email,
@@ -1092,9 +1108,13 @@ const resetDatabase = async (req, res, next) => {
       }),
     ]);
 
-    // Preserve passwords or use defaults
-    const rootPasswordHash = rootAdmin?.passwordHash || await hashPassword(process.env.ROOT_ADMIN_PASSWORD || 'shubham27*');
-    const superPasswordHash = superAdmin?.passwordHash || await hashPassword('Nkabu18$');
+    // Preserve passwords or use environment variables
+    const rootPasswordHash = rootAdmin?.passwordHash || await hashPassword(
+      process.env.ROOT_ADMIN_PASSWORD || process.env.ADMIN_1_PASSWORD || 'ChangeMe123!'
+    );
+    const superPasswordHash = superAdmin?.passwordHash || await hashPassword(
+      process.env.SUPER_ADMIN_PASSWORD || process.env.ADMIN_2_PASSWORD || 'ChangeMe456!'
+    );
 
     const admins = await prisma.$transaction(async (tx) => {
       // ✅ FIX: Use TRUNCATE CASCADE with ALL tables (except _prisma_migrations)

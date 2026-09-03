@@ -9,6 +9,7 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getPatientProfile, getMyAppointments, updatePatientProfile, deleteAccount } from '../api/patient';
 import { logout } from '../api/auth';
@@ -442,6 +443,13 @@ export default function ProfileScreen({ navigation, route }) {
   }, []);
 
   useEffect(() => { load(); }, []);
+  
+  // Reload profile when screen comes back into focus (after editing profile)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleLogout = () => {
     if (signingOut) return;

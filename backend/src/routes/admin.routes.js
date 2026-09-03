@@ -38,7 +38,11 @@ router.delete('/admins/:id', requireAdminLevel('ROOT'), deleteAdminAccount);
 router.get('/pending-clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingClinics);
 router.get('/pending-doctors', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingDoctors);
 router.patch('/users/:id/status', requireAdminLevel('ROOT', 'SUPER_ADMIN'), updateUserStatus);
-router.post('/reset-database', requireAdminLevel('ROOT', 'SUPER_ADMIN'), resetDatabase);
+
+// ✅ SECURITY FIX: Database reset only available in development
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/reset-database', requireAdminLevel('ROOT'), resetDatabase);
+}
 
 // ── Clinic management ──────────────────────────────────────────────────────
 router.get('/all-clinics/stats', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getClinicStats);

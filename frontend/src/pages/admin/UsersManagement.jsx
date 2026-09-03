@@ -43,7 +43,9 @@ const UserDetailDrawer = ({ userId, onClose, onToggleStatus, actionLoading, curr
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never';
 
-  const canToggle = user && user.id !== currentUser?.id && !(user.role === 'SUPER_ADMIN' && currentUser?.adminLevel !== 'ROOT');
+  // ✅ FIX: Use adminLevel from user object or fallback to adminProfile.level
+  const currentAdminLevel = currentUser?.adminLevel || currentUser?.adminProfile?.level;
+  const canToggle = user && user.id !== currentUser?.id && !(user.role === 'SUPER_ADMIN' && currentAdminLevel !== 'ROOT');
 
   return (
     <>
@@ -228,8 +230,10 @@ const UsersManagement = () => {
   });
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
-  const isRootAdmin = currentUser?.adminLevel === 'ROOT';
-  const canToggleStandardUsers = ['ROOT', 'SUPER_ADMIN'].includes(currentUser?.adminLevel);
+  // ✅ FIX: Use adminLevel from user object or fallback to adminProfile.level
+  const currentAdminLevel = currentUser?.adminLevel || currentUser?.adminProfile?.level;
+  const isRootAdmin = currentAdminLevel === 'ROOT';
+  const canToggleStandardUsers = ['ROOT', 'SUPER_ADMIN'].includes(currentAdminLevel);
 
   const fetchUsers = async () => {
     setIsLoading(true);

@@ -304,22 +304,21 @@ const bookAppointment = async (req, res, next) => {
         const lockId = hash.readBigInt64BE(0); // Extract first 8 bytes as bigint
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId}::bigint)`;
         
-        // ✅ BUG #1 FIX: Re-check slot availability inside transaction
+        // ✅ BUG #1 FIX: Re-check slot availability inside transaction WITH ROW LOCKING
         if (slotTime) {
-          const existingSlot = await tx.appointment.findFirst({
-            where: {
-              doctorId,
-              clinicId,
-              appointmentDate: {
-                gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
-                lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
-              },
-              slotTime,
-              status: { notIn: ['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'] },
-            },
-          });
+          // Use FOR UPDATE to lock rows matching this slot, preventing concurrent bookings
+          const existingSlot = await tx.$queryRaw`
+            SELECT id FROM appointments 
+            WHERE doctor_id = ${doctorId}
+              AND clinic_id = ${clinicId}
+              AND appointment_date >= ${new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0))}
+              AND appointment_date <= ${new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999))}
+              AND slot_time = ${slotTime}
+              AND status NOT IN ('CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT')
+            FOR UPDATE NOWAIT
+          `;
           
-          if (existingSlot) {
+          if (existingSlot && existingSlot.length > 0) {
             throw new Error('SLOT_ALREADY_BOOKED');
           }
         }
@@ -463,6 +462,19 @@ const bookAppointment = async (req, res, next) => {
     if (error.code === 'P2002' && error.meta?.target?.includes('appointment_slot')) {
       return sendError(res, 
         'This time slot is no longer available. Please select another time slot.',
+        409
+      );
+    }
+    
+    // BUG #1: Lock timeout - another user is booking this slot right now
+    if (error.code === '55P03' || error.message?.includes('could not obtain lock')) {
+      logger.warn('[bookAppointment] Lock timeout - concurrent booking attempt', {
+        patientId: req.user.id,
+        doctorId: req.body.doctorId,
+        slotTime: req.body.slotTime,
+      });
+      return sendError(res, 
+        'This time slot is being booked by another user. Please try again in a moment or select a different time.',
         409
       );
     }

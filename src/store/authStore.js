@@ -97,12 +97,16 @@ export const AuthProvider = ({ children }) => {
         PERF_AUTH.log('SecureStore read complete');
         
         if (t) {
-          PERF_AUTH.log('Token found, setting token');
-          console.log('[AuthProvider] Token found, setting token');
+          PERF_AUTH.log('Token found, setting token and showing UI immediately');
+          console.log('[AuthProvider] ✅ Token found - showing UI immediately');
           setToken(t);
           
-          // ✅ OPTIMIZATION: Add 3-second timeout to prevent infinite loading
-          // If backend is slow/cold-starting, we'll fail fast and show auth screen
+          // ⚡ STARTUP OPTIMIZATION: Show UI immediately with cached token
+          // Validate token in background without blocking startup
+          setLoading(false);
+          PERF_AUTH.log('UI shown - validating token in background');
+          
+          // Background token validation with 3s timeout
           const getMeWithTimeout = Promise.race([
             getMe(),
             new Promise((_, reject) => 
@@ -111,29 +115,35 @@ export const AuthProvider = ({ children }) => {
           ]);
           
           try {
-            PERF_AUTH.log('Calling getMe API with 3s timeout');
-            console.log('[AuthProvider] Calling getMe API');
+            PERF_AUTH.log('Calling getMe API in background');
+            console.log('[AuthProvider] Validating token in background');
             const res = await getMeWithTimeout;
             PERF_AUTH.log('getMe API response received');
             if (res?.data?.data?.user) {
-              PERF_AUTH.log('User data received, setting user');
-              console.log('[AuthProvider] User data received');
+              PERF_AUTH.log('User data received, updating user');
+              console.log('[AuthProvider] ✅ Token valid - user data received');
               setUser(res.data.data.user);
             } else {
-              PERF_AUTH.log('Invalid getMe response');
-              console.log('[AuthProvider] Invalid getMe response');
+              PERF_AUTH.log('Invalid getMe response - token invalid');
+              console.log('[AuthProvider] ⚠️ Invalid token - clearing session');
+              await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+              await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+              setToken(null);
+              setUser(null);
             }
           } catch (err) {
             PERF_AUTH.log(`getMe failed: ${err.message}`);
-            console.error('[AuthProvider] getMe failed:', err.message);
-            // If timeout or network error, clear tokens and show login
+            console.error('[AuthProvider] ⚠️ Token validation failed:', err.message);
+            // Token invalid or network error - clear session
             await SecureStore.deleteItemAsync('accessToken').catch(() => {});
             await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
             setToken(null);
+            setUser(null);
           }
         } else {
-          PERF_AUTH.log('No token found');
+          PERF_AUTH.log('No token found - showing auth screen');
           console.log('[AuthProvider] No token found');
+          setLoading(false);
         }
       } catch (err) {
         PERF_AUTH.log(`Restore error: ${err.message}`);
@@ -142,9 +152,6 @@ export const AuthProvider = ({ children }) => {
           await SecureStore.deleteItemAsync('accessToken');
           await SecureStore.deleteItemAsync('refreshToken');
         } catch (e) { console.error('[AuthProvider] Cleanup error:', e); }
-      } finally {
-        PERF_AUTH.log('Setting loading to false');
-        console.log('[AuthProvider] Setting loading to false');
         setLoading(false);
       }
     };

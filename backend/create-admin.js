@@ -66,7 +66,7 @@ async function createRootAdmin() {
     console.log('👤 Name:', admin.name);
     console.log('📧 Email:', admin.email);
     console.log('📱 Mobile:', admin.mobile);
-    console.log('🔑 Password:', password);
+    console.log('🔑 Password: [SET - Not displayed for security]');
     console.log('🎖️  Level:', admin.adminProfile.level);
     console.log('');
     console.log('═══════════════════════════════════════');
@@ -74,6 +74,7 @@ async function createRootAdmin() {
     console.log('🌐 Login at: http://localhost:3000/admin');
     console.log('');
     console.log('⚠️  Save these credentials in a secure place!');
+    console.log('⚠️  Password is not displayed for security reasons');
     console.log('');
 
   } catch (error) {

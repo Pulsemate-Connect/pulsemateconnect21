@@ -14,7 +14,7 @@ const testClinicData = {
     name: 'Test Clinic Owner',
     email: 'testclinic@gmail.com',
     mobile: '+919876543210',
-    password: 'TestClinic@123',
+    password: process.env.TEST_CLINIC_PASSWORD || 'TestClinic@123',
   },
   
   // Clinic details
@@ -213,7 +213,7 @@ async function createTestClinic() {
     console.log('📋 Clinic Owner Login Credentials:');
     console.log('─────────────────────────────────────────────────────');
     console.log(`Email:    ${testClinicData.owner.email}`);
-    console.log(`Password: ${testClinicData.owner.password}`);
+    console.log(`Password: [SET - Check TEST_CLINIC_PASSWORD env var]`);
     console.log(`Mobile:   ${testClinicData.owner.mobile}`);
     console.log('─────────────────────────────────────────────────────\n');
 

@@ -81,8 +81,15 @@ const useFcm = () => {
         if (!token) return;
 
         tokenRef.current = token;
-        await registerFcmToken(token, 'web');
-        console.log('[FCM] Web push token registered ✓');
+        
+        // Register token with backend (non-blocking - failures are logged but don't break the app)
+        try {
+          await registerFcmToken(token, 'web');
+          console.log('[FCM] Web push token registered ✓');
+        } catch (err) {
+          console.warn('[FCM] Token registration failed (non-critical):', err.message);
+          // Continue anyway - push notifications are optional feature
+        }
 
         // Handle foreground notifications — show native browser notification
         const unsubscribe = onMessage(messaging, (payload) => {

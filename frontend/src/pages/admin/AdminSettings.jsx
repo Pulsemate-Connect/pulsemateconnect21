@@ -8,6 +8,13 @@ import Modal from '../../components/ui/Modal';
 
 const AdminSettings = () => {
   const navigate = useNavigate();
+  
+  // ✅ SECURITY FIX: Only show reset in development
+  const isDevelopment = import.meta.env.MODE === 'development' || 
+                        import.meta.env.DEV === true ||
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+  
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
@@ -61,21 +68,23 @@ const AdminSettings = () => {
           </p>
         </div>
 
-        {/* Danger Zone */}
-        <div className="card border-2 border-red-200 bg-red-50">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-red-100 rounded-full">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
+        {/* Danger Zone (Development Only) */}
+        {isDevelopment && (
+          <div className="card border-2 border-red-200 bg-red-50">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-red-900 mb-2">
+                  Danger Zone (Development Only)
+                </h2>
+                <p className="text-sm text-red-700 mb-4">
+                  These actions are irreversible and will affect the entire system. Proceed with extreme caution.
+                  <strong className="block mt-1">⚠️ This section is hidden in production environments.</strong>
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-red-900 mb-2">
-                Danger Zone
-              </h2>
-              <p className="text-sm text-red-700 mb-4">
-                These actions are irreversible and will affect the entire system. Proceed with extreme caution.
-              </p>
-            </div>
-          </div>
 
           {/* Reset Database Section */}
           <div className="mt-6 pt-6 border-t border-red-300">
@@ -118,6 +127,7 @@ const AdminSettings = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Information Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">

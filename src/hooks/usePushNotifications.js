@@ -203,10 +203,18 @@ const usePushNotifications = (navigationRef, isAuthenticated = false) => {
       unregister();
       return;
     }
-    registerToken();
-    subscribe();
+    
+    // ⚡ STARTUP OPTIMIZATION: Defer push notification registration by 2 seconds
+    // This allows the app to become interactive faster
+    console.log('[Push] ⚡ Deferring push notification setup by 2s for faster startup');
+    const deferredSetupTimer = setTimeout(() => {
+      console.log('[Push] Starting deferred push notification setup');
+      registerToken();
+      subscribe();
+    }, 2000);
 
     return () => {
+      clearTimeout(deferredSetupTimer);
       // Fix: Use .remove() method on subscription objects
       if (notifListener.current) {
         try { notifListener.current.remove(); } catch { }

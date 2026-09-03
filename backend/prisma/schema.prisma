@@ -9,16 +9,16 @@ datasource db {
 }
 
 model User {
-  id                        String                       @id @default(uuid())
-  name                      String?
-  mobile                    String                       @unique
-  email                     String?                      @unique
-  
+  id     String  @id @default(uuid())
+  name   String?
+  mobile String  @unique
+  email  String? @unique
+
   // ✅ MULTI-ROLE SUPPORT (Phase 1)
   // New fields - all roles user has access to
-  roles                     UserRole[]                   @default([PATIENT])
-  primaryRole               UserRole                     @default(PATIENT)
-  
+  roles       UserRole[] @default([PATIENT])
+  primaryRole UserRole   @default(PATIENT)
+
   // ⚠️ DEPRECATED: Legacy single role field (kept for backward compatibility)
   // Will be removed in Phase 3 after full migration
   role                      UserRole                     @default(PATIENT)
@@ -74,9 +74,16 @@ model User {
   verifiedDocuments         DoctorVerificationDocument[] @relation("DocumentVerifiedBy")
   verificationLogs          DoctorVerificationLog[]      @relation("VerificationLogAdmin")
   temporaryClosuresCreated  ClinicTemporaryClosure[]     @relation("TemporaryClosureCreator")
-  
+
   // ✅ MULTI-ROLE: Role approval tracking
-  roleApprovals             RoleApprovalStatus[]         @relation("UserRoleApprovals")
+  roleApprovals RoleApprovalStatus[] @relation("UserRoleApprovals")
+
+  // ✅ RBAC: New role-permission system (Phase 2)
+  userRoleMappings         UserRoleMapping[]          @relation("UserRoleMappings")
+  approvedUserRoles        UserRoleMapping[]          @relation("UserRoleApprovals")
+  rejectedUserRoles        UserRoleMapping[]          @relation("UserRoleRejections")
+  grantedPermissions       RolePermission[]           @relation("RolePermissionGrants")
+  appointmentStatusChanges AppointmentStatusHistory[] @relation("AppointmentStatusChanges")
 
   // ✅ PERFORMANCE: Indexes for frequent lookups
   @@index([id])
@@ -89,30 +96,30 @@ model User {
 }
 
 model PatientProfile {
-  id                String    @id @default(uuid())
-  userId            String    @unique
-  patientName       String?   // Patient-specific name (separate from user.name for admin/doctor using patient app)
-  age               Int?
-  dob               DateTime?
-  gender            String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  emergencyContact  String?
-  bloodGroup        String?
-  allergies         String?
-  existingDiseases  String?
-  insuranceProvider String?
-  profileCompleted  Boolean   @default(false)
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  patientName        String? // Patient-specific name (separate from user.name for admin/doctor using patient app)
+  age                Int?
+  dob                DateTime?
+  gender             String?
+  address            String?
+  city               String?
+  state              String?
+  pincode            String?
+  emergencyContact   String?
+  bloodGroup         String?
+  allergies          String?
+  existingDiseases   String?
+  insuranceProvider  String?
+  profileCompleted   Boolean   @default(false)
   // Audit trail for staff-created patients
-  createdByUserId   String?   // User ID of staff member who created this patient
-  createdByRole     String?   // Role of creator: DOCTOR | RECEPTIONIST | CLINIC_OWNER | SUPER_ADMIN
-  registeredVia     String    @default("SELF") // SELF | DOCTOR | RECEPTIONIST | CLINIC_OWNER | ADMIN
-  registeredClinicId String?  // Clinic where patient was registered (if applicable)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdByUserId    String? // User ID of staff member who created this patient
+  createdByRole      String? // Role of creator: DOCTOR | RECEPTIONIST | CLINIC_OWNER | SUPER_ADMIN
+  registeredVia      String    @default("SELF") // SELF | DOCTOR | RECEPTIONIST | CLINIC_OWNER | ADMIN
+  registeredClinicId String? // Clinic where patient was registered (if applicable)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // ✅ PERFORMANCE: Indexes for frequent lookups
   @@index([userId])
@@ -366,29 +373,30 @@ model DoctorClinic {
 }
 
 model Appointment {
-  id                     String                  @id @default(uuid())
+  id                     String                     @id @default(uuid())
   patientId              String
   doctorId               String
   clinicId               String
   sessionId              String?
-  appointmentType        AppointmentType         @default(OFFLINE)
+  appointmentType        AppointmentType            @default(OFFLINE)
   appointmentDate        DateTime
   slotTime               String?
-  status                 AppointmentStatus       @default(BOOKED)
+  status                 AppointmentStatus          @default(BOOKED)
   queueNumber            Int?
   estimatedWaitMinutes   Int?
   symptoms               String?
   notes                  String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  clinic                 Clinic                  @relation(fields: [clinicId], references: [id])
-  doctor                 DoctorProfile           @relation(fields: [doctorId], references: [id])
-  patient                User                    @relation("PatientAppointments", fields: [patientId], references: [id])
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  clinic                 Clinic                     @relation(fields: [clinicId], references: [id])
+  doctor                 DoctorProfile              @relation(fields: [doctorId], references: [id])
+  patient                User                       @relation("PatientAppointments", fields: [patientId], references: [id])
   payment                Payment?
   prescriptions          prescriptions?
   queueItem              QueueItem?
   reminders              ReminderSent[]
   scheduledNotifications ScheduledNotification[]
+  statusHistory          AppointmentStatusHistory[] @relation("AppointmentHistory")
 
   // ✅ BUG FIX #006: Prevent slot double-booking with unique constraint
   // Only non-cancelled/non-no-show appointments count toward slot uniqueness
@@ -1232,24 +1240,23 @@ enum DocumentVerificationStatus {
   REJECTED
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // CLINIC SCHEDULE & TIMINGS MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Clinic Working Hours (Weekly Schedule)
 model ClinicWorkingHours {
-  id                String   @id @default(uuid())
-  clinicId          String
-  dayOfWeek         Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
-  isOpen            Boolean  @default(true)
-  morningStartTime  String?  // Format: "09:00"
-  morningEndTime    String?  // Format: "13:00"
-  eveningStartTime  String?  // Format: "16:00"
-  eveningEndTime    String?  // Format: "20:00"
-  notes             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(uuid())
+  clinicId         String
+  dayOfWeek        Int // 0=Sunday, 1=Monday, ..., 6=Saturday
+  isOpen           Boolean  @default(true)
+  morningStartTime String? // Format: "09:00"
+  morningEndTime   String? // Format: "13:00"
+  eveningStartTime String? // Format: "16:00"
+  eveningEndTime   String? // Format: "20:00"
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   clinic Clinic @relation("ClinicWorkingHours", fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1260,15 +1267,15 @@ model ClinicWorkingHours {
 
 // Clinic Breaks (Lunch, Tea breaks, etc.)
 model ClinicBreak {
-  id              String   @id @default(uuid())
-  clinicId        String
-  name            String   // e.g., "Lunch Break"
-  startTime       String   // "13:00"
-  endTime         String   // "16:00"
-  applicableDays  Int[]    @default([1, 2, 3, 4, 5, 6]) // Days when this break applies
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(uuid())
+  clinicId       String
+  name           String // e.g., "Lunch Break"
+  startTime      String // "13:00"
+  endTime        String // "16:00"
+  applicableDays Int[]    @default([1, 2, 3, 4, 5, 6]) // Days when this break applies
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   clinic Clinic @relation("ClinicBreaks", fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1278,15 +1285,15 @@ model ClinicBreak {
 
 // Clinic Holidays & Closures
 model ClinicHoliday {
-  id          String               @id @default(uuid())
+  id          String            @id @default(uuid())
   clinicId    String
-  date        DateTime             @db.Date
-  name        String               // e.g., "Independence Day"
+  date        DateTime          @db.Date
+  name        String // e.g., "Independence Day"
   type        ClinicHolidayType
   reason      String?
-  isRecurring Boolean              @default(false) // For annual holidays
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  isRecurring Boolean           @default(false) // For annual holidays
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1296,18 +1303,18 @@ model ClinicHoliday {
 
 // Special Hours (Override regular schedule for specific dates)
 model ClinicSpecialHours {
-  id                String    @id @default(uuid())
-  clinicId          String
-  date              DateTime  @db.Date
-  name              String?   // e.g., "Extended Hours - Festival"
-  morningStartTime  String?
-  morningEndTime    String?
-  eveningStartTime  String?
-  eveningEndTime    String?
-  isClosed          Boolean   @default(false)
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id               String   @id @default(uuid())
+  clinicId         String
+  date             DateTime @db.Date
+  name             String? // e.g., "Extended Hours - Festival"
+  morningStartTime String?
+  morningEndTime   String?
+  eveningStartTime String?
+  eveningEndTime   String?
+  isClosed         Boolean  @default(false)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   clinic Clinic @relation("ClinicSpecialHours", fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1337,19 +1344,19 @@ model ClinicTemporaryClosure {
 
 // Appointment Settings (per clinic)
 model ClinicAppointmentSettings {
-  id                           String   @id @default(uuid())
-  clinicId                     String   @unique
-  slotDurationMinutes          Int      @default(30)
-  maxAppointmentsPerSession    Int?
-  bookingOpenDaysBefore        Int      @default(30)
-  bookingCloseMinutesBefore    Int      @default(30)
-  sameDayBookingEnabled        Boolean  @default(true)
-  onlineBookingEnabled         Boolean  @default(true)
-  walkInEnabled                Boolean  @default(true)
-  autoConfirmAppointments      Boolean  @default(false)
-  bufferBetweenAppointments    Int      @default(0) // Minutes
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
+  id                        String   @id @default(uuid())
+  clinicId                  String   @unique
+  slotDurationMinutes       Int      @default(30)
+  maxAppointmentsPerSession Int?
+  bookingOpenDaysBefore     Int      @default(30)
+  bookingCloseMinutesBefore Int      @default(30)
+  sameDayBookingEnabled     Boolean  @default(true)
+  onlineBookingEnabled      Boolean  @default(true)
+  walkInEnabled             Boolean  @default(true)
+  autoConfirmAppointments   Boolean  @default(false)
+  bufferBetweenAppointments Int      @default(0) // Minutes
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   clinic Clinic @relation("ClinicAppointmentSettings", fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1358,19 +1365,19 @@ model ClinicAppointmentSettings {
 
 // Queue Settings (per clinic)
 model ClinicQueueSettings {
-  id                             String   @id @default(uuid())
-  clinicId                       String   @unique
-  queueStartTime                 String   @default("09:00")
-  queueCloseTime                 String   @default("20:00")
-  maxQueueCapacity               Int?
-  walkInTokenEnabled             Boolean  @default(true)
-  onlineBookingInQueue           Boolean  @default(true)
-  estimatedConsultationMinutes   Int      @default(15)
-  autoTokenGenerationEnabled     Boolean  @default(true)
-  tokenPrefix                    String   @default("T") // e.g., T001, T002
-  notifyPatientMinutesBefore     Int      @default(15)
-  createdAt                      DateTime @default(now())
-  updatedAt                      DateTime @updatedAt
+  id                           String   @id @default(uuid())
+  clinicId                     String   @unique
+  queueStartTime               String   @default("09:00")
+  queueCloseTime               String   @default("20:00")
+  maxQueueCapacity             Int?
+  walkInTokenEnabled           Boolean  @default(true)
+  onlineBookingInQueue         Boolean  @default(true)
+  estimatedConsultationMinutes Int      @default(15)
+  autoTokenGenerationEnabled   Boolean  @default(true)
+  tokenPrefix                  String   @default("T") // e.g., T001, T002
+  notifyPatientMinutesBefore   Int      @default(15)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   clinic Clinic @relation("ClinicQueueSettings", fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -1386,7 +1393,6 @@ enum ClinicHolidayType {
   CUSTOM
 }
 
-
 // ══════════════════════════════════════════════════════════════════════════════
 // MULTI-ROLE SUPPORT - Phase 1
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1395,37 +1401,157 @@ enum ClinicHolidayType {
 /// Allows users to have multiple roles with independent approval workflows
 /// Example: User is approved DOCTOR but pending CLINIC_OWNER
 model RoleApprovalStatus {
-  id              String         @id @default(uuid())
-  userId          String
-  role            UserRole
-  approvalStatus  ApprovalStatus @default(PENDING)
-  
+  id             String         @id @default(uuid())
+  userId         String
+  role           UserRole
+  approvalStatus ApprovalStatus @default(PENDING)
+
   // Approval tracking
-  requestedAt     DateTime       @default(now())
+  requestedAt     DateTime  @default(now())
   approvedAt      DateTime?
-  approvedBy      String?        // Admin user ID who approved
+  approvedBy      String? // Admin user ID who approved
   rejectedAt      DateTime?
-  rejectedBy      String?        // Admin user ID who rejected
+  rejectedBy      String? // Admin user ID who rejected
   rejectionReason String?
-  
+
   // Additional metadata
-  requestData     Json?          // Store role-specific registration data
-  notes           String?        // Admin notes
-  
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  
-  user            User           @relation("UserRoleApprovals", fields: [userId], references: [id], onDelete: Cascade)
-  
+  requestData Json? // Store role-specific registration data
+  notes       String? // Admin notes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserRoleApprovals", fields: [userId], references: [id], onDelete: Cascade)
+
   // Constraints
   @@unique([userId, role], name: "unique_user_role")
-  
   // Indexes for performance
   @@index([userId])
   @@index([role])
   @@index([approvalStatus])
   @@index([role, approvalStatus])
   @@index([requestedAt])
-  
   @@map("role_approval_status")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔐 RBAC SYSTEM (Phase 2 - Production Ready)
+// ═══════════════════════════════════════════════════════════════════════════
+// Added: 2026-08-29
+// Migration: M1_add_rbac_tables.sql, M2_migrate_users_to_rbac.sql
+// 
+// New RBAC architecture with proper role-based permissions
+// Replaces legacy User.role field with flexible multi-role system
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// System and custom roles for RBAC
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  displayName String   @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  userRoles       UserRoleMapping[] @relation("RoleUsers")
+  rolePermissions RolePermission[]  @relation("RolePermissions")
+
+  @@index([name])
+  @@index([isSystem])
+  @@map("roles")
+}
+
+/// Granular permissions for resources and actions
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  resource    String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  scope       String   @default("OWN") @db.VarChar(20) // OWN, CLINIC, ALL
+  displayName String   @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  rolePermissions RolePermission[] @relation("PermissionRoles")
+
+  @@unique([resource, action, scope], name: "unique_permission")
+  @@index([resource])
+  @@index([resource, action])
+  @@map("permissions")
+}
+
+/// Junction table: Users ↔ Roles (many-to-many)
+model UserRoleMapping {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Text
+  roleId          String    @map("role_id") @db.Uuid
+  isPrimary       Boolean   @default(false) @map("is_primary")
+  status          String    @default("PENDING") @db.VarChar(20) // PENDING, APPROVED, REJECTED, UNDER_REVIEW
+  requestedAt     DateTime  @default(now()) @map("requested_at") @db.Timestamp(6)
+  approvedAt      DateTime? @map("approved_at") @db.Timestamp(6)
+  approvedBy      String?   @map("approved_by") @db.Text
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamp(6)
+  rejectedBy      String?   @map("rejected_by") @db.Text
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  user     User  @relation("UserRoleMappings", fields: [userId], references: [id], onDelete: Cascade)
+  role     Role  @relation("RoleUsers", fields: [roleId], references: [id], onDelete: Restrict)
+  approver User? @relation("UserRoleApprovals", fields: [approvedBy], references: [id])
+  rejector User? @relation("UserRoleRejections", fields: [rejectedBy], references: [id])
+
+  @@unique([userId, roleId], name: "unique_user_role_mapping")
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@index([userId, status])
+  @@map("user_roles")
+}
+
+/// Junction table: Roles ↔ Permissions (many-to-many)
+model RolePermission {
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamp(6)
+  grantedBy    String?  @map("granted_by") @db.Text
+
+  // Relations
+  role       Role       @relation("RolePermissions", fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation("PermissionRoles", fields: [permissionId], references: [id], onDelete: Cascade)
+  grantor    User?      @relation("RolePermissionGrants", fields: [grantedBy], references: [id])
+
+  @@unique([roleId, permissionId], name: "unique_role_permission")
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📊 AUDIT & HISTORY
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Track appointment status changes for audit trail
+model AppointmentStatusHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  appointmentId String   @map("appointment_id") @db.Text
+  fromStatus    String?  @map("from_status") @db.VarChar(20)
+  toStatus      String   @map("to_status") @db.VarChar(20)
+  changedBy     String?  @map("changed_by") @db.Text
+  reason        String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  appointment Appointment @relation("AppointmentHistory", fields: [appointmentId], references: [id], onDelete: Cascade)
+  user        User?       @relation("AppointmentStatusChanges", fields: [changedBy], references: [id])
+
+  @@index([appointmentId])
+  @@index([createdAt])
+  @@map("appointment_status_history")
 }

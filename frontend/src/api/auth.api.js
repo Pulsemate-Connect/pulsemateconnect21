@@ -21,8 +21,24 @@ export const verifyClinicOwnerFirebasePhone = (firebaseIdToken) =>
 export const sendClinicOwnerEmailVerification = (email, ownerName) =>
   api.post('/auth/clinic-owner/send-email-otp', { email, ownerName });
 
-export const verifyClinicOwnerEmailOtp = (email, otp) =>
-  api.post('/auth/clinic-owner/verify-email-otp', { email, otp });
+export const verifyClinicOwnerEmailOtp = (email, otp, ownerName) =>
+  api.post('/auth/clinic-owner/verify-email-otp', { email, otp, ownerName });
+
+// ✅ FIX 3: Message Central OTP with purpose parameter for clinic onboarding
+export const sendOtpWithPurpose = (phoneNumber, purpose = 'ONBOARDING') =>
+  api.post('/auth/send-otp', { phoneNumber, purpose });
+
+export const verifyOtpWithPurpose = (phoneNumber, otp, verificationId, purpose = 'ONBOARDING', tempToken = null) => {
+  const payload = { phoneNumber, otp, verificationId, purpose };
+  const headers = {};
+  
+  // ✅ FIX 2: Pass tempToken for identity linking
+  if (tempToken) {
+    headers['X-Temp-Token'] = tempToken;
+  }
+  
+  return api.post('/auth/verify-otp', payload, { headers });
+};
 
 export const uploadClinicOwnerDocument = (file, field) => {
   const formData = new FormData();

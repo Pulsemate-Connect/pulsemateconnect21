@@ -45,6 +45,21 @@ const buildFileUrl = (req, file) => {
   return `${origin}/uploads/clinic-owner/${file.filename}`;
 };
 
+/**
+ * Helper: Normalize user data for creation
+ * Ensures roles array and primaryRole are set correctly
+ * Prevents JWT token role mismatch errors
+ */
+const normalizeUserRoleData = (userData) => {
+  const role = userData.role || 'PATIENT';
+  return {
+    ...userData,
+    role,
+    roles: userData.roles || [role],
+    primaryRole: userData.primaryRole || role,
+  };
+};
+
 const baseUserInclude = {
   adminProfile: true,
   doctorProfile: true,
@@ -935,37 +950,109 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
     const rawEmail = req.body.email || req.query.email;
     const email = rawEmail ? rawEmail.toLowerCase() : undefined;
     const otp = req.body.otp || req.query.token;
+    const ownerName = req.body.ownerName;
 
     if (!email || !otp) {
       return sendError(res, 'Email and OTP/token are required', 400);
     }
 
     // ✅ FIX: Check if email is already registered BEFORE verifying OTP
-    const existing = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email },
       select: { 
         id: true, 
+        email: true,
+        name: true,
+        role: true,
         approvalStatus: true,
+        isEmailVerified: true,
         clinicOnboardingData: true 
       },
     });
     
-    if (existing) {
-      // Check if user has a pending application
-      if (existing.approvalStatus === 'PENDING') {
+    if (user) {
+      // Check if user has a pending application with complete onboarding
+      if (user.approvalStatus === 'PENDING' && user.clinicOnboardingData?.onboardingComplete) {
         return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
       }
       
       // Check if user is already verified/approved
-      if (existing.approvalStatus === 'VERIFIED' || existing.approvalStatus === 'APPROVED') {
+      if (user.approvalStatus === 'VERIFIED' || user.approvalStatus === 'APPROVED') {
         return sendError(res, 'A user with this email already exists and is active. Please use login instead.', 409);
       }
       
-      // For other statuses (REJECTED, SUSPENDED, etc.)
-      return sendError(res, 'A user with this email already exists', 409);
+      // ✅ ALLOW: User started registration but didn't complete onboarding
+      // This is an incomplete registration - allow them to continue
+      if (user.approvalStatus === 'PENDING' && !user.clinicOnboardingData?.onboardingComplete) {
+        logger.info(`[EmailVerify] User ${user.id} has incomplete onboarding, allowing continuation`);
+        // Continue to verify OTP and issue tempToken
+      } else if (user.approvalStatus === 'REJECTED') {
+        // Allow rejected users to re-register
+        logger.info(`[EmailVerify] User ${user.id} was rejected, allowing re-registration`);
+      } else {
+        // For other statuses (SUSPENDED, etc.)
+        return sendError(res, 'A user with this email already exists', 409);
+      }
     }
 
+    // Verify the OTP token
     const verified = await verifyEmailVerificationToken(email, otp);
+
+    // ✅ FIX 1: UNIFIED USER CREATION
+    // Create user here if doesn't exist, or update existing incomplete user
+    if (!user) {
+      user = await prisma.user.create({
+        data: normalizeUserRoleData({
+          email: verified.email,
+          name: ownerName || null,
+          role: 'CLINIC_OWNER',
+          approvalStatus: 'PENDING',
+          isEmailVerified: true,
+          authProvider: 'EMAIL_OTP',
+        }),
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          approvalStatus: true,
+          isEmailVerified: true,
+        },
+      });
+      logger.info(`[EmailVerify] ✅ Created new user ${user.id} with email ${user.email}`);
+    } else {
+      // Update existing user to mark email as verified
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isEmailVerified: true,
+          name: ownerName || user.name,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          approvalStatus: true,
+          isEmailVerified: true,
+        },
+      });
+      logger.info(`[EmailVerify] ✅ Updated existing user ${user.id} email verification`);
+    }
+
+    // ✅ FIX 2: IDENTITY LINKING - Generate tempToken for mobile verification
+    const tempToken = jwt.sign(
+      { 
+        userId: user.id, 
+        email: user.email,
+        purpose: 'CLINIC_ONBOARDING',
+        step: 'EMAIL_VERIFIED'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' } // Short-lived: 1 hour
+    );
+
+    logger.info(`[EmailVerify] ✅ Issued tempToken for user ${user.id} for mobile verification`);
 
     return sendSuccess(
       res,
@@ -973,6 +1060,9 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
         email: verified.email,
         ownerEmailVerified: true,
         emailVerifiedAt: verified.verifiedAt || new Date(),
+        // ✅ Return tempToken for mobile verification linking
+        tempToken,
+        userId: user.id,
       },
       'Email verified successfully'
     );
@@ -1428,7 +1518,13 @@ const loginHandler = async (req, res, next) => {
       include: baseUserInclude,
     });
 
-    const tokens = await issueAuthTokens(res, updatedUser, req);
+    // ✅ MULTI-ROLE FIX: Pass activeRole when creating tokens
+    const tokens = await createSessionTokens(updatedUser, updatedUser.role, {
+      ...getSessionMetadata(req),
+      activeRole: updatedUser.role, // Use user's current role as activeRole
+    });
+    setRefreshTokenCookie(res, tokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
+    
     await createAuditLog({
       userId: updatedUser.id,
       action: `LOGIN_${updatedUser.role}`,
@@ -2179,17 +2275,61 @@ const verifyOtpHandler_Legacy = async (req, res, next) => {
         isNewUser = true;
         logger.info(`[Auth] 🧪 TEST MODE: New ${userRole} registered: ${user.id} (${cleanNumber})`);
       } else {
-        // Existing user - update login time
+        // ✅ MULTI-ROLE FIX: TEST MODE - Existing user - add new role if needed
+        const updateData = {
+          isPhoneVerified: true,
+          lastLoginAt: new Date(),
+          authProvider: 'TEST_MODE',
+          ...(name && !user.name ? { name } : {}),
+        };
+        
+        // Check if user needs the requested role added
+        const needsRoleAdded = !user.roles.includes(userRole);
+        
+        if (needsRoleAdded) {
+          // Add new role to roles array
+          updateData.roles = {
+            push: userRole
+          };
+          
+          logger.info(`[Auth] 🧪 TEST MODE: Adding ${userRole} role to existing user ${user.id} (${cleanNumber})`);
+        }
+        
         user = await prisma.user.update({
           where: { id: user.id },
-          data: {
-            isPhoneVerified: true,
-            lastLoginAt: new Date(),
-            authProvider: 'TEST_MODE',
-            ...(name && !user.name ? { name } : {}),
-          },
+          data: updateData,
           include: baseUserInclude,
         });
+        
+        // Create RoleApprovalStatus for new role
+        if (needsRoleAdded) {
+          await prisma.roleApprovalStatus.create({
+            data: {
+              userId: user.id,
+              role: userRole,
+              approvalStatus: userRole === 'PATIENT' ? 'VERIFIED' : 'PENDING',
+              requestedAt: new Date(),
+              approvedAt: userRole === 'PATIENT' ? new Date() : null,
+            }
+          });
+          
+          // If PATIENT role was added, create PatientProfile
+          if (userRole === 'PATIENT') {
+            const existingProfile = await prisma.patientProfile.findUnique({
+              where: { userId: user.id }
+            });
+            
+            if (!existingProfile) {
+              await prisma.patientProfile.create({
+                data: {
+                  userId: user.id,
+                }
+              });
+              logger.info(`[Auth] 🧪 TEST MODE: Created PatientProfile for user ${user.id}`);
+            }
+          }
+        }
+        
         logger.info(`[Auth] 🧪 TEST MODE: ${user.role} login: ${user.id} (${cleanNumber})`);
       }
 
@@ -2334,17 +2474,61 @@ const verifyOtpHandler_Legacy = async (req, res, next) => {
       isNewUser = true;
       logger.info(`[Auth] New ${userRole} registered: ${user.id} (${cleanNumber})`);
     } else {
-      // Existing user - update login time
+      // ✅ MULTI-ROLE FIX: Existing user - add new role if needed
+      const updateData = {
+        isPhoneVerified: true,
+        lastLoginAt: new Date(),
+        authProvider: 'MESSAGE_CENTRAL',
+        ...(name && !user.name ? { name } : {}),
+      };
+      
+      // Check if user needs the requested role added
+      const needsRoleAdded = !user.roles.includes(userRole);
+      
+      if (needsRoleAdded) {
+        // Add new role to roles array
+        updateData.roles = {
+          push: userRole
+        };
+        
+        logger.info(`[Auth] Adding ${userRole} role to existing user ${user.id} (${cleanNumber})`);
+      }
+      
       user = await prisma.user.update({
         where: { id: user.id },
-        data: {
-          isPhoneVerified: true,
-          lastLoginAt: new Date(),
-          authProvider: 'MESSAGE_CENTRAL',
-          ...(name && !user.name ? { name } : {}),
-        },
+        data: updateData,
         include: baseUserInclude,
       });
+      
+      // Create RoleApprovalStatus for new role
+      if (needsRoleAdded) {
+        await prisma.roleApprovalStatus.create({
+          data: {
+            userId: user.id,
+            role: userRole,
+            approvalStatus: userRole === 'PATIENT' ? 'VERIFIED' : 'PENDING',
+            requestedAt: new Date(),
+            approvedAt: userRole === 'PATIENT' ? new Date() : null,
+          }
+        });
+        
+        // If PATIENT role was added, create PatientProfile
+        if (userRole === 'PATIENT') {
+          const existingProfile = await prisma.patientProfile.findUnique({
+            where: { userId: user.id }
+          });
+          
+          if (!existingProfile) {
+            await prisma.patientProfile.create({
+              data: {
+                userId: user.id,
+              }
+            });
+            logger.info(`[Auth] Created PatientProfile for user ${user.id}`);
+          }
+        }
+      }
+      
       logger.info(`[Auth] ${user.role} login: ${user.id} (${cleanNumber})`);
     }
 
@@ -2574,6 +2758,8 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
           mobile: placeholderMobile, // Placeholder mobile (required field)
           name: name,
           role: 'CLINIC_OWNER',
+          roles: ['CLINIC_OWNER'], // ✅ MULTI-ROLE FIX: Set roles array
+          primaryRole: 'CLINIC_OWNER', // ✅ MULTI-ROLE FIX: Set primaryRole
           approvalStatus: 'PENDING', // ✅ FIX: Set to PENDING - must complete onboarding and get admin approval
           isEmailVerified: true,
           authProvider: 'EMAIL_OTP',
@@ -2583,6 +2769,16 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
       });
       isNewUser = true;
       logger.info(`[Auth] New CLINIC_OWNER registered: ${user.id} (${cleanEmail})`);
+      
+      // ✅ MULTI-ROLE FIX: Create RoleApprovalStatus for new CLINIC_OWNER
+      await prisma.roleApprovalStatus.create({
+        data: {
+          userId: user.id,
+          role: 'CLINIC_OWNER',
+          approvalStatus: 'PENDING',
+          requestedAt: new Date(),
+        }
+      });
     } else {
       // Existing user - update email verification
       user = await prisma.user.update({
@@ -2619,8 +2815,12 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
 
     logger.info(`[Auth] hasClinic check: userId=${user.id}, role=${user.role}, isNewUser=${isNewUser}, hasClinic=${hasClinic}`);
 
-    // Issue JWT tokens
-    const tokens = await issueAuthTokens(res, user, req);
+    // Issue JWT tokens with correct activeRole
+    const tokens = await createSessionTokens(user, user.role, {
+      ...getSessionMetadata(req),
+      activeRole: user.role, // ✅ MULTI-ROLE FIX: Set activeRole to user's current role
+    });
+    setRefreshTokenCookie(res, tokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
 
     await createAuditLog({
       userId: user.id,
@@ -2724,16 +2924,19 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
         }
       }
     } else if (purpose === 'LOGIN') {
-      // For login, require that mobile exists
-      if (!existingUser) {
-        return sendError(res, 'Mobile number not registered. Please create an account first.', 404);
+      // ✅ PATIENT OTP FLOW FIX: Allow ALL mobile numbers to receive OTP
+      // Do NOT reject new mobile numbers before OTP verification
+      // The existence check happens AFTER OTP verification, not before
+      // This allows both NEW and EXISTING patients to use the same flow:
+      //   Mobile → OTP → Verify → Backend determines if new or existing
+      
+      if (existingUser) {
+        // Log for existing users (but don't block new ones)
+        logger.info(`[OTP] Sending OTP to existing user ${normalizedPhone} (role: ${existingUser.role}, status: ${existingUser.approvalStatus})`);
+      } else {
+        // Allow new mobile numbers to proceed
+        logger.info(`[OTP] Sending OTP to ${normalizedPhone} (new mobile - existence will be determined after OTP verification)`);
       }
-      
-      // ✅ ARCHITECTURE FIX: Allow authentication regardless of role
-      // Authorization will be checked AFTER authentication succeeds
-      // Do NOT block based on role at authentication stage
-      
-      logger.info(`[OTP] Sending login OTP to existing user ${normalizedPhone} (role: ${existingUser.role}, status: ${existingUser.approvalStatus})`);
     } else if (purpose === 'ONBOARDING') {
       // ✅ FIX: For onboarding, CHECK if user already exists with this mobile
       // Block if another user already has this mobile number
@@ -2853,9 +3056,92 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       
       logger.info(`[OTP] 🧪 TEST MODE: OTP verified successfully for ${mobileNumber}`);
       
-      // ✅ ONBOARDING MODE: Just verify the OTP, don't create user or issue tokens
+      // ✅ FIX 2: IDENTITY LINKING - ONBOARDING MODE with tempToken
       if (purpose === 'ONBOARDING') {
-        logger.info(`[OTP] 🧪 TEST MODE + ONBOARDING: Mobile verified, not creating user`);
+        logger.info(`[OTP] 🧪 TEST MODE + ONBOARDING: Mobile verification with identity linking`);
+        
+        // ✅ Check for tempToken from email verification
+        const tempToken = req.headers['x-temp-token'] || req.body.tempToken;
+        
+        if (tempToken) {
+          // Verify and link to existing user
+          try {
+            const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+            
+            if (decoded.purpose !== 'CLINIC_ONBOARDING') {
+              return sendError(res, 'Invalid token purpose', 400);
+            }
+            
+            logger.info(`[OTP] 🧪 ONBOARDING: Linking mobile to user ${decoded.userId} from tempToken`);
+            
+            // Check if this mobile is already taken by ANOTHER user
+            const existingMobileUser = await prisma.user.findFirst({
+              where: {
+                AND: [
+                  {
+                    OR: [
+                      { mobile: normalizedPhone },
+                      { mobile: mobileNumber },
+                    ]
+                  },
+                  { id: { not: decoded.userId } } // Not the same user
+                ]
+              },
+              select: { id: true, approvalStatus: true, email: true }
+            });
+            
+            if (existingMobileUser) {
+              return sendError(res, 'This mobile number is already registered to another account.', 409);
+            }
+            
+            // Update existing user with mobile number
+            const user = await prisma.user.update({
+              where: { id: decoded.userId },
+              data: {
+                mobile: normalizedPhone,
+                isPhoneVerified: true,
+              },
+              include: baseUserInclude,
+            });
+            
+            logger.info(`[OTP] 🧪 ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
+            
+            // Issue auth tokens for onboarding continuation
+            const tokens = await issueAuthTokens(res, user, req);
+            
+            await createAuditLog({
+              userId: user.id,
+              action: 'CLINIC_OWNER_MOBILE_LINKED',
+              entityType: 'User',
+              entityId: user.id,
+              ipAddress: req.ip,
+              details: { mobile: normalizedPhone, linkedViaEmail: user.email },
+            });
+            
+            return sendSuccess(
+              res,
+              {
+                verified: true,
+                mobileNumber: normalizedPhone,
+                verificationStatus: 'VERIFICATION_COMPLETED',
+                identityLinked: true,
+                _testMode: true,
+                _onboardingMode: true,
+                // Return tokens for onboarding
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                user: toAuthUser(user),
+              },
+              'Mobile number verified and linked successfully'
+            );
+          } catch (jwtError) {
+            logger.error('[OTP] 🧪 ONBOARDING: Invalid tempToken:', jwtError.message);
+            return sendError(res, 'Invalid or expired verification token. Please restart registration.', 400);
+          }
+        }
+        
+        // ✅ NO tempToken: Mobile-first registration (user didn't verify email first)
+        logger.info(`[OTP] 🧪 ONBOARDING: No tempToken - mobile-first registration`);
         
         // Check if another user already has this mobile
         const existingUser = await prisma.user.findFirst({
@@ -2865,10 +3151,41 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
               { mobile: mobileNumber },
             ]
           },
-          select: { id: true, approvalStatus: true }
+          select: { id: true, approvalStatus: true, clinicOnboardingData: true }
         });
         
         if (existingUser) {
+          // Allow incomplete registrations to continue
+          if (existingUser.approvalStatus === 'PENDING' && !existingUser.clinicOnboardingData?.onboardingComplete) {
+            logger.info(`[OTP] 🧪 ONBOARDING: User ${existingUser.id} has incomplete registration, allowing continuation`);
+            
+            // Update and issue tokens
+            const user = await prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                isPhoneVerified: true,
+              },
+              include: baseUserInclude,
+            });
+            
+            const tokens = await issueAuthTokens(res, user, req);
+            
+            return sendSuccess(
+              res,
+              {
+                verified: true,
+                mobileNumber: normalizedPhone,
+                verificationStatus: 'VERIFICATION_COMPLETED',
+                _testMode: true,
+                _onboardingMode: true,
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                user: toAuthUser(user),
+              },
+              'Mobile number verified successfully'
+            );
+          }
+          
           if (existingUser.approvalStatus === 'PENDING') {
             return sendError(res, 'An application with this mobile number is already pending review.', 409);
           } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
@@ -2878,6 +3195,30 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
           }
         }
         
+        // Create new user (mobile-first flow without email)
+        const user = await prisma.user.create({
+          data: {
+            mobile: normalizedPhone,
+            role: 'CLINIC_OWNER',
+            isPhoneVerified: true,
+            approvalStatus: 'PENDING',
+            authProvider: 'OTP_ONBOARDING',
+          },
+          include: baseUserInclude,
+        });
+        
+        logger.info(`[OTP] 🧪 ✅ Created new user ${user.id} via mobile-first onboarding`);
+        
+        const tokens = await issueAuthTokens(res, user, req);
+        
+        await createAuditLog({
+          userId: user.id,
+          action: 'CLINIC_OWNER_REGISTER_MOBILE_FIRST',
+          entityType: 'User',
+          entityId: user.id,
+          ipAddress: req.ip,
+        });
+        
         return sendSuccess(
           res,
           {
@@ -2886,6 +3227,9 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
             verificationStatus: 'VERIFICATION_COMPLETED',
             _testMode: true,
             _onboardingMode: true,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: toAuthUser(user),
           },
           'Mobile number verified successfully'
         );
@@ -2934,9 +3278,10 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
           // ✅ Issue login tokens for existing user
           const tokens = await issueAuthTokens(res, user, req);
           
+          // ✅ PATIENT OTP FLOW FIX: Use dynamic audit log action based on user's actual role
           await createAuditLog({
             userId: user.id,
-            action: 'CLINIC_OWNER_LOGIN_MOBILE_OTP',
+            action: `${user.role}_LOGIN_MOBILE_OTP`, // ✅ Dynamic: PATIENT_LOGIN_MOBILE_OTP or CLINIC_OWNER_LOGIN_MOBILE_OTP
             entityType: 'User',
             entityId: user.id,
             ipAddress: req.ip,
@@ -2957,26 +3302,29 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
             'Login successful'
           );
         } else {
-          // User doesn't exist - create minimal user record for verification persistence
-          logger.info(`[OTP] 🧪 TEST MODE: Creating new user record for ${mobileNumber}`);
+          // ✅ PATIENT OTP FLOW FIX: Create NEW PATIENT (not CLINIC_OWNER) - Test Mode
+          logger.info(`[OTP] 🧪 TEST MODE: Creating new PATIENT record for ${mobileNumber}`);
           user = await prisma.user.create({
             data: {
               mobile: mobileNumber,
-              role: 'CLINIC_OWNER', // Default role for clinic onboarding
+              role: 'PATIENT', // ✅ Create PATIENT role for patient OTP flow
               isPhoneVerified: true,
-              approvalStatus: 'PENDING',
+              approvalStatus: 'VERIFIED', // ✅ Patients are auto-approved
               authProvider: 'TEST_OTP',
+              patientProfile: {
+                create: {} // ✅ Create associated PatientProfile
+              }
             },
             include: baseUserInclude,
           });
-          logger.info(`[OTP] 🧪 TEST MODE: ✅ Created user ${user.id} with verified phone in database`);
+          logger.info(`[OTP] 🧪 TEST MODE: ✅ Created PATIENT user ${user.id} with verified phone in database`);
           
           // ✅ Issue login tokens for new user
           const tokens = await issueAuthTokens(res, user, req);
           
           await createAuditLog({
             userId: user.id,
-            action: 'CLINIC_OWNER_REGISTER_MOBILE_OTP',
+            action: 'PATIENT_REGISTER_MOBILE_OTP_TEST', // ✅ Changed from CLINIC_OWNER to PATIENT
             entityType: 'User',
             entityId: user.id,
             ipAddress: req.ip,
@@ -3028,51 +3376,177 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
     
     logger.info('[OTP] OTP verified successfully:', result);
     
-    // ✅ ONBOARDING MODE: Verify OTP and create/get consistent user
+    // ✅ FIX 2: IDENTITY LINKING - ONBOARDING MODE (Production)
     if (purpose === 'ONBOARDING') {
-      logger.info(`[OTP] ONBOARDING mode: Mobile verified via Message Central`);
+      logger.info(`[OTP] PRODUCTION + ONBOARDING: Mobile verification with identity linking`);
       
-      const clinicOnboardingService = require('../services/clinicOnboarding.service');
+      // ✅ Check for tempToken from email verification
+      const tempToken = req.headers['x-temp-token'] || req.body.tempToken;
       
-      // Normalize mobile for database (remove +91 prefix)
-      const dbMobile = normalizedPhone.replace(/^\+91/, '');
-      
-      // Get or create clinic owner user - ensures single user per mobile
-      const user = await clinicOnboardingService.getOrCreateClinicOwner(dbMobile);
-      
-      // Check if they can continue (not VERIFIED/APPROVED already)
-      if (user.approvalStatus === 'VERIFIED' || user.approvalStatus === 'APPROVED') {
-        return sendError(res, 'This mobile number is already registered to an approved account. Please use login instead.', 409);
+      if (tempToken) {
+        // Verify and link to existing user
+        try {
+          const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+          
+          if (decoded.purpose !== 'CLINIC_ONBOARDING') {
+            return sendError(res, 'Invalid token purpose', 400);
+          }
+          
+          logger.info(`[OTP] PRODUCTION ONBOARDING: Linking mobile to user ${decoded.userId} from tempToken`);
+          
+          // Check if this mobile is already taken by ANOTHER user
+          const existingMobileUser = await prisma.user.findFirst({
+            where: {
+              AND: [
+                {
+                  OR: [
+                    { mobile: normalizedPhone },
+                    { mobile: normalizedPhone.replace(/^\+91/, '') },
+                  ]
+                },
+                { id: { not: decoded.userId } } // Not the same user
+              ]
+            },
+            select: { id: true, approvalStatus: true, email: true }
+          });
+          
+          if (existingMobileUser) {
+            return sendError(res, 'This mobile number is already registered to another account.', 409);
+          }
+          
+          // Update existing user with mobile number
+          const user = await prisma.user.update({
+            where: { id: decoded.userId },
+            data: {
+              mobile: normalizedPhone,
+              isPhoneVerified: true,
+            },
+            include: baseUserInclude,
+          });
+          
+          logger.info(`[OTP] PRODUCTION ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
+          
+          // Issue auth tokens for onboarding continuation
+          const tokens = await issueAuthTokens(res, user, req);
+          
+          await createAuditLog({
+            userId: user.id,
+            action: 'CLINIC_OWNER_MOBILE_LINKED',
+            entityType: 'User',
+            entityId: user.id,
+            ipAddress: req.ip,
+            details: { mobile: normalizedPhone, linkedViaEmail: user.email },
+          });
+          
+          return sendSuccess(
+            res,
+            {
+              verified: true,
+              mobileNumber: normalizedPhone,
+              verificationStatus: 'VERIFICATION_COMPLETED',
+              identityLinked: true,
+              _onboardingMode: true,
+              // Return tokens for onboarding
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              user: toAuthUser(user),
+            },
+            'Mobile number verified and linked successfully'
+          );
+        } catch (jwtError) {
+          logger.error('[OTP] PRODUCTION ONBOARDING: Invalid tempToken:', jwtError.message);
+          return sendError(res, 'Invalid or expired verification token. Please restart registration.', 400);
+        }
       }
       
-      if (user.approvalStatus === 'REJECTED') {
-        return sendError(res, 'Your previous application was rejected. Please contact support.', 403);
+      // ✅ NO tempToken: Mobile-first registration (user didn't verify email first)
+      logger.info(`[OTP] PRODUCTION ONBOARDING: No tempToken - mobile-first registration`);
+      
+      // Check if another user already has this mobile
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { mobile: normalizedPhone },
+            { mobile: normalizedPhone.replace(/^\+91/, '') },
+          ]
+        },
+        select: { id: true, approvalStatus: true, clinicOnboardingData: true }
+      });
+      
+      if (existingUser) {
+        // Allow incomplete registrations to continue
+        if (existingUser.approvalStatus === 'PENDING' && !existingUser.clinicOnboardingData?.onboardingComplete) {
+          logger.info(`[OTP] PRODUCTION ONBOARDING: User ${existingUser.id} has incomplete registration, allowing continuation`);
+          
+          // Update and issue tokens
+          const user = await prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+              isPhoneVerified: true,
+            },
+            include: baseUserInclude,
+          });
+          
+          const tokens = await issueAuthTokens(res, user, req);
+          
+          return sendSuccess(
+            res,
+            {
+              verified: true,
+              mobileNumber: normalizedPhone,
+              verificationStatus: 'VERIFICATION_COMPLETED',
+              _onboardingMode: true,
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              user: toAuthUser(user),
+            },
+            'Mobile number verified successfully'
+          );
+        }
+        
+        if (existingUser.approvalStatus === 'PENDING') {
+          return sendError(res, 'An application with this mobile number is already pending review.', 409);
+        } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
+          return sendError(res, 'This mobile number is already registered to another account.', 409);
+        } else {
+          return sendError(res, 'A user with this mobile number already exists.', 409);
+        }
       }
       
-      if (user.approvalStatus === 'SUSPENDED') {
-        return sendError(res, 'Your account is suspended. Please contact support.', 403);
-      }
+      // Create new user (mobile-first flow without email)
+      const user = await prisma.user.create({
+        data: {
+          mobile: normalizedPhone,
+          role: 'CLINIC_OWNER',
+          isPhoneVerified: true,
+          approvalStatus: 'PENDING',
+          authProvider: 'OTP_ONBOARDING',
+        },
+        include: baseUserInclude,
+      });
       
-      logger.info(`[OTP] ONBOARDING: User ${user.id} ready for registration (status: ${user.approvalStatus})`);
+      logger.info(`[OTP] PRODUCTION ✅ Created new user ${user.id} via mobile-first onboarding`);
       
-      // Return user data for authentication
+      const tokens = await issueAuthTokens(res, user, req);
+      
+      await createAuditLog({
+        userId: user.id,
+        action: 'CLINIC_OWNER_REGISTER_MOBILE_FIRST',
+        entityType: 'User',
+        entityId: user.id,
+        ipAddress: req.ip,
+      });
+      
       return sendSuccess(
         res,
         {
           verified: true,
-          mobileNumber: result.mobileNumber,
-          verificationStatus: result.verificationStatus,
-          user: {
-            id: user.id,
-            mobile: user.mobile,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            approvalStatus: user.approvalStatus,
-            isPhoneVerified: user.isPhoneVerified,
-            isEmailVerified: user.isEmailVerified,
-          },
+          mobileNumber: normalizedPhone,
+          verificationStatus: 'VERIFICATION_COMPLETED',
           _onboardingMode: true,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          user: toAuthUser(user),
         },
         'Mobile number verified successfully'
       );
@@ -3124,9 +3598,10 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
         // ✅ Issue login tokens for existing user
         const tokens = await issueAuthTokens(res, user, req);
         
+        // ✅ PATIENT OTP FLOW FIX: Use dynamic audit log action based on user's actual role
         await createAuditLog({
           userId: user.id,
-          action: 'CLINIC_OWNER_LOGIN_MOBILE_OTP',
+          action: `${user.role}_LOGIN_MOBILE_OTP`, // ✅ Dynamic: PATIENT_LOGIN_MOBILE_OTP or CLINIC_OWNER_LOGIN_MOBILE_OTP
           entityType: 'User',
           entityId: user.id,
           ipAddress: req.ip,
@@ -3146,26 +3621,30 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
           'Login successful'
         );
       } else {
-        // User doesn't exist - create minimal user record for verification persistence
-        logger.info(`[OTP] Creating new user record for ${dbMobile}`);
+        // ✅ PATIENT OTP FLOW FIX: Create NEW PATIENT (not CLINIC_OWNER)
+        // New mobile number = New patient account
+        logger.info(`[OTP] Creating new PATIENT record for ${dbMobile}`);
         user = await prisma.user.create({
           data: {
             mobile: dbMobile,
-            role: 'CLINIC_OWNER', // Default role for clinic onboarding
+            role: 'PATIENT', // ✅ Create PATIENT role for patient OTP flow
             isPhoneVerified: true,
-            approvalStatus: 'PENDING',
+            approvalStatus: 'VERIFIED', // ✅ Patients are auto-approved
             authProvider: 'MESSAGE_CENTRAL_OTP',
+            patientProfile: {
+              create: {} // ✅ Create associated PatientProfile
+            }
           },
           include: baseUserInclude,
         });
-        logger.info(`[OTP] ✅ Created user ${user.id} with verified phone in database`);
+        logger.info(`[OTP] ✅ Created new PATIENT user ${user.id} with verified phone in database`);
         
         // ✅ Issue login tokens for new user
         const tokens = await issueAuthTokens(res, user, req);
         
         await createAuditLog({
           userId: user.id,
-          action: 'CLINIC_OWNER_REGISTER_MOBILE_OTP',
+          action: 'PATIENT_REGISTER_MOBILE_OTP', // ✅ Changed from CLINIC_OWNER to PATIENT
           entityType: 'User',
           entityId: user.id,
           ipAddress: req.ip,
@@ -3641,7 +4120,9 @@ const doctorSendEmailOtpLogin = async (req, res, next) => {
     }
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const testEmails = (process.env.TEST_OTP_EMAILS || '').split(',').map(e => e.trim());
+    const isTestEmail = process.env.ENABLE_TEST_OTP === 'true' && testEmails.includes(normalizedEmail);
+    const otp = isTestEmail ? (process.env.TEST_OTP_CODE || '123456') : Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Hash OTP before storing
@@ -3659,9 +4140,7 @@ const doctorSendEmailOtpLogin = async (req, res, next) => {
     });
 
     // Send OTP via email
-    const testEmails = (process.env.TEST_OTP_EMAILS || '').split(',');
-    
-    if (process.env.ENABLE_TEST_OTP === 'true' && testEmails.includes(normalizedEmail)) {
+    if (isTestEmail) {
       // Test email - just log OTP
       logger.info(`[DoctorLogin] 🧪 TEST MODE - OTP for ${normalizedEmail}: ${otp}`);
       console.log(`\n═══════════════════════════════════════`);

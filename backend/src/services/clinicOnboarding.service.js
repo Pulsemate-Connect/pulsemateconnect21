@@ -204,7 +204,16 @@ async function saveStep1(userId, clinicInfoData) {
   
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true, clinicOnboardingData: true },
+    select: { 
+      id: true, 
+      email: true,
+      mobile: true,
+      name: true,
+      role: true, 
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      clinicOnboardingData: true 
+    },
   });
 
   if (!user) {
@@ -215,12 +224,43 @@ async function saveStep1(userId, clinicInfoData) {
     throw new Error('User is not a clinic owner');
   }
 
+  // ✅ FIX 4: VERIFIED IDENTITY PROTECTION
+  // Don't allow form data to overwrite verified email/mobile
+  if (user.email && clinicInfoData.ownerEmail) {
+    const normalizedFormEmail = clinicInfoData.ownerEmail.toLowerCase();
+    const normalizedUserEmail = user.email.toLowerCase();
+    
+    if (normalizedFormEmail !== normalizedUserEmail) {
+      logger.error(`[ClinicOnboarding] Email mismatch! Verified: ${user.email}, Form: ${clinicInfoData.ownerEmail}`);
+      throw new Error(`Email mismatch: Your verified email is ${user.email}. You cannot change it to ${clinicInfoData.ownerEmail}.`);
+    }
+  }
+  
+  if (user.mobile && clinicInfoData.ownerMobile) {
+    // Normalize both for comparison (handle +91 prefix variations)
+    const normalizePhone = (phone) => {
+      if (!phone) return '';
+      return phone.replace(/^\+91/, '').replace(/\s+/g, '');
+    };
+    
+    const normalizedFormMobile = normalizePhone(clinicInfoData.ownerMobile);
+    const normalizedUserMobile = normalizePhone(user.mobile);
+    
+    if (normalizedFormMobile !== normalizedUserMobile) {
+      logger.error(`[ClinicOnboarding] Mobile mismatch! Verified: ${user.mobile}, Form: ${clinicInfoData.ownerMobile}`);
+      throw new Error(`Mobile mismatch: Your verified mobile is ${user.mobile}. You cannot change it to ${clinicInfoData.ownerMobile}.`);
+    }
+  }
+
   const onboardingData = user.clinicOnboardingData || {};
   
   const updatedData = {
     ...onboardingData,
     clinicInformation: {
       ...clinicInfoData,
+      // ✅ Use verified email/mobile, not form data
+      ownerEmail: user.email || clinicInfoData.ownerEmail,
+      ownerMobile: user.mobile || clinicInfoData.ownerMobile,
       completedAt: new Date().toISOString(),
     },
     currentStep: 2,
@@ -236,7 +276,9 @@ async function saveStep1(userId, clinicInfoData) {
     where: { id: userId },
     data: {
       name: clinicInfoData.ownerName || user.name,
-      email: clinicInfoData.ownerEmail || user.email,
+      // ✅ PROTECTION: Only update if user doesn't have verified email/mobile
+      email: user.email || clinicInfoData.ownerEmail,
+      mobile: user.mobile || clinicInfoData.ownerMobile,
       clinicOnboardingData: updatedData,
     },
   });

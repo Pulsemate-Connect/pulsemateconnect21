@@ -145,9 +145,12 @@ const DashboardLayout = ({ children }) => {
     : (NAV_ITEMS[user?.role] || []);
 
   if (user?.role === 'SUPER_ADMIN') {
-    if (user?.adminLevel === 'FINANCE') {
+    // ✅ FIX: Use adminLevel from user object (sent by backend) or fallback to adminProfile.level
+    const adminLevel = user?.adminLevel || user?.adminProfile?.level;
+    
+    if (adminLevel === 'FINANCE') {
       navItems = navItems.filter((item) => ['/admin/dashboard', '/admin/users'].includes(item.path));
-    } else if (user?.adminLevel === 'SUPPORT') {
+    } else if (adminLevel === 'SUPPORT') {
       navItems = navItems.filter((item) => ['/admin/dashboard', '/admin/clinics/verify', '/admin/doctors', '/admin/users', '/admin/notifications'].includes(item.path));
     }
   }

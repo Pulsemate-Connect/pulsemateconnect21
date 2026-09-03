@@ -1,6 +1,10 @@
 /**
- * Create Admin Accounts Directly in Database
- * Run: node create-admins-direct.js
+ * ⚠️ DEPRECATED - Use setup-admins.js instead
+ * 
+ * This script has been deprecated due to hardcoded credentials.
+ * Use the secure setup-admins.js script which reads credentials from environment variables.
+ * 
+ * Run: node backend/setup-admins.js
  */
 
 const { PrismaClient } = require('@prisma/client');
@@ -8,25 +12,41 @@ const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
+// ⚠️ SECURITY: Credentials should NEVER be hardcoded
+// Use environment variables instead
 const admins = [
   {
-    name: 'Shubham',
-    email: 'shubham27052002@gmail.com',
-    mobile: '+919999999001',
-    password: 'Shubham27*',
+    name: process.env.ADMIN_1_NAME || 'Admin User 1',
+    email: process.env.ADMIN_1_EMAIL,
+    mobile: process.env.ADMIN_1_MOBILE || '+919999999001',
+    password: process.env.ADMIN_1_PASSWORD,
   },
   {
-    name: 'Sahil Naik',
-    email: 'sahilnaik1515@gmail.com',
-    mobile: '+919999999002',
-    password: 'Nkabu18$',
+    name: process.env.ADMIN_2_NAME || 'Admin User 2',
+    email: process.env.ADMIN_2_EMAIL,
+    mobile: process.env.ADMIN_2_MOBILE || '+919999999002',
+    password: process.env.ADMIN_2_PASSWORD,
   },
-];
+].filter(admin => admin.email && admin.password); // Only process admins with email and password set
 
 async function createAdmins() {
   console.log('\n════════════════════════════════════════════════════');
-  console.log('  Creating Admin Accounts');
+  console.log('  ⚠️  DEPRECATED SCRIPT - Use setup-admins.js instead');
   console.log('════════════════════════════════════════════════════\n');
+  
+  if (admins.length === 0) {
+    console.error('❌ No admin credentials found in environment variables.');
+    console.error('\nRequired environment variables:');
+    console.error('  - ADMIN_1_EMAIL');
+    console.error('  - ADMIN_1_PASSWORD');
+    console.error('  - ADMIN_2_EMAIL (optional)');
+    console.error('  - ADMIN_2_PASSWORD (optional)\n');
+    console.error('Please use the secure setup-admins.js script instead.\n');
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  console.log('Creating Admin Accounts\n');
 
   for (const admin of admins) {
     try {

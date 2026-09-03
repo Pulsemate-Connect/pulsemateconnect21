@@ -108,15 +108,24 @@ const AdminDashboard = () => {
   const logout = useAuthStore((state) => state.logout);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ SECURITY FIX: Only show reset in development
+  const isDevelopment = import.meta.env.MODE === 'development' || 
+                        import.meta.env.DEV === true ||
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+  
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  const isRoot = currentUser?.adminLevel === 'ROOT' || currentUser?.adminProfile?.level === 'ROOT';
-  const canApprove = ['ROOT', 'SUPER_ADMIN', 'SUPPORT'].includes(currentUser?.adminLevel || currentUser?.adminProfile?.level);
+  // ✅ CORRECT: adminLevel sent by backend as top-level property, with fallback to nested adminProfile.level
+  const currentAdminLevel = currentUser?.adminLevel || currentUser?.adminProfile?.level;
+  const isRoot = currentAdminLevel === 'ROOT';
+  const canApprove = ['ROOT', 'SUPER_ADMIN', 'SUPPORT'].includes(currentAdminLevel);
 
   useEffect(() => {
     console.log('[AdminDashboard] Current user:', currentUser);
-    console.log('[AdminDashboard] Admin level:', currentUser?.adminLevel || currentUser?.adminProfile?.level);
+    console.log('[AdminDashboard] Admin level:', currentAdminLevel);
     
     getAdminDashboard()
       .then((r) => {
@@ -307,8 +316,8 @@ const AdminDashboard = () => {
           {canApprove && <ActionCard to="/admin/notifications" emoji="🔔" bg="bg-purple-50" title="Notification Campaigns" desc="Create, send, and manage user campaigns" />}
         </div>
 
-        {/* ── Root Only: Reset Database ─────────────────────────────── */}
-        {isRoot && (
+        {/* ── Root Only: Reset Database (Development Only) ────────────── */}
+        {isRoot && isDevelopment && (
           <div className="rounded-2xl border border-red-100 bg-red-50/60 p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-4">
@@ -316,12 +325,14 @@ const AdminDashboard = () => {
                   <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                 </div>
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-widest text-red-500">Root Admin Only</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-red-500">Development Only</span>
                   <h2 className="text-base font-bold text-red-900 mt-0.5">Reset Database</h2>
                   <p className="mt-1 text-sm text-red-700/80 leading-relaxed max-w-xl">
                     Permanently deletes all clinics, users, appointments, queues, payments, sessions, and logs. A fresh root admin is recreated.
+                    <strong className="block mt-1 text-red-800">⚠️ This feature is hidden in production.</strong>
                   </p>
                 </div>
+
               </div>
               <button type="button" onClick={() => setResetOpen(true)}
                 className="inline-flex items-center gap-2 justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-all shadow-sm whitespace-nowrap flex-shrink-0">
@@ -332,16 +343,16 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Reset Modal */}
-        {isRoot && (
+        {/* Reset Modal (Development Only) */}
+        {isRoot && isDevelopment && (
           <Modal isOpen={resetOpen} onClose={() => !resetting && setResetOpen(false)} title="Reset database" size="md">
             <div className="space-y-4">
               <p className="text-sm leading-6 text-slate-600">
-                This permanently clears all data and recreates only the root admin account.
+                This permanently clears all data and recreates the root admin account.
               </p>
-              <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                <p>Email: <span className="font-semibold text-slate-900">sahilnaik1515@gmail.com</span></p>
-                <p className="mt-1">Password: <span className="font-semibold text-slate-900">Nkabu18$</span></p>
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                <p className="font-semibold">⚠️ Warning</p>
+                <p className="mt-1">After reset, you will need to log in using your admin credentials. Contact your system administrator if you need password recovery assistance.</p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setResetOpen(false)} disabled={resetting}

@@ -10,18 +10,28 @@ const AdminLoginPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { setAuth, clearAuth, user } = useAuthStore();
-  const resetCredentials = location.state?.resetCredentials;
   const [form, setForm] = useState({
-    identifier: resetCredentials?.email || '',
-    password: resetCredentials?.password || '',
+    identifier: '',
+    password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Clear any existing non-admin auth on mount
   useEffect(() => {
+    // Always clear auth on admin login page to prevent token conflicts
+    // This ensures no PATIENT/DOCTOR/CLINIC_OWNER tokens interfere with admin login
     if (user && user.role !== 'SUPER_ADMIN') {
+      console.log('[AdminLogin] Clearing non-admin auth:', user.role);
       clearAuth();
+      
+      // Force clear localStorage to prevent Zustand rehydration issues
+      try {
+        localStorage.removeItem('pulsemate-auth-storage');
+        localStorage.removeItem('pulsemate-auth');
+      } catch (e) {
+        console.error('[AdminLogin] Failed to clear localStorage:', e);
+      }
     }
   }, []);
 
@@ -95,11 +105,6 @@ const AdminLoginPage = () => {
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 Restricted access for authorized PulseMate administrators.
               </p>
-              {resetCredentials ? (
-                <p className="mt-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                  Database reset complete. Sign back in with the recreated admin account.
-                </p>
-              ) : null}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

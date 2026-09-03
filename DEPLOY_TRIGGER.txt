@@ -1,7 +1,0 @@
-This file exists to trigger Render deployment.
-Timestamp: 2026-08-20 14:30:00
-
-Every time this file is updated and pushed to GitHub,
-Render should automatically redeploy if auto-deploy is enabled.
-
-Last deploy trigger: NOW

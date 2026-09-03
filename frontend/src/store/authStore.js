@@ -24,6 +24,33 @@ const useAuthStore = create(
 
       setAuth: (user, accessToken) => {
         console.log('[AuthStore] setAuth called:', { user: user?.id, role: user?.role, accessToken: accessToken?.substring(0, 20) + '...' });
+        
+        // Validate token matches user role (prevent role mismatches)
+        try {
+          const [, payloadB64] = accessToken.split('.');
+          const payload = JSON.parse(atob(payloadB64));
+          
+          if (payload.role !== user.role) {
+            console.error('[AuthStore] Token/user role mismatch!', {
+              tokenRole: payload.role,
+              userRole: user.role,
+              userId: user.id
+            });
+            console.warn('[AuthStore] ⚠️  You may have an old cached token. Clear browser storage and log in again.');
+            // Don't set auth if roles don't match - user needs fresh token
+            return;
+          }
+          
+          // Check if token is expired
+          if (payload.exp && payload.exp * 1000 < Date.now()) {
+            console.error('[AuthStore] Cannot set expired token');
+            return;
+          }
+        } catch (e) {
+          console.error('[AuthStore] Failed to validate token:', e);
+          // Continue anyway - validation is best-effort
+        }
+        
         set({
           user: normalizeUser(user),
           accessToken,
@@ -170,6 +197,47 @@ const useAuthStore = create(
             hasToken: !!state.accessToken,
             isAuthenticated: state.isAuthenticated 
           });
+          
+          // Validate rehydrated token
+          if (state.accessToken && state.user) {
+            try {
+              const [, payloadB64] = state.accessToken.split('.');
+              const payload = JSON.parse(atob(payloadB64));
+              
+              // Check if token is expired
+              if (payload.exp && payload.exp * 1000 < Date.now()) {
+                console.warn('[AuthStore] Rehydrated token is expired, clearing auth');
+                state.user = null;
+                state.accessToken = null;
+                state.isAuthenticated = false;
+                return;
+              }
+              
+              // Check if token role matches user role
+              if (payload.role !== state.user.role) {
+                console.error('[AuthStore] Rehydrated token/user role mismatch!', {
+                  tokenRole: payload.role,
+                  userRole: state.user.role,
+                  userId: state.user.id,
+                  tokenUserId: payload.sub
+                });
+                console.warn('[AuthStore] Clearing invalid auth state');
+                state.user = null;
+                state.accessToken = null;
+                state.isAuthenticated = false;
+                return;
+              }
+              
+              console.log('[AuthStore] Rehydrated token validated successfully');
+            } catch (e) {
+              console.error('[AuthStore] Failed to validate rehydrated token:', e);
+              // Clear potentially corrupt data
+              state.user = null;
+              state.accessToken = null;
+              state.isAuthenticated = false;
+              return;
+            }
+          }
           
           // Set both flags to prevent race conditions
           state._hasHydrated = true;

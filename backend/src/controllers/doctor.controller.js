@@ -109,11 +109,26 @@ const acceptInvitation = async (req, res, next) => {
         // Link existing user to invitation
         userId = existingUser.id;
         
-        // Update user role to DOCTOR if not already
-        if (existingUser.role !== 'DOCTOR') {
+        // ✅ MULTI-ROLE FIX: Add DOCTOR role instead of overwriting
+        if (!existingUser.roles.includes('DOCTOR')) {
           await prisma.user.update({
             where: { id: existingUser.id },
-            data: { role: 'DOCTOR' },
+            data: {
+              roles: {
+                push: 'DOCTOR' // Append DOCTOR to roles array
+              },
+              // Keep primaryRole as is (don't change it to DOCTOR unless user switches)
+            },
+          });
+          
+          // Create RoleApprovalStatus for DOCTOR role
+          await prisma.roleApprovalStatus.create({
+            data: {
+              userId: existingUser.id,
+              role: 'DOCTOR',
+              approvalStatus: 'PENDING',
+              requestedAt: new Date(),
+            }
           });
         }
       } else {
