@@ -1,268 +1,672 @@
+#!/usr/bin/env node
 /**
- * Create Complete Test Clinic with Verified Email and Mobile
- * This creates a clinic ready for admin verification
+ * Create Complete Test Clinic Setup
+ * 
+ * Creates:
+ * - 1 Clinic Owner
+ * - 1 Clinic (verified)
+ * - 2 Doctors with profiles
+ * - 1 Receptionist
+ * - Clinic Sessions (Morning & Evening)
+ * - Doctor Availability (9 AM - 10 PM)
  */
 
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
-const testClinicData = {
-  // Owner details
-  owner: {
-    name: 'Test Clinic Owner',
-    email: 'testclinic@gmail.com',
-    mobile: '+919876543210',
-    password: process.env.TEST_CLINIC_PASSWORD || 'TestClinic@123',
-  },
-  
-  // Clinic details
-  clinic: {
-    name: 'Test Medical Clinic',
-    phone: '+919876543211',
-    address: '123 Test Street, Medical District',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    district: 'Bangalore Urban',
-    pincode: '560001',
-    landmark: 'Near Test Hospital',
-    clinicType: 'GENERAL_CLINIC',
-    description: 'A test clinic for verification purposes',
-    
-    // License and documents
-    clinicRegistrationNumber: 'TEST-REG-2024-001',
-    licenseDocumentUrl: 'https://example.com/test-license.pdf',
-    
-    // Opening hours
-    openingTime: '09:00',
-    closingTime: '18:00',
-    
-    // Additional info
-    specialties: ['General Medicine', 'Pediatrics'],
-    facilities: ['Consultation Room', 'Pharmacy'],
-    languagesSpoken: ['English', 'Hindi', 'Kannada'],
-    consultationModes: ['OFFLINE', 'ONLINE'],
-    paymentMethods: ['CASH', 'UPI', 'CARD'],
-  }
-};
-
-async function createTestClinic() {
-  console.log('\n════════════════════════════════════════════════════');
-  console.log('  Creating Test Clinic for Admin Verification');
-  console.log('════════════════════════════════════════════════════\n');
+async function createCompleteClinic() {
+  console.log('🏥 Creating Complete Test Clinic Setup\n');
+  console.log('='.repeat(70));
 
   try {
-    // Step 1: Create or update user
-    console.log('Step 1: Creating clinic owner account...');
-    const passwordHash = await bcrypt.hash(testClinicData.owner.password, 10);
+    // ============================================================
+    // 1. CREATE CLINIC OWNER
+    // ============================================================
+    console.log('\n👤 STEP 1: Creating Clinic Owner...\n');
+
+    const ownerPassword = await bcrypt.hash('Owner123!', 12);
     
-    const user = await prisma.user.upsert({
-      where: { email: testClinicData.owner.email },
+    const clinicOwner = await prisma.user.upsert({
+      where: { email: 'clinic.owner@test.com' },
       update: {
-        name: testClinicData.owner.name,
-        mobile: testClinicData.owner.mobile,
-        passwordHash,
+        name: 'Dr. Rajesh Kumar',
+        mobile: '9876543210',
+        passwordHash: ownerPassword,
         role: 'CLINIC_OWNER',
-        approvalStatus: 'PENDING', // Will be VERIFIED after admin approval
-        authProvider: 'EMAIL_PASSWORD',
+        roles: ['CLINIC_OWNER'],
+        primaryRole: 'CLINIC_OWNER',
         isActive: true,
-        isEmailVerified: true, // ✅ Email verified via OTP
-        isPhoneVerified: true, // ✅ Mobile verified via OTP
-      },
-      create: {
-        name: testClinicData.owner.name,
-        email: testClinicData.owner.email,
-        mobile: testClinicData.owner.mobile,
-        passwordHash,
-        role: 'CLINIC_OWNER',
-        approvalStatus: 'PENDING',
-        authProvider: 'EMAIL_PASSWORD',
-        isActive: true,
+        approvalStatus: 'VERIFIED',
         isEmailVerified: true,
         isPhoneVerified: true,
-      },
-    });
-
-    console.log(`  ✓ User created: ${user.id}`);
-    console.log(`  ✓ Email: ${user.email}`);
-    console.log(`  ✓ Mobile: ${user.mobile}`);
-    console.log(`  ✓ Email Verified: ${user.isEmailVerified}`);
-    console.log(`  ✓ Phone Verified: ${user.isPhoneVerified}\n`);
-
-    // Step 2: Create clinic owner profile
-    console.log('Step 2: Creating clinic owner profile...');
-    
-    const ownerProfile = await prisma.clinicOwnerProfile.upsert({
-      where: { userId: user.id },
-      update: {
-        profileCompleted: true,
+        authProvider: 'EMAIL_PASSWORD',
       },
       create: {
-        userId: user.id,
-        profileCompleted: true,
+        name: 'Dr. Rajesh Kumar',
+        email: 'clinic.owner@test.com',
+        mobile: '9876543210',
+        passwordHash: ownerPassword,
+        role: 'CLINIC_OWNER',
+        roles: ['CLINIC_OWNER'],
+        primaryRole: 'CLINIC_OWNER',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
       },
     });
 
-    console.log(`  ✓ Owner profile created: ${ownerProfile.id}\n`);
+    console.log('   ✅ Clinic Owner Created:');
+    console.log(`      Name: Dr. Rajesh Kumar`);
+    console.log(`      Email: clinic.owner@test.com`);
+    console.log(`      Password: Owner123!`);
+    console.log(`      Mobile: 9876543210`);
+    console.log(`      User ID: ${clinicOwner.id}`);
 
-    // Step 3: Create clinic
-    console.log('Step 3: Creating clinic...');
-    
-    // Check if clinic already exists for this owner
-    const existingClinic = await prisma.clinic.findFirst({
-      where: { ownerId: user.id },
+    // Create clinic owner profile if doesn't exist
+    await prisma.clinicOwnerProfile.upsert({
+      where: { userId: clinicOwner.id },
+      update: {},
+      create: { userId: clinicOwner.id },
     });
 
-    let clinic;
-    if (existingClinic) {
-      // Update existing clinic
-      clinic = await prisma.clinic.update({
-        where: { id: existingClinic.id },
-        data: {
-          name: testClinicData.clinic.name,
-          phone: testClinicData.clinic.phone,
-          address: testClinicData.clinic.address,
-          city: testClinicData.clinic.city,
-          state: testClinicData.clinic.state,
-          district: testClinicData.clinic.district,
-          pincode: testClinicData.clinic.pincode,
-          landmark: testClinicData.clinic.landmark,
-          clinicType: testClinicData.clinic.clinicType,
-          description: testClinicData.clinic.description,
-          clinicRegistrationNumber: testClinicData.clinic.clinicRegistrationNumber,
-          licenseDocumentUrl: testClinicData.clinic.licenseDocumentUrl,
-          openingTime: testClinicData.clinic.openingTime,
-          closingTime: testClinicData.clinic.closingTime,
-          specialties: testClinicData.clinic.specialties,
-          facilities: testClinicData.clinic.facilities,
-          languagesSpoken: testClinicData.clinic.languagesSpoken,
-          consultationModes: testClinicData.clinic.consultationModes,
-          paymentMethods: testClinicData.clinic.paymentMethods,
-          approvalStatus: 'PENDING', // Ready for admin verification
-          isVerified: false,
+    // ============================================================
+    // 2. CREATE CLINIC
+    // ============================================================
+    console.log('\n🏥 STEP 2: Creating Clinic...\n');
+
+    const clinic = await prisma.clinic.upsert({
+      where: { id: 'test-clinic-complete-001' },
+      update: {
+        name: 'PulseMate Multi-Specialty Clinic',
+        ownerId: clinicOwner.id,
+        phone: '08012345678',
+        address: '123, MG Road, Koramangala',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        pincode: '560034',
+        latitude: 12.9352,
+        longitude: 77.6245,
+        isVerified: true,
+        approvalStatus: 'VERIFIED',
+        isActive: true,
+        openingTime: '09:00',
+        closingTime: '22:00',
+        description: 'Full-service multi-specialty clinic with experienced doctors',
+        specialties: ['General Medicine', 'Cardiology', 'Orthopedics', 'Pediatrics'],
+        consultationModes: ['OFFLINE', 'ONLINE'],
+        avgConsultationMinutes: 15,
+        appointmentSlotMinutes: 15,
+        dailyPatientCapacity: 50,
+        facilities: ['X-Ray', 'ECG', 'Lab Tests', 'Pharmacy', 'Ambulance'],
+        languagesSpoken: ['English', 'Hindi', 'Kannada'],
+        paymentMethods: ['CASH', 'UPI', 'CARD', 'RAZORPAY'],
+      },
+      create: {
+        id: 'test-clinic-complete-001',
+        name: 'PulseMate Multi-Specialty Clinic',
+        ownerId: clinicOwner.id,
+        phone: '08012345678',
+        address: '123, MG Road, Koramangala',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        pincode: '560034',
+        latitude: 12.9352,
+        longitude: 77.6245,
+        isVerified: true,
+        approvalStatus: 'VERIFIED',
+        isActive: true,
+        openingTime: '09:00',
+        closingTime: '22:00',
+        description: 'Full-service multi-specialty clinic with experienced doctors',
+        specialties: ['General Medicine', 'Cardiology', 'Orthopedics', 'Pediatrics'],
+        consultationModes: ['OFFLINE', 'ONLINE'],
+        avgConsultationMinutes: 15,
+        appointmentSlotMinutes: 15,
+        dailyPatientCapacity: 50,
+        facilities: ['X-Ray', 'ECG', 'Lab Tests', 'Pharmacy', 'Ambulance'],
+        languagesSpoken: ['English', 'Hindi', 'Kannada'],
+        paymentMethods: ['CASH', 'UPI', 'CARD', 'RAZORPAY'],
+      },
+    });
+
+    console.log('   ✅ Clinic Created:');
+    console.log(`      Name: ${clinic.name}`);
+    console.log(`      Location: ${clinic.city}, ${clinic.state}`);
+    console.log(`      Timing: ${clinic.openingTime} - ${clinic.closingTime}`);
+    console.log(`      Status: VERIFIED ✅`);
+    console.log(`      Clinic ID: ${clinic.id}`);
+
+    // ============================================================
+    // 3. CREATE CLINIC SESSIONS (Morning & Evening)
+    // ============================================================
+    console.log('\n⏰ STEP 3: Creating Clinic Sessions...\n');
+
+    const morningSession = await prisma.clinicSession.upsert({
+      where: { 
+        clinicId_sessionType: {
+          clinicId: clinic.id,
+          sessionType: 'MORNING',
+        }
+      },
+      update: {
+        name: 'Morning Session',
+        startTime: '09:00',
+        endTime: '13:00',
+        maxPatients: 20,
+        avgConsultationMins: 15,
+        enabled: true,
+        sortOrder: 1,
+      },
+      create: {
+        clinicId: clinic.id,
+        sessionType: 'MORNING',
+        name: 'Morning Session',
+        startTime: '09:00',
+        endTime: '13:00',
+        maxPatients: 20,
+        avgConsultationMins: 15,
+        enabled: true,
+        sortOrder: 1,
+      },
+    });
+
+    const eveningSession = await prisma.clinicSession.upsert({
+      where: { 
+        clinicId_sessionType: {
+          clinicId: clinic.id,
+          sessionType: 'EVENING',
+        }
+      },
+      update: {
+        name: 'Evening Session',
+        startTime: '17:00',
+        endTime: '22:00',
+        maxPatients: 30,
+        avgConsultationMins: 15,
+        enabled: true,
+        sortOrder: 3,
+      },
+      create: {
+        clinicId: clinic.id,
+        sessionType: 'EVENING',
+        name: 'Evening Session',
+        startTime: '17:00',
+        endTime: '22:00',
+        maxPatients: 30,
+        avgConsultationMins: 15,
+        enabled: true,
+        sortOrder: 3,
+      },
+    });
+
+    console.log('   ✅ Morning Session: 09:00 AM - 01:00 PM (Max: 20 patients)');
+    console.log('   ✅ Evening Session: 05:00 PM - 10:00 PM (Max: 30 patients)');
+
+    // ============================================================
+    // 4. CREATE DOCTOR 1 (Cardiologist)
+    // ============================================================
+    console.log('\n👨‍⚕️ STEP 4: Creating Doctor 1 (Cardiologist)...\n');
+
+    const doctor1Password = await bcrypt.hash('Doctor123!', 12);
+    
+    const doctor1User = await prisma.user.upsert({
+      where: { email: 'dr.sharma@test.com' },
+      update: {
+        name: 'Dr. Amit Sharma',
+        mobile: '9876543201',
+        passwordHash: doctor1Password,
+        role: 'DOCTOR',
+        roles: ['DOCTOR'],
+        primaryRole: 'DOCTOR',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+      create: {
+        name: 'Dr. Amit Sharma',
+        email: 'dr.sharma@test.com',
+        mobile: '9876543201',
+        passwordHash: doctor1Password,
+        role: 'DOCTOR',
+        roles: ['DOCTOR'],
+        primaryRole: 'DOCTOR',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+    });
+
+    const doctor1Profile = await prisma.doctorProfile.upsert({
+      where: { userId: doctor1User.id },
+      update: {
+        qualification: 'MBBS, MD (Cardiology)',
+        specialization: 'Cardiology',
+        experienceYears: 15,
+        consultationFee: 800,
+        onlineAvailable: true,
+        offlineAvailable: true,
+        avgConsultationMins: 20,
+        approvalStatus: 'VERIFIED',
+        profileStatus: 'COMPLETE',
+        verificationStatus: 'VERIFIED',
+        marketplaceVisible: true,
+        bio: 'Senior Cardiologist with 15 years of experience in treating heart conditions',
+        areasOfExpertise: ['Heart Disease', 'Hypertension', 'ECG', 'Angiography'],
+        languagesKnown: ['English', 'Hindi', 'Kannada'],
+        gender: 'Male',
+      },
+      create: {
+        userId: doctor1User.id,
+        qualification: 'MBBS, MD (Cardiology)',
+        specialization: 'Cardiology',
+        experienceYears: 15,
+        consultationFee: 800,
+        onlineAvailable: true,
+        offlineAvailable: true,
+        avgConsultationMins: 20,
+        approvalStatus: 'VERIFIED',
+        profileStatus: 'COMPLETE',
+        verificationStatus: 'VERIFIED',
+        marketplaceVisible: true,
+        bio: 'Senior Cardiologist with 15 years of experience in treating heart conditions',
+        areasOfExpertise: ['Heart Disease', 'Hypertension', 'ECG', 'Angiography'],
+        languagesKnown: ['English', 'Hindi', 'Kannada'],
+        gender: 'Male',
+      },
+    });
+
+    // Associate doctor1 with clinic
+    await prisma.doctorClinic.upsert({
+      where: {
+        doctorId_clinicId: {
+          doctorId: doctor1Profile.id,
+          clinicId: clinic.id,
+        }
+      },
+      update: {
+        inviteStatus: 'ACCEPTED',
+        roleAtClinic: 'CONSULTANT',
+        consultationFee: 800,
+        availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        startTime: '09:00',
+        endTime: '13:00',
+        avgConsultationMins: 20,
+        isActive: true,
+        joinedAt: new Date(),
+      },
+      create: {
+        doctorId: doctor1Profile.id,
+        clinicId: clinic.id,
+        inviteStatus: 'ACCEPTED',
+        roleAtClinic: 'CONSULTANT',
+        consultationFee: 800,
+        availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        startTime: '09:00',
+        endTime: '13:00',
+        avgConsultationMins: 20,
+        isActive: true,
+        joinedAt: new Date(),
+      },
+    });
+
+    console.log('   ✅ Doctor 1 Created:');
+    console.log(`      Name: Dr. Amit Sharma`);
+    console.log(`      Email: dr.sharma@test.com`);
+    console.log(`      Password: Doctor123!`);
+    console.log(`      Specialization: Cardiology`);
+    console.log(`      Fee: ₹800`);
+    console.log(`      Timing: 09:00 AM - 01:00 PM`);
+
+    // ============================================================
+    // 5. CREATE DOCTOR 2 (Orthopedic)
+    // ============================================================
+    console.log('\n👨‍⚕️ STEP 5: Creating Doctor 2 (Orthopedic)...\n');
+
+    const doctor2Password = await bcrypt.hash('Doctor123!', 12);
+    
+    const doctor2User = await prisma.user.upsert({
+      where: { email: 'dr.patel@test.com' },
+      update: {
+        name: 'Dr. Priya Patel',
+        mobile: '9876543202',
+        passwordHash: doctor2Password,
+        role: 'DOCTOR',
+        roles: ['DOCTOR'],
+        primaryRole: 'DOCTOR',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+      create: {
+        name: 'Dr. Priya Patel',
+        email: 'dr.patel@test.com',
+        mobile: '9876543202',
+        passwordHash: doctor2Password,
+        role: 'DOCTOR',
+        roles: ['DOCTOR'],
+        primaryRole: 'DOCTOR',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+    });
+
+    const doctor2Profile = await prisma.doctorProfile.upsert({
+      where: { userId: doctor2User.id },
+      update: {
+        qualification: 'MBBS, MS (Orthopedics)',
+        specialization: 'Orthopedics',
+        experienceYears: 12,
+        consultationFee: 700,
+        onlineAvailable: true,
+        offlineAvailable: true,
+        avgConsultationMins: 15,
+        approvalStatus: 'VERIFIED',
+        profileStatus: 'COMPLETE',
+        verificationStatus: 'VERIFIED',
+        marketplaceVisible: true,
+        bio: 'Experienced Orthopedic Surgeon specializing in joint replacement and sports injuries',
+        areasOfExpertise: ['Joint Pain', 'Fractures', 'Sports Injuries', 'Arthritis'],
+        languagesKnown: ['English', 'Hindi', 'Gujarati'],
+        gender: 'Female',
+      },
+      create: {
+        userId: doctor2User.id,
+        qualification: 'MBBS, MS (Orthopedics)',
+        specialization: 'Orthopedics',
+        experienceYears: 12,
+        consultationFee: 700,
+        onlineAvailable: true,
+        offlineAvailable: true,
+        avgConsultationMins: 15,
+        approvalStatus: 'VERIFIED',
+        profileStatus: 'COMPLETE',
+        verificationStatus: 'VERIFIED',
+        marketplaceVisible: true,
+        bio: 'Experienced Orthopedic Surgeon specializing in joint replacement and sports injuries',
+        areasOfExpertise: ['Joint Pain', 'Fractures', 'Sports Injuries', 'Arthritis'],
+        languagesKnown: ['English', 'Hindi', 'Gujarati'],
+        gender: 'Female',
+      },
+    });
+
+    // Associate doctor2 with clinic
+    await prisma.doctorClinic.upsert({
+      where: {
+        doctorId_clinicId: {
+          doctorId: doctor2Profile.id,
+          clinicId: clinic.id,
+        }
+      },
+      update: {
+        inviteStatus: 'ACCEPTED',
+        roleAtClinic: 'CONSULTANT',
+        consultationFee: 700,
+        availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        startTime: '17:00',
+        endTime: '22:00',
+        avgConsultationMins: 15,
+        isActive: true,
+        joinedAt: new Date(),
+      },
+      create: {
+        doctorId: doctor2Profile.id,
+        clinicId: clinic.id,
+        inviteStatus: 'ACCEPTED',
+        roleAtClinic: 'CONSULTANT',
+        consultationFee: 700,
+        availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        startTime: '17:00',
+        endTime: '22:00',
+        avgConsultationMins: 15,
+        isActive: true,
+        joinedAt: new Date(),
+      },
+    });
+
+    console.log('   ✅ Doctor 2 Created:');
+    console.log(`      Name: Dr. Priya Patel`);
+    console.log(`      Email: dr.patel@test.com`);
+    console.log(`      Password: Doctor123!`);
+    console.log(`      Specialization: Orthopedics`);
+    console.log(`      Fee: ₹700`);
+    console.log(`      Timing: 05:00 PM - 10:00 PM`);
+
+    // ============================================================
+    // 6. CREATE RECEPTIONIST
+    // ============================================================
+    console.log('\n👩‍💼 STEP 6: Creating Receptionist...\n');
+
+    const receptionPassword = await bcrypt.hash('Reception123!', 12);
+    
+    const receptionUser = await prisma.user.upsert({
+      where: { email: 'reception@test.com' },
+      update: {
+        name: 'Sneha Reddy',
+        mobile: '9876543203',
+        passwordHash: receptionPassword,
+        role: 'RECEPTIONIST',
+        roles: ['RECEPTIONIST'],
+        primaryRole: 'RECEPTIONIST',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+      create: {
+        name: 'Sneha Reddy',
+        email: 'reception@test.com',
+        mobile: '9876543203',
+        passwordHash: receptionPassword,
+        role: 'RECEPTIONIST',
+        roles: ['RECEPTIONIST'],
+        primaryRole: 'RECEPTIONIST',
+        isActive: true,
+        approvalStatus: 'VERIFIED',
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        authProvider: 'EMAIL_PASSWORD',
+      },
+    });
+
+    await prisma.receptionistProfile.upsert({
+      where: { userId: receptionUser.id },
+      update: {
+        assignedClinicId: clinic.id,
+        createdByOwnerId: clinicOwner.id,
+      },
+      create: {
+        userId: receptionUser.id,
+        assignedClinicId: clinic.id,
+        createdByOwnerId: clinicOwner.id,
+      },
+    });
+
+    // Add to clinic staff
+    await prisma.clinicStaff.upsert({
+      where: {
+        clinicId_userId: {
+          clinicId: clinic.id,
+          userId: receptionUser.id,
+        }
+      },
+      update: {
+        role: 'RECEPTIONIST',
+        isActive: true,
+      },
+      create: {
+        clinicId: clinic.id,
+        userId: receptionUser.id,
+        role: 'RECEPTIONIST',
+        isActive: true,
+      },
+    });
+
+    console.log('   ✅ Receptionist Created:');
+    console.log(`      Name: Sneha Reddy`);
+    console.log(`      Email: reception@test.com`);
+    console.log(`      Password: Reception123!`);
+    console.log(`      Assigned Clinic: ${clinic.name}`);
+
+    // ============================================================
+    // 7. CREATE DOCTOR AVAILABILITY (9 AM - 10 PM)
+    // ============================================================
+    console.log('\n📅 STEP 7: Creating Doctor Availability Schedules...\n');
+
+    // dayOfWeek: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dayNumbers = [1, 2, 3, 4, 5, 6]; // Monday to Saturday
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    // Doctor 1: Morning (9 AM - 1 PM)
+    for (let i = 0; i < dayNumbers.length; i++) {
+      await prisma.doctorAvailability.upsert({
+        where: {
+          doctorId_clinicId_dayOfWeek: {
+            doctorId: doctor1Profile.id,
+            clinicId: clinic.id,
+            dayOfWeek: dayNumbers[i],
+          }
+        },
+        update: {
+          startTime: '09:00',
+          endTime: '13:00',
+          slotDurationMin: 20,
+          maxPatients: 12,
           isActive: true,
-          submittedAt: new Date(),
-          ownerMobileVerified: true, // ✅ Mobile OTP verified
-          ownerEmailVerified: true,  // ✅ Email OTP verified
-          mobileOtpVerifiedAt: new Date(),
-          emailVerifiedAt: new Date(),
+        },
+        create: {
+          doctorId: doctor1Profile.id,
+          clinicId: clinic.id,
+          dayOfWeek: dayNumbers[i],
+          startTime: '09:00',
+          endTime: '13:00',
+          slotDurationMin: 20,
+          maxPatients: 12,
+          isActive: true,
         },
       });
-      console.log(`  ✓ Clinic updated: ${clinic.id}`);
-    } else {
-      // Create new clinic
-      clinic = await prisma.clinic.create({
-        data: {
-          ownerId: user.id,
-          name: testClinicData.clinic.name,
-          phone: testClinicData.clinic.phone,
-          address: testClinicData.clinic.address,
-          city: testClinicData.clinic.city,
-          state: testClinicData.clinic.state,
-          district: testClinicData.clinic.district,
-          pincode: testClinicData.clinic.pincode,
-          landmark: testClinicData.clinic.landmark,
-          clinicType: testClinicData.clinic.clinicType,
-          description: testClinicData.clinic.description,
-          clinicRegistrationNumber: testClinicData.clinic.clinicRegistrationNumber,
-          licenseDocumentUrl: testClinicData.clinic.licenseDocumentUrl,
-          openingTime: testClinicData.clinic.openingTime,
-          closingTime: testClinicData.clinic.closingTime,
-          specialties: testClinicData.clinic.specialties,
-          facilities: testClinicData.clinic.facilities,
-          languagesSpoken: testClinicData.clinic.languagesSpoken,
-          consultationModes: testClinicData.clinic.consultationModes,
-          paymentMethods: testClinicData.clinic.paymentMethods,
-          approvalStatus: 'PENDING',
-          isVerified: false,
-          isActive: true,
-          submittedAt: new Date(),
-          ownerMobileVerified: true,
-          ownerEmailVerified: true,
-          mobileOtpVerifiedAt: new Date(),
-          emailVerifiedAt: new Date(),
-        },
-      });
-      console.log(`  ✓ Clinic created: ${clinic.id}`);
     }
 
-    console.log(`  ✓ Clinic Name: ${clinic.name}`);
-    console.log(`  ✓ Status: ${clinic.approvalStatus}`);
-    console.log(`  ✓ Mobile Verified: ${clinic.ownerMobileVerified}`);
-    console.log(`  ✓ Email Verified: ${clinic.ownerEmailVerified}\n`);
+    console.log('   ✅ Dr. Amit Sharma - Mon-Sat: 09:00 AM - 01:00 PM');
 
-    // Step 4: Update owner profile with primary clinic
-    console.log('Step 4: Setting primary clinic...');
+    // Doctor 2: Evening (5 PM - 10 PM)
+    for (let i = 0; i < dayNumbers.length; i++) {
+      await prisma.doctorAvailability.upsert({
+        where: {
+          doctorId_clinicId_dayOfWeek: {
+            doctorId: doctor2Profile.id,
+            clinicId: clinic.id,
+            dayOfWeek: dayNumbers[i],
+          }
+        },
+        update: {
+          startTime: '17:00',
+          endTime: '22:00',
+          slotDurationMin: 15,
+          maxPatients: 20,
+          isActive: true,
+        },
+        create: {
+          doctorId: doctor2Profile.id,
+          clinicId: clinic.id,
+          dayOfWeek: dayNumbers[i],
+          startTime: '17:00',
+          endTime: '22:00',
+          slotDurationMin: 15,
+          maxPatients: 20,
+          isActive: true,
+        },
+      });
+    }
+
+    console.log('   ✅ Dr. Priya Patel - Mon-Sat: 05:00 PM - 10:00 PM');
+
+    // ============================================================
+    // SUMMARY
+    // ============================================================
+    console.log('\n' + '='.repeat(70));
+    console.log('\n✅ COMPLETE TEST CLINIC SETUP CREATED SUCCESSFULLY!\n');
+    console.log('='.repeat(70));
+    console.log('\n📋 SUMMARY:\n');
     
-    await prisma.clinicOwnerProfile.update({
-      where: { userId: user.id },
-      data: {
-        primaryClinicId: clinic.id,
-        totalClinics: 1,
-      },
-    });
+    console.log('🏥 CLINIC:');
+    console.log(`   Name: ${clinic.name}`);
+    console.log(`   Location: ${clinic.address}, ${clinic.city}`);
+    console.log(`   Status: ✅ VERIFIED`);
+    console.log(`   Clinic ID: ${clinic.id}`);
+    console.log('');
 
-    console.log(`  ✓ Primary clinic set\n`);
+    console.log('⏰ SESSIONS:');
+    console.log(`   Morning: 09:00 AM - 01:00 PM (Max: 20 patients)`);
+    console.log(`   Evening: 05:00 PM - 10:00 PM (Max: 30 patients)`);
+    console.log('');
 
-    // Summary
-    console.log('════════════════════════════════════════════════════');
-    console.log('  ✅ Test Clinic Created Successfully!');
-    console.log('════════════════════════════════════════════════════\n');
+    console.log('👥 STAFF:');
+    console.log('');
+    console.log('   1. Clinic Owner:');
+    console.log('      Name: Dr. Rajesh Kumar');
+    console.log('      Email: clinic.owner@test.com');
+    console.log('      Password: Owner123!');
+    console.log('      Mobile: 9876543210');
+    console.log('');
+    console.log('   2. Doctor 1 (Cardiologist):');
+    console.log('      Name: Dr. Amit Sharma');
+    console.log('      Email: dr.sharma@test.com');
+    console.log('      Password: Doctor123!');
+    console.log('      Timing: 09:00 AM - 01:00 PM');
+    console.log('      Fee: ₹800');
+    console.log('');
+    console.log('   3. Doctor 2 (Orthopedic):');
+    console.log('      Name: Dr. Priya Patel');
+    console.log('      Email: dr.patel@test.com');
+    console.log('      Password: Doctor123!');
+    console.log('      Timing: 05:00 PM - 10:00 PM');
+    console.log('      Fee: ₹700');
+    console.log('');
+    console.log('   4. Receptionist:');
+    console.log('      Name: Sneha Reddy');
+    console.log('      Email: reception@test.com');
+    console.log('      Password: Reception123!');
+    console.log('');
 
-    console.log('📋 Clinic Owner Login Credentials:');
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`Email:    ${testClinicData.owner.email}`);
-    console.log(`Password: [SET - Check TEST_CLINIC_PASSWORD env var]`);
-    console.log(`Mobile:   ${testClinicData.owner.mobile}`);
-    console.log('─────────────────────────────────────────────────────\n');
+    console.log('🌐 LOGIN URLS:');
+    console.log('   Production: https://pulsemateconnect.in');
+    console.log('   Local: http://localhost:3000');
+    console.log('');
 
-    console.log('🏥 Clinic Details:');
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`Name:     ${clinic.name}`);
-    console.log(`Status:   ${clinic.approvalStatus} (Ready for admin verification)`);
-    console.log(`City:     ${clinic.city}, ${clinic.state}`);
-    console.log(`Address:  ${clinic.address}`);
-    console.log('─────────────────────────────────────────────────────\n');
-
-    console.log('✅ Verification Status:');
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`Email Verified:  ✅ ${user.isEmailVerified ? 'YES' : 'NO'}`);
-    console.log(`Mobile Verified: ✅ ${user.isPhoneVerified ? 'YES' : 'NO'}`);
-    console.log(`Submitted At:    ✅ ${clinic.submittedAt?.toISOString()}`);
-    console.log('─────────────────────────────────────────────────────\n');
-
-    console.log('🔍 Next Steps:');
-    console.log('─────────────────────────────────────────────────────');
-    console.log('1. Login as admin at: http://localhost:3000/admin');
-    console.log('2. Go to "Clinic Verifications" or "Pending Approvals"');
-    console.log(`3. Find clinic: "${clinic.name}"`);
-    console.log('4. Review details and approve/reject');
-    console.log('─────────────────────────────────────────────────────\n');
-
-    console.log('📱 Test OTP Numbers (for development):');
-    console.log('─────────────────────────────────────────────────────');
-    console.log('Mobile: 9999999999, 8888888888, 7777777777');
-    console.log('OTP:    123456');
-    console.log('Email:  test@gmail.com, testclinic@gmail.com');
-    console.log('─────────────────────────────────────────────────────\n');
+    console.log('✅ All accounts are ACTIVE and VERIFIED');
+    console.log('✅ Ready for testing appointments and bookings!');
+    console.log('');
+    console.log('='.repeat(70));
 
   } catch (error) {
-    console.error('\n❌ Error creating test clinic:', error.message);
-    console.error(error);
+    console.error('\n❌ Error creating test clinic:', error);
     throw error;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-// Run the script
-createTestClinic()
+createCompleteClinic()
   .then(() => {
-    console.log('✅ Script completed successfully!\n');
+    console.log('\n✅ Script completed successfully\n');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('❌ Script failed:', error);
+    console.error('\n❌ Script failed:', error);
     process.exit(1);
   });
