@@ -809,11 +809,14 @@ const getUserDetail = async (req, res, next) => {
         adminProfile: { select: { level: true } },
         patientProfile: {
           select: {
+            patientName: true, // ✅ FIX: Include patientName
             age: true, dob: true, gender: true,
-            city: true, state: true,
+            city: true, state: true, address: true, pincode: true,
             bloodGroup: true, emergencyContact: true,
             allergies: true, existingDiseases: true,
             profileCompleted: true,
+            registeredVia: true,
+            createdByRole: true,
           },
         },
         doctorProfile: {
@@ -843,7 +846,17 @@ const getUserDetail = async (req, res, next) => {
     });
 
     if (!user) return sendError(res, 'User not found', 404);
-    return sendSuccess(res, { user });
+    
+    // ✅ FIX: Transform to show patientName for patients
+    const transformedUser = {
+      ...user,
+      // For patients, prioritize patientName over user.name
+      displayName: user.role === 'PATIENT' && user.patientProfile?.patientName 
+        ? user.patientProfile.patientName 
+        : user.name,
+    };
+    
+    return sendSuccess(res, { user: transformedUser });
   } catch (error) {
     next(error);
   }
@@ -862,6 +875,8 @@ const getUsers = async (req, res, next) => {
         { name: { contains: search, mode: 'insensitive' } },
         { mobile: { contains: search } },
         { email: { contains: search, mode: 'insensitive' } },
+        // ✅ FIX: Also search by patientName
+        { patientProfile: { patientName: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -883,16 +898,41 @@ const getUsers = async (req, res, next) => {
           adminProfile: {
             select: { level: true },
           },
+          patientProfile: {
+            select: { 
+              patientName: true,
+              age: true,
+              gender: true,
+              city: true,
+              profileCompleted: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count({ where }),
     ]);
 
+    // Transform users to show patientName for patients
+    const transformedUsers = users.map(user => ({
+      ...user,
+      // For patients, prioritize patientName over user.name
+      name: user.role === 'PATIENT' && user.patientProfile?.patientName 
+        ? user.patientProfile.patientName 
+        : user.name,
+      // Include patient-specific data for PATIENT role
+      patientInfo: user.role === 'PATIENT' ? {
+        age: user.patientProfile?.age,
+        gender: user.patientProfile?.gender,
+        city: user.patientProfile?.city,
+        profileCompleted: user.patientProfile?.profileCompleted,
+      } : null,
+    }));
+
     return res.status(200).json({
       success: true,
       message: 'Users fetched',
-      data: users,
+      data: transformedUsers,
       pagination: {
         total,
         page: Number(page),
