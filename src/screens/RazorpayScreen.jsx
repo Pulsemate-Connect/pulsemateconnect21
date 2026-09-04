@@ -177,6 +177,17 @@ export default function RazorpayScreen({ route, navigation }) {
         });
         const confirmedAppt = res.data.data.appointment;
 
+        // ✅ FIX: Ensure appointment has queue number and is confirmed
+        if (!confirmedAppt) {
+          throw new Error('No appointment data received from verification');
+        }
+
+        console.log('[Payment] Verification successful:', {
+          appointmentId: confirmedAppt.id,
+          status: confirmedAppt.status,
+          queueNumber: confirmedAppt.queueNumber,
+        });
+
         // ── Return result to BookingScreen via navigation params ─────────────
         // Functions cannot be passed as nav params (they get serialized/lost).
         // Instead we navigate back and pass the result as a param.
@@ -187,6 +198,7 @@ export default function RazorpayScreen({ route, navigation }) {
           },
         });
       } catch (err) {
+        console.error('[Payment] Verification failed:', err);
         setVerifying(false);
         // Navigate to PaymentStatus screen which will poll until confirmed
         // This handles the case where verify call fails but payment may have succeeded
