@@ -4,7 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Building2, MapPin, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const DoctorInvitationAccept = () => {
   const { token } = useParams();
@@ -21,7 +21,7 @@ const DoctorInvitationAccept = () => {
   const fetchInvitationDetails = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/api/doctor/invitation/${token}`);
+      const response = await axios.get(`${API_URL}/doctor/invitation/${token}`);
       setInvitation(response.data.data.invitation);
       setError(null);
     } catch (err) {
@@ -35,7 +35,7 @@ const DoctorInvitationAccept = () => {
   const handleAccept = async () => {
     try {
       setSubmitting(true);
-      const response = await axios.post(`${API_URL}/api/doctor/invitation/${token}/accept`);
+      const response = await axios.post(`${API_URL}/doctor/invitation/${token}/accept`);
       
       toast.success('Invitation accepted! Please verify your contact details.');
       
@@ -58,7 +58,7 @@ const DoctorInvitationAccept = () => {
 
     try {
       setSubmitting(true);
-      await axios.post(`${API_URL}/api/doctor/invitation/${token}/decline`);
+      await axios.post(`${API_URL}/doctor/invitation/${token}/decline`);
       
       toast.success('Invitation declined');
       navigate('/');

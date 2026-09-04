@@ -4,7 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { CheckCircle, Loader2, Mail, Smartphone } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const DoctorVerification = () => {
   const { token } = useParams();
@@ -39,8 +39,8 @@ const DoctorVerification = () => {
     try {
       setLoading(true);
       const [inviteRes, statusRes] = await Promise.all([
-        axios.get(`${API_URL}/api/doctor/invitation/${token}`),
-        axios.get(`${API_URL}/api/doctor/invitation/${token}/verification-status`),
+        axios.get(`${API_URL}/doctor/invitation/${token}`),
+        axios.get(`${API_URL}/doctor/invitation/${token}/verification-status`),
       ]);
       
       setInvitation(inviteRes.data.data.invitation);
@@ -64,7 +64,7 @@ const DoctorVerification = () => {
   const handleSendMobileOtp = async () => {
     try {
       setSendingMobileOtp(true);
-      await axios.post(`${API_URL}/api/doctor/invitation/${token}/send-mobile-otp`);
+      await axios.post(`${API_URL}/doctor/invitation/${token}/send-mobile-otp`);
       setMobileOtpSent(true);
       toast.success('OTP sent to your mobile number');
     } catch (err) {
@@ -84,7 +84,7 @@ const DoctorVerification = () => {
 
     try {
       setVerifyingMobileOtp(true);
-      await axios.post(`${API_URL}/api/doctor/invitation/${token}/verify-mobile-otp`, { otp: mobileOtp });
+      await axios.post(`${API_URL}/doctor/invitation/${token}/verify-mobile-otp`, { otp: mobileOtp });
       toast.success('Mobile number verified successfully!');
       
       // Refresh verification status
@@ -101,7 +101,7 @@ const DoctorVerification = () => {
   const handleSendEmailOtp = async () => {
     try {
       setSendingEmailOtp(true);
-      await axios.post(`${API_URL}/api/doctor/invitation/${token}/send-email-otp`);
+      await axios.post(`${API_URL}/doctor/invitation/${token}/send-email-otp`);
       setEmailOtpSent(true);
       toast.success('OTP sent to your email address');
     } catch (err) {
@@ -121,7 +121,7 @@ const DoctorVerification = () => {
 
     try {
       setVerifyingEmailOtp(true);
-      await axios.post(`${API_URL}/api/doctor/invitation/${token}/verify-email-otp`, { otp: emailOtp });
+      await axios.post(`${API_URL}/doctor/invitation/${token}/verify-email-otp`, { otp: emailOtp });
       toast.success('Email verified successfully!');
       
       // Refresh verification status

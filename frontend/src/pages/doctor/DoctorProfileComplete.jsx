@@ -14,7 +14,7 @@ import {
   validateMedicalSystemAndSpecialization
 } from '../../constants/medicalSystems';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const LANGUAGES = [
   'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Urdu',
@@ -73,7 +73,7 @@ const DoctorProfileComplete = () => {
   const fetchInvitationAndProfile = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/api/doctor/profile/by-token/${token}`);
+      const response = await axios.get(`${API_URL}/doctor/profile/by-token/${token}`);
       const { invitation: invData, profile: profData } = response.data.data;
       
       setInvitation(invData);
@@ -280,7 +280,7 @@ const DoctorProfileComplete = () => {
       
       // Call the update profile API
       await axios.put(
-        `${API_URL}/api/doctor/profile/${token}`,
+        `${API_URL}/doctor/profile/${token}`,
         dataToSave
       );
       
@@ -321,13 +321,13 @@ const DoctorProfileComplete = () => {
       
       // First save the final step data
       await axios.put(
-        `${API_URL}/api/doctor/profile/${token}`,
+        `${API_URL}/doctor/profile/${token}`,
         formData
       );
       
       // Then submit for verification
       await axios.post(
-        `${API_URL}/api/doctor/profile/${token}/submit`,
+        `${API_URL}/doctor/profile/${token}/submit`,
         {}
       );
 
