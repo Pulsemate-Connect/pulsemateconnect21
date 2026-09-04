@@ -368,7 +368,7 @@ const bookAppointment = async (req, res, next) => {
 
         return created;
       }, {
-        isolationLevel: 'Serializable',  // Highest isolation for critical operations
+        isolationLevel: 'ReadCommitted',  // Changed from Serializable to fix Supabase connection pool conflicts
         timeout: 10000,
       });
 

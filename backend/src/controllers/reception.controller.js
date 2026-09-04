@@ -354,7 +354,7 @@ const addWalkInBatch = async (req, res, next) => {
             });
             
             return { appointment, queueItem, queueNumber };
-          }, { isolationLevel: 'Serializable', timeout: 10000 });
+          }, { isolationLevel: 'ReadCommitted', timeout: 10000 });
           
           return {
             success: true,

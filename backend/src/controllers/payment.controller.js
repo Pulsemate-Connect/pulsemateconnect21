@@ -430,7 +430,7 @@ const initiatePayment = async (req, res, next) => {
 
         return appointment;
       }, {
-        isolationLevel: 'Serializable',  // Highest isolation level for critical operations
+        isolationLevel: 'ReadCommitted',  // Changed from Serializable to fix Supabase connection pool conflicts
         timeout: 10000,  // 10 second timeout
       });
 
@@ -572,7 +572,7 @@ const initiatePayment = async (req, res, next) => {
           },
         });
       }, {
-        isolationLevel: 'Serializable',
+        isolationLevel: 'ReadCommitted',  // Changed from Serializable to fix Supabase connection pool conflicts
         timeout: 10000,
       });
     } catch (txError) {

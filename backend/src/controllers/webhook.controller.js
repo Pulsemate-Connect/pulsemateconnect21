@@ -90,7 +90,7 @@ const assignQueueAndConfirm = async (appointment, io) => {
 
       return updated;
     }, {
-      isolationLevel: 'Serializable',
+      isolationLevel: 'ReadCommitted',  // Changed from Serializable to fix Supabase connection pool conflicts
       timeout: 10000,
     });
 
