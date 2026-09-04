@@ -598,6 +598,11 @@ const initiatePayment = async (req, res, next) => {
     let order, key, devMode = false;
 
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      logger.warn('[payment] initiate — Razorpay credentials not configured, using dev mode', {
+        appointmentId: appointment.id,
+        hasKeyId: !!process.env.RAZORPAY_KEY_ID,
+        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
+      });
       order = {
         id: `order_dev_${Date.now()}`,
         amount: Math.round(fee * 100),
@@ -735,7 +740,29 @@ const verifyPayment = async (req, res, next) => {
 
     const payment = await prisma.payment.findUnique({ where: { appointmentId } });
     if (!payment) return sendError(res, 'Payment record not found', 404);
-    if (payment.status === 'PAID') return sendError(res, 'Payment already verified', 409);
+    
+    // ── IDEMPOTENCY: If already PAID, return success with appointment ────────
+    if (payment.status === 'PAID') {
+      logger.info('[payment] verify — already verified (idempotent)', { 
+        appointmentId, 
+        razorpayPaymentId: payment.razorpayPaymentId 
+      });
+      
+      const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        include: {
+          doctor: { include: { user: true } },
+          clinic: true,
+          payment: true,
+        },
+      });
+      
+      return sendSuccess(
+        res, 
+        { verified: true, appointment }, 
+        'Payment already verified — appointment confirmed!'
+      );
+    }
 
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
@@ -799,13 +826,34 @@ const verifyPayment = async (req, res, next) => {
     }
 
     // ── Real Razorpay HMAC verification ───────────────────────────────────
+    // Check if Razorpay credentials are configured
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      logger.error('[payment] verify — RAZORPAY_KEY_SECRET not configured!', {
+        appointmentId,
+        razorpayOrderId,
+        razorpayPaymentId,
+      });
+      return sendError(
+        res, 
+        'Payment system not configured. Please contact support.', 
+        500
+      );
+    }
+
     const expectedSig = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpayOrderId}|${razorpayPaymentId}`)
       .digest('hex');
 
     if (expectedSig !== razorpaySignature) {
-      logger.warn('[payment] verify — invalid signature', { razorpayOrderId, razorpayPaymentId });
+      logger.warn('[payment] verify — invalid signature', { 
+        razorpayOrderId, 
+        razorpayPaymentId,
+        appointmentId,
+        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
+        signatureProvided: razorpaySignature?.substring(0, 10) + '...',
+        signatureExpected: expectedSig?.substring(0, 10) + '...',
+      });
       await prisma.payment.update({ where: { appointmentId }, data: { status: 'FAILED' } });
       await prisma.appointment.update({ where: { id: appointmentId }, data: { status: 'CANCELLED' } });
       return sendError(res, 'Payment verification failed — invalid signature', 400);

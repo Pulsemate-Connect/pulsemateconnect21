@@ -199,7 +199,29 @@ export default function RazorpayScreen({ route, navigation }) {
         });
       } catch (err) {
         console.error('[Payment] Verification failed:', err);
+        
+        // Log detailed error for debugging
+        const errorDetails = {
+          message: err?.response?.data?.message || err.message,
+          status: err?.response?.status,
+          appointmentId,
+          orderId: msg.razorpayOrderId,
+          paymentId: msg.razorpayPaymentId,
+        };
+        console.error('[Payment] Error details:', errorDetails);
+        
         setVerifying(false);
+        
+        // Check if error is due to backend misconfiguration
+        if (errorDetails.message?.includes('not configured')) {
+          Alert.alert(
+            'Payment System Error',
+            'The payment system is not properly configured. Please contact support.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+          return;
+        }
+        
         // Navigate to PaymentStatus screen which will poll until confirmed
         // This handles the case where verify call fails but payment may have succeeded
         navigation.navigate('PaymentStatus', {
