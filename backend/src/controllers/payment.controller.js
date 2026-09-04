@@ -351,6 +351,35 @@ const initiatePayment = async (req, res, next) => {
           }
         }
 
+        // ✅ FIX: Check slot availability before creating appointment (prevent P2002 unique constraint)
+        if (slotTime) {
+          const crypto = require('crypto');
+          const slotKey = `${doctorId}:${clinicId}:${appointmentDate}:${slotTime}`;
+          const hash = crypto.createHash('sha256').update(slotKey).digest('hex');
+          const lockId = BigInt('0x' + hash.substring(0, 16));
+          
+          // Acquire advisory lock for this slot
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId})`;
+          
+          // Check if slot is already booked
+          const slotCheck = await tx.appointment.findFirst({
+            where: {
+              doctorId,
+              clinicId,
+              appointmentDate: {
+                gte: new Date(new Date(appointmentDate).setUTCHours(0, 0, 0, 0)),
+                lte: new Date(new Date(appointmentDate).setUTCHours(23, 59, 59, 999)),
+          },
+              slotTime,
+              status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+            },
+          });
+          
+          if (slotCheck) {
+            throw new Error('SLOT_ALREADY_BOOKED');
+          }
+        }
+
         // Create appointment directly as BOOKED (queue number assigned later)
         const appointment = await tx.appointment.create({
           data: {
@@ -701,8 +730,18 @@ const initiatePayment = async (req, res, next) => {
       );
     }
     
-    // BUG #1: Duplicate slot booking (caught by unique constraint)
-    if (error.code === 'P2002' && error.meta?.target?.includes('appointment_slot')) {
+    // BUG #1: Duplicate slot booking (caught by unique constraint as fallback)
+    if (error.code === 'P2002' && (
+      error.meta?.target?.includes('appointment_slot') || 
+      error.meta?.target?.includes('unique_active_slot') ||
+      error.meta?.target?.includes('doctorId')
+    )) {
+      logger.warn('[payment] Slot double-booking prevented by unique constraint', {
+        patientId: req.user?.id,
+        constraint: error.meta?.target,
+        doctorId: req.body?.doctorId,
+        slotTime: req.body?.slotTime,
+      });
       return sendError(res, 
         'This time slot is no longer available. Please select another time slot.',
         409
