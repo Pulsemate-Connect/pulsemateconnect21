@@ -355,11 +355,12 @@ const initiatePayment = async (req, res, next) => {
         if (slotTime) {
           const crypto = require('crypto');
           const slotKey = `${doctorId}:${clinicId}:${appointmentDate}:${slotTime}`;
-          const hash = crypto.createHash('sha256').update(slotKey).digest('hex');
-          const lockId = BigInt('0x' + hash.substring(0, 16));
+          const hash = crypto.createHash('sha256').update(slotKey).digest();
+          // Convert first 8 bytes to signed 64-bit integer for PostgreSQL
+          const lockId = hash.readBigInt64BE(0);
           
           // Acquire advisory lock for this slot
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId})`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId}::bigint)`;
           
           // Check if slot is already booked
           const slotCheck = await tx.appointment.findFirst({
@@ -561,11 +562,12 @@ const initiatePayment = async (req, res, next) => {
         if (slotTime) {
           const crypto = require('crypto');
           const slotKey = `${doctorId}:${clinicId}:${appointmentDate}:${slotTime}`;
-          const hash = crypto.createHash('sha256').update(slotKey).digest('hex');
-          const lockId = BigInt('0x' + hash.substring(0, 16));
+          const hash = crypto.createHash('sha256').update(slotKey).digest();
+          // Convert first 8 bytes to signed 64-bit integer for PostgreSQL
+          const lockId = hash.readBigInt64BE(0);
           
           // Acquire advisory lock for this slot (automatically released at transaction end)
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId})`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId}::bigint)`;
           
           // Re-check slot availability inside locked transaction
           const slotCheck = await tx.appointment.findFirst({
