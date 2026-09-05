@@ -70,3 +70,13 @@ export const getDeletionRequests = () =>
 
 export const cancelDeletionRequest = (id) =>
   api.patch(`/admin/deletion-requests/${id}/cancel`);
+
+// ── Doctor Management: Disable, Enable, Delete ────────────────────────────
+export const disableDoctor = (doctorId, reason) =>
+  api.patch(`/admin/doctors/${doctorId}/disable`, { reason });
+
+export const enableDoctor = (doctorId) =>
+  api.patch(`/admin/doctors/${doctorId}/enable`);
+
+export const deleteDoctorPermanently = (doctorId, confirmText) =>
+  api.delete(`/admin/doctors/${doctorId}`, { data: { confirmText } });

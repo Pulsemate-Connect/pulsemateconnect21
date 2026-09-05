@@ -1670,3 +1670,260 @@ async function cancelDeletionRequest(req, res, next) {
     next(err);
   }
 }
+
+
+// ── Admin Doctor Management: Disable & Delete ─────────────────────────────────
+
+/**
+ * PATCH /api/admin/doctors/:doctorId/disable - Disable/suspend a doctor
+ * Soft delete - sets user to SUSPENDED status, hides from marketplace
+ */
+const disableDoctor = async (req, res, next) => {
+  try {
+    const { doctorId } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      return sendError(res, 'Reason is required for disabling a doctor', 400);
+    }
+
+    // Find doctor profile
+    const profile = await prisma.doctorProfile.findFirst({
+      where: {
+        userId: doctorId
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (!profile) {
+      return sendError(res, 'Doctor not found', 404);
+    }
+
+    // Update user and profile to suspended status
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: doctorId },
+        data: {
+          approvalStatus: 'SUSPENDED',
+          rejectionReason: reason.trim(),
+          isActive: false
+        }
+      });
+
+      await tx.doctorProfile.update({
+        where: { id: profile.id },
+        data: {
+          marketplaceVisible: false,
+          verificationStatus: 'SUSPENDED'
+        }
+      });
+
+      // Deactivate all clinic relationships
+      await tx.doctorClinic.updateMany({
+        where: { doctorId: profile.id },
+        data: { isActive: false }
+      });
+
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DOCTOR_SUSPENDED',
+          entityType: 'Doctor',
+          entityId: doctorId,
+          metadata: { reason: reason.trim() },
+          ipAddress: req.ip
+        }
+      });
+    });
+
+    logger.info(`[DisableDoctor] Admin ${req.user.id} suspended doctor ${doctorId}`);
+
+    return sendSuccess(res, {}, 'Doctor disabled successfully');
+  } catch (error) {
+    logger.error('[DisableDoctor] Error:', error);
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/admin/doctors/:doctorId - Permanently delete a doctor
+ * Hard delete - removes all doctor data (use with caution!)
+ */
+const deleteDoctorPermanently = async (req, res, next) => {
+  try {
+    const { doctorId } = req.params;
+    const { confirmText } = req.body;
+
+    // Require confirmation
+    if (confirmText !== 'DELETE') {
+      return sendError(res, 'Confirmation required. Send { confirmText: "DELETE" } to proceed', 400);
+    }
+
+    // Find doctor profile
+    const profile = await prisma.doctorProfile.findFirst({
+      where: {
+        userId: doctorId
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (!profile) {
+      return sendError(res, 'Doctor not found', 404);
+    }
+
+    // Check for active appointments
+    const activeAppointments = await prisma.appointment.count({
+      where: {
+        doctorId: profile.id,
+        status: {
+          in: ['SCHEDULED', 'IN_PROGRESS', 'CONFIRMED']
+        }
+      }
+    });
+
+    if (activeAppointments > 0) {
+      return sendError(
+        res,
+        `Cannot delete doctor with ${activeAppointments} active appointments. Cancel or complete them first.`,
+        400
+      );
+    }
+
+    // Permanently delete doctor data
+    await prisma.$transaction(async (tx) => {
+      // Delete related records
+      await tx.doctorClinic.deleteMany({
+        where: { doctorId: profile.id }
+      });
+
+      await tx.clinicStaff.deleteMany({
+        where: { userId: doctorId, role: 'DOCTOR' }
+      });
+
+      await tx.doctorAvailability.deleteMany({
+        where: { doctorId: profile.id }
+      });
+
+      // Delete completed appointments (keep history or decide based on policy)
+      // await tx.appointment.deleteMany({
+      //   where: { doctorId: profile.id }
+      // });
+
+      // Delete doctor profile
+      await tx.doctorProfile.delete({
+        where: { id: profile.id }
+      });
+
+      // Delete user account
+      await tx.user.delete({
+        where: { id: doctorId }
+      });
+
+      // Log the deletion
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DOCTOR_DELETED_PERMANENTLY',
+          entityType: 'Doctor',
+          entityId: doctorId,
+          metadata: {
+            doctorName: profile.fullLegalName,
+            deletedBy: req.user.name
+          },
+          ipAddress: req.ip
+        }
+      });
+    });
+
+    logger.warn(`[DeleteDoctor] Admin ${req.user.id} permanently deleted doctor ${doctorId}`);
+
+    return sendSuccess(res, {}, 'Doctor permanently deleted');
+  } catch (error) {
+    logger.error('[DeleteDoctor] Error:', error);
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/doctors/:doctorId/enable - Re-enable a disabled doctor
+ * Reactivates a suspended doctor account
+ */
+const enableDoctor = async (req, res, next) => {
+  try {
+    const { doctorId } = req.params;
+
+    // Find doctor profile
+    const profile = await prisma.doctorProfile.findFirst({
+      where: {
+        userId: doctorId
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (!profile) {
+      return sendError(res, 'Doctor not found', 404);
+    }
+
+    if (profile.user.approvalStatus !== 'SUSPENDED') {
+      return sendError(res, 'Doctor is not suspended', 400);
+    }
+
+    // Re-enable doctor
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: doctorId },
+        data: {
+          approvalStatus: 'VERIFIED',
+          rejectionReason: null,
+          isActive: true
+        }
+      });
+
+      await tx.doctorProfile.update({
+        where: { id: profile.id },
+        data: {
+          marketplaceVisible: true,
+          verificationStatus: 'VERIFIED'
+        }
+      });
+
+      // Reactivate clinic relationships
+      await tx.doctorClinic.updateMany({
+        where: { doctorId: profile.id },
+        data: { isActive: true }
+      });
+
+      // Log the action
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DOCTOR_ENABLED',
+          entityType: 'Doctor',
+          entityId: doctorId,
+          metadata: {},
+          ipAddress: req.ip
+        }
+      });
+    });
+
+    logger.info(`[EnableDoctor] Admin ${req.user.id} re-enabled doctor ${doctorId}`);
+
+    return sendSuccess(res, {}, 'Doctor re-enabled successfully');
+  } catch (error) {
+    logger.error('[EnableDoctor] Error:', error);
+    next(error);
+  }
+};
+
+
+// Export new doctor management functions
+module.exports.disableDoctor = disableDoctor;
+module.exports.deleteDoctorPermanently = deleteDoctorPermanently;
+module.exports.enableDoctor = enableDoctor;

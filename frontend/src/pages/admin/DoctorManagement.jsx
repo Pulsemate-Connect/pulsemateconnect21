@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { getAllDoctors, decideDoctorApproval } from '../../api/admin.api';
+import { getAllDoctors, decideDoctorApproval, disableDoctor, enableDoctor, deleteDoctorPermanently } from '../../api/admin.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
@@ -23,7 +23,10 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Ban,
+  Trash2,
+  Play
 } from 'lucide-react';
 
 const VERIFICATION_STATUS = {
@@ -69,6 +72,16 @@ const DoctorManagement = () => {
     entity: null,
     status: 'VERIFIED',
     reason: '',
+  });
+  const [disableState, setDisableState] = useState({
+    open: false,
+    doctor: null,
+    reason: '',
+  });
+  const [deleteState, setDeleteState] = useState({
+    open: false,
+    doctor: null,
+    confirmText: '',
   });
 
   // Calculate statistics
@@ -182,6 +195,64 @@ const DoctorManagement = () => {
       loadDoctors();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Approval action failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDisable = async () => {
+    const { doctor, reason } = disableState;
+    if (!doctor) return;
+    if (!reason.trim()) {
+      toast.error('Reason is required for disabling a doctor');
+      return;
+    }
+
+    setActionLoading(doctor.id);
+    try {
+      await disableDoctor(doctor.id, reason.trim());
+      toast.success('Doctor disabled successfully');
+      setDisableState({ open: false, doctor: null, reason: '' });
+      setSelectedDoctor(null);
+      loadDoctors();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to disable doctor');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEnable = async (doctor) => {
+    setActionLoading(doctor.id);
+    try {
+      await enableDoctor(doctor.id);
+      toast.success('Doctor re-enabled successfully');
+      setSelectedDoctor(null);
+      loadDoctors();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to enable doctor');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    const { doctor, confirmText } = deleteState;
+    if (!doctor) return;
+    if (confirmText !== 'DELETE') {
+      toast.error('Please type DELETE to confirm');
+      return;
+    }
+
+    setActionLoading(doctor.id);
+    try {
+      await deleteDoctorPermanently(doctor.id, confirmText);
+      toast.success('Doctor permanently deleted');
+      setDeleteState({ open: false, doctor: null, confirmText: '' });
+      setSelectedDoctor(null);
+      loadDoctors();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete doctor');
     } finally {
       setActionLoading(null);
     }
@@ -455,6 +526,10 @@ const DoctorManagement = () => {
           onApprove={(doctor) => openDecisionModal(doctor, 'VERIFIED')}
           onReject={(doctor) => openDecisionModal(doctor, 'REJECTED')}
           onSuspend={(doctor) => openDecisionModal(doctor, 'SUSPENDED')}
+          onDisable={(doctor) => setDisableState({ open: true, doctor, reason: '' })}
+          onEnable={handleEnable}
+          onDelete={(doctor) => setDeleteState({ open: true, doctor, confirmText: '' })}
+          actionLoading={actionLoading}
           formatDate={formatDate}
         />
 
@@ -518,6 +593,120 @@ const DoctorManagement = () => {
             </div>
           </div>
         </Modal>
+
+        {/* Disable Doctor Modal */}
+        <Modal
+          isOpen={disableState.open}
+          onClose={() => setDisableState({ open: false, doctor: null, reason: '' })}
+          title="Disable Doctor Account"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4">
+              <div className="flex items-start gap-3">
+                <Ban className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-900">
+                    {disableState.doctor?.doctorProfile?.fullLegalName || disableState.doctor?.name || 'Doctor'}
+                  </p>
+                  <p className="mt-1 text-sm text-yellow-700">
+                    This will suspend the doctor account and hide them from the marketplace. The account can be re-enabled later.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                Reason <span className="text-red-500">(required)</span>
+              </label>
+              <textarea
+                rows={4}
+                value={disableState.reason}
+                onChange={(e) => setDisableState(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Explain why this doctor is being disabled..."
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDisableState({ open: false, doctor: null, reason: '' })}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDisable}
+                disabled={actionLoading === disableState.doctor?.id || !disableState.reason.trim()}
+                className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50"
+              >
+                {actionLoading === disableState.doctor?.id ? 'Disabling...' : 'Disable Doctor'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Delete Doctor Modal */}
+        <Modal
+          isOpen={deleteState.open}
+          onClose={() => setDeleteState({ open: false, doctor: null, confirmText: '' })}
+          title="⚠️ Permanently Delete Doctor"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-red-50 border border-red-200 p-4">
+              <div className="flex items-start gap-3">
+                <Trash2 className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-900">
+                    {deleteState.doctor?.doctorProfile?.fullLegalName || deleteState.doctor?.name || 'Doctor'}
+                  </p>
+                  <p className="mt-1 text-sm text-red-700 font-semibold">
+                    ⚠️ THIS ACTION CANNOT BE UNDONE
+                  </p>
+                  <p className="mt-2 text-sm text-red-600">
+                    This will permanently delete all doctor data including profile, documents, and relationships. 
+                    Use "Disable" instead if you want to temporarily suspend the account.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                Type <span className="font-mono text-red-600">DELETE</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteState.confirmText}
+                onChange={(e) => setDeleteState(prev => ({ ...prev, confirmText: e.target.value }))}
+                placeholder="Type DELETE"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteState({ open: false, doctor: null, confirmText: '' })}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={actionLoading === deleteState.doctor?.id || deleteState.confirmText !== 'DELETE'}
+                className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading === deleteState.doctor?.id ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </DashboardLayout>
   );
@@ -540,7 +729,7 @@ const StatCard = ({ icon, label, value, color, isActive, onClick }) => (
 );
 
 // Doctor Detail Modal Component
-const DoctorDetailModal = ({ doctor, isOpen, onClose, onApprove, onReject, onSuspend, formatDate }) => {
+const DoctorDetailModal = ({ doctor, isOpen, onClose, onApprove, onReject, onSuspend, onDisable, onEnable, onDelete, actionLoading, formatDate }) => {
   if (!doctor) return null;
 
   const profile = doctor.doctorProfile || {};
@@ -735,6 +924,48 @@ const DoctorDetailModal = ({ doctor, isOpen, onClose, onApprove, onReject, onSus
               className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Suspend
+            </button>
+          </div>
+        )}
+
+        {/* Management Buttons - Always visible for verified/rejected/suspended doctors */}
+        {profile.verificationStatus !== 'PENDING' && (
+          <div className="flex flex-wrap gap-3 pt-4 border-t">
+            {doctor.approvalStatus === 'SUSPENDED' ? (
+              <button
+                onClick={() => {
+                  onEnable(doctor);
+                  onClose();
+                }}
+                disabled={actionLoading === doctor.id}
+                className="flex items-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" />
+                {actionLoading === doctor.id ? 'Enabling...' : 'Re-enable Doctor'}
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  onDisable(doctor);
+                  onClose();
+                }}
+                disabled={actionLoading === doctor.id}
+                className="flex items-center gap-2 rounded-xl bg-yellow-600 px-4 py-3 text-sm font-semibold text-white hover:bg-yellow-700 disabled:opacity-50"
+              >
+                <Ban className="h-4 w-4" />
+                {actionLoading === doctor.id ? 'Disabling...' : 'Disable Doctor'}
+              </button>
+            )}
+            <button
+              onClick={() => {
+                onDelete(doctor);
+                onClose();
+              }}
+              disabled={actionLoading === doctor.id}
+              className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              {actionLoading === doctor.id ? 'Deleting...' : 'Delete Permanently'}
             </button>
           </div>
         )}

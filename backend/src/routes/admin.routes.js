@@ -21,6 +21,9 @@ const {
   getClinicDetail,
   getDeletionRequests,
   cancelDeletionRequest,
+  disableDoctor,
+  deleteDoctorPermanently,
+  enableDoctor,
 } = require('../controllers/admin.controller');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel } = require('../middleware/auth.middleware');
 const { approvalSchema, adminCreateSchema, validateRequest } = require('../validations/auth.validation');
@@ -60,6 +63,9 @@ router.get('/all-doctors', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), 
 router.get('/doctors/:doctorId/verification', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getAdminVerificationProfile); // New: Complete verification view
 router.patch('/doctors/:doctorId/approve', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), approveDoctor);
 router.patch('/doctors/:doctorId/reject', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), validateRequest(approvalSchema), rejectDoctor);
+router.patch('/doctors/:doctorId/disable', requireAdminLevel('ROOT', 'SUPER_ADMIN'), disableDoctor); // Soft delete / suspend
+router.patch('/doctors/:doctorId/enable', requireAdminLevel('ROOT', 'SUPER_ADMIN'), enableDoctor); // Re-enable suspended doctor
+router.delete('/doctors/:doctorId', requireAdminLevel('ROOT'), deleteDoctorPermanently); // Hard delete (ROOT only)
 
 // ── Notification Campaigns ─────────────────────────────────────────────────
 router.use('/notifications', campaignRoutes);
