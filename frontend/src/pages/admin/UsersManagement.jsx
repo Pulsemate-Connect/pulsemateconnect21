@@ -9,6 +9,7 @@ import {
   updateUserStatus,
   getDeletionRequests,
   cancelDeletionRequest,
+  deleteUserPermanently,
 } from '../../api/admin.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
@@ -27,9 +28,11 @@ const ROLE_COLORS = {
 };
 
 // ── User Detail Drawer ────────────────────────────────────────────────────────
-const UserDetailDrawer = ({ userId, onClose, onToggleStatus, actionLoading, currentUser }) => {
+const UserDetailDrawer = ({ userId, onClose, onToggleStatus, onDelete, actionLoading, currentUser }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     if (!userId) return;
@@ -46,6 +49,15 @@ const UserDetailDrawer = ({ userId, onClose, onToggleStatus, actionLoading, curr
   // ✅ FIX: Use adminLevel from user object or fallback to adminProfile.level
   const currentAdminLevel = currentUser?.adminLevel || currentUser?.adminProfile?.level;
   const canToggle = user && user.id !== currentUser?.id && !(user.role === 'SUPER_ADMIN' && currentAdminLevel !== 'ROOT');
+  const canDelete = user && user.id !== currentUser?.id && currentAdminLevel === 'ROOT' && !(user.role === 'SUPER_ADMIN' && user.adminProfile?.level === 'ROOT');
+
+  const handleDeleteConfirm = () => {
+    if (deleteConfirmText === 'DELETE' && user) {
+      onDelete(user, deleteConfirmText);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    }
+  };
 
   return (
     <>
@@ -172,19 +184,72 @@ const UserDetailDrawer = ({ userId, onClose, onToggleStatus, actionLoading, curr
         </div>
 
         {/* Footer actions */}
-        {user && canToggle && (
-          <div className="border-t border-gray-100 px-6 py-4">
-            <button
-              onClick={() => onToggleStatus(user)}
-              disabled={actionLoading === user.id}
-              className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
-                user.isActive
-                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                  : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-              }`}
-            >
-              {actionLoading === user.id ? 'Saving...' : user.isActive ? '🚫 Disable Account' : '✅ Enable Account'}
-            </button>
+        {user && (canToggle || canDelete) && (
+          <div className="border-t border-gray-100 px-6 py-4 space-y-3">
+            {canToggle && (
+              <button
+                onClick={() => onToggleStatus(user)}
+                disabled={actionLoading === user.id}
+                className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                  user.isActive
+                    ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                    : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+                }`}
+              >
+                {actionLoading === user.id ? 'Saving...' : user.isActive ? '🚫 Disable Account' : '✅ Enable Account'}
+              </button>
+            )}
+            
+            {canDelete && !showDeleteConfirm && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                🗑️ Delete Permanently
+              </button>
+            )}
+
+            {canDelete && showDeleteConfirm && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
+                <div className="flex items-start gap-2">
+                  <span className="text-red-600 text-lg">⚠️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-red-900">Permanent Deletion</p>
+                    <p className="text-xs text-red-700 mt-1">This will permanently delete all user data. This action cannot be undone!</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-red-700 mb-1">
+                    Type <span className="font-mono font-bold">DELETE</span> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE"
+                    className="w-full px-3 py-2 text-sm border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteConfirmText('');
+                    }}
+                    className="flex-1 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={deleteConfirmText !== 'DELETE' || actionLoading === `delete-${user.id}`}
+                    className="flex-1 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === `delete-${user.id}` ? 'Deleting...' : 'Delete Permanently'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -299,6 +364,20 @@ const UsersManagement = () => {
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteUser = async (user, confirmText) => {
+    setActionLoading(`delete-${user.id}`);
+    try {
+      await deleteUserPermanently(user.id, confirmText);
+      toast.success(`User ${user.name || user.mobile} permanently deleted`);
+      setSelectedUserId(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete user');
     } finally {
       setActionLoading(null);
     }
@@ -606,6 +685,7 @@ const UsersManagement = () => {
           userId={selectedUserId}
           onClose={() => setSelectedUserId(null)}
           onToggleStatus={handleToggleStatus}
+          onDelete={handleDeleteUser}
           actionLoading={actionLoading}
           currentUser={currentUser}
         />

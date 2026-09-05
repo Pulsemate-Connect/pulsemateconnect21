@@ -1927,3 +1927,169 @@ const enableDoctor = async (req, res, next) => {
 module.exports.disableDoctor = disableDoctor;
 module.exports.deleteDoctorPermanently = deleteDoctorPermanently;
 module.exports.enableDoctor = enableDoctor;
+
+
+/**
+ * DELETE /api/admin/users/:userId - Permanently delete a user account
+ * Hard delete - removes all user data (use with extreme caution!)
+ */
+const deleteUserPermanently = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { confirmText } = req.body;
+
+    // Require confirmation
+    if (confirmText !== 'DELETE') {
+      return sendError(res, 'Confirmation required. Send { confirmText: "DELETE" } to proceed', 400);
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        doctorProfile: true,
+        patientProfile: true,
+        clinicOwnerProfile: true,
+        ownedClinics: true
+      }
+    });
+
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    // Prevent deleting yourself
+    if (user.id === req.user.id) {
+      return sendError(res, 'Cannot delete your own account', 400);
+    }
+
+    // Prevent deleting ROOT admins
+    if (user.role === 'SUPER_ADMIN') {
+      const adminProfile = await prisma.adminProfile.findUnique({
+        where: { userId: user.id }
+      });
+      if (adminProfile?.level === 'ROOT') {
+        return sendError(res, 'Cannot delete ROOT admin accounts', 403);
+      }
+    }
+
+    // Check for active appointments
+    const activeAppointments = await prisma.appointment.count({
+      where: {
+        OR: [
+          { patientId: userId },
+          { doctorId: user.doctorProfile?.id }
+        ],
+        status: {
+          in: ['SCHEDULED', 'IN_PROGRESS', 'CONFIRMED']
+        }
+      }
+    });
+
+    if (activeAppointments > 0) {
+      return sendError(
+        res,
+        `Cannot delete user with ${activeAppointments} active appointments. Cancel or complete them first.`,
+        400
+      );
+    }
+
+    // Check for active clinics (if clinic owner)
+    if (user.ownedClinics && user.ownedClinics.length > 0) {
+      const activeClinics = user.ownedClinics.filter(c => c.isActive);
+      if (activeClinics.length > 0) {
+        return sendError(
+          res,
+          `Cannot delete user who owns ${activeClinics.length} active clinic(s). Deactivate or transfer clinics first.`,
+          400
+        );
+      }
+    }
+
+    // Permanently delete user and related data
+    await prisma.$transaction(async (tx) => {
+      // Delete doctor-related data if doctor
+      if (user.doctorProfile) {
+        await tx.doctorClinic.deleteMany({
+          where: { doctorId: user.doctorProfile.id }
+        });
+
+        await tx.clinicStaff.deleteMany({
+          where: { userId: user.id, role: 'DOCTOR' }
+        });
+
+        await tx.doctorAvailability.deleteMany({
+          where: { doctorId: user.doctorProfile.id }
+        });
+
+        await tx.doctorProfile.delete({
+          where: { id: user.doctorProfile.id }
+        });
+      }
+
+      // Delete patient profile if exists
+      if (user.patientProfile) {
+        await tx.patientProfile.delete({
+          where: { userId: user.id }
+        });
+      }
+
+      // Delete clinic owner profile if exists
+      if (user.clinicOwnerProfile) {
+        await tx.clinicOwnerProfile.delete({
+          where: { userId: user.id }
+        });
+      }
+
+      // Delete admin profile if exists
+      await tx.adminProfile.deleteMany({
+        where: { userId: user.id }
+      });
+
+      // Delete other related records
+      await tx.fcmToken.deleteMany({
+        where: { userId: user.id }
+      });
+
+      await tx.refreshToken.deleteMany({
+        where: { userId: user.id }
+      });
+
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: user.id }
+      });
+
+      // Delete user account
+      await tx.user.delete({
+        where: { id: userId }
+      });
+
+      // Log the deletion
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'USER_DELETED_PERMANENTLY',
+          entityType: 'User',
+          entityId: userId,
+          metadata: {
+            userName: user.name,
+            userMobile: user.mobile,
+            userRole: user.role,
+            deletedBy: req.user.name
+          },
+          ipAddress: req.ip
+        }
+      });
+    });
+
+    logger.warn(`[DeleteUser] Admin ${req.user.id} permanently deleted user ${userId} (${user.name})`);
+
+    return sendSuccess(res, {}, 'User permanently deleted');
+  } catch (error) {
+    logger.error('[DeleteUser] Error:', error);
+    next(error);
+  }
+};
+
+// Export the new function
+module.exports.deleteUserPermanently = deleteUserPermanently;

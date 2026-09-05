@@ -71,6 +71,11 @@ export const getDeletionRequests = () =>
 export const cancelDeletionRequest = (id) =>
   api.patch(`/admin/deletion-requests/${id}/cancel`);
 
+// ── User Management: Delete ────────────────────────────────────────────────
+export const deleteUserPermanently = (userId, confirmText) =>
+  api.delete(`/admin/users/${userId}`, { data: { confirmText } });
+
+
 // ── Doctor Management: Disable, Enable, Delete ────────────────────────────
 export const disableDoctor = (doctorId, reason) =>
   api.patch(`/admin/doctors/${doctorId}/disable`, { reason });

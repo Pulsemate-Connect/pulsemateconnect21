@@ -24,6 +24,7 @@ const {
   disableDoctor,
   deleteDoctorPermanently,
   enableDoctor,
+  deleteUserPermanently,
 } = require('../controllers/admin.controller');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel } = require('../middleware/auth.middleware');
 const { approvalSchema, adminCreateSchema, validateRequest } = require('../validations/auth.validation');
@@ -36,6 +37,7 @@ router.use(authenticateUser, requireSuperAdmin);
 router.get('/dashboard', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getDashboard);
 router.get('/users', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getUsers);
 router.get('/users/:id', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getUserDetail);
+router.delete('/users/:userId', requireAdminLevel('ROOT'), deleteUserPermanently); // Hard delete (ROOT only)
 router.post('/admins', requireAdminLevel('ROOT'), validateRequest(adminCreateSchema), createAdminAccount);
 router.delete('/admins/:id', requireAdminLevel('ROOT'), deleteAdminAccount);
 router.get('/pending-clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getPendingClinics);
