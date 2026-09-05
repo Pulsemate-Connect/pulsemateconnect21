@@ -946,6 +946,31 @@ const callNext = async (req, res, next) => {
       priority: 'HIGH',
     }).catch(() => { });
 
+    // ✅ NEW: Notify the NEXT person in queue ("One person ahead of you")
+    const nextWaitingItem = await prisma.queueItem.findFirst({
+      where: { queueId, status: 'WAITING' },
+      orderBy: [
+        { isFollowUp: 'desc' }, // follow-ups first
+        { position: 'asc' },
+      ],
+    });
+
+    if (nextWaitingItem) {
+      createNotification({
+        userId: nextWaitingItem.patientId,
+        type: 'QUEUE_ALMOST_YOUR_TURN',
+        title: '⏰ You\'re Next!',
+        message: `One person ahead of you. Queue #${nextWaitingItem.queueNumber}. Please be ready in 5-10 minutes.`,
+        metadata: {
+          queueId,
+          queueNumber: nextWaitingItem.queueNumber,
+          estimatedWaitMinutes: avgMins,
+          clinicId: queue.clinicId,
+          doctorId: queue.doctorId,
+        },
+        priority: 'HIGH',
+      }).catch(() => { });
+    }
     // Emit socket events
     const io = req.app.get('io');
     if (io) {
