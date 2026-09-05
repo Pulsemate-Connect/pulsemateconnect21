@@ -689,12 +689,16 @@ const verifyMobileOtpForInvitation = async (req, res, next) => {
     let validOtpRecord = null;
     let isMessageCentralOtp = false;
 
-    // Check if otpHash looks like a Message Central verificationId (format: VN-...)
-    if (otpRecords[0].otpHash && otpRecords[0].otpHash.startsWith('VN-')) {
+    // Check if otpHash looks like a Message Central verificationId
+    // Format can be: VN-... OR numeric like 12469194
+    const otpHash = otpRecords[0].otpHash;
+    const isMessageCentralFormat = otpHash && (otpHash.startsWith('VN-') || /^\d+$/.test(otpHash));
+    
+    if (isMessageCentralFormat) {
       // This is a Message Central verification - validate with their API
       try {
         const messageCentralService = require('../services/messagecentral.service');
-        const result = await messageCentralService.validateOTP(otpRecords[0].otpHash, otp);
+        const result = await messageCentralService.validateOTP(otpHash, otp);
         
         if (result.success && result.verificationStatus === 'VERIFICATION_COMPLETED') {
           validOtpRecord = otpRecords[0];
