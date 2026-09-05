@@ -277,7 +277,8 @@ const getAllDoctors = async (req, res, next) => {
 
     const skip = (Number(page) - 1) * Number(limit);
     const where = {
-      profileStatus: 'COMPLETE' // Only show doctors with complete profiles
+      profileStatus: 'COMPLETE', // Only show doctors with complete profiles
+      profileSubmittedAt: { not: null } // Only show submitted profiles
     };
 
     // Filter by verification status
