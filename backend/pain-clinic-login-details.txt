@@ -1,0 +1,52 @@
+═══════════════════════════════════════════════════════════
+PAIN CLINIC - LOGIN DETAILS
+═══════════════════════════════════════════════════════════
+
+👤 CLINIC OWNER LOGIN:
+─────────────────────────────────────────────────────────
+Name: Dr. Arjun R. Upadhyay
+Mobile: 9876543210 (Test OTP: 123456)
+Email: owner@painclinickarwar.in
+Password: PainClinic@123
+
+📱 Test OTP Configuration:
+   Mobile 9876543210 is configured for test OTP
+   When logging in, OTP will be 123456
+   No real SMS will be sent
+
+🏥 CLINIC DETAILS:
+─────────────────────────────────────────────────────────
+Name: Pain Clinic Physiotherapy and Rehabilitation Center
+Address: G8, Suman Laxmi Enclave, Kajubag
+         Next to Nagmangala Hospital, Kodibag Road
+         Karwar, Karnataka - 581301
+Phone: +919740809295, +919901958611
+Website: spinecliniphysiotherapy.in
+
+⏰ WORKING HOURS:
+─────────────────────────────────────────────────────────
+Monday - Saturday:
+  Morning: 9:30 AM - 1:00 PM
+  Evening: 4:00 PM - 8:00 PM
+Sunday: Closed
+
+💰 CONSULTATION FEE:
+─────────────────────────────────────────────────────────
+₹300 per visit
+
+🎯 NEXT STEPS:
+─────────────────────────────────────────────────────────
+1. Open frontend: http://localhost:3000
+2. Click "Clinic Owner Login"
+3. Enter mobile: 9876543210
+4. Click "Send OTP"
+5. Enter OTP: 123456
+6. Login successful!
+
+OR
+
+1. Login with email/password:
+   Email: owner@painclinickarwar.in
+   Password: PainClinic@123
+
+═══════════════════════════════════════════════════════════

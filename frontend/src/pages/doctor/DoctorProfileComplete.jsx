@@ -158,7 +158,7 @@ const DoctorProfileComplete = () => {
         formDataUpload.append('invitationToken', token);
 
         const response = await axios.post(
-          `${API_URL}/api/upload/doctor-profile-photo`,
+          `${API_URL}/upload/doctor-profile-photo`,
           formDataUpload,
           {
             headers: {
@@ -185,7 +185,7 @@ const DoctorProfileComplete = () => {
       formDataUpload.append('documentType', documentType);
 
       const response = await axios.post(
-        `${API_URL}/api/upload/doctor-document`,
+        `${API_URL}/upload/doctor-document`,
         formDataUpload,
         {
           headers: {
