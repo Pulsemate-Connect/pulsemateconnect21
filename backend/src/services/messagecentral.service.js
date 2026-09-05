@@ -351,7 +351,7 @@ async function sendOTP(mobileNumber, otpLength = 6) {
     // Get auth token
     const authToken = await generateAuthToken();
     
-    // Send OTP request with 3-minute (180 second) timeout
+    // Send OTP request with 10-minute (600 second) timeout
     const response = await axios.post(
       `${BASE_URL}/verification/v3/send`,
       null,
@@ -362,7 +362,7 @@ async function sendOTP(mobileNumber, otpLength = 6) {
           flowType: 'SMS',
           mobileNumber: cleanNumber,
           otpLength: otpLength,
-          otpTimeout: 180  // Request 3-minute timeout (may not be supported by API)
+          otpTimeout: 600  // Request 10-minute timeout (Message Central may cap this)
         },
         headers: {
           'authToken': authToken
