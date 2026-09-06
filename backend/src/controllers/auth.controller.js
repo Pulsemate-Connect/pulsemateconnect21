@@ -2957,9 +2957,14 @@ const sendRegistrationEmailOtp = async (req, res, next) => {
     if (purpose === 'SIGNUP') {
       // For registration, reject if email already exists with active/pending account
       if (existingUser) {
+        // ✅ ALLOW: DRAFT users with TEMP mobile (abandoned registration - let them resume)
+        if (existingUser.approvalStatus === 'DRAFT') {
+          logger.info(`[Auth] DRAFT user ${cleanEmail} found - allowing resume of registration`);
+          // Continue to send OTP (user can resume where they left off)
+        }
         // ✅ SPECIAL CASE: If user is PENDING but has NO clinic data (incomplete onboarding),
         // allow them to continue by treating this as a LOGIN to resume onboarding
-        if (existingUser.approvalStatus === 'PENDING') {
+        else if (existingUser.approvalStatus === 'PENDING') {
           const hasClinicData = existingUser.clinicOnboardingData !== null;
           
           if (!hasClinicData) {
@@ -3114,50 +3119,57 @@ const verifyRegistrationEmailOtp = async (req, res, next) => {
 
     let isNewUser = false;
     if (!user) {
-      // Create new user with CLINIC_OWNER role
-      // Generate a unique placeholder mobile since mobile field is required
-      const placeholderMobile = `+91${Date.now().toString().slice(-10)}`;
+      // Create new user with DRAFT status and temp mobile
+      const tempMobile = `TEMP_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       
       user = await prisma.user.create({
         data: {
           email: cleanEmail,
-          mobile: placeholderMobile, // Placeholder mobile (required field)
+          mobile: tempMobile, // ✅ Temp mobile placeholder
           name: name,
           role: 'CLINIC_OWNER',
-          roles: ['CLINIC_OWNER'], // ✅ MULTI-ROLE FIX: Set roles array
-          primaryRole: 'CLINIC_OWNER', // ✅ MULTI-ROLE FIX: Set primaryRole
-          approvalStatus: 'PENDING', // ✅ FIX: Set to PENDING - must complete onboarding and get admin approval
+          roles: ['CLINIC_OWNER'],
+          primaryRole: 'CLINIC_OWNER',
+          approvalStatus: 'DRAFT', // ✅ DRAFT until mobile verified
           isEmailVerified: true,
           authProvider: 'EMAIL_OTP',
-          clinicOwnerProfile: { create: { profileCompleted: false } },
+          registrationStartedAt: new Date(),
         },
         include: baseUserInclude,
       });
       isNewUser = true;
-      logger.info(`[Auth] New CLINIC_OWNER registered: ${user.id} (${cleanEmail})`);
-      
-      // ✅ MULTI-ROLE FIX: Create RoleApprovalStatus for new CLINIC_OWNER
-      await prisma.roleApprovalStatus.create({
-        data: {
-          userId: user.id,
-          role: 'CLINIC_OWNER',
-          approvalStatus: 'PENDING',
-          requestedAt: new Date(),
-        }
-      });
+      logger.info(`[Auth] New CLINIC_OWNER created (DRAFT): ${user.id} (${cleanEmail})`);
     } else {
-      // Existing user - update email verification
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          isEmailVerified: true,
-          lastLoginAt: new Date(),
-          authProvider: 'EMAIL_OTP',
-          ...(name && !user.name ? { name } : {}),
-        },
-        include: baseUserInclude,
-      });
-      logger.info(`[Auth] ${user.role} login via email OTP: ${user.id} (${cleanEmail}), status: ${user.approvalStatus}`);
+      // ✅ EXISTING USER: Check if DRAFT (abandoned registration)
+      if (user.approvalStatus === 'DRAFT' && user.mobile && user.mobile.startsWith('TEMP_')) {
+        // User is resuming abandoned registration - refresh temp mobile
+        const newTempMobile = `TEMP_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            mobile: newTempMobile, // ✅ Refresh temp mobile for new token
+            isEmailVerified: true,
+            lastLoginAt: new Date(),
+            authProvider: 'EMAIL_OTP',
+            ...(name && !user.name ? { name } : {}),
+          },
+          include: baseUserInclude,
+        });
+        logger.info(`[Auth] DRAFT user resumed registration: ${user.id} (${cleanEmail})`);
+      } else {
+        // Regular existing user login
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isEmailVerified: true,
+            lastLoginAt: new Date(),
+            authProvider: 'EMAIL_OTP',
+            ...(name && !user.name ? { name } : {}),
+          },
+          include: baseUserInclude,
+        });
+        logger.info(`[Auth] ${user.role} login via email OTP: ${user.id} (${cleanEmail}), status: ${user.approvalStatus}`);
+      }
     }
 
     // ✅ SECURITY FIX: Block login only for REJECTED and SUSPENDED clinic owners (existing users)
