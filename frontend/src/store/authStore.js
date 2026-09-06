@@ -216,18 +216,17 @@ const useAuthStore = create(
               }
               
               // Check if token role matches user role
+              // ✅ RELAXED: Don't clear auth on role mismatch (multi-role system)
               if (payload.role !== state.user.role) {
-                console.error('[AuthStore] Rehydrated token/user role mismatch!', {
+                console.warn('[AuthStore] Rehydrated token/user role mismatch (normal for multi-role):', {
                   tokenRole: payload.role,
                   userRole: state.user.role,
+                  tokenActiveRole: payload.activeRole,
+                  tokenPrimaryRole: payload.primaryRole,
                   userId: state.user.id,
                   tokenUserId: payload.sub
                 });
-                console.warn('[AuthStore] Clearing invalid auth state');
-                state.user = null;
-                state.accessToken = null;
-                state.isAuthenticated = false;
-                return;
+                // Don't clear auth - just log the mismatch
               }
               
               console.log('[AuthStore] Rehydrated token validated successfully');
