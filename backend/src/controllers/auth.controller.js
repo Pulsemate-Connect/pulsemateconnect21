@@ -3302,10 +3302,15 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       }
     } else if (purpose === 'ONBOARDING') {
       // ✅ FIX: For onboarding, CHECK if user already exists with this mobile
-      // Block if another user already has this mobile number
+      // Allow DRAFT users (email verified, waiting for mobile verification)
       if (existingUser) {
-        // Check approval status
-        if (existingUser.approvalStatus === 'PENDING') {
+        // ✅ ALLOW: DRAFT users with temp mobile (from email verification)
+        if (existingUser.approvalStatus === 'DRAFT' && existingUser.mobile && existingUser.mobile.startsWith('TEMP_')) {
+          logger.info(`[OTP] ONBOARDING: DRAFT user with temp mobile found - allowing mobile verification`);
+          // Continue to send OTP (this is the mobile verification step)
+        }
+        // Check approval status for real mobile numbers
+        else if (existingUser.approvalStatus === 'PENDING') {
           return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
         } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
           return sendError(res, 'A user with this mobile number already exists and is active. Please use a different mobile number.', 409);
