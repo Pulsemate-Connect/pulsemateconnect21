@@ -118,11 +118,11 @@ exports.createSession = async (req, res) => {
     }
 
     // Validate sessionType enum
-    const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING'];
+    const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING', 'CUSTOM'];
     if (!validSessionTypes.includes(sessionType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid session type. Must be MORNING, AFTERNOON, or EVENING',
+        message: 'Invalid session type. Must be MORNING, AFTERNOON, EVENING, or CUSTOM',
       });
     }
 
@@ -155,18 +155,21 @@ exports.createSession = async (req, res) => {
     logger.info('[CREATE SESSION] Clinic ownership verified', { clinicName: clinic.name });
 
     // Check for duplicate session type (unique constraint: clinicId + sessionType)
-    const existingSession = await prisma.clinicSession.findFirst({
-      where: {
-        clinicId,
-        sessionType,
-      },
-    });
-
-    if (existingSession) {
-      return res.status(400).json({
-        success: false,
-        message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+    // Note: Allow multiple CUSTOM sessions per clinic
+    if (sessionType !== 'CUSTOM') {
+      const existingSession = await prisma.clinicSession.findFirst({
+        where: {
+          clinicId,
+          sessionType,
+        },
       });
+
+      if (existingSession) {
+        return res.status(400).json({
+          success: false,
+          message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+        });
+      }
     }
 
     // Auto-assign sortOrder based on session type
@@ -174,8 +177,9 @@ exports.createSession = async (req, res) => {
       MORNING: 1,
       AFTERNOON: 2,
       EVENING: 3,
+      CUSTOM: 4,
     };
-    const sortOrder = sortOrderMap[sessionType];
+    const sortOrder = sortOrderMap[sessionType] || 4; // Default to 4 for CUSTOM
 
     // Check for time conflicts with other sessions
     const existingSessions = await prisma.clinicSession.findMany({
@@ -298,27 +302,30 @@ exports.updateSession = async (req, res) => {
 
     // If sessionType is being changed, check for duplicates
     if (sessionType && sessionType !== session.sessionType) {
-      const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING'];
+      const validSessionTypes = ['MORNING', 'AFTERNOON', 'EVENING', 'CUSTOM'];
       if (!validSessionTypes.includes(sessionType)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid session type. Must be MORNING, AFTERNOON, or EVENING',
+          message: 'Invalid session type. Must be MORNING, AFTERNOON, EVENING, or CUSTOM',
         });
       }
 
-      const existingSession = await prisma.clinicSession.findFirst({
-        where: {
-          clinicId: session.clinicId,
-          sessionType,
-          id: { not: sessionId },
-        },
-      });
-
-      if (existingSession) {
-        return res.status(400).json({
-          success: false,
-          message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+      // Only check for duplicates for non-CUSTOM sessions
+      if (sessionType !== 'CUSTOM') {
+        const existingSession = await prisma.clinicSession.findFirst({
+          where: {
+            clinicId: session.clinicId,
+            sessionType,
+            id: { not: sessionId },
+          },
         });
+
+        if (existingSession) {
+          return res.status(400).json({
+            success: false,
+            message: `${sessionType.charAt(0) + sessionType.slice(1).toLowerCase()} Session already exists for this clinic`,
+          });
+        }
       }
     }
 
@@ -473,7 +480,12 @@ function validateSessionTimeRange(sessionType, startTime, endTime) {
     };
   }
 
-  // Session type specific validation
+  // CUSTOM sessions can have any time range - skip time range validation
+  if (sessionType === 'CUSTOM') {
+    return { valid: true };
+  }
+
+  // Session type specific validation for MORNING, AFTERNOON, EVENING
   const ranges = {
     MORNING: { min: 6 * 60, max: 12 * 60, label: '6:00 AM - 12:00 PM' },
     AFTERNOON: { min: 12 * 60, max: 18 * 60, label: '12:00 PM - 6:00 PM' },

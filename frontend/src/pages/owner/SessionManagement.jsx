@@ -49,12 +49,23 @@ export default function SessionManagement() {
       defaultEnd: '21:00',
       sortOrder: 3,
     },
+    CUSTOM: {
+      label: '⚙️ Custom Session',
+      name: 'Custom Session',
+      defaultStart: '10:00',
+      defaultEnd: '14:00',
+      sortOrder: 4,
+    },
   };
 
   // Get available session types (not yet created)
   const getAvailableSessionTypes = () => {
     const existingTypes = sessions.map(s => s.sessionType);
-    return Object.keys(SESSION_TYPES).filter(type => !existingTypes.includes(type));
+    // Allow multiple CUSTOM sessions, but only one of each other type
+    return Object.keys(SESSION_TYPES).filter(type => {
+      if (type === 'CUSTOM') return true; // Always allow CUSTOM
+      return !existingTypes.includes(type);
+    });
   };
 
   // Handle session type selection
