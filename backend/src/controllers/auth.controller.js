@@ -1127,18 +1127,23 @@ const clinicOwnerSendEmailOtpHandler = async (req, res, next) => {
     });
 
     if (existing) {
+      // ✅ ALLOW: DRAFT users with TEMP mobile (abandoned registration - let them resume)
+      if (existing.approvalStatus === 'DRAFT') {
+        logger.info(`[EmailVerification] DRAFT user ${normalizedEmail} found - allowing resume of registration`);
+        // Continue to send OTP (user can resume where they left off)
+      }
       // Check if user has a pending application
-      if (existing.approvalStatus === 'PENDING') {
+      else if (existing.approvalStatus === 'PENDING') {
         return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
       }
-      
       // Check if user is already verified/approved
-      if (existing.approvalStatus === 'VERIFIED' || existing.approvalStatus === 'APPROVED') {
+      else if (existing.approvalStatus === 'VERIFIED' || existing.approvalStatus === 'APPROVED') {
         return sendError(res, 'A user with this email already exists and is active.', 409);
       }
-      
       // For other statuses (REJECTED, SUSPENDED, etc.)
-      return sendError(res, 'A user with this email already exists', 409);
+      else {
+        return sendError(res, 'A user with this email already exists', 409);
+      }
     }
 
     const result = await sendEmailVerification(normalizedEmail, ownerName);
@@ -1247,16 +1252,27 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
       logger.info(`[EmailVerify] ✅ Created new user ${user.id} with email ${user.email} (status: DRAFT)`);
     } else {
       // Update existing user to mark email as verified
+      // ✅ If DRAFT user, refresh temp mobile for new tempToken
+      const updateData = {
+        isEmailVerified: true,
+        name: ownerName || user.name,
+        registrationStartedAt: user.registrationStartedAt || new Date(),
+      };
+      
+      // Refresh temp mobile for DRAFT users to allow new verification flow
+      if (user.approvalStatus === 'DRAFT' && user.mobile && user.mobile.startsWith('TEMP_')) {
+        const newTempMobile = `TEMP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        updateData.mobile = newTempMobile;
+        logger.info(`[EmailVerify] Refreshing temp mobile for DRAFT user ${user.id}`);
+      }
+      
       user = await prisma.user.update({
         where: { id: user.id },
-        data: {
-          isEmailVerified: true,
-          name: ownerName || user.name,
-          registrationStartedAt: user.registrationStartedAt || new Date(), // Set if not already set
-        },
+        data: updateData,
         select: {
           id: true,
           email: true,
+          mobile: true,
           name: true,
           role: true,
           approvalStatus: true,
