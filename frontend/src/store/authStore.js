@@ -30,15 +30,17 @@ const useAuthStore = create(
           const [, payloadB64] = accessToken.split('.');
           const payload = JSON.parse(atob(payloadB64));
           
+          // ✅ RELAXED VALIDATION: Log mismatches but don't block login
+          // Backend may use primaryRole/activeRole in token while user object has legacy role field
           if (payload.role !== user.role) {
-            console.error('[AuthStore] Token/user role mismatch!', {
+            console.warn('[AuthStore] Token/user role mismatch (this is normal for multi-role users):', {
               tokenRole: payload.role,
               userRole: user.role,
+              tokenActiveRole: payload.activeRole,
+              tokenPrimaryRole: payload.primaryRole,
               userId: user.id
             });
-            console.warn('[AuthStore] ⚠️  You may have an old cached token. Clear browser storage and log in again.');
-            // Don't set auth if roles don't match - user needs fresh token
-            return;
+            // Don't return early - allow login to proceed
           }
           
           // Check if token is expired

@@ -4068,12 +4068,28 @@ const doctorVerifyMobileOtpLogin = async (req, res, next) => {
       ipAddress: req.ip,
     });
 
+    const authUser = toAuthUser(user);
+    
+    // Debug: Log token payload vs user role
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.decode(tokens.accessToken);
+    logger.info(`[DoctorLogin] Token payload role: ${decoded.role}, User role: ${authUser.role}, User object:`, {
+      userId: authUser.id,
+      name: authUser.name,
+      role: authUser.role,
+      primaryRole: user.primaryRole,
+      roles: user.roles,
+      tokenRole: decoded.role,
+      tokenActiveRole: decoded.activeRole,
+      tokenPrimaryRole: decoded.primaryRole
+    });
+
     logger.info(`[DoctorLogin] Mobile OTP login successful for ${user.name}`);
 
     return sendSuccess(res, {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: toAuthUser(user),
+      user: authUser,
     }, 'Login successful');
   } catch (error) {
     logger.error('[DoctorLogin] Verify mobile OTP error:', error);
