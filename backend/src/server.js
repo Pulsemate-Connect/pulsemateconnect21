@@ -143,7 +143,7 @@ app.use(cors({
   },
   credentials: true, // ✅ CRITICAL: Allow cookies to be sent/received
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'], // ✅ FIXED: Allow Cookie header
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Temp-Token'], // ✅ FIXED: Allow X-Temp-Token for identity linking
   exposedHeaders: ['Set-Cookie'], // ✅ FIXED: Expose Set-Cookie header to frontend
 }));
 
