@@ -110,9 +110,11 @@ const Step1ClinicInfo = () => {
       // Backend returns 'phone' field but some places use 'mobile'
       const userMobile = user.mobile || user.phone;
       if (userMobile) {
-        setValue('ownerMobile', userMobile);
+        // Strip +91 prefix if present (validation expects 10 digits only)
+        const cleanMobile = userMobile.replace(/^\+91/, '');
+        setValue('ownerMobile', cleanMobile);
         setValue('mobileVerified', true); // Already verified during registration
-        console.log('[Step1] Pre-filled verified mobile from auth:', userMobile);
+        console.log('[Step1] Pre-filled verified mobile from auth:', cleanMobile);
       }
     }
   }, [setValue, user]);
