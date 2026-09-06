@@ -3258,7 +3258,9 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       where: { mobile: normalizedPhone },
       select: { 
         id: true, 
-        role: true, 
+        role: true,
+        roles: true, // ✅ Check multi-role array
+        primaryRole: true,
         approvalStatus: true,
         clinicOnboardingData: true 
       },
@@ -3308,11 +3310,21 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
       // Allow DRAFT users (email verified, waiting for mobile verification)
       if (existingUser) {
         // ✅ ALLOW: DRAFT users with temp mobile (from email verification)
+        // These are users who verified email and are now verifying their mobile
         if (existingUser.approvalStatus === 'DRAFT' && existingUser.mobile && existingUser.mobile.startsWith('TEMP_')) {
           logger.info(`[OTP] ONBOARDING: DRAFT user with temp mobile found - allowing mobile verification`);
           // Continue to send OTP (this is the mobile verification step)
         }
-        // Check approval status for real mobile numbers
+        // ✅ ALLOW: Existing PATIENT users who want to become CLINIC_OWNER (multi-role)
+        else if (existingUser.role === 'PATIENT' || (existingUser.roles && existingUser.roles.includes('PATIENT'))) {
+          logger.info(`[OTP] ONBOARDING: Existing PATIENT user found - will merge to add CLINIC_OWNER role`);
+          // Continue to send OTP (will merge accounts during verification)
+        }
+        // ✅ BLOCK: Already a clinic owner with this mobile
+        else if (existingUser.role === 'CLINIC_OWNER' || (existingUser.roles && existingUser.roles.includes('CLINIC_OWNER'))) {
+          return sendError(res, 'This mobile number is already registered to a clinic owner account. Please login instead or use a different mobile number.', 409);
+        }
+        // Check approval status for other cases
         else if (existingUser.approvalStatus === 'PENDING') {
           return sendError(res, 'An application with this mobile number is already pending review. Please wait for admin approval or contact support.', 409);
         } else if (existingUser.approvalStatus === 'VERIFIED' || existingUser.approvalStatus === 'APPROVED') {
