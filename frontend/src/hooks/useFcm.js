@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { registerFcmToken, removeFcmToken } from '../api/notification.api';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path
 
 /**
  * useFcm — registers the browser for Firebase push notifications.

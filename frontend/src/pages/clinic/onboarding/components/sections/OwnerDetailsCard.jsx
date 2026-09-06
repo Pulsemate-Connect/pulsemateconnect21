@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import FormInput from '../shared/FormInput';
-import useAuthStore from '../../../../../store/authStore';
+import useAuthStore from '../../../../../stores/authStore';
 import toast from 'react-hot-toast';
 import OTPModal from '../modals/OTPModal';
 

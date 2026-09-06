@@ -20,7 +20,7 @@ import {
 } from '../../api/doctor.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DAYS = [

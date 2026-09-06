@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { getMyAppointments, getPatientProfile, searchDoctors } from '../../api/patient.api';
 import StatusBadge from '../../components/ui/StatusBadge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';

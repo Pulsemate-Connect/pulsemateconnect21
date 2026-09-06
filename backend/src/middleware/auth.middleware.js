@@ -1,5 +1,7 @@
 const prisma = require('../config/database');
 const { verifyAccessToken } = require('../services/token.service');
+const { validateSession } = require('../services/session.service');
+const { SESSION_COOKIE_NAME } = require('../utils/cookies');
 const { sendError } = require('../utils/response');
 
 const includeUserProfile = {
@@ -48,35 +50,104 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * PRODUCTION AUTHENTICATION MIDDLEWARE
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * Dual authentication system:
+ * 1. Web browsers: Session cookie (primary, most secure)
+ * 2. Mobile apps: JWT Bearer token (backward compatible)
+ * 
+ * Priority: Cookie session > JWT Bearer token
+ * 
+ * Security features:
+ * - HttpOnly session cookies (XSS protection)
+ * - Session validation with expiration and idle timeout
+ * - Server-side session revocation
+ * - User cache for performance
+ * - Account status validation
+ */
 const authenticateUser = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return sendError(res, 'Authentication required', 401);
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyAccessToken(token);
+    let user = null;
+    let authSource = null;
+    let sessionInfo = null;
     
-    // ✅ PERFORMANCE: Try cache first
-    let user = getCachedUser(decoded.sub);
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIORITY 1: Session Cookie (Web Browsers - Most Secure)
+    // ─────────────────────────────────────────────────────────────────────────
+    const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
     
-    if (!user) {
-      // Cache miss - fetch from database
-      user = await prisma.user.findUnique({
-        where: { id: decoded.sub },
-        include: includeUserProfile,
-      });
+    if (sessionToken) {
+      const session = await validateSession(sessionToken);
       
-      if (user) {
-        // Store in cache for future requests
-        setCachedUser(decoded.sub, user);
+      if (session && session.user) {
+        user = session.user;
+        authSource = 'SESSION_COOKIE';
+        sessionInfo = {
+          sessionId: session.id,
+          authRole: session.authRole,
+          loginMethod: session.loginMethod,
+          createdAt: session.createdAt,
+          lastActivityAt: session.lastActivityAt,
+        };
+        
+        // Store session ID in request for logout/revocation
+        req.sessionId = session.id;
       }
     }
-
-    if (!user) return sendError(res, 'Authentication required', 401);
-    if (!user.isActive) return sendError(res, 'Account is disabled', 403);
-
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIORITY 2: JWT Bearer Token (Mobile Apps - Backward Compatible)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (!user) {
+      const authHeader = req.headers.authorization;
+      
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const decoded = verifyAccessToken(token);
+        
+        // ✅ PERFORMANCE: Try cache first
+        user = getCachedUser(decoded.sub);
+        
+        if (!user) {
+          // Cache miss - fetch from database
+          user = await prisma.user.findUnique({
+            where: { id: decoded.sub },
+            include: includeUserProfile,
+          });
+          
+          if (user) {
+            // Store in cache for future requests
+            setCachedUser(decoded.sub, user);
+          }
+        }
+        
+        authSource = 'JWT_BEARER';
+        
+        // Store JWT info in request
+        req.auth = {
+          ...decoded,
+          // For backward compatibility, add multi-role fields if they don't exist in old tokens
+          roles: decoded.roles || [decoded.role || user?.role],
+          primaryRole: decoded.primaryRole || decoded.role || user?.primaryRole || user?.role,
+          activeRole: decoded.activeRole || decoded.role || user?.primaryRole || user?.role,
+        };
+      }
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // Validation
+    // ─────────────────────────────────────────────────────────────────────────
+    if (!user) {
+      return sendError(res, 'Authentication required', 401);
+    }
+    
+    if (!user.isActive) {
+      return sendError(res, 'Account is disabled', 403);
+    }
+    
     // SUSPENDED and REJECTED clinic owners are still allowed to:
     //  - read their own clinic status  (GET  /clinics/my-status)
     //  - resubmit their clinic         (PATCH /clinics/my-resubmit)
@@ -91,20 +162,56 @@ const authenticateUser = async (req, res, next) => {
       return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
     }
 
-    // Multi-role support: Extract roles from JWT
-    // Backward compatible: Fall back to user.role if JWT doesn't have multi-role fields
+    // Attach user to request
     req.user = user;
-    req.auth = {
-      ...decoded,
-      // For backward compatibility, add multi-role fields if they don't exist in old tokens
-      roles: decoded.roles || [decoded.role || user.role],
-      primaryRole: decoded.primaryRole || decoded.role || user.primaryRole || user.role,
-      activeRole: decoded.activeRole || decoded.role || user.primaryRole || user.role,
-    };
+    
+    // Attach auth metadata
+    if (authSource === 'SESSION_COOKIE') {
+      req.auth = {
+        sub: user.id,
+        role: sessionInfo.authRole, // For backward compatibility
+        roles: user.roles || [user.role],
+        primaryRole: user.primaryRole || user.role,
+        activeRole: sessionInfo.authRole,
+        status: user.approvalStatus,
+        sessionId: sessionInfo.sessionId,
+        authSource: 'SESSION_COOKIE',
+      };
+    } else if (!req.auth) {
+      // Fallback if JWT auth didn't set req.auth
+      req.auth = {
+        sub: user.id,
+        role: user.role,
+        roles: user.roles || [user.role],
+        primaryRole: user.primaryRole || user.role,
+        activeRole: user.primaryRole || user.role,
+        status: user.approvalStatus,
+        authSource: 'JWT_BEARER',
+      };
+    }
+    
+    // Log authentication for debugging (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Auth Middleware] Authenticated', {
+        userId: user.id,
+        authSource,
+        role: req.auth.activeRole,
+        path: req.path,
+      });
+    }
     
     next();
   } catch (error) {
-    return sendError(res, error.name === 'TokenExpiredError' ? 'Access token expired' : 'Invalid access token', 401);
+    // Clear invalid session cookie if present
+    if (req.cookies?.[SESSION_COOKIE_NAME]) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+    }
+    
+    return sendError(
+      res, 
+      error.name === 'TokenExpiredError' ? 'Access token expired' : 'Invalid access token', 
+      401
+    );
   }
 };
 

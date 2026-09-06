@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import axios from '../../api/axios';
 
 const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {

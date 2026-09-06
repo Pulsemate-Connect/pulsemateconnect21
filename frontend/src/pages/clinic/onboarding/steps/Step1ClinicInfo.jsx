@@ -11,7 +11,7 @@ import OwnerDetailsCard from '../components/sections/OwnerDetailsCard';
 import PrimaryContactCard from '../components/sections/PrimaryContactCard';
 import ClinicLocationCard from '../components/sections/ClinicLocationCard';
 import AddressDetailsCard from '../components/sections/AddressDetailsCard';
-import useAuthStore from '../../../../store/authStore';
+import useAuthStore from '../../../../stores/authStore';
 import axios from '../../../../api/axios'; // ✅ FIX: Import axios for authentication
 
 const Step1ClinicInfo = () => {

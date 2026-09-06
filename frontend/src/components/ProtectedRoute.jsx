@@ -15,7 +15,7 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import React from 'react';
-import useAuthStore from '../store/authStore'; // FIX: Use correct store path (store not stores)
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path (stores not store)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants - Role-based home routes

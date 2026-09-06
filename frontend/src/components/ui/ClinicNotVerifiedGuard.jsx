@@ -5,7 +5,7 @@
 //  Pass through for SUPER_ADMIN so admin can still access these pages.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Link } from 'react-router-dom';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 const STATUS_INFO = {
   PENDING: {

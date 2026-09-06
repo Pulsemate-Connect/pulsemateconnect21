@@ -34,6 +34,7 @@ async function bootstrapAdmin() {
     const email = process.env.ADMIN_BOOTSTRAP_EMAIL;
     const name = process.env.ADMIN_BOOTSTRAP_NAME || 'System Administrator';
     const level = process.env.ADMIN_BOOTSTRAP_LEVEL || 'ROOT';
+    const mobile = process.env.ADMIN_BOOTSTRAP_MOBILE || '9999999999'; // Default admin mobile
 
     if (!email) {
       console.log('❌ ADMIN_BOOTSTRAP_EMAIL not set in .env file');
@@ -46,6 +47,7 @@ async function bootstrapAdmin() {
 
     console.log('Bootstrap Configuration:');
     console.log('  Email:', email);
+    console.log('  Mobile:', mobile);
     console.log('  Name:', name);
     console.log('  Level:', level);
     console.log('');
@@ -125,6 +127,7 @@ async function bootstrapAdmin() {
       user = await prisma.user.create({
         data: {
           email,
+          mobile,
           name,
           role: 'SUPER_ADMIN',
           roles: ['SUPER_ADMIN'],

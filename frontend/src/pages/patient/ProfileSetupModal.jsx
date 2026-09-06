@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { updatePatientProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import toast from 'react-hot-toast';
 import {
   BLOOD_GROUPS, GENDER_OPTIONS, POPULAR_CITIES,

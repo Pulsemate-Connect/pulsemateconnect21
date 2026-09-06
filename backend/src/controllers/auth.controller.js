@@ -6,11 +6,26 @@ const {
   revokeRefreshToken,
   revokeAllUserTokens,
   revokeAllRefreshTokens,
+  signAccessToken, // ✅ NEW: For mobile JWT generation
 } = require('../services/token.service');
+const {
+  createSession,
+  validateSession,
+  revokeSession,
+  revokeAllUserSessions,
+  revokeOtherUserSessions,
+} = require('../services/session.service'); // ✅ NEW: Session service
 const { hashPassword, verifyPassword } = require('../utils/hash');
 const { sendSuccess, sendError } = require('../utils/response');
 const { createAuditLog } = require('../services/audit.service');
-const { REFRESH_COOKIE_NAME, clearRefreshTokenCookie, setRefreshTokenCookie } = require('../utils/cookies');
+const { 
+  REFRESH_COOKIE_NAME, 
+  SESSION_COOKIE_NAME, // ✅ NEW
+  clearRefreshTokenCookie, 
+  setRefreshTokenCookie,
+  clearSessionCookie, // ✅ NEW
+  setSessionCookie, // ✅ NEW
+} = require('../utils/cookies');
 const { normalizeMobileNumber } = require('../utils/mobile');
 const {
   createPasswordResetToken,
@@ -95,12 +110,76 @@ const toAuthUser = (user) => ({
 
 const getSessionMetadata = (req) => ({
   ipAddress: req.ip,
-  deviceInfo: req.headers['x-device-info'] || req.headers['user-agent'] || null,
+  userAgent: req.headers['user-agent'] || null,
+  deviceInfo: req.headers['x-device-info'] || null,
 });
 
-const issueAuthTokens = async (res, user, req) => {
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * PRODUCTION SESSION-BASED AUTHENTICATION
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * Dual authentication system:
+ * 1. Web browsers: HttpOnly session cookie (secure, XSS-protected)
+ * 2. Mobile apps: JWT in response body (backward compatible)
+ * 
+ * This function creates BOTH:
+ * - Session token in HttpOnly cookie for web
+ * - JWT access token in response body for mobile
+ * 
+ * Benefits:
+ * - Web: Secure cookie-based sessions with server-side revocation
+ * - Mobile: Stateless JWT for offline-first capabilities
+ * - Unified session tracking and security controls
+ */
+const issueAuthTokens = async (res, user, req, loginMethod = 'PASSWORD') => {
+  const metadata = getSessionMetadata(req);
+  
+  // ✅ NEW: Create server-managed session (for both web and mobile tracking)
+  const { sessionToken, session } = await createSession({
+    userId: user.id,
+    authRole: user.role || user.primaryRole, // Use role first (backward compat), then primaryRole
+    loginMethod,
+    ...metadata,
+  });
+  
+  // ✅ NEW: Set HttpOnly session cookie (for web browsers)
+  // Mobile apps will ignore cookies but we set them anyway for consistency
+  const sessionMaxAge = parseInt(process.env.SESSION_MAX_AGE_DAYS || '30', 10) * 24 * 60 * 60 * 1000;
+  setSessionCookie(res, sessionToken, sessionMaxAge);
+  
+  // ✅ NEW: Generate JWT access token (for mobile apps and backward compatibility)
+  // Mobile apps need this in the response body since they can't read cookies
+  const accessToken = signAccessToken(user, user.primaryRole || user.role);
+  
+  // ✅ BACKWARD COMPATIBLE: Also set refresh token cookie (legacy system)
+  // This allows gradual migration - mobile apps still use refresh tokens
+  const legacyTokens = await createSessionTokens(user, user.role, metadata);
+  setRefreshTokenCookie(res, legacyTokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
+  
+  logger.info('[Auth] Session created', {
+    userId: user.id,
+    sessionId: session.id,
+    authRole: session.authRole,
+    loginMethod,
+    hasSessionCookie: true,
+    hasAccessToken: true,
+  });
+  
+  return {
+    accessToken, // For mobile apps and API clients
+    refreshToken: legacyTokens.refreshToken, // Legacy support
+    sessionId: session.id, // For tracking and revocation
+    expiresAt: session.expiresAt,
+  };
+};
+
+/**
+ * Legacy token issuance (for endpoints not yet migrated)
+ * @deprecated Use issueAuthTokens instead
+ */
+const issueAuthTokensLegacy = async (res, user, req) => {
   const tokens = await createSessionTokens(user, user.role, getSessionMetadata(req));
-  // ✅ PERSISTENT LOGIN: Set 30-day cookie (matches refresh token expiry)
   setRefreshTokenCookie(res, tokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
   return tokens;
 };
@@ -1510,30 +1589,28 @@ const loginHandler = async (req, res, next) => {
     
     logger.info(`[Login] Password verified for user: ${user.email}`);
 
-    logger.info(`[Login] Password verified for user: ${user.email}`);
-
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
       include: baseUserInclude,
     });
 
-    // ✅ MULTI-ROLE FIX: Pass activeRole when creating tokens
-    const tokens = await createSessionTokens(updatedUser, updatedUser.role, {
-      ...getSessionMetadata(req),
-      activeRole: updatedUser.role, // Use user's current role as activeRole
-    });
-    setRefreshTokenCookie(res, tokens.refreshToken, 30 * 24 * 60 * 60 * 1000);
+    // ✅ PRODUCTION SESSION: Create session with HttpOnly cookie
+    const tokens = await issueAuthTokens(res, updatedUser, req, 'PASSWORD');
     
     await createAuditLog({
       userId: updatedUser.id,
       action: `LOGIN_${updatedUser.role}`,
-      entityType: 'User',
-      entityId: updatedUser.id,
+      entityType: 'Session',
+      entityId: tokens.sessionId,
+      metadata: {
+        method: 'PASSWORD',
+        role: updatedUser.role,
+      },
       ipAddress: req.ip,
     });
 
-    logger.info(`[Login] Success for user: ${updatedUser.email} | Role: ${updatedUser.role}`);
+    logger.info(`[Login] Success for user: ${updatedUser.email} | Role: ${updatedUser.role} | Session: ${tokens.sessionId}`);
     
     return sendSuccess(res, {
       accessToken: tokens.accessToken,
@@ -1711,61 +1788,199 @@ const refreshTokenHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * POST /auth/logout — Session Revocation (Production Implementation)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * Logout strategy changed from "soft logout" to PROPER SESSION REVOCATION:
+ * 
+ * Old behavior (soft logout):
+ * - Cleared cookie but kept token valid
+ * - Grace period for re-login without OTP
+ * - Cost-saving feature
+ * 
+ * New behavior (proper security):
+ * - IMMEDIATELY revokes session in database
+ * - Clears session cookie
+ * - Session token cannot be reused
+ * - User must login again (with proper authentication)
+ * 
+ * Security:
+ * - Prevents session hijacking
+ * - Enforces proper logout
+ * - Supports "logout all devices" separately
+ * 
+ * Backward compatibility:
+ * - Still clears refresh token cookie (legacy)
+ * - Mobile apps can still use JWT expiration
+ */
 const logoutHandler = async (req, res, next) => {
   try {
-    // ✅ SOFT LOGOUT WITH 7-DAY GRACE PERIOD (Cost-Saving Feature)
-    // 
-    // Strategy: DON'T revoke the refresh token on logout
-    // - User appears "logged out" (frontend shows login screen)
-    // - But refresh token remains valid in database for 30 days
-    // - Frontend keeps token in secure storage (doesn't delete it)
-    // - If user "logs in" again within 30 days: Uses existing token (NO OTP needed)
-    // - Saves ₹0.12 OTP cost per accidental logout or quick return
-    //
-    // Security: Token still expires after 30 days of inactivity
-    // User can force "hard logout" (revoke all tokens) from settings if needed
+    // Revoke current session if using session cookie
+    if (req.sessionId) {
+      await revokeSession(req.sessionId, 'USER_LOGOUT');
+      logger.info('[Auth] Session revoked on logout', {
+        userId: req.user.id,
+        sessionId: req.sessionId,
+      });
+    }
     
+    // Legacy: Also handle refresh token if present
     const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
+    if (rawRefreshToken) {
+      await revokeRefreshToken(rawRefreshToken).catch((err) => {
+        logger.warn('[Auth] Failed to revoke refresh token on logout', {
+          error: err.message,
+        });
+      });
+    }
     
-    // DON'T revoke the token - let it remain valid
-    // This allows "silent re-login" without OTP if user returns
-    
-    // Note: For HARD logout (immediate revocation), use /logout-all endpoint instead
-    // That endpoint calls: await revokeRefreshToken(rawRefreshToken);
-    
-    // Just clear cookie (for web browsers)
-    // Mobile app should NOT delete token from secure storage
+    // Clear all auth cookies
+    clearSessionCookie(res);
     clearRefreshTokenCookie(res);
     
-    logger.info('[Auth] Soft logout - token remains valid for grace period re-login');
+    // Create audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'USER_LOGOUT',
+      entityType: 'SESSION',
+      entityId: req.sessionId || null,
+      metadata: { method: 'logout' },
+      ipAddress: req.ip,
+    });
     
     return sendSuccess(
       res,
-      { 
-        gracePeriodDays: 30,
-        message: 'You can log back in without OTP within 30 days'
+      {
+        message: 'Logged out successfully',
       },
       'Logged out successfully'
     );
   } catch (error) {
+    logger.error('[Auth] Logout error', { error: error.message });
     next(error);
   }
 };
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * POST /auth/logout-all — Revoke All User Sessions
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * Revoke ALL active sessions for the current user across all devices.
+ * 
+ * Use cases:
+ * - "Logout from all devices" feature
+ * - Security response (suspected compromise)
+ * - Password change
+ * - Admin security action
+ * 
+ * This immediately invalidates:
+ * - All session cookies (web browsers)
+ * - All refresh tokens (mobile apps)
+ * - All active sessions in database
+ */
 const logoutAllHandler = async (req, res, next) => {
   try {
+    // Revoke all sessions
+    const sessionCount = await revokeAllUserSessions(req.user.id, 'LOGOUT_ALL_DEVICES');
+    
+    // Revoke all refresh tokens (legacy)
     await revokeAllUserTokens(req.user.id);
+    
+    // Clear cookies for current device
+    clearSessionCookie(res);
     clearRefreshTokenCookie(res);
-    return sendSuccess(res, {}, 'Logged out from all devices');
+    
+    // Create audit log
+    await createAuditLog({
+      userId: req.user.id,
+      action: 'LOGOUT_ALL_DEVICES',
+      entityType: 'SESSION',
+      metadata: { 
+        sessionCount,
+        method: 'logout-all',
+      },
+      ipAddress: req.ip,
+    });
+    
+    logger.info('[Auth] All user sessions revoked', {
+      userId: req.user.id,
+      sessionCount,
+    });
+    
+    return sendSuccess(res, {
+      message: 'Logged out from all devices',
+      devicesAffected: sessionCount,
+    }, 'Logged out from all devices');
   } catch (error) {
+    logger.error('[Auth] Logout all error', { error: error.message });
     next(error);
   }
 };
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * GET /auth/me — Session Restoration & Profile Endpoint
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * This endpoint serves TWO critical purposes:
+ * 
+ * 1. SESSION RESTORATION (Primary Purpose):
+ *    - Called by frontend on app start/page refresh
+ *    - Validates session cookie (web) or JWT (mobile)
+ *    - Restores authenticated user state
+ *    - Enables persistent login across browser restarts
+ * 
+ * 2. PROFILE FETCH:
+ *    - Returns current user profile
+ *    - Includes role-specific profile data
+ *    - Returns active sessions for security dashboard
+ * 
+ * Flow:
+ * - Frontend calls /auth/me on app initialization
+ * - If session cookie valid: User is authenticated
+ * - If session invalid/expired: Returns 401, user must login
+ * - Frontend stores user data (NOT tokens) in state
+ * 
+ * Security:
+ * - Session cookie automatically sent by browser
+ * - Mobile apps send JWT in Authorization header
+ * - Auth middleware validates BEFORE this handler runs
+ * - This handler just returns the validated user data
+ */
 const getMeHandler = async (req, res, next) => {
   try {
+    // User is already authenticated by auth middleware
+    // Just return their profile data
     const user = await buildMePayload(req.user.id);
-    return sendSuccess(res, { user: toAuthUser(user), profile: user }, 'User profile fetched');
+    
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+    
+    // Build safe response with user data
+    const response = {
+      user: toAuthUser(user),
+      profile: user,
+      auth: {
+        authSource: req.auth?.authSource || 'UNKNOWN',
+        sessionId: req.auth?.sessionId || null,
+        activeRole: req.auth?.activeRole || user.role,
+        roles: req.auth?.roles || user.roles || [user.role],
+      },
+    };
+    
+    // Log session restoration for monitoring
+    if (req.auth?.authSource === 'SESSION_COOKIE') {
+      logger.debug('[Auth] Session restored from cookie', {
+        userId: user.id,
+        sessionId: req.auth.sessionId,
+      });
+    }
+    
+    return sendSuccess(res, response, 'User profile fetched');
   } catch (error) {
     next(error);
   }

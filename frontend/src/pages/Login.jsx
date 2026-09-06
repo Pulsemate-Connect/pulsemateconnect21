@@ -27,7 +27,7 @@ import {
   signOutFirebase,
 } from '../config/firebase';
 import { loginWithFirebase } from '../services/api';
-import useAuthStore from '../store/authStore'; // FIX: Use correct store path
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path
 import { ROLE_HOME } from '../components/ProtectedRoute';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -217,8 +217,8 @@ export default function Login() {
         return;
       }
 
-      // Step 4: Save to store
-      setAuth(authData.user, authData.accessToken);
+      // Step 4: Save to store (session cookie set by server)
+      setAuth(authData.user, { authSource: 'SESSION_COOKIE' });
       
       console.log('[Login] Login successful, user role:', authData.user.role);
       console.log('[Login] Navigating to dashboard');
@@ -250,7 +250,7 @@ export default function Login() {
       const firebaseIdToken = await verifyFirebaseOtp(confirmationResult, otp);
       const authData = await loginWithFirebase(firebaseIdToken, name.trim());
 
-      setAuth(authData.user, authData.accessToken);
+      setAuth(authData.user, { authSource: 'SESSION_COOKIE' });
       
       console.log('[Login] Registration completed, user role:', authData.user.role);
       console.log('[Login] Navigating to dashboard');

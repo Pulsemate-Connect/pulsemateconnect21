@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Loader2, Mail, Smartphone, ArrowLeft } from 'lucide-react';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import api from '../../api/axios';
 
 const DoctorLoginPage = () => {
@@ -80,10 +80,10 @@ const DoctorLoginPage = () => {
         });
       }
       
-      const { accessToken, refreshToken, user } = response.data.data;
+      const { user } = response.data.data;
       
-      // Store tokens and user data using authStore
-      setAuth(user, accessToken, refreshToken);
+      // Store user data using authStore (session cookie set by server)
+      setAuth(user, { authSource: 'SESSION_COOKIE' });
       
       toast.success('Login successful! Welcome back, Dr. ' + user.name);
       

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../../../store/authStore';
+import useAuthStore from '../../../stores/authStore';
 
 const PendingApprovalDashboard = () => {
   const navigate = useNavigate();

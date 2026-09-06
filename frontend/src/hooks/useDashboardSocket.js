@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import throttle from 'lodash.throttle';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path
 
 // Strip trailing /api so the socket connects to the base server URL
 const SOCKET_URL =

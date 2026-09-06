@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path
 
 // Use VITE_SOCKET_URL if set, otherwise derive from VITE_API_URL, otherwise use production URL
 const SOCKET_URL =

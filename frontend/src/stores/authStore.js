@@ -3,11 +3,38 @@
  *
  * Zustand store for managing authentication state across the application.
  *
- * Features:
- *   - User authentication state
- *   - Access token management
- *   - Persistent storage (localStorage)
- *   - Auto-rehydration on app load
+ * ═══════════════════════════════════════════════════════════════════════════
+ * PRODUCTION SESSION-BASED AUTHENTICATION
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * SECURITY CHANGE: Access tokens are NO LONGER stored in localStorage
+ * 
+ * Old architecture (INSECURE):
+ * - accessToken stored in localStorage
+ * - Vulnerable to XSS attacks
+ * - Client-side token management
+ * 
+ * New architecture (SECURE):
+ * - Session managed via HttpOnly cookies (backend sends automatically)
+ * - JavaScript CANNOT access the session cookie
+ * - No authentication credentials in localStorage
+ * - Session restored via /auth/me API call on app start
+ * 
+ * What IS stored in localStorage:
+ * - User profile data (safe, non-sensitive)
+ * - UI preferences
+ * 
+ * What is NOT stored:
+ * - accessToken (security risk)
+ * - sessionToken (managed by browser cookies)
+ * - Any authentication credentials
+ * 
+ * Session restoration flow:
+ * 1. App starts with isLoading=true
+ * 2. Call GET /auth/me (cookie sent automatically)
+ * 3. If valid session: Restore user state
+ * 4. If invalid: Redirect to login
+ * 5. Set isLoading=false
  *
  * @module stores/authStore
  */
@@ -24,29 +51,57 @@ const useAuthStore = create(
     (set, get) => ({
       // ── State ────────────────────────────────────────────────────────────
       user: null,
-      accessToken: null,
+      // ✅ REMOVED: accessToken (no longer stored - security improvement)
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true, // ✅ NEW: Start with loading state for session restoration
+      isInitialized: false, // ✅ NEW: Track if session restoration attempted
+      authSource: null, // ✅ NEW: Track authentication source (SESSION_COOKIE or JWT_BEARER)
+      sessionId: null, // ✅ NEW: Track session ID for logout operations
 
       // ── Actions ──────────────────────────────────────────────────────────
 
       /**
        * Set authentication data after successful login
-       *
+       * 
+       * ✅ SECURITY: No longer stores accessToken in localStorage
+       * The session cookie is automatically managed by the browser
+       * 
        * @param {Object} user - User object
-       * @param {string} accessToken - JWT access token
+       * @param {Object} [authMeta] - Optional auth metadata (sessionId, authSource)
        */
-      setAuth: (user, accessToken) => {
+      setAuth: (user, authMeta = {}) => {
         console.log('[AuthStore] Setting authentication:', {
           userId: user?.id,
           role: user?.role,
+          authSource: authMeta.authSource,
         });
 
         set({
           user,
-          accessToken,
           isAuthenticated: true,
           isLoading: false,
+          isInitialized: true,
+          authSource: authMeta.authSource || 'UNKNOWN',
+          sessionId: authMeta.sessionId || null,
+        });
+      },
+
+      /**
+       * Clear authentication state (logout)
+       * 
+       * ✅ SECURITY: Clears user data but NOT the cookie
+       * The cookie is cleared by the backend /auth/logout endpoint
+       */
+      clearAuth: () => {
+        console.log('[AuthStore] Clearing authentication');
+        
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          isInitialized: true,
+          authSource: null,
+          sessionId: null,
         });
       },
 
@@ -74,20 +129,8 @@ const useAuthStore = create(
       },
 
       /**
-       * Update access token (for token refresh)
-       *
-       * @param {string} newToken - New access token
-       */
-      setAccessToken: (newToken) => {
-        console.log('[AuthStore] Updating access token');
-        
-        set({
-          accessToken: newToken,
-        });
-      },
-
-      /**
        * Set loading state
+       * Used during session restoration or authentication operations
        *
        * @param {boolean} loading - Loading state
        */
@@ -96,17 +139,90 @@ const useAuthStore = create(
       },
 
       /**
-       * Clear authentication data (logout)
+       * Set initialized state
+       * Marks that session restoration has been attempted
+       * 
+       * @param {boolean} initialized - Initialized state
+       */
+      setInitialized: (initialized) => {
+        set({ isInitialized: initialized });
+      },
+
+      /**
+       * Restore session from backend (called on app start)
+       * 
+       * ✅ PRODUCTION SESSION RESTORATION
+       * This is the KEY function that enables persistent login
+       * 
+       * Flow:
+       * 1. Set loading state
+       * 2. Call /auth/me (cookie sent automatically)
+       * 3. If successful: User is authenticated
+       * 4. If failed: User is not authenticated
+       * 5. Mark as initialized
+       * 
+       * This function should be called by the app wrapper/router
+       * 
+       * @param {Function} apiCall - Function that calls /auth/me
+       * @returns {Promise<boolean>} True if session restored, false otherwise
+       */
+      restoreSession: async (apiCall) => {
+        console.log('[AuthStore] Attempting session restoration...');
+        
+        set({ isLoading: true });
+        
+        try {
+          const response = await apiCall();
+          
+          if (response?.data?.user) {
+            console.log('[AuthStore] Session restored successfully', {
+              userId: response.data.user.id,
+              authSource: response.data.auth?.authSource,
+            });
+            
+            set({
+              user: response.data.user,
+              isAuthenticated: true,
+              isLoading: false,
+              isInitialized: true,
+              authSource: response.data.auth?.authSource || 'SESSION_COOKIE',
+              sessionId: response.data.auth?.sessionId || null,
+            });
+            
+            return true;
+          }
+          
+          // No user returned - not authenticated
+          console.log('[AuthStore] No session found - user not authenticated');
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            isInitialized: true,
+          });
+          
+          return false;
+        } catch (error) {
+          // Session restoration failed - user not authenticated
+          console.log('[AuthStore] Session restoration failed:', error.message);
+          
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            isInitialized: true,
+          });
+          
+          return false;
+        }
+      },
+
+      /**
+       * Legacy logout function (for backward compatibility)
+       * @deprecated Use clearAuth() instead
        */
       logout: () => {
-        console.log('[AuthStore] Logging out');
-        
-        set({
-          user: null,
-          accessToken: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        get().clearAuth();
       },
 
       /**
@@ -176,17 +292,23 @@ const useAuthStore = create(
       name: 'pulsemate-auth', // localStorage key
       storage: createJSONStorage(() => localStorage),
       
-      // Only persist essential data
+      // ✅ SECURITY: Only persist NON-SENSITIVE data
+      // DO NOT persist tokens or credentials
       partialize: (state) => ({
-        user: state.user,
-        accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated,
+        user: state.user, // Safe user profile data
+        // ✅ REMOVED: accessToken (security improvement)
+        // ✅ DO NOT persist: sessionId, authSource (transient data)
       }),
 
       // Rehydration callback
       onRehydrateStorage: () => (state) => {
-        if (state?.isAuthenticated) {
-          console.log('[AuthStore] Rehydrated authenticated session');
+        if (state?.user) {
+          console.log('[AuthStore] Rehydrated user profile from localStorage');
+          // ✅ IMPORTANT: Even though we have user data, we must verify session
+          // The actual session restoration happens via restoreSession()
+          state.isAuthenticated = false; // Assume not authenticated until verified
+          state.isLoading = true; // Start in loading state
+          state.isInitialized = false; // Not yet initialized
         } else {
           console.log('[AuthStore] No persisted session found');
         }
@@ -215,9 +337,9 @@ export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenti
 export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
 
 /**
- * Hook to get only access token
+ * Hook to get initialization status
  */
-export const useAccessToken = () => useAuthStore((state) => state.accessToken);
+export const useAuthInitialized = () => useAuthStore((state) => state.isInitialized);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Exports

@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import AuthLayout from '../../layouts/AuthLayout';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 const copyByRole = {
   CLINIC_OWNER:

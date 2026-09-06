@@ -1,7 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import useAuthStore from './store/authStore';
+import useAuthStore from './stores/authStore';
+import { getMe } from './api/auth.api';
 import ProtectedRoute, { PublicRoute } from './components/ProtectedRoute';
 import useFcm from './hooks/useFcm';
 import { PageLoader } from './components/ui/LoadingSpinner';
@@ -95,11 +96,31 @@ const NotificationSettingsPage = lazy(() => import('./pages/notifications/Notifi
 
 const AppRoutes = () => {
   useFcm();
-  const { checkAuth } = useAuthStore();
+  const { restoreSession, isLoading, isInitialized } = useAuthStore();
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // Session Restoration on App Start
+  // ═════════════════════════════════════════════════════════════════════════
+  // This is the KEY logic that enables persistent login across:
+  // - Normal refresh (F5)
+  // - Hard refresh (Ctrl+Shift+R)
+  // - Browser restart
+  // - Tab reopen
+  //
+  // The session cookie is sent automatically by the browser
+  // If the backend validates it, user state is restored
+  // ═════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    if (!isInitialized) {
+      console.log('[App] Restoring session on app start...');
+      restoreSession(getMe);
+    }
+  }, [isInitialized, restoreSession]);
+
+  // Show loading screen during session restoration
+  if (!isInitialized || isLoading) {
+    return <PageLoader />;
+  }
 
   return (
     <Routes>

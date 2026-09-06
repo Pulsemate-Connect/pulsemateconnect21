@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginWithPassword } from '../../api/auth.api';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { ROLE_HOME } from '../../components/ProtectedRoute';
 import StaffPortalLayout from '../../layouts/StaffPortalLayout';
 
@@ -87,10 +87,10 @@ const StaffLoginPage = () => {
 
     try {
       const response = await loginWithPassword(form);
-      const { accessToken, user } = response.data.data;
+      const { user } = response.data.data;
       
-      // Set auth state first
-      setAuth(user, accessToken);
+      // Set auth state first (session cookie set by server)
+      setAuth(user, { authSource: 'SESSION_COOKIE' });
       
       // Wait a moment for state to propagate, then navigate to role-specific dashboard
       setTimeout(() => {

@@ -14,7 +14,7 @@ import {
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import StatusBadge from '../../components/ui/StatusBadge';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 const ROLES = ['All', 'PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'];
 const ADMIN_LEVEL_OPTIONS = ['SUPER_ADMIN', 'SUPPORT', 'FINANCE'];

@@ -1,11 +1,33 @@
 import axios from 'axios';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../stores/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * AXIOS CLIENT — Production Session-Based Authentication
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * SECURITY CHANGES:
+ * 1. Session cookies sent automatically (withCredentials: true)
+ * 2. NO access token in Authorization header for session-based auth
+ * 3. Cookies are HttpOnly and managed by browser
+ * 4. Session validated on every request via middleware
+ * 
+ * Authentication flow:
+ * - Login: Backend sets HttpOnly session cookie
+ * - Requests: Cookie sent automatically with every request
+ * - No JavaScript access to session cookie (XSS protection)
+ * - Logout: Backend clears session cookie
+ * 
+ * Backward compatibility:
+ * - Mobile apps can still use JWT Bearer tokens
+ * - Check for accessToken in store for mobile support
+ */
+
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
+  withCredentials: true, // ✅ CRITICAL: Send cookies with every request
   timeout: 10000, // 10 second timeout - prevents infinite hanging
   headers: {
     'Content-Type': 'application/json',
@@ -39,11 +61,23 @@ const shouldSkipRefresh = (url = '') =>
     '/device-token/deactivate',
   ].some((path) => url.includes(path));
 
+// ✅ REMOVED: Authorization header injection
+// Session cookies are sent automatically by browser
+// No need to manually add Authorization header for web browsers
+//
+// For mobile apps (if they send accessToken), it would be handled differently
 api.interceptors.request.use((config) => {
-  const accessToken = useAuthStore.getState().accessToken;
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  // ✅ SESSION-BASED: Cookies sent automatically by browser
+  // No need to add Authorization header
+  
+  // ✅ BACKWARD COMPATIBLE: Support mobile apps that may still use JWT
+  // Only add Authorization header if explicitly provided in request config
+  // Mobile apps should NOT use this for web browsers
+  if (config.headers?.Authorization) {
+    // Keep existing Authorization header if provided
+    return config;
   }
+  
   return config;
 });
 
@@ -103,28 +137,38 @@ api.interceptors.response.use(
       }
     }
     
-    // Handle 401 Unauthorized - Try token refresh
+    // Handle 401 Unauthorized - Session expired or invalid
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/me') && // ✅ Don't retry /auth/me
       !shouldSkipRefresh(originalRequest.url)
     ) {
       originalRequest._retry = true;
 
       try {
+        // ✅ SESSION-BASED: Try to refresh session
+        // This uses the refresh token cookie automatically
         refreshPromise ??= axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
         const response = await refreshPromise;
         refreshPromise = null;
 
-        const { accessToken, user } = response.data.data;
-        useAuthStore.getState().setAuth(user, accessToken);
-        originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        const { user } = response.data.data;
+        
+        // ✅ Update auth store with refreshed user data
+        // No accessToken to update (session-based)
+        if (user) {
+          useAuthStore.getState().setAuth(user, {
+            authSource: 'SESSION_COOKIE',
+          });
+        }
+        
+        // Retry original request with refreshed session
         return api(originalRequest);
       } catch (refreshError) {
         refreshPromise = null;
-        console.log('[Axios Interceptor] Token refresh failed, clearing auth');
+        console.log('[Axios Interceptor] Session refresh failed, clearing auth');
         useAuthStore.getState().clearAuth();
         
         // Only redirect if we're on a protected route

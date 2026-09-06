@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { getMyClinicStatus, resubmitClinic } from '../../api/clinic.api';
 import { uploadClinicOwnerDocument } from '../../api/auth.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';

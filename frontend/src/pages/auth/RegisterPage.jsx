@@ -16,7 +16,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { firebasePhoneLogin } from '../../api/auth.api';
 import { sendOtpToPhone, verifyPhoneOtp, clearRecaptcha } from '../../api/firebaseAuth';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import PulsemateLogo from '../../components/PulsemateLogo';
 
 /* ── Icons ──────────────────────────────────────────────────────────────── */
@@ -188,9 +188,9 @@ const RegisterPage = () => {
     try {
       const firebaseIdToken       = await verifyPhoneOtp(confirmationResult, otp);
       const res                   = await firebasePhoneLogin(firebaseIdToken, name.trim() || undefined);
-      const { accessToken, user } = res.data.data;
+      const { user }              = res.data.data;
       setStep(3);
-      setTimeout(() => { setAuth(user, accessToken); navigate('/patient/home'); }, 700);
+      setTimeout(() => { setAuth(user, { authSource: 'SESSION_COOKIE' }); navigate('/patient/home'); }, 700);
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Invalid OTP');
     } finally {

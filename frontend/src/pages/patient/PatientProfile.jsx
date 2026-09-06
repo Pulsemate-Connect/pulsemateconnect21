@@ -3,7 +3,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { getPatientProfile, updatePatientProfile } from '../../api/patient.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import api from '../../api/axios';
 import {
   BLOOD_GROUPS, POPULAR_CITIES,

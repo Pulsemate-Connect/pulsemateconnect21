@@ -14,6 +14,7 @@ const { initializeSocket } = require('./socket');
 const { startReminderJob } = require('./jobs/appointmentReminder.job');
 const { startNoShowJob } = require('./jobs/appointmentNoShow.job');
 const { startAccountDeletionJob } = require('./jobs/accountDeletion.job');
+const { startSessionCleanupJob } = require('./jobs/session-cleanup.job'); // ✅ NEW
 const { initFirebase } = require('./config/firebase');
 const { initSocketNotifications } = require('./services/socket-notification.service');
 const { startNotificationJobs } = require('./jobs/notification.job');
@@ -140,9 +141,10 @@ app.use(cors({
     // In production — block unknown origins
     return callback(new Error(`CORS: origin ${origin} not allowed`), false);
   },
-  credentials: true,
+  credentials: true, // ✅ CRITICAL: Allow cookies to be sent/received
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'], // ✅ FIXED: Allow Cookie header
+  exposedHeaders: ['Set-Cookie'], // ✅ FIXED: Expose Set-Cookie header to frontend
 }));
 
 // Global rate limiter — per-user limits for realistic capacity
@@ -418,6 +420,7 @@ if (process.env.NODE_ENV !== 'test') {
     startAccountDeletionJob();
     startNotificationJobs();
     startCleanupJob(); // ✅ PERSISTENT LOGIN: Cleanup expired refresh tokens daily
+    startSessionCleanupJob(); // ✅ PRODUCTION AUTH: Cleanup expired sessions daily
   });
 }
 

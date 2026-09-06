@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { getMe } from '../../api/auth.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 

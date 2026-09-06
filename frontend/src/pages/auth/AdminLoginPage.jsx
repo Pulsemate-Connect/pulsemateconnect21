@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginWithPassword, logout } from '../../api/auth.api';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { ROLE_HOME } from '../../components/ProtectedRoute';
 import PulsemateLogo from '../../components/PulsemateLogo';
 
@@ -44,7 +44,7 @@ const AdminLoginPage = () => {
         identifier: form.identifier,
         password: form.password,
       });
-      const { accessToken, user } = response.data.data;
+      const { user } = response.data.data;
 
       if (user.role !== 'SUPER_ADMIN') {
         await logout().catch(() => {});
@@ -53,8 +53,13 @@ const AdminLoginPage = () => {
         return;
       }
 
-      setAuth(user, accessToken);
-      navigate(ROLE_HOME[user.role] || '/admin/dashboard');
+      setAuth(user, { authSource: 'SESSION_COOKIE' });
+      
+      // Delay navigation to ensure Zustand state + localStorage sync completes
+      // This prevents ProtectedRoute from checking before state propagates
+      setTimeout(() => {
+        navigate(ROLE_HOME[user.role] || '/admin/dashboard', { replace: true });
+      }, 200);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Invalid credentials');
     } finally {

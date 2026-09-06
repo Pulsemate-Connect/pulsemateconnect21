@@ -453,18 +453,34 @@ model QueueItem {
 model Session {
   id               String   @id @default(uuid())
   userId           String
-  refreshTokenHash String   @unique
+  // ✅ PRODUCTION AUTH: Session token hash (cryptographically secure random token)
+  sessionTokenHash String   @unique
+  // Legacy field for backward compatibility with existing sessions
+  refreshTokenHash String?  @unique
   authRole         UserRole
+  // ✅ PRODUCTION AUTH: Session lifecycle tracking
   deviceInfo       String?
   ipAddress        String?
   userAgent        String?
   expiresAt        DateTime
   lastUsedAt       DateTime @default(now())
-  isRevoked        Boolean  @default(false)
   createdAt        DateTime @default(now())
+  // ✅ PRODUCTION AUTH: Session revocation and security
+  isRevoked        Boolean  @default(false)
+  revokedAt        DateTime?
+  revokedReason    String?
+  // ✅ PRODUCTION AUTH: Idle timeout tracking
+  lastActivityAt   DateTime @default(now())
+  maxIdleMinutes   Int?     @default(10080) // 7 days default
+  // ✅ PRODUCTION AUTH: Login metadata
+  loginMethod      String?  // PASSWORD, FIREBASE_PHONE, OTP, etc.
+  
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, authRole, isRevoked])
+  @@index([sessionTokenHash])
+  @@index([expiresAt])
+  @@index([lastActivityAt])
   @@map("sessions")
 }
 

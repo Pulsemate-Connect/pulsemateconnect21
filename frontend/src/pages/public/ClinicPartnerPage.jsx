@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClinicAuthModal from '../../components/modals/ClinicAuthModal';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 const ClinicPartnerPage = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);

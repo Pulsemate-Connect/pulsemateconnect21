@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../stores/authStore'; // ✅ FIXED: Use correct store path
 import { getMyNotifications } from '../api/notification.api';
 import toast from 'react-hot-toast';
 import PulsemateLogo from '../components/PulsemateLogo';

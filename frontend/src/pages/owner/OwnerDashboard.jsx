@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 import { getMyClinics, getMyClinicStatus, resubmitClinic } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';

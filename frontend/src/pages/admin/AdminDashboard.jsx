@@ -5,7 +5,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import Modal from '../../components/ui/Modal';
 import { getAdminDashboard, resetDatabase as resetDatabaseRequest } from '../../api/admin.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import useAuthStore from '../../store/authStore';
+import useAuthStore from '../../stores/authStore';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => (n ?? 0).toLocaleString('en-IN');
