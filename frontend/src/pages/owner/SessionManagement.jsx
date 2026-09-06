@@ -441,7 +441,7 @@ export default function SessionManagement() {
                   )}
                 </div>
 
-                {/* Session Name (read-only, auto-filled) */}
+                {/* Session Name (read-only for standard types, editable for CUSTOM) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Session Name *
@@ -449,11 +449,21 @@ export default function SessionManagement() {
                   <input
                     type="text"
                     value={formData.name}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
-                    disabled
-                    placeholder="Select a session type first"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+                      formData.sessionType === 'CUSTOM'
+                        ? 'focus:outline-none focus:ring-2 focus:ring-blue-500'
+                        : 'bg-gray-50 text-gray-700 cursor-not-allowed'
+                    }`}
+                    disabled={formData.sessionType !== 'CUSTOM'}
+                    placeholder={formData.sessionType === 'CUSTOM' ? 'Enter custom session name' : 'Select a session type first'}
+                    required
                   />
-                  <p className="text-xs text-gray-500 mt-1">Auto-filled based on session type</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.sessionType === 'CUSTOM' 
+                      ? 'Enter a custom name for your session (e.g., "Mid-Day", "Lunch Break")' 
+                      : 'Auto-filled based on session type'}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
