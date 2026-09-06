@@ -5,13 +5,19 @@ import useAuthStore from '../../stores/authStore';
 import axios from '../../api/axios';
 
 const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
-  // View states: 'login' | 'signup' | 'otp'
+  // View states: 'login' | 'signup' | 'otp' | 'email-otp' | 'mobile-otp'
   const [view, setView] = useState(initialMode === 'register' ? 'signup' : 'login');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   // ✅ NEW: Support both email and mobile login for clinic owners
   const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'mobile'
+  // ✅ NEW: Track verification status during signup
+  const [verificationState, setVerificationState] = useState({
+    emailVerified: false,
+    mobileVerified: false,
+    tempToken: null, // Store tempToken from email verification for mobile linking
+  });
   
   const [formData, setFormData] = useState({
     name: '',
@@ -94,13 +100,16 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       }
     }
 
-    // Validate email and name for signup
+    // Validate email and name and mobile for signup
     if (view === 'signup') {
       if (!formData.name || formData.name.trim().length < 2) {
         newErrors.name = 'Name must be at least 2 characters';
       }
       if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
         newErrors.email = 'Please enter a valid email address';
+      }
+      if (!formData.mobile || !/^\d{10}$/.test(formData.mobile)) {
+        newErrors.mobile = 'Please enter a valid 10-digit mobile number';
       }
       if (!formData.agreeTerms) {
         newErrors.agreeTerms = 'You must agree to the Terms of Service';
@@ -172,16 +181,16 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
     }
   };
 
-  // Email OTP for SIGNUP
+  // Email OTP for SIGNUP - Uses clinic owner specific endpoint and gets tempToken
   const handleSendEmailOTP = async (skipValidation = false) => {
     if (!skipValidation && !validateForm()) return;
 
     setLoading(true);
     try {
-      const response = await axios.post('/auth/register-email-otp/send', {
+      // ✅ Use clinic owner email verification endpoint
+      const response = await axios.post('/auth/clinic-owner/send-email-verification', {
         email: formData.email,
         name: formData.name,
-        purpose: 'SIGNUP', // ✅ FIX: Specify SIGNUP purpose for new registrations
       });
       
       // Check if test mode
@@ -193,11 +202,140 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         toast.success('OTP sent successfully! Check your email.');
       }
       
-      setView('otp');
+      setView('email-otp'); // ✅ NEW: Show email OTP view
       setCountdown(60); // 1 minute countdown
     } catch (error) {
       console.error('Send Email OTP error:', error);
       toast.error(error.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Verify Email OTP during signup and get tempToken
+  const handleVerifySignupEmailOTP = async () => {
+    if (!validateForm()) return;
+
+    const otpValue = formData.otp.join('');
+    setLoading(true);
+    
+    try {
+      const response = await axios.post('/auth/clinic-owner/verify-email-otp', {
+        email: formData.email,
+        otp: otpValue,
+        ownerName: formData.name, // ✅ FIX: Backend expects ownerName not name
+      });
+      
+      if (response.data.success) {
+        // ✅ Store tempToken for mobile linking
+        const tempToken = response.data.data?.tempToken;
+        
+        if (tempToken) {
+          setVerificationState({ 
+            ...verificationState, 
+            emailVerified: true, 
+            tempToken 
+          });
+          
+          toast.success('Email verified! Now verify your mobile number.');
+          
+          // Reset OTP and move to mobile verification
+          setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+          setView('mobile-otp'); // ✅ NEW: Show mobile OTP view
+        } else {
+          toast.error('Email verification succeeded but no token received');
+        }
+      }
+    } catch (error) {
+      console.error('Verify Email OTP error:', error);
+      toast.error(error.response?.data?.message || 'Invalid OTP. Please try again.');
+      setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+      otpInputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Send Mobile OTP during signup (after email verified)
+  const handleSendSignupMobileOTP = async () => {
+    if (!formData.mobile || !/^\d{10}$/.test(formData.mobile)) {
+      setErrors({ ...errors, mobile: 'Please enter a valid 10-digit mobile number' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const phoneNumber = `+91${formData.mobile}`;
+      
+      const response = await axios.post('/auth/send-otp', {
+        phoneNumber: phoneNumber,
+        purpose: 'PHONE_VERIFICATION',
+      });
+      
+      // Store verification ID
+      setFormData({ ...formData, verificationId: response.data.data.verificationId || '' });
+      
+      // Check if test mode
+      if (response.data.data._testMode && response.data.data._testOtp) {
+        toast.success(`TEST MODE: Your OTP is ${response.data.data._testOtp}`, {
+          duration: 10000,
+        });
+      } else {
+        toast.success('OTP sent successfully to your mobile!');
+      }
+      
+      setCountdown(60);
+    } catch (error) {
+      console.error('Send Mobile OTP error:', error);
+      toast.error(error.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Verify Mobile OTP during signup using tempToken
+  const handleVerifySignupMobileOTP = async () => {
+    if (!validateForm()) return;
+
+    const otpValue = formData.otp.join('');
+    setLoading(true);
+    
+    try {
+      const phoneNumber = `+91${formData.mobile}`;
+      
+      // Verify OTP with Message Central and link using tempToken
+      const headers = {};
+      if (verificationState.tempToken) {
+        headers['X-Temp-Token'] = verificationState.tempToken;
+      }
+      
+      const response = await axios.post('/auth/verify-otp', {
+        phoneNumber: phoneNumber,
+        otp: otpValue,
+        verificationId: formData.verificationId,
+        purpose: 'ONBOARDING', // ✅ Use ONBOARDING purpose for identity linking
+      }, { headers });
+      
+      if (response.data.success) {
+        // Mobile verified and linked successfully
+        setVerificationState({
+          ...verificationState,
+          mobileVerified: true
+        });
+        
+        toast.success('Mobile verified! Please complete your clinic registration.');
+        
+        // Close modal and redirect to full registration page
+        onClose();
+        setTimeout(() => {
+          navigate('/register/clinic-owner'); // Redirect to complete clinic details
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Verify Mobile OTP error:', error);
+      toast.error(error.response?.data?.message || 'Invalid OTP. Please try again.');
+      setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+      otpInputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
@@ -718,7 +856,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
             </>
           )}
 
-          {/* SIGNUP VIEW - Email OTP */}
+          {/* SIGNUP VIEW - Name, Email, Mobile */}
           {view === 'signup' && (
             <>
               <h2 style={{ fontSize: '32px', fontWeight: 400, color: '#555555', marginBottom: '32px', lineHeight: '1.2' }}>
@@ -740,7 +878,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <input
                   type="email"
                   value={formData.email}
@@ -753,6 +891,28 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                   style={{ height: '56px', borderColor: errors.email ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
                 />
                 {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
+              </div>
+
+              {/* ✅ NEW: Mobile Number Field */}
+              <div className="mb-6">
+                <div className="flex gap-2">
+                  <div className="flex items-center px-3 border rounded-lg bg-gray-50" style={{ borderColor: '#D5D5D5' }}>
+                    <span style={{ fontSize: '16px', color: '#374151', fontWeight: 500 }}>+91</span>
+                  </div>
+                  <input
+                    type="tel"
+                    value={formData.mobile}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, mobile: value });
+                      if (errors.mobile) setErrors({ ...errors, mobile: '' });
+                    }}
+                    placeholder="Mobile Number"
+                    className="flex-1 px-4 border rounded-lg outline-none"
+                    style={{ height: '56px', borderColor: errors.mobile ? '#EF4444' : '#D5D5D5', fontSize: '16px' }}
+                  />
+                </div>
+                {errors.mobile && <p className="text-red-600 text-sm mt-1">{errors.mobile}</p>}
               </div>
 
               <div className="mb-6">
@@ -795,6 +955,191 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                   Login
                 </button>
               </p>
+            </>
+          )}
+
+          {/* ✅ NEW: EMAIL OTP VERIFICATION VIEW (Signup Step 2) */}
+          {view === 'email-otp' && (
+            <>
+              <h2 style={{ fontSize: '34px', fontWeight: 600, color: '#1F2937', marginBottom: '16px', lineHeight: '1.2', textAlign: 'center' }}>
+                Verify Email
+              </h2>
+              <p style={{ fontSize: '17px', color: '#6B7280', marginBottom: '32px', textAlign: 'center', lineHeight: '1.6' }}>
+                Verification code has been sent to <span style={{ fontWeight: 600, color: '#111827' }}>{formData.email}</span>. Please enter the OTP below.
+              </p>
+
+              <div className="flex gap-3 justify-center mb-6">
+                {formData.otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (otpInputRefs.current[index] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    value={digit}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                    onPaste={index === 0 ? handleOtpPaste : undefined}
+                    maxLength={1}
+                    className="text-center border-2 rounded-lg outline-none transition-all"
+                    style={{ 
+                      width: '70px', 
+                      height: '60px', 
+                      fontSize: '24px', 
+                      fontWeight: 600, 
+                      borderColor: digit ? '#2F73E8' : '#D1D5DB',
+                      backgroundColor: digit ? '#EFF6FF' : '#FFFFFF'
+                    }}
+                  />
+                ))}
+              </div>
+              {errors.otp && <p className="text-red-600 text-sm text-center mb-4">{errors.otp}</p>}
+
+              <button
+                onClick={handleVerifySignupEmailOTP}
+                disabled={loading}
+                className="w-full rounded-lg text-white font-semibold mb-6 transition-all hover:opacity-90"
+                style={{ height: '56px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 600 }}
+              >
+                {loading ? 'Verifying...' : 'Verify Email'}
+              </button>
+
+              <div className="text-center mb-4" style={{ fontSize: '36px', fontWeight: 600, color: '#1F2937', letterSpacing: '0.02em' }}>
+                {Math.floor(countdown / 60).toString().padStart(2, '0')}:{(countdown % 60).toString().padStart(2, '0')}
+              </div>
+
+              <div className="text-center mb-6">
+                {countdown > 0 ? (
+                  <p style={{ fontSize: '18px', color: '#6B7280' }}>
+                    Not received OTP? <span style={{ color: '#9CA3AF', fontWeight: 500 }}>Resend in {countdown}s</span>
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '18px', color: '#6B7280' }}>
+                    Not received OTP?{' '}
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+                        handleSendEmailOTP(true);
+                      }}
+                      className="font-semibold hover:underline transition-all"
+                      style={{ color: '#2F73E8' }}
+                    >
+                      Resend Now
+                    </button>
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  setView('signup');
+                  setFormData({ ...formData, otp: ['', '', '', '', '', ''] });
+                }}
+                className="text-base hover:underline block mx-auto transition-all"
+                style={{ color: '#6B7280' }}
+              >
+                ← Change email
+              </button>
+            </>
+          )}
+
+          {/* ✅ NEW: MOBILE OTP VERIFICATION VIEW (Signup Step 3) */}
+          {view === 'mobile-otp' && (
+            <>
+              <h2 style={{ fontSize: '34px', fontWeight: 600, color: '#1F2937', marginBottom: '16px', lineHeight: '1.2', textAlign: 'center' }}>
+                Verify Mobile Number
+              </h2>
+              <p style={{ fontSize: '17px', color: '#6B7280', marginBottom: '32px', textAlign: 'center', lineHeight: '1.6' }}>
+                Verification code has been sent to <span style={{ fontWeight: 600, color: '#111827' }}>+91 {formData.mobile}</span>. Please enter the OTP below.
+              </p>
+
+              {/* Send OTP Button */}
+              {!formData.verificationId && (
+                <button
+                  onClick={handleSendSignupMobileOTP}
+                  disabled={loading}
+                  className="w-full rounded-lg border-2 border-blue-600 text-blue-600 font-semibold mb-6 transition-all hover:bg-blue-50"
+                  style={{ height: '56px', fontSize: '17px', fontWeight: 600 }}
+                >
+                  {loading ? 'Sending OTP...' : 'Send OTP'}
+                </button>
+              )}
+
+              {formData.verificationId && (
+                <>
+                  <div className="flex gap-3 justify-center mb-6">
+                    {formData.otp.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(el) => (otpInputRefs.current[index] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        value={digit}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        onPaste={index === 0 ? handleOtpPaste : undefined}
+                        maxLength={1}
+                        className="text-center border-2 rounded-lg outline-none transition-all"
+                        style={{ 
+                          width: '70px', 
+                          height: '60px', 
+                          fontSize: '24px', 
+                          fontWeight: 600, 
+                          borderColor: digit ? '#2F73E8' : '#D1D5DB',
+                          backgroundColor: digit ? '#EFF6FF' : '#FFFFFF'
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {errors.otp && <p className="text-red-600 text-sm text-center mb-4">{errors.otp}</p>}
+
+                  <button
+                    onClick={handleVerifySignupMobileOTP}
+                    disabled={loading}
+                    className="w-full rounded-lg text-white font-semibold mb-6 transition-all hover:opacity-90"
+                    style={{ height: '56px', backgroundColor: '#2F73E8', fontSize: '17px', fontWeight: 600 }}
+                  >
+                    {loading ? 'Verifying...' : 'Verify Mobile & Complete'}
+                  </button>
+
+                  <div className="text-center mb-4" style={{ fontSize: '36px', fontWeight: 600, color: '#1F2937', letterSpacing: '0.02em' }}>
+                    {Math.floor(countdown / 60).toString().padStart(2, '0')}:{(countdown % 60).toString().padStart(2, '0')}
+                  </div>
+
+                  <div className="text-center mb-6">
+                    {countdown > 0 ? (
+                      <p style={{ fontSize: '18px', color: '#6B7280' }}>
+                        Not received OTP? <span style={{ color: '#9CA3AF', fontWeight: 500 }}>Resend in {countdown}s</span>
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: '18px', color: '#6B7280' }}>
+                        Not received OTP?{' '}
+                        <button 
+                          onClick={() => {
+                            setFormData({ ...formData, otp: ['', '', '', '', '', ''], verificationId: '' });
+                            handleSendSignupMobileOTP();
+                          }}
+                          className="font-semibold hover:underline transition-all"
+                          style={{ color: '#2F73E8' }}
+                        >
+                          Resend Now
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <button
+                onClick={() => {
+                  setView('signup');
+                  setFormData({ ...formData, otp: ['', '', '', '', '', ''], verificationId: '' });
+                  setVerificationState({ ...verificationState, emailVerified: false, tempToken: null });
+                }}
+                className="text-base hover:underline block mx-auto transition-all"
+                style={{ color: '#6B7280' }}
+              >
+                ← Change mobile number
+              </button>
             </>
           )}
 
