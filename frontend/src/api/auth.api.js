@@ -15,8 +15,16 @@ export const sendClinicOwnerOtp = (phone) => api.post('/auth/clinic-owner/send-o
 export const verifyClinicOwnerOtp = (phone, otp) => api.post('/auth/clinic-owner/verify-otp', { phone, otp });
 
 // ── Clinic Owner Firebase Phone Auth (primary — replaces custom OTP) ──────────
-export const verifyClinicOwnerFirebasePhone = (firebaseIdToken) =>
-  api.post('/auth/clinic-owner/verify-firebase-phone', { firebaseIdToken });
+export const verifyClinicOwnerFirebasePhone = (firebaseIdToken, tempToken = null) => {
+  const headers = {};
+  
+  // ✅ Pass tempToken for identity linking during onboarding
+  if (tempToken) {
+    headers['X-Temp-Token'] = tempToken;
+  }
+  
+  return api.post('/auth/clinic-owner/verify-firebase-phone', { firebaseIdToken }, { headers });
+};
 
 export const sendClinicOwnerEmailVerification = (email, ownerName) =>
   api.post('/auth/clinic-owner/send-email-otp', { email, ownerName });

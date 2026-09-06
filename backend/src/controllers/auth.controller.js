@@ -394,7 +394,10 @@ const patientFirebasePhoneLoginHandler = async (req, res, next) => {
  */
 const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
   try {
-    const { firebaseIdToken, tempToken } = req.body;
+    const { firebaseIdToken } = req.body;
+    
+    // ✅ Get tempToken from header OR body
+    const tempToken = req.headers['x-temp-token'] || req.body.tempToken;
 
     // ── 1. Verify Firebase token ───────────────────────────────────────────
     let decoded;
