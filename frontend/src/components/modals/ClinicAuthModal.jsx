@@ -269,7 +269,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       
       const response = await axios.post('/auth/send-otp', {
         phoneNumber: phoneNumber,
-        purpose: 'PHONE_VERIFICATION',
+        purpose: 'ONBOARDING', // ✅ FIX: Use ONBOARDING for clinic signup mobile verification
       });
       
       // Store verification ID

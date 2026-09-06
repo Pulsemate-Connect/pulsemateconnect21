@@ -3305,8 +3305,9 @@ const sendOtpHandler_MessageCentral = async (req, res, next) => {
         // Allow new mobile numbers to proceed
         logger.info(`[OTP] Sending OTP to ${normalizedPhone} (new mobile - existence will be determined after OTP verification)`);
       }
-    } else if (purpose === 'ONBOARDING') {
-      // ✅ FIX: For onboarding, CHECK if user already exists with this mobile
+    } else if (purpose === 'ONBOARDING' || purpose === 'PHONE_VERIFICATION') {
+      // ✅ FIX: For onboarding/phone verification, CHECK if user already exists with this mobile
+      // PHONE_VERIFICATION is used by the clinic auth modal during signup
       // Allow DRAFT users (email verified, waiting for mobile verification)
       if (existingUser) {
         // ✅ ALLOW: DRAFT users with temp mobile (from email verification)
