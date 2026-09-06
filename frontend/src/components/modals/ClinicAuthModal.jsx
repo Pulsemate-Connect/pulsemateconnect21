@@ -318,6 +318,14 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
       
       if (response.data.success) {
         // Mobile verified and linked successfully
+        const { accessToken, user } = response.data.data;
+        
+        // ✅ Store auth tokens before redirecting
+        if (accessToken && user) {
+          setAuth(user, accessToken);
+          console.log('[Modal] Authenticated user after mobile verification:', user);
+        }
+        
         setVerificationState({
           ...verificationState,
           mobileVerified: true
@@ -328,7 +336,7 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         // Close modal and redirect to multi-step onboarding
         onClose();
         setTimeout(() => {
-          navigate('/clinic/onboarding/step1'); // Redirect to new multi-step form
+          navigate('/clinic/onboarding/step-1'); // Redirect to new multi-step form (note: step-1 with hyphen)
         }, 500);
       }
     } catch (error) {

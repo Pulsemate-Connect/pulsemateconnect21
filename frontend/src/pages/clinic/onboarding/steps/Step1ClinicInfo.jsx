@@ -85,7 +85,7 @@ const Step1ClinicInfo = () => {
         const parsed = JSON.parse(savedData);
         Object.keys(parsed).forEach(key => {
           // Don't override email or mobile from localStorage - always use fresh data
-          // Email comes from authenticated user, mobile must be entered fresh
+          // Email and mobile come from authenticated user (verified during registration)
           if (key !== 'ownerEmail' && key !== 'ownerMobile' && key !== 'mobileVerified') {
             setValue(key, parsed[key]);
           }
@@ -96,7 +96,7 @@ const Step1ClinicInfo = () => {
       }
     }
     
-    // Pre-fill owner details from authenticated user (email and name only, NOT mobile)
+    // Pre-fill owner details from authenticated user
     if (user) {
       if (user.email) {
         setValue('ownerEmail', user.email);
@@ -106,7 +106,14 @@ const Step1ClinicInfo = () => {
         setValue('ownerName', user.name);
         console.log('[Step1] Pre-filled owner name from auth:', user.name);
       }
-      // DO NOT pre-fill mobile number - user must enter and verify it fresh each time
+      // ✅ NEW: Pre-fill mobile from user (verified during registration)
+      // Backend returns 'phone' field but some places use 'mobile'
+      const userMobile = user.mobile || user.phone;
+      if (userMobile) {
+        setValue('ownerMobile', userMobile);
+        setValue('mobileVerified', true); // Already verified during registration
+        console.log('[Step1] Pre-filled verified mobile from auth:', userMobile);
+      }
     }
   }, [setValue, user]);
 
@@ -160,7 +167,7 @@ const Step1ClinicInfo = () => {
     }
   };
 
-  const isNextDisabled = Object.keys(errors).length > 0 || !watch('mobileVerified');
+  const isNextDisabled = Object.keys(errors).length > 0; // Mobile already verified during registration
 
   return (
     <OnboardingLayout currentStep={1} completedSteps={[]}>
