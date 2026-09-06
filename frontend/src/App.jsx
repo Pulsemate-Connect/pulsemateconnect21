@@ -21,7 +21,8 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 
 // ── Lazy load other auth pages ──
 const DoctorRegisterPage = lazy(() => import('./pages/auth/DoctorRegisterPage'));
-const ClinicOwnerRegisterPage = lazy(() => import('./pages/auth/ClinicOwnerRegisterPage'));
+const ClinicOwnerRegisterPage = lazy(() => import('./pages/auth/ClinicOwnerRegisterPage')); // OLD multi-step form
+const ClinicOwnerSimpleRegister = lazy(() => import('./pages/auth/ClinicOwnerSimpleRegister')); // NEW simple Email → Mobile flow
 const RoleLoginPage = lazy(() => import('./pages/auth/RoleLoginPage'));
 const StaffLoginPage = lazy(() => import('./pages/auth/StaffLoginPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
@@ -151,6 +152,9 @@ const AppRoutes = () => {
       <Route path="/login/:role" element={<PublicRoute><Suspense fallback={<PageLoader />}><RoleLoginPage /></Suspense></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/register/doctor" element={<PublicRoute><Suspense fallback={<PageLoader />}><DoctorRegisterPage /></Suspense></PublicRoute>} />
+      <Route path="/register/clinic-owner" element={<PublicRoute><Suspense fallback={<PageLoader />}><ClinicOwnerRegisterPage /></Suspense></PublicRoute>} />
+      <Route path="/clinic-owner/register" element={<PublicRoute><Suspense fallback={<PageLoader />}><ClinicOwnerRegisterPage /></Suspense></PublicRoute>} />
+      <Route path="/portal/apply-clinic" element={<PublicRoute><Suspense fallback={<PageLoader />}><ClinicOwnerRegisterPage /></Suspense></PublicRoute>} />
       <Route path="/portal/apply-doctor" element={<PublicRoute><Suspense fallback={<PageLoader />}><DoctorRegisterPage /></Suspense></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ForgotPasswordPage /></Suspense></PublicRoute>} />
       <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense></PublicRoute>} />

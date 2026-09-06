@@ -344,7 +344,7 @@ const ClinicVerificationDetail = () => {
                   {owner.isEmailVerified ? '✅ Yes' : '❌ No'}
                 </span>
               </div>
-              <Field label="Owner Mobile" value={step1.ownerMobile || owner.mobile} />
+              <Field label="Owner Mobile" value={owner.mobile || step1.ownerMobile || '—'} />
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Mobile Verified</p>
                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${

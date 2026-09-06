@@ -350,6 +350,7 @@ const ClinicOwnerRegisterPage = () => {
   });
   const [expandedBreakDays, setExpandedBreakDays] = useState({});
   const [ownerConfirmResult, setOwnerConfirmResult] = React.useState(null);
+  const [tempToken, setTempToken] = React.useState(null); // ✅ NEW: Store tempToken from email verification
   const specialtyOptions = useMemo(() => getSpecialtyOptions(form.clinicType), [form.clinicType]);
 
   useEffect(() => {
@@ -715,13 +716,16 @@ const ClinicOwnerRegisterPage = () => {
       // Step 1: Verify OTP with Firebase → get ID token
       const firebaseIdToken = await verifyPhoneOtp(ownerConfirmResult, form.ownerOtp.trim());
 
-      // Step 2: Send ID token to backend → creates phone verification record
-      await verifyClinicOwnerFirebasePhone(firebaseIdToken);
+      // Step 2: Send ID token + tempToken to backend → links mobile to user account
+      // ✅ NEW: Pass tempToken to link mobile to user
+      await verifyClinicOwnerFirebasePhone(firebaseIdToken, tempToken);
 
       updateField('isOwnerMobileVerified', true);
       updateField('isOwnerMobileReverifyRequired', false);
       setOwnerConfirmResult(null);
-      toast.success('Owner mobile verified successfully');
+      toast.success('Owner mobile verified and linked to account');
+      
+      console.log('[MobileVerify] Mobile linked to user account via tempToken');
     } catch (error) {
       toast.error(error.response?.data?.message || error.message || 'Unable to verify OTP');
     } finally {
@@ -762,7 +766,15 @@ const ClinicOwnerRegisterPage = () => {
 
     setIsVerifyingEmail(true);
     try {
-      await verifyClinicOwnerEmailOtp(form.email.trim(), form.ownerEmailOtp.trim());
+      // ✅ NEW: Get tempToken from email verification
+      const response = await verifyClinicOwnerEmailOtp(form.email.trim(), form.ownerEmailOtp.trim(), form.ownerName.trim());
+      
+      // ✅ NEW: Store tempToken for mobile linking
+      if (response.data?.tempToken) {
+        setTempToken(response.data.tempToken);
+        console.log('[EmailVerify] Received tempToken for mobile linking');
+      }
+      
       updateField('isOwnerEmailVerified', true);
       updateField('isOwnerEmailReverifyRequired', false);
       setForm((current) => ({ ...current, ownerEmailOtp: '' }));

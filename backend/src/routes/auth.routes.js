@@ -34,6 +34,10 @@ const {
   doctorVerifyMobileOtpLogin,
   doctorSendEmailOtpLogin,
   doctorVerifyEmailOtpLogin,
+  clinicOwnerSendMobileOtpLogin,
+  clinicOwnerVerifyMobileOtpLogin,
+  clinicOwnerSendEmailOtpLogin,
+  clinicOwnerVerifyEmailOtpLogin,
   switchRoleHandler, // NEW: Role switching handler
 } = require('../controllers/auth.controller');
 const { clinicOwnerUpload } = require('../middleware/upload.middleware');
@@ -216,6 +220,12 @@ router.post('/doctor/send-mobile-otp', otpSendLimiter, doctorSendMobileOtpLogin)
 router.post('/doctor/verify-mobile-otp', otpVerifyLimiter, doctorVerifyMobileOtpLogin);
 router.post('/doctor/send-email-otp', otpSendLimiter, doctorSendEmailOtpLogin);
 router.post('/doctor/verify-email-otp', otpVerifyLimiter, doctorVerifyEmailOtpLogin);
+
+// ✅ NEW: Clinic Owner OTP Login Routes
+router.post('/clinic-owner/send-mobile-otp-login', otpSendLimiter, clinicOwnerSendMobileOtpLogin);
+router.post('/clinic-owner/verify-mobile-otp-login', otpVerifyLimiter, clinicOwnerVerifyMobileOtpLogin);
+router.post('/clinic-owner/send-email-otp-login', otpSendLimiter, clinicOwnerSendEmailOtpLogin);
+router.post('/clinic-owner/verify-email-otp-login', otpVerifyLimiter, clinicOwnerVerifyEmailOtpLogin);
 
 // ── Common auth ───────────────────────────────────────────────────────────────
 router.post('/login', loginLimiter, validateRequest(commonLoginSchema), loginHandler);

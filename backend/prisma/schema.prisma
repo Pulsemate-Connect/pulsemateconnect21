@@ -42,6 +42,10 @@ model User {
   clinicOnboardingData      Json?
   /// Set when user requests account deletion. Hard-deleted by cron after 10 days.
   deletionRequestedAt       DateTime?
+  /// ✅ HYBRID REGISTRATION FLOW: Track registration completion
+  registrationComplete      Boolean?                     @default(false)
+  registrationStartedAt     DateTime?
+  registrationCompletedAt   DateTime?
   createdAdmins             AdminProfile[]               @relation("AdminCreator")
   adminProfile              AdminProfile?
   appointments              Appointment[]                @relation("PatientAppointments")
@@ -681,12 +685,13 @@ enum UserRole {
 }
 
 enum ApprovalStatus {
-  PENDING
-  VERIFIED
-  REJECTED
-  SUSPENDED
-  UNDER_REVIEW
-  CHANGES_REQUIRED
+  DRAFT              // ✅ NEW: Registration started but not submitted
+  PENDING            // Submitted, awaiting admin review
+  VERIFIED           // Approved by admin
+  REJECTED           // Rejected by admin
+  SUSPENDED          // Account suspended
+  UNDER_REVIEW       // Admin is reviewing
+  CHANGES_REQUIRED   // Admin requested changes
 }
 
 enum AdminLevel {
