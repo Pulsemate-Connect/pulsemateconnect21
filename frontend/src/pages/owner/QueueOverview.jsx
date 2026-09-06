@@ -10,7 +10,7 @@ import useSocket from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
 // ── Session icons ─────────────────────────────────────────────────────────────
-const SESSION_ICON = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+const SESSION_ICON = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙', CUSTOM: '⚙️' };
 
 // ── Session Stats Card (Req #13) ──────────────────────────────────────────────
 const SessionStatsCard = ({ sess }) => {

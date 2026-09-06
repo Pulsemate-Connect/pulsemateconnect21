@@ -13,7 +13,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import useSocket from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
-const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙', CUSTOM: '⚙️' };
 
 const TodayQueue = () => {
   const [clinic, setClinic] = useState(null);

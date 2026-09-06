@@ -6,7 +6,7 @@ import { getStaff, getClinicSessions } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
-const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙' };
+const SESSION_ICONS = { MORNING: '🌅', AFTERNOON: '☀️', EVENING: '🌙', CUSTOM: '⚙️' };
 
 const fmt12 = (t) => {
   if (!t) return '';
