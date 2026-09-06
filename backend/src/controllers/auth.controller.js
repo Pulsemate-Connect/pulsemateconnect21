@@ -234,19 +234,40 @@ const blockIfPasswordLoginDisallowed = (user, res) => {
     logger.warn(`[blockIfPasswordLoginDisallowed] Blocked: REJECTED - ${user.email}`);
     return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
   }
-  // Block login for users in pending/review states (primarily clinic owners)
+  
+  // ✅ HYBRID REGISTRATION: Allow DRAFT clinic owners to login (to continue registration)
+  if (user.approvalStatus === 'DRAFT' && user.role === 'CLINIC_OWNER') {
+    logger.info(`[blockIfPasswordLoginDisallowed] ✅ Allowing DRAFT clinic owner to login - ${user.email}`);
+    return null; // Allow login
+  }
+  
+  // ✅ HYBRID REGISTRATION: Allow PENDING clinic owners to login (to view application status)
+  if (user.approvalStatus === 'PENDING' && user.role === 'CLINIC_OWNER') {
+    logger.info(`[blockIfPasswordLoginDisallowed] ✅ Allowing PENDING clinic owner to login - ${user.email}`);
+    return null; // Allow login
+  }
+  
+  // Block login for other users in pending/review states
   if (user.approvalStatus === 'PENDING') {
     logger.warn(`[blockIfPasswordLoginDisallowed] Blocked: PENDING - ${user.email}`);
-    return sendError(res, 'Your clinic application is pending verification. Please wait for admin approval.', 403);
+    return sendError(res, 'Your application is pending verification. Please wait for admin approval.', 403);
   }
   if (user.approvalStatus === 'UNDER_REVIEW') {
     logger.warn(`[blockIfPasswordLoginDisallowed] Blocked: UNDER_REVIEW - ${user.email}`);
-    return sendError(res, 'Your clinic application is currently under review. Please wait for admin approval.', 403);
+    return sendError(res, 'Your application is currently under review. Please wait for admin approval.', 403);
   }
+  
+  // ✅ HYBRID REGISTRATION: Allow CHANGES_REQUIRED clinic owners to login (to edit and resubmit)
+  if (user.approvalStatus === 'CHANGES_REQUIRED' && user.role === 'CLINIC_OWNER') {
+    logger.info(`[blockIfPasswordLoginDisallowed] ✅ Allowing CHANGES_REQUIRED clinic owner to login - ${user.email}`);
+    return null; // Allow login
+  }
+  
   if (user.approvalStatus === 'CHANGES_REQUIRED') {
     logger.warn(`[blockIfPasswordLoginDisallowed] Blocked: CHANGES_REQUIRED - ${user.email}`);
-    return sendError(res, 'Your clinic application requires changes. Please check your email for details or contact support.', 403);
+    return sendError(res, 'Your application requires changes. Please check your email for details or contact support.', 403);
   }
+  
   // Final check: only allow VERIFIED users (except SUPER_ADMIN who may have different rules)
   if (user.approvalStatus !== 'VERIFIED' && user.role !== 'SUPER_ADMIN') {
     logger.warn(`[blockIfPasswordLoginDisallowed] Blocked: Not VERIFIED and not SUPER_ADMIN - ${user.email} | Status: ${user.approvalStatus} | Role: ${user.role}`);
@@ -373,7 +394,7 @@ const patientFirebasePhoneLoginHandler = async (req, res, next) => {
  */
 const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
   try {
-    const { firebaseIdToken } = req.body;
+    const { firebaseIdToken, tempToken } = req.body;
 
     // ── 1. Verify Firebase token ───────────────────────────────────────────
     let decoded;
@@ -396,33 +417,116 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
       return sendError(res, 'Invalid phone number format in Firebase token.', 400);
     }
 
-    // ── 3. Ensure phone is not already registered ─────────────────────────
+    // ── 3. Get userId from tempToken (from email verification) ────────────
+    let userId;
+    if (tempToken) {
+      try {
+        const tempDecoded = jwt.verify(tempToken, process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET);
+        userId = tempDecoded.userId;
+        logger.info(`[FirebasePhoneVerify] Found userId ${userId} from tempToken`);
+      } catch (error) {
+        logger.warn(`[FirebasePhoneVerify] Invalid tempToken: ${error.message}`);
+        return sendError(res, 'Invalid or expired session token. Please start registration again.', 401);
+      }
+    }
+
+    // ── 4. Check if mobile is already registered to ANOTHER user ──────────
     const existing = await prisma.user.findUnique({
       where: { mobile },
       select: { 
         id: true, 
+        email: true,
         approvalStatus: true,
+        registrationComplete: true,
         clinicOnboardingData: true 
       },
     });
     
     if (existing) {
-      // Check if user has a pending application
-      if (existing.approvalStatus === 'PENDING') {
+      // If mobile belongs to the same user (from tempToken), allow it
+      if (userId && existing.id === userId) {
+        logger.info(`[FirebasePhoneVerify] Mobile already linked to current user ${userId}`);
+        // Mobile already linked, just return success
+        return sendSuccess(
+          res,
+          { ownerMobileVerified: true, mobile, userId: existing.id },
+          'Phone number verified successfully'
+        );
+      }
+      
+      // Mobile belongs to different user - check their status
+      if (existing.approvalStatus === 'DRAFT' && !existing.registrationComplete) {
+        // Another user started registration but didn't complete - they abandoned it
+        logger.warn(`[FirebasePhoneVerify] Mobile ${mobile} belongs to abandoned DRAFT account ${existing.id}`);
+        return sendError(res, 'This phone number is associated with an incomplete registration. Please contact support if you need help.', 409);
+      }
+      
+      if (existing.approvalStatus === 'PENDING' && existing.registrationComplete) {
         return sendError(res, 'An application with this phone number is already pending review. Please wait for admin approval or contact support.', 409);
       }
       
-      // Check if user is already verified/approved
       if (existing.approvalStatus === 'VERIFIED' || existing.approvalStatus === 'APPROVED') {
         return sendError(res, 'A user with this phone number already exists and is active.', 409);
       }
       
-      // For other statuses (REJECTED, SUSPENDED, etc.)
+      // For other statuses
       return sendError(res, 'A user with this phone number already exists', 409);
     }
 
-    // ── 4. Invalidate any previous pending records, create new one ────────
-    const EXPIRY_MINUTES = 10; // ✅ FIX: Changed from 120 to 10 minutes for security
+    // ── 5. Link mobile to user account ────────────────────────────────────
+    if (userId) {
+      // Update user with mobile number
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          mobile,
+          isPhoneVerified: true,
+          firebaseUid: decoded.uid,
+        },
+        select: {
+          id: true,
+          email: true,
+          mobile: true,
+          name: true,
+          isEmailVerified: true,
+          isPhoneVerified: true,
+          approvalStatus: true,
+          registrationComplete: true,
+        },
+      });
+
+      logger.info(`[FirebasePhoneVerify] ✅ Linked mobile ${mobile} to user ${userId}`);
+
+      // Also create verification record for tracking
+      await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'CLINIC_OWNER_REGISTER');
+      await firebasePhoneVerificationRepo.create({
+        mobile,
+        firebaseUid: decoded.uid,
+        purpose: 'CLINIC_OWNER_REGISTER',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      });
+
+      return sendSuccess(
+        res,
+        { 
+          ownerMobileVerified: true, 
+          mobile,
+          userId: updatedUser.id,
+          user: {
+            email: updatedUser.email,
+            mobile: updatedUser.mobile,
+            name: updatedUser.name,
+            isEmailVerified: updatedUser.isEmailVerified,
+            isPhoneVerified: updatedUser.isPhoneVerified,
+          }
+        },
+        'Phone number verified and linked successfully'
+      );
+    }
+
+    // ── 6. Fallback: No tempToken (shouldn't happen in new flow) ──────────
+    // Just create verification record without linking
+    const EXPIRY_MINUTES = 10;
     await firebasePhoneVerificationRepo.invalidateOutstanding(mobile, 'CLINIC_OWNER_REGISTER');
     await firebasePhoneVerificationRepo.create({
       mobile,
@@ -430,6 +534,8 @@ const clinicOwnerVerifyFirebasePhoneHandler = async (req, res, next) => {
       purpose: 'CLINIC_OWNER_REGISTER',
       expiresAt: new Date(Date.now() + EXPIRY_MINUTES * 60 * 1000),
     });
+
+    logger.warn(`[FirebasePhoneVerify] No tempToken provided - mobile verified but not linked to user`);
 
     return sendSuccess(
       res,
@@ -791,11 +897,26 @@ const submitClinicApplicationHandler = async (req, res, next) => {
     const onboardingData = user.clinicOnboardingData || {};
     
     logger.info(`[SubmitApplication] User ${user.id} onboarding data:`, {
+      status: user.approvalStatus,
       hasStep1: !!onboardingData.clinicInformation,
       hasStep2: !!onboardingData.servicesOperations,
       hasStep3: !!onboardingData.clinicDocuments,
       lastStep: onboardingData.lastUpdatedStep,
     });
+
+    // ✅ HYBRID REGISTRATION: Only allow submission from DRAFT status
+    if (user.approvalStatus !== 'DRAFT' && user.approvalStatus !== 'CHANGES_REQUIRED') {
+      if (user.approvalStatus === 'PENDING') {
+        logger.warn(`[SubmitApplication] User ${user.id} already submitted (status: PENDING)`);
+        return sendError(res, 'Your application has already been submitted and is awaiting review.', 400);
+      }
+      if (user.approvalStatus === 'VERIFIED') {
+        logger.warn(`[SubmitApplication] User ${user.id} already verified`);
+        return sendError(res, 'Your account is already verified.', 400);
+      }
+      logger.warn(`[SubmitApplication] User ${user.id} has invalid status: ${user.approvalStatus}`);
+      return sendError(res, 'Invalid account status. Please contact support.', 400);
+    }
 
     // Check if user has completed previous steps
     if (!onboardingData.clinicInformation) {
@@ -828,7 +949,7 @@ const submitClinicApplicationHandler = async (req, res, next) => {
     const step2 = onboardingData.servicesOperations || {};
     const step3 = onboardingData.clinicDocuments || {};
 
-    // Update user with final submission AND email/mobile from Step 1
+    // ✅ HYBRID REGISTRATION: Update user status from DRAFT to PENDING
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -838,7 +959,9 @@ const submitClinicApplicationHandler = async (req, res, next) => {
         mobile: user.mobile || step1.ownerMobile,
         // Update name if provided in Step 1 and user doesn't have one
         name: user.name || step1.ownerName || partnerAgreementData.ownerName,
-        approvalStatus: 'PENDING',
+        approvalStatus: 'PENDING',                      // ✅ Change from DRAFT to PENDING
+        registrationComplete: true,                     // ✅ Mark registration complete
+        registrationCompletedAt: new Date(),            // ✅ Track completion time
         clinicOnboardingData: {
           ...onboardingData,
           partnerAgreement: partnerAgreementData,
@@ -854,9 +977,14 @@ const submitClinicApplicationHandler = async (req, res, next) => {
         name: true,
         email: true,
         approvalStatus: true,
+        registrationComplete: true,
+        registrationStartedAt: true,
+        registrationCompletedAt: true,
         clinicOnboardingData: true 
       },
     });
+
+    logger.info(`[SubmitApplication] ✅ User ${updatedUser.id} status changed: DRAFT → PENDING (registration complete)`);
 
     // Check if clinic already exists for this user
     let clinic = await prisma.clinic.findFirst({
@@ -1050,7 +1178,7 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
     });
     
     if (user) {
-      // Check if user has a pending application with complete onboarding
+      // Check if user has a completed and submitted application (PENDING with complete data)
       if (user.approvalStatus === 'PENDING' && user.clinicOnboardingData?.onboardingComplete) {
         return sendError(res, 'An application with this email is already pending review. Please wait for admin approval or contact support.', 409);
       }
@@ -1060,15 +1188,21 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
         return sendError(res, 'A user with this email already exists and is active. Please use login instead.', 409);
       }
       
-      // ✅ ALLOW: User started registration but didn't complete onboarding
-      // This is an incomplete registration - allow them to continue
-      if (user.approvalStatus === 'PENDING' && !user.clinicOnboardingData?.onboardingComplete) {
+      // ✅ ALLOW: User in DRAFT status (started registration but didn't complete)
+      if (user.approvalStatus === 'DRAFT' && !user.registrationComplete) {
+        logger.info(`[EmailVerify] User ${user.id} has DRAFT status, allowing continuation`);
+        // Continue to verify OTP and issue tempToken
+      }
+      // ✅ ALLOW: User started with PENDING but didn't complete onboarding
+      else if (user.approvalStatus === 'PENDING' && !user.clinicOnboardingData?.onboardingComplete) {
         logger.info(`[EmailVerify] User ${user.id} has incomplete onboarding, allowing continuation`);
         // Continue to verify OTP and issue tempToken
-      } else if (user.approvalStatus === 'REJECTED') {
-        // Allow rejected users to re-register
+      } 
+      // ✅ ALLOW: Rejected users can re-register
+      else if (user.approvalStatus === 'REJECTED') {
         logger.info(`[EmailVerify] User ${user.id} was rejected, allowing re-registration`);
-      } else {
+      } 
+      else {
         // For other statuses (SUSPENDED, etc.)
         return sendError(res, 'A user with this email already exists', 409);
       }
@@ -1077,28 +1211,37 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
     // Verify the OTP token
     const verified = await verifyEmailVerificationToken(email, otp);
 
-    // ✅ FIX 1: UNIFIED USER CREATION
+    // ✅ HYBRID REGISTRATION: Create user with DRAFT status
     // Create user here if doesn't exist, or update existing incomplete user
     if (!user) {
+      // Generate temporary mobile placeholder (will be updated after mobile verification)
+      const tempMobile = `TEMP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
       user = await prisma.user.create({
         data: normalizeUserRoleData({
           email: verified.email,
+          mobile: tempMobile,                   // ✅ Temporary placeholder for required field
           name: ownerName || null,
           role: 'CLINIC_OWNER',
-          approvalStatus: 'PENDING',
+          approvalStatus: 'DRAFT',              // ✅ DRAFT (not PENDING)
+          registrationComplete: false,          // ✅ Track completion
+          registrationStartedAt: new Date(),    // ✅ Track start time
           isEmailVerified: true,
           authProvider: 'EMAIL_OTP',
         }),
         select: {
           id: true,
           email: true,
+          mobile: true,
           name: true,
           role: true,
           approvalStatus: true,
           isEmailVerified: true,
+          registrationComplete: true,
+          registrationStartedAt: true,
         },
       });
-      logger.info(`[EmailVerify] ✅ Created new user ${user.id} with email ${user.email}`);
+      logger.info(`[EmailVerify] ✅ Created new user ${user.id} with email ${user.email} (status: DRAFT)`);
     } else {
       // Update existing user to mark email as verified
       user = await prisma.user.update({
@@ -1106,6 +1249,7 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
         data: {
           isEmailVerified: true,
           name: ownerName || user.name,
+          registrationStartedAt: user.registrationStartedAt || new Date(), // Set if not already set
         },
         select: {
           id: true,
@@ -1114,6 +1258,8 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
           role: true,
           approvalStatus: true,
           isEmailVerified: true,
+          registrationComplete: true,
+          registrationStartedAt: true,
         },
       });
       logger.info(`[EmailVerify] ✅ Updated existing user ${user.id} email verification`);
@@ -1127,8 +1273,8 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
         purpose: 'CLINIC_ONBOARDING',
         step: 'EMAIL_VERIFIED'
       },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' } // Short-lived: 1 hour
+      process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET,
+      { expiresIn: '2h' } // 2 hours to complete registration
     );
 
     logger.info(`[EmailVerify] ✅ Issued tempToken for user ${user.id} for mobile verification`);
@@ -1142,6 +1288,8 @@ const clinicOwnerVerifyEmailOtpHandler = async (req, res, next) => {
         // ✅ Return tempToken for mobile verification linking
         tempToken,
         userId: user.id,
+        status: user.approvalStatus, // ✅ Return status (DRAFT)
+        registrationComplete: user.registrationComplete,
       },
       'Email verified successfully'
     );
@@ -3256,6 +3404,11 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
     const normalizedPhone = normalizeMobileNumber(phoneNumber);
     const mobileNumber = normalizedPhone.replace(/^\+91/, '');
     
+    // ✅ FIX: For ONBOARDING with authenticated user, link mobile to their account
+    if (purpose === 'ONBOARDING' && req.user && req.user.id) {
+      logger.info(`[OTP] ONBOARDING with authenticated user ${req.user.id} - will link mobile after verification`);
+    }
+    
     // ✅ TEST MODE: Check if this is a test number
     const isTestMode = process.env.ENABLE_TEST_OTP === 'true';
     const testNumbers = (process.env.TEST_OTP_NUMBERS || '9999999999,8888888888,7777777777').split(',');
@@ -3270,6 +3423,72 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       }
       
       logger.info(`[OTP] 🧪 TEST MODE: OTP verified successfully for ${mobileNumber}`);
+      
+      // ✅ FIX: ONBOARDING MODE with authenticated user - Link mobile to account
+      if (purpose === 'ONBOARDING' && req.user && req.user.id) {
+        logger.info(`[OTP] 🧪 ONBOARDING: Linking mobile ${normalizedPhone} to authenticated user ${req.user.id}`);
+        
+        // Check if this mobile is already taken by ANOTHER user
+        const existingMobileUser = await prisma.user.findFirst({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { mobile: normalizedPhone },
+                  { mobile: mobileNumber },
+                ]
+              },
+              { id: { not: req.user.id } } // Not the current user
+            ]
+          },
+          select: { id: true, approvalStatus: true, email: true }
+        });
+        
+        if (existingMobileUser) {
+          return sendError(res, 'This mobile number is already registered to another account.', 409);
+        }
+        
+        // Update user with mobile number
+        const user = await prisma.user.update({
+          where: { id: req.user.id },
+          data: {
+            mobile: normalizedPhone,
+            isPhoneVerified: true,
+          },
+          include: baseUserInclude,
+        });
+        
+        logger.info(`[OTP] 🧪 ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
+        
+        // Issue fresh auth tokens
+        const tokens = await issueAuthTokens(res, user, req);
+        
+        await createAuditLog({
+          userId: user.id,
+          action: 'CLINIC_OWNER_MOBILE_LINKED',
+          entityType: 'User',
+          entityId: user.id,
+          ipAddress: req.ip,
+          details: { mobile: normalizedPhone, linkedDuringOnboarding: true },
+        });
+        
+        return sendSuccess(
+          res,
+          {
+            verified: true,
+            mobileNumber: normalizedPhone,
+            verificationStatus: 'VERIFICATION_COMPLETED',
+            identityLinked: true,
+            _testMode: true,
+            _onboardingMode: true,
+            // Return tokens
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: toAuthUser(user),
+          },
+          'Mobile number verified and linked successfully'
+        );
+      }
       
       // ✅ FIX 2: IDENTITY LINKING - ONBOARDING MODE with tempToken
       if (purpose === 'ONBOARDING') {
@@ -3590,6 +3809,71 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
     const result = await messageCentralService.validateOTP(verificationId, otp);
     
     logger.info('[OTP] OTP verified successfully:', result);
+    
+    // ✅ FIX: ONBOARDING MODE with authenticated user - Link mobile to account (PRODUCTION)
+    if (purpose === 'ONBOARDING' && req.user && req.user.id) {
+      logger.info(`[OTP] PRODUCTION ONBOARDING: Linking mobile ${normalizedPhone} to authenticated user ${req.user.id}`);
+      
+      // Check if this mobile is already taken by ANOTHER user
+      const existingMobileUser = await prisma.user.findFirst({
+        where: {
+          AND: [
+            {
+              OR: [
+                { mobile: normalizedPhone },
+                { mobile: normalizedPhone.replace(/^\+91/, '') },
+              ]
+            },
+            { id: { not: req.user.id } } // Not the current user
+          ]
+        },
+        select: { id: true, approvalStatus: true, email: true }
+      });
+      
+      if (existingMobileUser) {
+        return sendError(res, 'This mobile number is already registered to another account.', 409);
+      }
+      
+      // Update user with mobile number
+      const user = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          mobile: normalizedPhone,
+          isPhoneVerified: true,
+        },
+        include: baseUserInclude,
+      });
+      
+      logger.info(`[OTP] PRODUCTION ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
+      
+      // Issue fresh auth tokens
+      const tokens = await issueAuthTokens(res, user, req);
+      
+      await createAuditLog({
+        userId: user.id,
+        action: 'CLINIC_OWNER_MOBILE_LINKED',
+        entityType: 'User',
+        entityId: user.id,
+        ipAddress: req.ip,
+        details: { mobile: normalizedPhone, linkedDuringOnboarding: true },
+      });
+      
+      return sendSuccess(
+        res,
+        {
+          verified: true,
+          mobileNumber: normalizedPhone,
+          verificationStatus: 'VERIFICATION_COMPLETED',
+          identityLinked: true,
+          _onboardingMode: true,
+          // Return tokens
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          user: toAuthUser(user),
+        },
+        'Mobile number verified and linked successfully'
+      );
+    }
     
     // ✅ FIX 2: IDENTITY LINKING - ONBOARDING MODE (Production)
     if (purpose === 'ONBOARDING') {
@@ -4567,6 +4851,445 @@ const switchRoleHandler = async (req, res) => {
     return sendError(res, 'Failed to switch role', 500);
   }
 };
+
+/**
+ * ═════════════════════════════════════════════════════════════════════════════
+ * CLINIC OWNER OTP LOGIN (No Password Required)
+ * ═════════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * POST /api/auth/clinic-owner/send-mobile-otp-login
+ * Send OTP to clinic owner's mobile for passwordless login
+ * Public route - sends OTP to clinic owner's mobile number
+ */
+const clinicOwnerSendMobileOtpLogin = async (req, res, next) => {
+  try {
+    const { mobile } = req.body;
+
+    if (!mobile) {
+      return sendError(res, 'Mobile number is required', 400);
+    }
+
+    const normalizedMobile = normalizeMobileNumber(mobile);
+    const mobileWithoutPrefix = normalizedMobile.replace(/^\+91/, '');
+
+    // Find clinic owner user with this mobile (search both formats)
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { mobile: normalizedMobile, role: 'CLINIC_OWNER' },
+          { mobile: mobileWithoutPrefix, role: 'CLINIC_OWNER' },
+        ],
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'No clinic owner account found with this mobile number', 404);
+    }
+
+    if (!user.isPhoneVerified) {
+      return sendError(res, 'Mobile number not verified. Please complete your registration first.', 403);
+    }
+
+    // ✅ ALLOW login for DRAFT status (to continue registration)
+    if (user.approvalStatus === 'DRAFT') {
+      logger.info(`[ClinicOwnerLogin] User ${user.id} in DRAFT status - allowing login to continue registration`);
+    }
+
+    // ✅ ALLOW login for PENDING status (to view application status)
+    if (user.approvalStatus === 'PENDING') {
+      logger.info(`[ClinicOwnerLogin] User ${user.id} in PENDING status - allowing login to view status`);
+    }
+
+    if (user.approvalStatus === 'SUSPENDED') {
+      return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+    }
+
+    if (user.approvalStatus === 'REJECTED') {
+      return sendError(res, user.rejectionReason || 'Account has been rejected. Please contact support.', 403);
+    }
+
+    // Generate 6-digit OTP
+    const testNumbers = (process.env.TEST_OTP_NUMBERS || '').split(',');
+    const cleanMobile = normalizedMobile.replace(/\D/g, '').replace(/^91/, '');
+    const isTestNumber = process.env.ENABLE_TEST_OTP === 'true' && testNumbers.includes(cleanMobile);
+    
+    const otp = isTestNumber ? (process.env.TEST_OTP_CODE || '123456') : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Hash OTP before storing
+    const bcrypt = require('bcryptjs');
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Store OTP hash in database
+    await prisma.otpVerification.create({
+      data: {
+        mobile: user.mobile, // Use the exact mobile format from user record
+        otpHash,
+        expiresAt,
+        purpose: 'LOGIN',
+      },
+    });
+
+    // Send OTP via SMS
+    if (isTestNumber) {
+      logger.info(`[ClinicOwnerLogin] 🧪 TEST MODE - OTP for ${normalizedMobile}: ${otp}`);
+      console.log(`\n═══════════════════════════════════════`);
+      console.log(`📱 CLINIC OWNER LOGIN OTP`);
+      console.log(`Mobile: ${normalizedMobile}`);
+      console.log(`OTP: ${otp}`);
+      console.log(`═══════════════════════════════════════\n`);
+    } else {
+      try {
+        const axios = require('axios');
+        const authToken = await messageCentralService.generateAuthToken();
+        
+        const smsMessage = `Your PulseMate login OTP is: ${otp}. Valid for 10 minutes. Do not share.`;
+        
+        const smsResponse = await axios.post(
+          `${process.env.MESSAGE_CENTRAL_BASE_URL || 'https://cpaas.messagecentral.com'}/core/v1/sms`,
+          {
+            to: cleanMobile,
+            message: smsMessage,
+            type: 'TXN',
+            countryCode: '91'
+          },
+          {
+            headers: {
+              'authToken': authToken,
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000
+          }
+        );
+
+        if (smsResponse.data && smsResponse.data.responseCode === 200) {
+          logger.info(`[ClinicOwnerLogin] ✅ SMS sent to ${normalizedMobile}`);
+        } else {
+          throw new Error(`SMS API error: ${JSON.stringify(smsResponse.data)}`);
+        }
+      } catch (smsError) {
+        logger.error(`[ClinicOwnerLogin] Failed to send SMS:`, smsError);
+        return sendError(res, 'Failed to send OTP. Please try again.', 500);
+      }
+    }
+
+    return sendSuccess(res, {
+      message: 'OTP sent successfully',
+      mobile: normalizedMobile,
+      expiresIn: 600, // 10 minutes in seconds
+      ...(isTestNumber && process.env.NODE_ENV !== 'production' ? { otp } : {}),
+    });
+  } catch (error) {
+    logger.error('[ClinicOwnerLogin] Send mobile OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/clinic-owner/verify-mobile-otp-login
+ * Verify OTP and login clinic owner
+ */
+const clinicOwnerVerifyMobileOtpLogin = async (req, res, next) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    if (!mobile || !otp) {
+      return sendError(res, 'Mobile number and OTP are required', 400);
+    }
+
+    const normalizedMobile = normalizeMobileNumber(mobile);
+    const mobileWithoutPrefix = normalizedMobile.replace(/^\+91/, '');
+
+    // Find user
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { mobile: normalizedMobile, role: 'CLINIC_OWNER' },
+          { mobile: mobileWithoutPrefix, role: 'CLINIC_OWNER' },
+        ],
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'Invalid credentials', 401);
+    }
+
+    // Find all valid OTP records
+    const otpRecords = await prisma.otpVerification.findMany({
+      where: {
+        mobile: user.mobile,
+        purpose: 'LOGIN',
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecords || otpRecords.length === 0) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Find matching OTP
+    const bcrypt = require('bcryptjs');
+    let matchedOtpRecord = null;
+    
+    for (const record of otpRecords) {
+      const isMatch = await bcrypt.compare(otp, record.otpHash);
+      if (isMatch) {
+        matchedOtpRecord = record;
+        break;
+      }
+    }
+
+    if (!matchedOtpRecord) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Mark OTP as used
+    await prisma.otpVerification.update({
+      where: { id: matchedOtpRecord.id },
+      data: { isUsed: true, verifiedAt: new Date() },
+    });
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Issue auth tokens
+    const tokens = await issueAuthTokens(res, user, req, 'MOBILE_OTP');
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'LOGIN_MOBILE_OTP',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+    });
+
+    logger.info(`[ClinicOwnerLogin] ✅ User ${user.id} logged in via mobile OTP (status: ${user.approvalStatus})`);
+
+    return sendSuccess(res, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: toAuthUser(user),
+    }, 'Login successful');
+  } catch (error) {
+    logger.error('[ClinicOwnerLogin] Verify mobile OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/clinic-owner/send-email-otp-login
+ * Send OTP to clinic owner's email for passwordless login
+ */
+const clinicOwnerSendEmailOtpLogin = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return sendError(res, 'Email is required', 400);
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find clinic owner
+    const user = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        role: 'CLINIC_OWNER',
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'No clinic owner account found with this email', 404);
+    }
+
+    if (!user.isEmailVerified) {
+      return sendError(res, 'Email not verified. Please complete your registration first.', 403);
+    }
+
+    // ✅ ALLOW login for DRAFT and PENDING status
+    if (user.approvalStatus === 'DRAFT') {
+      logger.info(`[ClinicOwnerLogin] User ${user.id} in DRAFT status - allowing login`);
+    }
+
+    if (user.approvalStatus === 'PENDING') {
+      logger.info(`[ClinicOwnerLogin] User ${user.id} in PENDING status - allowing login`);
+    }
+
+    if (user.approvalStatus === 'SUSPENDED') {
+      return sendError(res, user.suspendedReason || 'Account is suspended', 403);
+    }
+
+    if (user.approvalStatus === 'REJECTED') {
+      return sendError(res, user.rejectionReason || 'Account has been rejected', 403);
+    }
+
+    // Generate 6-digit OTP
+    const testEmails = (process.env.TEST_OTP_EMAILS || '').split(',');
+    const isTestEmail = process.env.ENABLE_TEST_OTP === 'true' && testEmails.includes(normalizedEmail);
+    
+    const otp = isTestEmail ? (process.env.TEST_OTP_CODE || '123456') : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Hash OTP
+    const bcrypt = require('bcryptjs');
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Store OTP
+    await prisma.emailVerification.create({
+      data: {
+        email: normalizedEmail,
+        tokenHash: otpHash,
+        expiresAt,
+        purpose: 'LOGIN',
+      },
+    });
+
+    // Send OTP via email
+    if (isTestEmail) {
+      logger.info(`[ClinicOwnerLogin] 🧪 TEST MODE - Email OTP for ${normalizedEmail}: ${otp}`);
+      console.log(`\n═══════════════════════════════════════`);
+      console.log(`📧 CLINIC OWNER LOGIN OTP`);
+      console.log(`Email: ${normalizedEmail}`);
+      console.log(`OTP: ${otp}`);
+      console.log(`═══════════════════════════════════════\n`);
+    } else {
+      try {
+        const { sendEmail } = require('../services/email.service');
+        await sendEmail({
+          to: normalizedEmail,
+          subject: 'PulseMate Login OTP',
+          html: `
+            <h2>Your Login OTP</h2>
+            <p>Hello ${user.name || 'Clinic Owner'},</p>
+            <p>Your OTP for logging into PulseMate is:</p>
+            <h1 style="color: #4F46E5; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
+            <p>This OTP is valid for 10 minutes.</p>
+            <p>If you didn't request this, please ignore this email.</p>
+          `,
+        });
+        logger.info(`[ClinicOwnerLogin] ✅ Email sent to ${normalizedEmail}`);
+      } catch (emailError) {
+        logger.error(`[ClinicOwnerLogin] Failed to send email:`, emailError);
+        return sendError(res, 'Failed to send OTP. Please try again.', 500);
+      }
+    }
+
+    return sendSuccess(res, {
+      message: 'OTP sent successfully',
+      email: normalizedEmail,
+      expiresIn: 600,
+      ...(isTestEmail && process.env.NODE_ENV !== 'production' ? { otp } : {}),
+    });
+  } catch (error) {
+    logger.error('[ClinicOwnerLogin] Send email OTP error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/clinic-owner/verify-email-otp-login
+ * Verify email OTP and login clinic owner
+ */
+const clinicOwnerVerifyEmailOtpLogin = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return sendError(res, 'Email and OTP are required', 400);
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find user
+    const user = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        role: 'CLINIC_OWNER',
+      },
+      include: baseUserInclude,
+    });
+
+    if (!user) {
+      return sendError(res, 'Invalid credentials', 401);
+    }
+
+    // Find valid OTP records
+    const otpRecords = await prisma.emailVerification.findMany({
+      where: {
+        email: normalizedEmail,
+        purpose: 'LOGIN',
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecords || otpRecords.length === 0) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Find matching OTP
+    const bcrypt = require('bcryptjs');
+    let matchedOtpRecord = null;
+    
+    for (const record of otpRecords) {
+      const isMatch = await bcrypt.compare(otp, record.tokenHash);
+      if (isMatch) {
+        matchedOtpRecord = record;
+        break;
+      }
+    }
+
+    if (!matchedOtpRecord) {
+      return sendError(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Mark OTP as used
+    await prisma.emailVerification.update({
+      where: { id: matchedOtpRecord.id },
+      data: { isUsed: true, verifiedAt: new Date() },
+    });
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Issue auth tokens
+    const tokens = await issueAuthTokens(res, user, req, 'EMAIL_OTP');
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'LOGIN_EMAIL_OTP',
+      entityType: 'User',
+      entityId: user.id,
+      ipAddress: req.ip,
+    });
+
+    logger.info(`[ClinicOwnerLogin] ✅ User ${user.id} logged in via email OTP (status: ${user.approvalStatus})`);
+
+    return sendSuccess(res, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: toAuthUser(user),
+    }, 'Login successful');
+  } catch (error) {
+    logger.error('[ClinicOwnerLogin] Verify email OTP error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   // Firebase Phone Auth
   patientFirebasePhoneLoginHandler,
@@ -4595,6 +5318,12 @@ module.exports = {
   doctorVerifyMobileOtpLogin,
   doctorSendEmailOtpLogin,
   doctorVerifyEmailOtpLogin,
+  
+  // ✅ NEW: Clinic Owner OTP Login  
+  clinicOwnerSendMobileOtpLogin,
+  clinicOwnerVerifyMobileOtpLogin,
+  clinicOwnerSendEmailOtpLogin,
+  clinicOwnerVerifyEmailOtpLogin,
   
   // Onboarding
   saveClinicOnboardingStep1Handler,
