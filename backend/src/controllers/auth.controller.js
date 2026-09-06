@@ -3521,24 +3521,75 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
                   { id: { not: decoded.userId } } // Not the same user
                 ]
               },
-              select: { id: true, approvalStatus: true, email: true }
+              select: { 
+                id: true, 
+                approvalStatus: true, 
+                email: true, 
+                role: true, 
+                roles: true,
+                primaryRole: true,
+                isEmailVerified: true,
+                mobile: true
+              }
             });
+            
+            let user;
             
             if (existingMobileUser) {
-              return sendError(res, 'This mobile number is already registered to another account.', 409);
+              // ✅ MULTI-ROLE SUPPORT: Merge accounts instead of showing error
+              logger.info(`[OTP] 🧪 IDENTITY MERGE: Mobile ${normalizedPhone} exists for user ${existingMobileUser.id}. Merging with DRAFT user ${decoded.userId}`);
+              
+              // Get the DRAFT clinic owner user to extract email
+              const draftUser = await prisma.user.findUnique({
+                where: { id: decoded.userId },
+                select: { email: true, name: true, id: true }
+              });
+              
+              if (!draftUser) {
+                return sendError(res, 'Draft user not found', 404);
+              }
+              
+              // Update existing user: Add CLINIC_OWNER role + email from draft user
+              const updatedRoles = existingMobileUser.roles || [existingMobileUser.role];
+              if (!updatedRoles.includes('CLINIC_OWNER')) {
+                updatedRoles.push('CLINIC_OWNER');
+              }
+              
+              user = await prisma.user.update({
+                where: { id: existingMobileUser.id },
+                data: {
+                  email: draftUser.email, // Add email from draft user
+                  isEmailVerified: true,
+                  role: 'CLINIC_OWNER', // Update legacy role
+                  roles: updatedRoles, // Multi-role support
+                  primaryRole: 'CLINIC_OWNER', // Set as primary
+                  approvalStatus: 'DRAFT', // Keep DRAFT for clinic onboarding
+                  registrationComplete: false,
+                  registrationStartedAt: new Date(),
+                },
+                include: baseUserInclude,
+              });
+              
+              // Delete the draft user (cleanup)
+              await prisma.user.delete({
+                where: { id: decoded.userId }
+              });
+              
+              logger.info(`[OTP] 🧪 ✅ MERGED: Deleted draft user ${decoded.userId}, added CLINIC_OWNER role to user ${user.id}`);
+              logger.info(`[OTP] 🧪 ✅ User ${user.id} now has roles: ${user.roles.join(', ')}`);
+            } else {
+              // No conflict - just update the DRAFT user with mobile
+              user = await prisma.user.update({
+                where: { id: decoded.userId },
+                data: {
+                  mobile: normalizedPhone,
+                  isPhoneVerified: true,
+                },
+                include: baseUserInclude,
+              });
+              
+              logger.info(`[OTP] 🧪 ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
             }
-            
-            // Update existing user with mobile number
-            const user = await prisma.user.update({
-              where: { id: decoded.userId },
-              data: {
-                mobile: normalizedPhone,
-                isPhoneVerified: true,
-              },
-              include: baseUserInclude,
-            });
-            
-            logger.info(`[OTP] 🧪 ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
             
             // Issue auth tokens for onboarding continuation
             const tokens = await issueAuthTokens(res, user, req);
@@ -3906,24 +3957,75 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
                 { id: { not: decoded.userId } } // Not the same user
               ]
             },
-            select: { id: true, approvalStatus: true, email: true }
+            select: { 
+              id: true, 
+              approvalStatus: true, 
+              email: true,
+              role: true,
+              roles: true,
+              primaryRole: true,
+              isEmailVerified: true,
+              mobile: true
+            }
           });
+          
+          let user;
           
           if (existingMobileUser) {
-            return sendError(res, 'This mobile number is already registered to another account.', 409);
+            // ✅ MULTI-ROLE SUPPORT: Merge accounts instead of showing error
+            logger.info(`[OTP] PRODUCTION IDENTITY MERGE: Mobile ${normalizedPhone} exists for user ${existingMobileUser.id}. Merging with DRAFT user ${decoded.userId}`);
+            
+            // Get the DRAFT clinic owner user to extract email
+            const draftUser = await prisma.user.findUnique({
+              where: { id: decoded.userId },
+              select: { email: true, name: true, id: true }
+            });
+            
+            if (!draftUser) {
+              return sendError(res, 'Draft user not found', 404);
+            }
+            
+            // Update existing user: Add CLINIC_OWNER role + email from draft user
+            const updatedRoles = existingMobileUser.roles || [existingMobileUser.role];
+            if (!updatedRoles.includes('CLINIC_OWNER')) {
+              updatedRoles.push('CLINIC_OWNER');
+            }
+            
+            user = await prisma.user.update({
+              where: { id: existingMobileUser.id },
+              data: {
+                email: draftUser.email, // Add email from draft user
+                isEmailVerified: true,
+                role: 'CLINIC_OWNER', // Update legacy role
+                roles: updatedRoles, // Multi-role support
+                primaryRole: 'CLINIC_OWNER', // Set as primary
+                approvalStatus: 'DRAFT', // Keep DRAFT for clinic onboarding
+                registrationComplete: false,
+                registrationStartedAt: new Date(),
+              },
+              include: baseUserInclude,
+            });
+            
+            // Delete the draft user (cleanup)
+            await prisma.user.delete({
+              where: { id: decoded.userId }
+            });
+            
+            logger.info(`[OTP] PRODUCTION ✅ MERGED: Deleted draft user ${decoded.userId}, added CLINIC_OWNER role to user ${user.id}`);
+            logger.info(`[OTP] PRODUCTION ✅ User ${user.id} now has roles: ${user.roles.join(', ')}`);
+          } else {
+            // No conflict - just update the DRAFT user with mobile
+            user = await prisma.user.update({
+              where: { id: decoded.userId },
+              data: {
+                mobile: normalizedPhone,
+                isPhoneVerified: true,
+              },
+              include: baseUserInclude,
+            });
+            
+            logger.info(`[OTP] PRODUCTION ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
           }
-          
-          // Update existing user with mobile number
-          const user = await prisma.user.update({
-            where: { id: decoded.userId },
-            data: {
-              mobile: normalizedPhone,
-              isPhoneVerified: true,
-            },
-            include: baseUserInclude,
-          });
-          
-          logger.info(`[OTP] PRODUCTION ✅ Linked mobile ${normalizedPhone} to user ${user.id} (email: ${user.email})`);
           
           // Issue auth tokens for onboarding continuation
           const tokens = await issueAuthTokens(res, user, req);
