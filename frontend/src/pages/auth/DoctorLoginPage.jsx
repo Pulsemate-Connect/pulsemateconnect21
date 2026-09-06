@@ -87,8 +87,11 @@ const DoctorLoginPage = () => {
       
       toast.success('Login successful! Welcome back, Dr. ' + user.name);
       
+      // Small delay to ensure state is persisted before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Redirect to doctor dashboard
-      navigate('/doctor/dashboard');
+      navigate('/doctor/dashboard', { replace: true });
     } catch (err) {
       console.error('Error verifying OTP:', err);
       toast.error(err.response?.data?.message || 'Invalid or expired OTP');
