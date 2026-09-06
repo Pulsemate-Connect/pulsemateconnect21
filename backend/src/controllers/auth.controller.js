@@ -3941,6 +3941,10 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
       // ✅ Check for tempToken from email verification
       const tempToken = req.headers['x-temp-token'] || req.body.tempToken;
       
+      logger.info(`[OTP] PRODUCTION ONBOARDING: tempToken from header: ${req.headers['x-temp-token']}`);
+      logger.info(`[OTP] PRODUCTION ONBOARDING: tempToken from body: ${req.body.tempToken}`);
+      logger.info(`[OTP] PRODUCTION ONBOARDING: Final tempToken: ${tempToken}`);
+      
       if (tempToken) {
         // Verify and link to existing user
         try {
@@ -4063,7 +4067,9 @@ const verifyOtpHandler_MessageCentral = async (req, res, next) => {
             'Mobile number verified and linked successfully'
           );
         } catch (jwtError) {
-          logger.error('[OTP] PRODUCTION ONBOARDING: Invalid tempToken:', jwtError.message);
+          logger.error('[OTP] PRODUCTION ONBOARDING: Invalid tempToken error:', jwtError);
+          logger.error('[OTP] PRODUCTION ONBOARDING: JWT Error name:', jwtError.name);
+          logger.error('[OTP] PRODUCTION ONBOARDING: JWT Error message:', jwtError.message);
           return sendError(res, 'Invalid or expired verification token. Please restart registration.', 400);
         }
       }

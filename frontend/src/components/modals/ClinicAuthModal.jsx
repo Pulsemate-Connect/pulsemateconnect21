@@ -325,10 +325,10 @@ const ClinicAuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         
         toast.success('Mobile verified! Please complete your clinic registration.');
         
-        // Close modal and redirect to full registration page
+        // Close modal and redirect to multi-step onboarding
         onClose();
         setTimeout(() => {
-          navigate('/register/clinic-owner'); // Redirect to complete clinic details
+          navigate('/clinic/onboarding/step1'); // Redirect to new multi-step form
         }, 500);
       }
     } catch (error) {
