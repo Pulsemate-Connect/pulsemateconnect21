@@ -183,6 +183,14 @@ model Clinic {
   gstCertificateUrl                  String?
   panCardUrl                         String?
   additionalDocuments                Json?
+  // ✅ ONBOARDING: Mandatory document fields for clinic verification
+  clinicRegistrationCertificate      String?
+  medicalLicense                     String?
+  ownerIdProof                       String?
+  // ✅ ONBOARDING: Clinic photo URLs  
+  clinicExteriorUrl                  String?
+  receptionAreaUrl                   String?
+  consultationRoomUrl                String?
   ownerMobileVerified                Boolean                     @default(false)
   ownerEmailVerified                 Boolean                     @default(false)
   mobileOtpVerifiedAt                DateTime?
