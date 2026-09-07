@@ -798,11 +798,26 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
       }
     });
 
+    // ✅ VALIDATION: Ensure mandatory documents are uploaded
+    const clinicRegistrationCertUrl = getFileUrl(files.clinicRegistrationCertificate?.[0]);
+    const medicalLicenseUrl = getFileUrl(files.medicalLicense?.[0]);
+    const ownerIdProofUrl = getFileUrl(files.ownerIdProof?.[0]);
+
+    if (!clinicRegistrationCertUrl) {
+      return sendError(res, 'Clinic Registration Certificate is required', 400);
+    }
+    if (!medicalLicenseUrl) {
+      return sendError(res, 'Medical Establishment License is required', 400);
+    }
+    if (!ownerIdProofUrl) {
+      return sendError(res, 'Owner ID Proof is required', 400);
+    }
+
     // Prepare Clinic Documents data object
     const clinicDocumentsData = {
-      clinicRegistrationCertificate: getFileUrl(files.clinicRegistrationCertificate?.[0]),
-      medicalLicense: getFileUrl(files.medicalLicense?.[0]),
-      ownerIdProof: getFileUrl(files.ownerIdProof?.[0]),
+      clinicRegistrationCertificate: clinicRegistrationCertUrl,
+      medicalLicense: medicalLicenseUrl,
+      ownerIdProof: ownerIdProofUrl,
       gstCertificate: getFileUrl(files.gstCertificate?.[0]),
       clinicPhotos: clinicPhotos,
       clinicRegistrationNumber: clinicRegistrationNumber || null,
