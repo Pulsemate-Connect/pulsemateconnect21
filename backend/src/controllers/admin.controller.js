@@ -1976,7 +1976,7 @@ const deleteUserPermanently = async (req, res, next) => {
     // Check for active appointments
     const appointmentWhere = {
       status: {
-        in: ['SCHEDULED', 'IN_PROGRESS', 'CONFIRMED']
+        in: ['PENDING_PAYMENT', 'BOOKED', 'CHECKED_IN', 'IN_QUEUE', 'CALLED', 'IN_CONSULTATION']
       }
     };
 
