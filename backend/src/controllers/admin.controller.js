@@ -1974,16 +1974,25 @@ const deleteUserPermanently = async (req, res, next) => {
     }
 
     // Check for active appointments
-    const activeAppointments = await prisma.appointment.count({
-      where: {
-        OR: [
-          { patientId: userId },
-          { doctorId: user.doctorProfile?.id }
-        ],
-        status: {
-          in: ['SCHEDULED', 'IN_PROGRESS', 'CONFIRMED']
-        }
+    const appointmentWhere = {
+      status: {
+        in: ['SCHEDULED', 'IN_PROGRESS', 'CONFIRMED']
       }
+    };
+
+    // Build OR condition only with valid IDs
+    const orConditions = [];
+    orConditions.push({ patientId: userId });
+    if (user.doctorProfile?.id) {
+      orConditions.push({ doctorId: user.doctorProfile.id });
+    }
+
+    if (orConditions.length > 0) {
+      appointmentWhere.OR = orConditions;
+    }
+
+    const activeAppointments = await prisma.appointment.count({
+      where: appointmentWhere
     });
 
     if (activeAppointments > 0) {
