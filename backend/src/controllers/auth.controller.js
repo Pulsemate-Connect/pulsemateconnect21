@@ -1025,13 +1025,23 @@ const submitClinicApplicationHandler = async (req, res, next) => {
       consultationModes: step2.appointmentModes || step2.consultationTypes || [],
       facilities: step2.facilities || [],
       languagesSpoken: step2.languages || [],
-      // Step 3 data
-      licenseDocumentUrl: step3.clinicLicense || step3.clinicRegistrationCertificate,
-      medicalEstablishmentCertificateUrl: step3.medicalCertificate || step3.medicalEstablishmentLicense,
+      // Step 3 data - Mandatory Documents
+      clinicRegistrationCertificate: step3.clinicRegistrationCertificate,
+      medicalLicense: step3.medicalLicense,
+      ownerIdProof: step3.ownerIdProof,
+      // Step 3 data - Optional Documents
       gstCertificateUrl: step3.gstCertificate,
       panCardUrl: step3.panCard,
       gstNumber: step3.gstNumber,
       panNumber: step3.panNumber,
+      // Step 3 data - Clinic Photos
+      clinicLogoUrl: step3.clinicPhotos?.logo || step3.clinicLogo,
+      clinicExteriorUrl: step3.clinicPhotos?.exterior || step3.clinicExterior,
+      receptionAreaUrl: step3.clinicPhotos?.reception || step3.receptionArea,
+      consultationRoomUrl: step3.clinicPhotos?.consultationRoom || step3.consultationRoom,
+      // Legacy fields for backward compatibility
+      licenseDocumentUrl: step3.clinicLicense || step3.clinicRegistrationCertificate,
+      medicalEstablishmentCertificateUrl: step3.medicalCertificate || step3.medicalEstablishmentLicense || step3.medicalLicense,
       isActive: false,  // Inactive until approved
     };
 
