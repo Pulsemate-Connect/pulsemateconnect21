@@ -204,6 +204,7 @@ export default function RazorpayScreen({ route, navigation }) {
         const errorDetails = {
           message: err?.response?.data?.message || err.message,
           status: err?.response?.status,
+          data: err?.response?.data,
           appointmentId,
           orderId: msg.razorpayOrderId,
           paymentId: msg.razorpayPaymentId,
@@ -212,26 +213,63 @@ export default function RazorpayScreen({ route, navigation }) {
         
         setVerifying(false);
         
+        // ✅ FIX: Don't navigate to PaymentStatus if verification succeeded on backend
+        // Payment might be already confirmed, just fetch and show success
+        if (err?.response?.status === 200 || errorDetails.data?.success) {
+          console.log('[Payment] Verification succeeded despite catch block - showing success');
+          navigation.navigate('Booking', {
+            paymentResult: {
+              success: true,
+              appointment: errorDetails.data?.data?.appointment || { id: appointmentId },
+            },
+          });
+          return;
+        }
+        
         // Check if error is due to backend misconfiguration
-        if (errorDetails.message?.includes('not configured')) {
+        if (errorDetails.message?.includes('not configured') || 
+            errorDetails.message?.includes('RAZORPAY_KEY_SECRET')) {
           Alert.alert(
             'Payment System Error',
-            'The payment system is not properly configured. Please contact support.',
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
+            'The payment system is not properly configured. Your payment was successful but we cannot confirm your appointment right now. Please check your appointments list or contact support.',
+            [
+              { text: 'View Appointments', onPress: () => navigation.navigate('Appointments') },
+              { text: 'OK', onPress: () => navigation.goBack() },
+            ]
           );
           return;
         }
         
-        // Navigate to PaymentStatus screen which will poll until confirmed
-        // This handles the case where verify call fails but payment may have succeeded
-        navigation.navigate('PaymentStatus', {
-          appointmentId,
-          orderId:         msg.razorpayOrderId,
-          amount:          Math.round((orderAmount || 0) / 100),
-          doctorName,
-          clinicName:      route.params?.clinicName || '',
-          appointmentDate: route.params?.appointmentDate || '',
-        });
+        // For network errors or timeouts, go to PaymentStatus which will poll
+        if (err.message?.includes('Network') || 
+            err.message?.includes('timeout') ||
+            err?.response?.status === 500 ||
+            err?.response?.status === 503) {
+          Alert.alert(
+            'Checking Payment Status',
+            'Your payment was successful. We\'re confirming your appointment...',
+            [{ text: 'OK' }]
+          );
+          navigation.replace('PaymentStatus', {
+            appointmentId,
+            orderId:         msg.razorpayOrderId,
+            amount:          Math.round((orderAmount || 0) / 100),
+            doctorName,
+            clinicName:      route.params?.clinicName || '',
+            appointmentDate: route.params?.appointmentDate || '',
+          });
+          return;
+        }
+        
+        // For other errors, show generic message and go back
+        Alert.alert(
+          'Payment Verification Error',
+          errorDetails.message || 'Unable to verify payment. Please check your appointments or contact support.',
+          [
+            { text: 'View Appointments', onPress: () => navigation.navigate('Appointments') },
+            { text: 'Try Again', onPress: () => navigation.goBack() },
+          ]
+        );
       }
       return;
     }

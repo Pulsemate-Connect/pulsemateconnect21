@@ -17,111 +17,192 @@ const BOOKING_FEE = 10; // ₹10
  * Called after payment confirmation OR immediately for free bookings.
  */
 const assignQueueAndConfirm = async (appointment, doctorClinic, io) => {
-  const avgMins = doctorClinic?.avgConsultationMins || 10;
+  try {
+    logger.info('[assignQueue] Starting queue assignment', {
+      appointmentId: appointment.id,
+      appointmentType: appointment.appointmentType,
+      clinicId: appointment.clinicId,
+      doctorId: appointment.doctorId,
+    });
 
-  if (appointment.appointmentType === 'OFFLINE') {
-    const day = new Date(appointment.appointmentDate);
-    day.setUTCHours(0, 0, 0, 0);
-    const effectiveSessionId = appointment.sessionId || null;
-    const queueWhere = effectiveSessionId
-      ? { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: effectiveSessionId }
-      : { clinicId: appointment.clinicId, doctorId: appointment.doctorId, date: day, sessionId: null };
+    const avgMins = doctorClinic?.avgConsultationMins || 10;
 
-    // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
-    const q = await getOrCreateQueue(
-      appointment.clinicId, appointment.doctorId, day, effectiveSessionId
-    );
-    const resolvedQueueId = q.id;
+    if (appointment.appointmentType === 'OFFLINE') {
+      const day = new Date(appointment.appointmentDate);
+      day.setUTCHours(0, 0, 0, 0);
+      const effectiveSessionId = appointment.sessionId || null;
 
-    // ── ATOMIC: assign queue number + confirm appointment ─────────────────
-    const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
-      // ✅ BUG #4 FIX: Use PostgreSQL advisory lock to prevent queue number collisions
-      // Lock is automatically released when transaction ends
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${resolvedQueueId}::bigint)`;
-      
-      // Count ALL items to get monotonically increasing queue number
-      const allItems = await tx.queueItem.findMany({
-        where: { queueId: resolvedQueueId },
-        orderBy: { queueNumber: 'desc' },
-        take: 1,
-      });
-      const qNum = (allItems[0]?.queueNumber || 0) + 1;
-
-      const waitingCount = await tx.queueItem.count({
-        where: { queueId: resolvedQueueId, status: 'WAITING' },
+      logger.info('[assignQueue] Getting or creating queue', {
+        clinicId: appointment.clinicId,
+        doctorId: appointment.doctorId,
+        date: day.toISOString(),
+        sessionId: effectiveSessionId,
       });
 
-      const updatedAppt = await tx.appointment.update({
-        where: { id: appointment.id },
-        data: {
-          status: 'BOOKED',
+      // ── Get or create Queue using atomic INSERT ON CONFLICT DO NOTHING ───
+      const q = await getOrCreateQueue(
+        appointment.clinicId, appointment.doctorId, day, effectiveSessionId
+      );
+      const resolvedQueueId = q.id;
+
+      logger.info('[assignQueue] Queue resolved', { queueId: resolvedQueueId });
+
+      // ── ATOMIC: assign queue number + confirm appointment ─────────────────
+      const { confirmed, queueNumber, queue } = await prisma.$transaction(async (tx) => {
+        // ✅ BUG #4 FIX: Use PostgreSQL advisory lock to prevent queue number collisions
+        // Lock is automatically released when transaction ends
+        logger.info('[assignQueue] Acquiring advisory lock', { queueId: resolvedQueueId });
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${resolvedQueueId}::bigint)`;
+        
+        logger.info('[assignQueue] Lock acquired, counting queue items');
+        // Count ALL items to get monotonically increasing queue number
+        const allItems = await tx.queueItem.findMany({
+          where: { queueId: resolvedQueueId },
+          orderBy: { queueNumber: 'desc' },
+          take: 1,
+        });
+        const qNum = (allItems[0]?.queueNumber || 0) + 1;
+
+        logger.info('[assignQueue] Next queue number', { queueNumber: qNum });
+
+        const waitingCount = await tx.queueItem.count({
+          where: { queueId: resolvedQueueId, status: 'WAITING' },
+        });
+
+        logger.info('[assignQueue] Updating appointment to BOOKED', {
+          appointmentId: appointment.id,
           queueNumber: qNum,
-          estimatedWaitMinutes: waitingCount * avgMins,
+          waitingCount,
+        });
+
+        const updatedAppt = await tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            status: 'BOOKED',
+            queueNumber: qNum,
+            estimatedWaitMinutes: waitingCount * avgMins,
+          },
+          include: {
+            doctor: { include: { user: { select: { id: true, name: true } } } },
+            clinic: { select: { id: true, name: true, address: true, city: true } },
+          },
+        });
+
+        logger.info('[assignQueue] Creating queue item');
+
+        await tx.queueItem.create({
+          data: {
+            queueId: resolvedQueueId,
+            appointmentId: appointment.id,
+            patientId: appointment.patientId,
+            queueNumber: qNum,
+            status: 'WAITING',
+            position: waitingCount + 1,
+          },
+        });
+
+        logger.info('[assignQueue] Transaction complete', {
+          appointmentId: updatedAppt.id,
+          status: updatedAppt.status,
+          queueNumber: qNum,
+        });
+
+        return { confirmed: updatedAppt, queueNumber: qNum, queue: q };
+      }, {
+        timeout: 15000, // 15 second timeout for transaction
+      });
+
+      logger.info('[assignQueue] Emitting socket events');
+
+      if (io) {
+        const today = new Date(appointment.appointmentDate).toISOString().split('T')[0];
+        const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${today}`;
+        io.to(roomName).emit('queue:updated', {
+          type: 'APPOINTMENT_BOOKED',
+          appointmentId: appointment.id,
+          queueNumber,
+        });
+      }
+
+      // Emit clinic-room events for dashboard real-time updates
+      const ioInstance = io || getIo();
+      if (ioInstance) {
+        emitClinicUpdate(ioInstance, appointment.clinicId, {
+          type: 'new-appointment',
+          appointment: {
+            id: confirmed.id,
+            patientId: confirmed.patientId,
+            doctorId: confirmed.doctorId,
+          },
+        });
+
+        // Count current waiting queue length for the queue-updated event
+        const queueLength = await prisma.queueItem.count({
+          where: { queueId: queue.id, status: 'WAITING' },
+        });
+        emitClinicUpdate(ioInstance, appointment.clinicId, {
+          type: 'queue-updated',
+          queueLength,
+        });
+      }
+
+      logger.info('[assignQueue] Queue assignment complete', {
+        appointmentId: confirmed.id,
+        queueNumber: confirmed.queueNumber,
+      });
+
+      return confirmed;
+    }
+
+    // Online appointment — just confirm
+    logger.info('[assignQueue] Online appointment, confirming without queue');
+    const confirmed = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: 'BOOKED' },
+      include: {
+        doctor: { include: { user: { select: { id: true, name: true } } } },
+        clinic: { select: { id: true, name: true, address: true, city: true } },
+      },
+    });
+
+    logger.info('[assignQueue] Online appointment confirmed', { appointmentId: confirmed.id });
+    return confirmed;
+
+  } catch (error) {
+    logger.error('[assignQueue] CRITICAL ERROR during queue assignment', {
+      error: error.message,
+      stack: error.stack,
+      appointmentId: appointment.id,
+      appointmentType: appointment.appointmentType,
+    });
+    
+    // ✅ CRITICAL: Even if queue assignment fails, mark appointment as BOOKED
+    // to prevent payment-taken-but-appointment-stuck scenario
+    try {
+      logger.warn('[assignQueue] Attempting fallback: mark appointment BOOKED without queue');
+      const fallbackAppt = await prisma.appointment.update({
+        where: { id: appointment.id },
+        data: { 
+          status: 'BOOKED',
+          // Don't set queue number - admin can manually assign later
         },
         include: {
           doctor: { include: { user: { select: { id: true, name: true } } } },
           clinic: { select: { id: true, name: true, address: true, city: true } },
         },
       });
-
-      await tx.queueItem.create({
-        data: {
-          queueId: resolvedQueueId,
-          appointmentId: appointment.id,
-          patientId: appointment.patientId,
-          queueNumber: qNum,
-          status: 'WAITING',
-          position: waitingCount + 1,
-        },
+      logger.info('[assignQueue] Fallback successful - appointment marked BOOKED', {
+        appointmentId: fallbackAppt.id,
       });
-
-      return { confirmed: updatedAppt, queueNumber: qNum, queue: q };
-    });
-
-    if (io) {
-      const today = new Date(appointment.appointmentDate).toISOString().split('T')[0];
-      const roomName = `queue:${appointment.clinicId}:${appointment.doctorId}:${today}`;
-      io.to(roomName).emit('queue:updated', {
-        type: 'APPOINTMENT_BOOKED',
+      return fallbackAppt;
+    } catch (fallbackError) {
+      logger.error('[assignQueue] Fallback FAILED - appointment stuck in PENDING', {
         appointmentId: appointment.id,
-        queueNumber,
+        fallbackError: fallbackError.message,
       });
+      throw error; // Re-throw original error
     }
-
-    // Emit clinic-room events for dashboard real-time updates
-    const ioInstance = io || getIo();
-    if (ioInstance) {
-      emitClinicUpdate(ioInstance, appointment.clinicId, {
-        type: 'new-appointment',
-        appointment: {
-          id: confirmed.id,
-          patientId: confirmed.patientId,
-          doctorId: confirmed.doctorId,
-        },
-      });
-
-      // Count current waiting queue length for the queue-updated event
-      const queueLength = await prisma.queueItem.count({
-        where: { queueId: queue.id, status: 'WAITING' },
-      });
-      emitClinicUpdate(ioInstance, appointment.clinicId, {
-        type: 'queue-updated',
-        queueLength,
-      });
-    }
-
-    return confirmed;
   }
-
-  // Online appointment — just confirm
-  return prisma.appointment.update({
-    where: { id: appointment.id },
-    data: { status: 'BOOKED' },
-    include: {
-      doctor: { include: { user: { select: { id: true, name: true } } } },
-      clinic: { select: { id: true, name: true, address: true, city: true } },
-    },
-  });
 };
 
 /**
@@ -779,8 +860,20 @@ const verifyPayment = async (req, res, next) => {
       razorpaySignature,
     } = req.body;
 
+    // ✅ Enhanced logging for debugging
+    logger.info('[payment] verify — request received', {
+      appointmentId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      hasSignature: !!razorpaySignature,
+      userId: req.user?.id,
+    });
+
     const payment = await prisma.payment.findUnique({ where: { appointmentId } });
-    if (!payment) return sendError(res, 'Payment record not found', 404);
+    if (!payment) {
+      logger.warn('[payment] verify — payment record not found', { appointmentId });
+      return sendError(res, 'Payment record not found', 404);
+    }
     
     // ── IDEMPOTENCY: If already PAID, return success with appointment ────────
     if (payment.status === 'PAID') {
@@ -806,7 +899,10 @@ const verifyPayment = async (req, res, next) => {
     }
 
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
-    if (!appointment) return sendError(res, 'Appointment not found', 404);
+    if (!appointment) {
+      logger.warn('[payment] verify — appointment not found', { appointmentId });
+      return sendError(res, 'Appointment not found', 404);
+    }
 
     // ── Dev mode — only allowed outside production ────────────────────────
     if (razorpayOrderId?.startsWith('order_dev_')) {
@@ -814,6 +910,9 @@ const verifyPayment = async (req, res, next) => {
         logger.warn('[payment] dev-mode order rejected in production', { razorpayOrderId, patientId: req.user.id });
         return sendError(res, 'Invalid payment order', 400);
       }
+      
+      logger.info('[payment] verify — dev mode, marking as paid', { appointmentId, razorpayOrderId });
+      
       await prisma.payment.update({
         where: { appointmentId },
         data: {
@@ -863,6 +962,7 @@ const verifyPayment = async (req, res, next) => {
         });
       }
 
+      logger.info('[payment] verify — dev mode confirmation complete', { appointmentId, status: confirmed.status });
       return sendSuccess(res, { verified: true, appointment: confirmed }, 'Payment verified — appointment confirmed!');
     }
 
@@ -873,6 +973,10 @@ const verifyPayment = async (req, res, next) => {
         appointmentId,
         razorpayOrderId,
         razorpayPaymentId,
+        envCheck: {
+          hasKeyId: !!process.env.RAZORPAY_KEY_ID,
+          hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
+        }
       });
       return sendError(
         res, 
@@ -880,6 +984,12 @@ const verifyPayment = async (req, res, next) => {
         500
       );
     }
+
+    logger.info('[payment] verify — computing HMAC signature', { 
+      razorpayOrderId, 
+      razorpayPaymentId,
+      hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET 
+    });
 
     const expectedSig = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -911,11 +1021,19 @@ const verifyPayment = async (req, res, next) => {
       data: { status: 'PAID', razorpayPaymentId, razorpaySignature, paidAt: new Date() },
     });
 
+    logger.info('[payment] verify — confirming appointment and assigning queue', { appointmentId });
+
     const doctorClinic = await prisma.doctorClinic.findFirst({
       where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
     });
     const io = req.app.get('io');
     const confirmed = await assignQueueAndConfirm(appointment, doctorClinic, io);
+
+    logger.info('[payment] verify — appointment confirmed', { 
+      appointmentId: confirmed.id,
+      status: confirmed.status,
+      queueNumber: confirmed.queueNumber,
+    });
 
     // Notification — paid booking message
     sendNotification(appointment.patientId, {
@@ -944,8 +1062,15 @@ const verifyPayment = async (req, res, next) => {
       });
     }
 
+    logger.info('[payment] verify — complete, returning success', { appointmentId });
     return sendSuccess(res, { verified: true, appointment: confirmed }, 'Payment verified — appointment confirmed!');
   } catch (error) {
+    logger.error('[payment] verify — unhandled error', {
+      error: error.message,
+      stack: error.stack,
+      appointmentId: req.body?.appointmentId,
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
