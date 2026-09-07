@@ -2017,6 +2017,33 @@ const deleteUserPermanently = async (req, res, next) => {
 
     // Permanently delete user and related data
     await prisma.$transaction(async (tx) => {
+      // Delete owned clinics first (to avoid foreign key constraint)
+      if (user.ownedClinics && user.ownedClinics.length > 0) {
+        for (const clinic of user.ownedClinics) {
+          // Delete clinic-related data
+          await tx.clinicStaff.deleteMany({
+            where: { clinicId: clinic.id }
+          });
+          
+          await tx.doctorClinic.deleteMany({
+            where: { clinicId: clinic.id }
+          });
+          
+          await tx.doctorAvailability.deleteMany({
+            where: { clinicId: clinic.id }
+          });
+          
+          await tx.clinicVerificationLog.deleteMany({
+            where: { clinicId: clinic.id }
+          });
+          
+          // Delete the clinic
+          await tx.clinic.delete({
+            where: { id: clinic.id }
+          });
+        }
+      }
+      
       // Delete doctor-related data if doctor
       if (user.doctorProfile) {
         await tx.doctorClinic.deleteMany({
