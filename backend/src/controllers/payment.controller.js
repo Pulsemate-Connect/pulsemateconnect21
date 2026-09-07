@@ -1281,22 +1281,43 @@ const razorpayWebhook = async (req, res) => {
       // Confirm appointment if still pending
       const appointment = payment.appointment;
       if (appointment && appointment.status === 'PENDING_PAYMENT') {
-        const doctorClinic = await prisma.doctorClinic.findFirst({
-          where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
-        });
-        await assignQueueAndConfirm(appointment, doctorClinic, null);
+        logger.info('[webhook] Confirming appointment', { appointmentId: appointment.id });
+        
+        try {
+          const doctorClinic = await prisma.doctorClinic.findFirst({
+            where: { doctorId: appointment.doctorId, clinicId: appointment.clinicId },
+          });
+          
+          const confirmedAppt = await assignQueueAndConfirm(appointment, doctorClinic, null);
+          
+          logger.info('[webhook] Appointment confirmed successfully', {
+            appointmentId: confirmedAppt.id,
+            status: confirmedAppt.status,
+            queueNumber: confirmedAppt.queueNumber,
+          });
 
-        const patientUser = await prisma.user.findUnique({
-          where: { id: appointment.patientId },
-          select: { name: true },
-        });
-        notifyStakeholders(appointment, patientUser?.name || 'A patient');
+          const patientUser = await prisma.user.findUnique({
+            where: { id: appointment.patientId },
+            select: { name: true },
+          });
+          notifyStakeholders(confirmedAppt, patientUser?.name || 'A patient');
 
-        sendNotification(appointment.patientId, {
-          title: '✅ Payment Confirmed',
-          body: 'Your appointment has been confirmed.',
-          data: { type: 'APPOINTMENT_BOOKED', appointmentId: appointment.id },
-        }).catch(() => {});
+          sendNotification(appointment.patientId, {
+            title: '✅ Payment Confirmed',
+            body: 'Your appointment has been confirmed.',
+            data: { type: 'APPOINTMENT_BOOKED', appointmentId: confirmedAppt.id },
+          }).catch(() => {});
+        } catch (confirmError) {
+          // ✅ Log error but don't fail webhook (payment is already PAID)
+          logger.error('[webhook] Failed to confirm appointment, but payment is PAID', {
+            appointmentId: appointment.id,
+            error: confirmError.message,
+            stack: confirmError.stack,
+          });
+          
+          // ✅ CRITICAL: Webhook should still return success so Razorpay doesn't retry
+          // The fallback in assignQueueAndConfirm will have marked appointment as BOOKED
+        }
       }
 
       return res.json({ success: true, message: 'payment.captured processed' });
