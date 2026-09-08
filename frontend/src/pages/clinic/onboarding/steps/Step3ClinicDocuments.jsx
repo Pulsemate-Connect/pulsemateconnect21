@@ -99,15 +99,26 @@ const Step3ClinicDocuments = () => {
       // For now, we'll create a FormData object
       const formData = new FormData();
       
-      // Append files
+      // Append files - CHECK if file exists first
       if (data.clinicRegistrationCertificate) {
+        console.log('[Step3] Appending clinicRegistrationCertificate:', data.clinicRegistrationCertificate.name);
         formData.append('clinicRegistrationCertificate', data.clinicRegistrationCertificate);
+      } else {
+        console.error('[Step3] Missing clinicRegistrationCertificate!');
       }
+      
       if (data.medicalLicense) {
+        console.log('[Step3] Appending medicalLicense:', data.medicalLicense.name);
         formData.append('medicalLicense', data.medicalLicense);
+      } else {
+        console.error('[Step3] Missing medicalLicense!');
       }
+      
       if (data.ownerIdProof) {
+        console.log('[Step3] Appending ownerIdProof:', data.ownerIdProof.name);
         formData.append('ownerIdProof', data.ownerIdProof);
+      } else {
+        console.error('[Step3] Missing ownerIdProof!');
       }
       if (data.gstCertificate) {
         formData.append('gstCertificate', data.gstCertificate);
@@ -146,7 +157,13 @@ const Step3ClinicDocuments = () => {
       
     } catch (error) {
       console.error('Failed to submit Clinic Documents:', error);
-      toast.error(error.response?.data?.message || error.message || 'Failed to save clinic documents');
+      console.error('Error response:', error.response);
+      console.error('Error data:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save clinic documents';
+      console.error('Showing error message:', errorMessage);
+      
+      toast.error(errorMessage);
     }
   };
 
