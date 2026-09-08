@@ -3,7 +3,7 @@ import * as LucideIcons from 'lucide-react';
 import FileUpload from '../shared/FileUpload';
 import { DOCUMENT_TYPES } from '../../../../../utils/constants/clinicTypes';
 
-const MandatoryDocumentsCard = ({ setValue, watch, errors }) => {
+const MandatoryDocumentsCard = ({ setValue, watch, errors, trigger }) => {
   const clinicRegValue = watch?.('clinicRegistrationCertificate');
   const medicalLicenseValue = watch?.('medicalLicense');
   const ownerIdValue = watch?.('ownerIdProof');
@@ -31,7 +31,11 @@ const MandatoryDocumentsCard = ({ setValue, watch, errors }) => {
           accept={DOCUMENT_TYPES.CLINIC_REGISTRATION.acceptedFormats}
           maxSize={5}
           value={clinicRegValue}
-          onChange={(file) => setValue('clinicRegistrationCertificate', file)}
+          onChange={(file) => {
+            setValue('clinicRegistrationCertificate', file);
+            // Trigger validation after setting value
+            if (trigger) trigger('clinicRegistrationCertificate');
+          }}
           error={errors?.clinicRegistrationCertificate?.message}
         />
 
@@ -44,7 +48,11 @@ const MandatoryDocumentsCard = ({ setValue, watch, errors }) => {
           accept={DOCUMENT_TYPES.MEDICAL_LICENSE.acceptedFormats}
           maxSize={5}
           value={medicalLicenseValue}
-          onChange={(file) => setValue('medicalLicense', file)}
+          onChange={(file) => {
+            setValue('medicalLicense', file);
+            // Trigger validation after setting value
+            if (trigger) trigger('medicalLicense');
+          }}
           error={errors?.medicalLicense?.message}
         />
 
@@ -57,7 +65,11 @@ const MandatoryDocumentsCard = ({ setValue, watch, errors }) => {
           accept={DOCUMENT_TYPES.OWNER_ID.acceptedFormats}
           maxSize={2}
           value={ownerIdValue}
-          onChange={(file) => setValue('ownerIdProof', file)}
+          onChange={(file) => {
+            setValue('ownerIdProof', file);
+            // Trigger validation after setting value
+            if (trigger) trigger('ownerIdProof');
+          }}
           error={errors?.ownerIdProof?.message}
         />
       </div>

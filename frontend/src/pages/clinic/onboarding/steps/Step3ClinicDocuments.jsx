@@ -19,6 +19,7 @@ const Step3ClinicDocuments = () => {
     handleSubmit,
     watch,
     setValue,
+    trigger, // Add trigger for manual validation
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(step3Schema),
@@ -177,6 +178,7 @@ const Step3ClinicDocuments = () => {
           setValue={setValue}
           watch={watch}
           errors={errors}
+          trigger={trigger}
         />
 
         {/* Section 2: Optional Documents */}

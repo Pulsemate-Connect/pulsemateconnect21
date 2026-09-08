@@ -2,15 +2,23 @@ import * as yup from 'yup';
 
 // File validation helper
 const fileSchema = (required = false, message = 'File is required') => {
-  const schema = yup.mixed().test('fileSize', 'File size must be less than 5MB', (value) => {
-    if (!value) return !required;
-    if (typeof value === 'string') return true; // Already uploaded URL
-    return value.size <= 5 * 1024 * 1024; // 5MB
-  }).test('fileType', 'Only PDF, JPG, PNG files are allowed', (value) => {
-    if (!value) return !required;
-    if (typeof value === 'string') return true; // Already uploaded URL
-    return ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(value.type);
-  });
+  const schema = yup.mixed()
+    .test('fileSize', 'File size must be less than 5MB', (value) => {
+      if (!value) return !required;
+      if (typeof value === 'string') return true; // Already uploaded URL
+      if (value instanceof File) {
+        return value.size <= 5 * 1024 * 1024; // 5MB
+      }
+      return true; // If it's some other valid object, let it pass
+    })
+    .test('fileType', 'Only PDF, JPG, PNG files are allowed', (value) => {
+      if (!value) return !required;
+      if (typeof value === 'string') return true; // Already uploaded URL
+      if (value instanceof File) {
+        return ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(value.type);
+      }
+      return true; // If it's some other valid object, let it pass
+    });
 
   return required ? schema.required(message) : schema.nullable();
 };
