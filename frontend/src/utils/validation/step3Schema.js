@@ -3,24 +3,37 @@ import * as yup from 'yup';
 // File validation helper
 const fileSchema = (required = false, message = 'File is required') => {
   const schema = yup.mixed()
+    .test('required-check', message, (value) => {
+      // If field is required, value must exist
+      if (required && !value) {
+        console.log('[Validation] Required field is missing:', { value, required });
+        return false;
+      }
+      return true;
+    })
     .test('fileSize', 'File size must be less than 5MB', (value) => {
-      if (!value) return !required;
+      if (!value) return !required; // If no value and not required, pass
       if (typeof value === 'string') return true; // Already uploaded URL
       if (value instanceof File) {
-        return value.size <= 5 * 1024 * 1024; // 5MB
+        const isValid = value.size <= 5 * 1024 * 1024; // 5MB
+        if (!isValid) console.log('[Validation] File too large:', value.size);
+        return isValid;
       }
+      console.log('[Validation] Unknown value type:', typeof value, value);
       return true; // If it's some other valid object, let it pass
     })
     .test('fileType', 'Only PDF, JPG, PNG files are allowed', (value) => {
-      if (!value) return !required;
+      if (!value) return !required; // If no value and not required, pass
       if (typeof value === 'string') return true; // Already uploaded URL
       if (value instanceof File) {
-        return ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(value.type);
+        const isValid = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'].includes(value.type);
+        if (!isValid) console.log('[Validation] Invalid file type:', value.type);
+        return isValid;
       }
       return true; // If it's some other valid object, let it pass
     });
 
-  return required ? schema.required(message) : schema.nullable();
+  return schema.nullable();
 };
 
 export const step3Schema = yup.object().shape({

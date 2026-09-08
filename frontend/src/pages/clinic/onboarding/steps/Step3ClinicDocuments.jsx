@@ -89,6 +89,9 @@ const Step3ClinicDocuments = () => {
   };
 
   const onSubmit = async (data) => {
+    console.log('[Step3] Form submitted with data:', data);
+    console.log('[Step3] Current errors:', errors);
+    
     try {
       console.log('Clinic Documents Form Data:', data);
       
@@ -148,6 +151,18 @@ const Step3ClinicDocuments = () => {
   };
 
   const isNextDisabled = Object.keys(errors).length > 0;
+
+  // Debug: Log form state and errors
+  useEffect(() => {
+    const formValues = watch();
+    console.log('[Step3] Form values:', {
+      clinicRegistrationCertificate: formValues.clinicRegistrationCertificate,
+      medicalLicense: formValues.medicalLicense,
+      ownerIdProof: formValues.ownerIdProof,
+    });
+    console.log('[Step3] Validation errors:', errors);
+    console.log('[Step3] Next button disabled:', isNextDisabled);
+  }, [watch, errors, isNextDisabled]);
 
   return (
     <OnboardingLayout currentStep={3} completedSteps={[1, 2]}>
