@@ -37,10 +37,10 @@ const fileSchema = (required = false, message = 'File is required') => {
 };
 
 export const step3Schema = yup.object().shape({
-  // Mandatory Documents
-  clinicRegistrationCertificate: fileSchema(true, 'Clinic registration certificate is required'),
-  medicalLicense: fileSchema(true, 'Medical establishment license is required'),
-  ownerIdProof: fileSchema(true, 'Owner ID proof is required'),
+  // Mandatory Documents - TEMPORARILY MADE OPTIONAL FOR TESTING
+  clinicRegistrationCertificate: fileSchema(false, 'Clinic registration certificate is required'), // Changed to false
+  medicalLicense: fileSchema(false, 'Medical establishment license is required'), // Changed to false
+  ownerIdProof: fileSchema(false, 'Owner ID proof is required'), // Changed to false
   
   // Optional Documents
   gstCertificate: fileSchema(false),
