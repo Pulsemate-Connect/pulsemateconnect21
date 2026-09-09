@@ -54,16 +54,18 @@ export default function ProtectedRoute({
   const { isAuthenticated, user, isLoading } = useAuthStore();
   const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
-  // Safety timeout: if loading takes more than 3 seconds, force to login
+  // Safety timeout: if loading takes more than 3 seconds, just stop showing loading spinner
+  // DON'T clear auth - that logs the user out!
   React.useEffect(() => {
     if (isLoading) {
       console.log('[ProtectedRoute] isLoading is true, starting safety timeout');
       const timer = setTimeout(() => {
-        console.error('[ProtectedRoute] Loading timeout reached - forcing to not loading state');
+        console.warn('[ProtectedRoute] Loading timeout reached - stopping loading spinner but keeping auth');
         setLoadingTimeout(true);
-        // Force clear loading state in store
-        useAuthStore.getState().clearAuth();
-      }, 3000); // 3 second timeout
+        // ✅ FIX: Don't clear auth! Just stop the loading spinner
+        // Let the auth store handle its own state
+        // useAuthStore.getState().clearAuth(); // ❌ REMOVED - This was logging users out!
+      }, 5000); // Increased to 5 seconds to allow session restoration
       
       return () => {
         console.log('[ProtectedRoute] isLoading changed, clearing timeout');
@@ -257,16 +259,17 @@ export function PublicRoute({ children }) {
   const { isAuthenticated, user, isLoading } = useAuthStore();
   const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
-  // Safety timeout: if loading takes more than 3 seconds, proceed as not authenticated
+  // Safety timeout: if loading takes more than 5 seconds, just stop showing loading spinner
+  // DON'T clear auth - let the auth store manage its own state
   React.useEffect(() => {
     if (isLoading) {
       console.log('[PublicRoute] isLoading is true, starting safety timeout');
       const timer = setTimeout(() => {
-        console.error('[PublicRoute] Loading timeout reached - forcing to not loading state');
+        console.warn('[PublicRoute] Loading timeout reached - stopping loading spinner but keeping auth state');
         setLoadingTimeout(true);
-        // Force clear loading state in store
-        useAuthStore.getState().clearAuth();
-      }, 3000); // 3 second timeout
+        // ✅ FIX: Don't clear auth! Just stop the loading spinner
+        // useAuthStore.getState().clearAuth(); // ❌ REMOVED - This was logging users out!
+      }, 5000); // Increased to 5 seconds
       
       return () => {
         console.log('[PublicRoute] isLoading changed, clearing timeout');
