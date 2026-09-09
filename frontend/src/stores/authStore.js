@@ -319,6 +319,7 @@ const useAuthStore = create(
       // DO NOT persist tokens or credentials
       partialize: (state) => ({
         user: state.user, // Safe user profile data
+        isAuthenticated: state.isAuthenticated, // ✅ PERSIST authentication status
         // ✅ REMOVED: accessToken (security improvement)
         // ✅ DO NOT persist: sessionId, authSource (transient data)
       }),
@@ -327,13 +328,16 @@ const useAuthStore = create(
       onRehydrateStorage: () => (state) => {
         if (state?.user) {
           console.log('[AuthStore] Rehydrated user profile from localStorage');
-          // ✅ IMPORTANT: Even though we have user data, we must verify session
-          // The actual session restoration happens via restoreSession()
-          state.isAuthenticated = false; // Assume not authenticated until verified
-          state.isLoading = true; // Start in loading state
-          state.isInitialized = false; // Not yet initialized
+          // ✅ CRITICAL: Keep isAuthenticated from localStorage
+          // Don't override it to false - that logs user out!
+          // state.isAuthenticated is already restored from localStorage
+          state.isLoading = false; // ✅ Not loading - we have data
+          state.isInitialized = true; // ✅ Already initialized from localStorage
         } else {
           console.log('[AuthStore] No persisted session found');
+          state.isAuthenticated = false;
+          state.isLoading = false;
+          state.isInitialized = true;
         }
       },
     }
