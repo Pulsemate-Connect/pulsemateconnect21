@@ -92,54 +92,73 @@ const Step3ClinicDocuments = () => {
     console.log('[Step3] Form submitted with data:', data);
     console.log('[Step3] Current errors:', errors);
     
+    // CRITICAL FIX: Get fresh values from watch() instead of data param
+    // React Hook Form might not include File objects in data when using yup resolver
+    const formValues = watch();
+    console.log('[Step3] Form values from watch():', formValues);
+    
     try {
       console.log('Clinic Documents Form Data:', data);
+      
+      // Use formValues instead of data for file fields
+      const filesData = {
+        clinicRegistrationCertificate: formValues.clinicRegistrationCertificate,
+        medicalLicense: formValues.medicalLicense,
+        ownerIdProof: formValues.ownerIdProof,
+        gstCertificate: formValues.gstCertificate,
+        clinicLogo: formValues.clinicLogo,
+        clinicExterior: formValues.clinicExterior,
+        clinicReception: formValues.clinicReception,
+        clinicConsultation: formValues.clinicConsultation,
+      };
+      
+      console.log('[Step3] Files data:', filesData);
       
       // TODO: Upload files to cloud storage (Cloudinary)
       // For now, we'll create a FormData object
       const formData = new FormData();
       
       // Append files - CHECK if file exists first
-      if (data.clinicRegistrationCertificate) {
-        console.log('[Step3] Appending clinicRegistrationCertificate:', data.clinicRegistrationCertificate.name);
-        formData.append('clinicRegistrationCertificate', data.clinicRegistrationCertificate);
+      if (filesData.clinicRegistrationCertificate) {
+        console.log('[Step3] Appending clinicRegistrationCertificate:', filesData.clinicRegistrationCertificate.name);
+        formData.append('clinicRegistrationCertificate', filesData.clinicRegistrationCertificate);
       } else {
         console.error('[Step3] Missing clinicRegistrationCertificate!');
       }
       
-      if (data.medicalLicense) {
-        console.log('[Step3] Appending medicalLicense:', data.medicalLicense.name);
-        formData.append('medicalLicense', data.medicalLicense);
+      if (filesData.medicalLicense) {
+        console.log('[Step3] Appending medicalLicense:', filesData.medicalLicense.name);
+        formData.append('medicalLicense', filesData.medicalLicense);
       } else {
         console.error('[Step3] Missing medicalLicense!');
       }
       
-      if (data.ownerIdProof) {
-        console.log('[Step3] Appending ownerIdProof:', data.ownerIdProof.name);
-        formData.append('ownerIdProof', data.ownerIdProof);
+      if (filesData.ownerIdProof) {
+        console.log('[Step3] Appending ownerIdProof:', filesData.ownerIdProof.name);
+        formData.append('ownerIdProof', filesData.ownerIdProof);
       } else {
         console.error('[Step3] Missing ownerIdProof!');
       }
-      if (data.gstCertificate) {
-        formData.append('gstCertificate', data.gstCertificate);
+      if (filesData.gstCertificate) {
+        formData.append('gstCertificate', filesData.gstCertificate);
       }
       
       // Append individual clinic photos
-      if (data.clinicLogo) {
-        formData.append('clinicLogo', data.clinicLogo);
+      if (filesData.clinicLogo) {
+        formData.append('clinicLogo', filesData.clinicLogo);
       }
-      if (data.clinicExterior) {
-        formData.append('clinicExterior', data.clinicExterior);
+      if (filesData.clinicExterior) {
+        formData.append('clinicExterior', filesData.clinicExterior);
       }
-      if (data.clinicReception) {
-        formData.append('clinicReception', data.clinicReception);
+      if (filesData.clinicReception) {
+        formData.append('clinicReception', filesData.clinicReception);
       }
-      if (data.clinicConsultation) {
-        formData.append('clinicConsultation', data.clinicConsultation);
+      if (filesData.clinicConsultation) {
+        formData.append('clinicConsultation', filesData.clinicConsultation);
       }
       
-      // Append text fields
-      formData.append('clinicRegistrationNumber', data.clinicRegistrationNumber);
+      // Append text fields (use data param for these, not formValues)
+      formData.append('clinicRegistrationNumber', data.clinicRegistrationNumber || '');
       if (data.gstNumber) formData.append('gstNumber', data.gstNumber);
 
       // ✅ FIX: Use axios instead of fetch to include authentication headers
