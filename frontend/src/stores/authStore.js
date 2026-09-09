@@ -199,6 +199,45 @@ const useAuthStore = create(
             isAuthenticated: false,
             isLoading: false,
             isInitialized: true,
+            authSource: null,
+            sessionId: null,
+          });
+          
+          return false;
+        } catch (error) {
+          // Session restoration failed - user not authenticated
+          console.log('[AuthStore] Session restoration failed:', error.message);
+          
+          // ✅ FIX: Keep user data but mark as not authenticated
+          // This prevents complete logout on refresh if session temporarily fails
+          const currentUser = get().user;
+          
+          if (currentUser) {
+            console.log('[AuthStore] Keeping user data, but marking as unauthenticated');
+            set({
+              user: currentUser, // ✅ KEEP user data from localStorage
+              isAuthenticated: false, // Mark as not authenticated
+              isLoading: false,
+              isInitialized: true,
+              authSource: null,
+              sessionId: null,
+            });
+          } else {
+            // No user data at all - clear everything
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+              isInitialized: true,
+              authSource: null,
+              sessionId: null,
+            });
+          }
+          
+          return false;
+        }
+      },
+            isInitialized: true,
           });
           
           return false;
