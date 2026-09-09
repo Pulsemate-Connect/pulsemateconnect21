@@ -564,7 +564,7 @@ const approveDoctor = async (req, res, next) => {
 
     const profile = user.doctorProfile;
     
-    // ✅ FIX: Load invitation separately using invitationId
+    // ✅ FIX: Load invitation - try invitationId first, then fallback to doctorUserId
     let invitation = null;
     if (profile.invitationId) {
       invitation = await prisma.doctorInvitation.findUnique({
@@ -573,6 +573,31 @@ const approveDoctor = async (req, res, next) => {
           clinic: true,
         },
       });
+    }
+    
+    // ✅ FALLBACK: If no invitation via invitationId, search by doctorUserId
+    if (!invitation) {
+      invitation = await prisma.doctorInvitation.findFirst({
+        where: { 
+          doctorUserId: doctorId,
+          status: {
+            in: ['INVITATION_ACCEPTED', 'PROFILE_IN_PROGRESS', 'CREDENTIALS_PENDING', 'VERIFICATION_PENDING']
+          }
+        },
+        include: {
+          clinic: true,
+        },
+        orderBy: { createdAt: 'desc' }, // Get most recent if multiple
+      });
+      
+      // Link the invitation to the profile if found
+      if (invitation && !profile.invitationId) {
+        await prisma.doctorProfile.update({
+          where: { id: profile.id },
+          data: { invitationId: invitation.id },
+        });
+        logger.info(`[ApproveDoctor] 🔗 Linked invitation ${invitation.id} to profile ${profile.id}`);
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {

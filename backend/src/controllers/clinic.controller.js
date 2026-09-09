@@ -216,7 +216,7 @@ const getClinic = async (req, res, next) => {
       where: { id },
       include: {
         owner: { select: { id: true, name: true, mobile: true, email: true } },
-        clinicStaff: {
+        staff: {
           where: { isActive: true },
           include: {
             user: {
