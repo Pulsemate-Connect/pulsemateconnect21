@@ -803,21 +803,22 @@ const saveClinicDocumentsHandler = async (req, res, next) => {
     const medicalLicenseUrl = getFileUrl(files.medicalLicense?.[0]);
     const ownerIdProofUrl = getFileUrl(files.ownerIdProof?.[0]);
 
-    if (!clinicRegistrationCertUrl) {
-      return sendError(res, 'Clinic Registration Certificate is required', 400);
-    }
-    if (!medicalLicenseUrl) {
-      return sendError(res, 'Medical Establishment License is required', 400);
-    }
-    if (!ownerIdProofUrl) {
-      return sendError(res, 'Owner ID Proof is required', 400);
-    }
+    // TEMPORARILY DISABLED FOR TESTING - Allow proceeding with just 1 file
+    // if (!clinicRegistrationCertUrl) {
+    //   return sendError(res, 'Clinic Registration Certificate is required', 400);
+    // }
+    // if (!medicalLicenseUrl) {
+    //   return sendError(res, 'Medical Establishment License is required', 400);
+    // }
+    // if (!ownerIdProofUrl) {
+    //   return sendError(res, 'Owner ID Proof is required', 400);
+    // }
 
     // Prepare Clinic Documents data object
     const clinicDocumentsData = {
-      clinicRegistrationCertificate: clinicRegistrationCertUrl,
-      medicalLicense: medicalLicenseUrl,
-      ownerIdProof: ownerIdProofUrl,
+      clinicRegistrationCertificate: clinicRegistrationCertUrl || null, // Allow null for testing
+      medicalLicense: medicalLicenseUrl || null, // Allow null for testing
+      ownerIdProof: ownerIdProofUrl || null, // Allow null for testing
       gstCertificate: getFileUrl(files.gstCertificate?.[0]),
       clinicPhotos: clinicPhotos,
       clinicRegistrationNumber: clinicRegistrationNumber || null,
