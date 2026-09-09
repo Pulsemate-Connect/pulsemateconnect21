@@ -205,25 +205,28 @@ const useAuthStore = create(
           
           return false;
         } catch (error) {
-          // Session restoration failed - user not authenticated
+          // Session restoration failed
           console.log('[AuthStore] Session restoration failed:', error.message);
           
-          // ✅ FIX: Keep user data but mark as not authenticated
-          // This prevents complete logout on refresh if session temporarily fails
+          // ✅ CRITICAL FIX: Keep user logged in using localStorage data
+          // Only logout on manual logout button click, NOT on refresh
           const currentUser = get().user;
           
           if (currentUser) {
-            console.log('[AuthStore] Keeping user data, but marking as unauthenticated');
+            console.log('[AuthStore] API failed but user data exists in localStorage - keeping user logged in');
+            // Keep user authenticated using localStorage data
             set({
-              user: currentUser, // ✅ KEEP user data from localStorage
-              isAuthenticated: false, // Mark as not authenticated
+              user: currentUser,
+              isAuthenticated: true, // ✅ KEEP AUTHENTICATED
               isLoading: false,
               isInitialized: true,
-              authSource: null,
+              authSource: 'LOCALSTORAGE_FALLBACK',
               sessionId: null,
             });
+            return true; // User is still logged in
           } else {
-            // No user data at all - clear everything
+            // No user data in localStorage - truly not authenticated
+            console.log('[AuthStore] No user data in localStorage - user not authenticated');
             set({
               user: null,
               isAuthenticated: false,
@@ -232,27 +235,8 @@ const useAuthStore = create(
               authSource: null,
               sessionId: null,
             });
+            return false;
           }
-          
-          return false;
-        }
-      },
-            isInitialized: true,
-          });
-          
-          return false;
-        } catch (error) {
-          // Session restoration failed - user not authenticated
-          console.log('[AuthStore] Session restoration failed:', error.message);
-          
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-            isInitialized: true,
-          });
-          
-          return false;
         }
       },
 
