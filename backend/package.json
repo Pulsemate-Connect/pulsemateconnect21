@@ -5,9 +5,10 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "build": "npx prisma generate && npx prisma db push --skip-generate --accept-data-loss",
+    "build": "npx prisma generate",
+    "build:full": "npx prisma generate && npx prisma db push --skip-generate --accept-data-loss",
     "build:migrate": "npx prisma generate && npx prisma migrate deploy",
-    "postdeploy": "npx prisma db push --skip-generate --accept-data-loss",
+    "postdeploy": "npx prisma db push --skip-generate --accept-data-loss || echo 'DB push skipped'",
     "dev": "nodemon src/server.js",
     "test": "jest --config jest.config.js --coverage --verbose",
     "test:watch": "jest --config jest.config.js --watch",
