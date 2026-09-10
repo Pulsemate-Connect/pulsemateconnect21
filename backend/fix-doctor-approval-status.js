@@ -6,17 +6,37 @@ async function main() {
   console.log('Fix Doctor Approval Status');
   console.log('============================================\n');
 
-  // Update Dr Arjun's approvalStatus in doctorProfile
-  const updated = await prisma.doctorProfile.update({
-    where: { id: 'fd03af76-a64d-4843-9a0d-c45fe5212863' },
-    data: { approvalStatus: 'VERIFIED' }
+  // Get all verified doctors with pending profile approval
+  const doctors = await prisma.doctorProfile.findMany({
+    where: {
+      user: { approvalStatus: 'VERIFIED' }
+    },
+    include: {
+      user: { select: { name: true, approvalStatus: true } }
+    }
   });
 
-  console.log('✅ Fixed: doctorProfile.approvalStatus set to VERIFIED');
-  console.log(`   Doctor: ${updated.id}`);
-  console.log(`   New approvalStatus: ${updated.approvalStatus}`);
-  console.log();
-  console.log('Now test the search API again - doctor should appear!');
+  console.log(`Found ${doctors.length} verified doctor(s)\n`);
+
+  for (const doctor of doctors) {
+    if (doctor.approvalStatus !== 'VERIFIED') {
+      console.log(`Fixing: ${doctor.user.name}`);
+      console.log(`  Profile ID: ${doctor.id}`);
+      console.log(`  Current approvalStatus: ${doctor.approvalStatus}`);
+
+      await prisma.doctorProfile.update({
+        where: { id: doctor.id },
+        data: { approvalStatus: 'VERIFIED' }
+      });
+
+      console.log(`  ✅ Updated to: VERIFIED\n`);
+    } else {
+      console.log(`Skipping: ${doctor.user.name} - already VERIFIED\n`);
+    }
+  }
+
+  console.log('✅ All verified doctors now have approvalStatus = VERIFIED');
+  console.log('Now test the search API - doctors should appear!');
 }
 
 main().finally(() => prisma.$disconnect());
