@@ -19,6 +19,7 @@ export const MEDICAL_SYSTEMS = [
   "Unani",
   "Siddha",
   "Sowa-Rigpa",
+  "Physiotherapy",
   "Dentistry",
   "Other / Not Listed"
 ];
@@ -114,6 +115,21 @@ export const SOWA_RIGPA_SPECIALIZATIONS = [
   "Other / Not Listed"
 ];
 
+export const PHYSIOTHERAPY_SPECIALIZATIONS = [
+  "General Physiotherapy",
+  "Orthopaedic Physiotherapy",
+  "Sports Physiotherapy",
+  "Neurological Physiotherapy",
+  "Cardiopulmonary Physiotherapy",
+  "Paediatric Physiotherapy",
+  "Geriatric Physiotherapy",
+  "Women's Health Physiotherapy",
+  "Hand Therapy",
+  "Vestibular Rehabilitation",
+  "Pain Management",
+  "Other / Not Listed"
+];
+
 export const DENTISTRY_SPECIALIZATIONS = [
   "General Dentistry",
   "Oral & Maxillofacial Surgery",
@@ -139,6 +155,7 @@ export const SPECIALIZATIONS_MAP = {
   "Unani": UNANI_SPECIALIZATIONS,
   "Siddha": SIDDHA_SPECIALIZATIONS,
   "Sowa-Rigpa": SOWA_RIGPA_SPECIALIZATIONS,
+  "Physiotherapy": PHYSIOTHERAPY_SPECIALIZATIONS,
   "Dentistry": DENTISTRY_SPECIALIZATIONS,
   "Other / Not Listed": [] // Allow custom text input
 };
@@ -338,6 +355,12 @@ export const REGISTRATION_AUTHORITIES = {
   ],
   "Sowa-Rigpa": [
     "Central Council of Indian Medicine (CCIM)"
+  ],
+  "Physiotherapy": [
+    "Indian Association of Physiotherapists (IAP)",
+    "State Physiotherapy Councils",
+    "Rehabilitation Council of India (RCI)",
+    "Other / Not Listed"
   ]
 };
 
