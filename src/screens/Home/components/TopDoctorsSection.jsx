@@ -69,7 +69,18 @@ function DoctorCard({ doctor, onBook, cardWidth }) {
   const spec       = doctor.specialization || 'General Physician';
   const rating     = doctor.rating || null;
   const ratingCount = doctor.ratingCount || null;
-  const photo      = doctor.profilePhotoUrl || doctor.photoUrl || null;
+  // ✅ FIX: Check all possible photo field names
+  const photo      = doctor.profilePhotoUrl || doctor.profileImage || doctor.photoUrl || null;
+  
+  // Debug logging to see what we're receiving
+  if (!photo) {
+    console.log(`[TopDoctorsSection] No photo for ${name}:`, {
+      hasProfilePhotoUrl: !!doctor.profilePhotoUrl,
+      hasProfileImage: !!doctor.profileImage,
+      hasPhotoUrl: !!doctor.photoUrl,
+      doctorId: doctor.id,
+    });
+  }
 
   return (
     <View style={[s.card, cardWidth ? { width: cardWidth } : null]}>

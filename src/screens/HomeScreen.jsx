@@ -151,7 +151,18 @@ export default function HomeScreen({ navigation }) {
       ]);
 
       if (doctorRes.status === 'fulfilled') {
-        setTopDoctors(doctorRes.value?.data?.data || []);
+        const doctorData = doctorRes.value?.data?.data || [];
+        console.log('[HomeScreen] Doctor data received:', {
+          count: doctorData.length,
+          firstDoctor: doctorData[0] ? {
+            name: doctorData[0].user?.name,
+            hasProfilePhotoUrl: !!doctorData[0].profilePhotoUrl,
+            profilePhotoUrl: doctorData[0].profilePhotoUrl,
+            hasProfileImage: !!doctorData[0].profileImage,
+            profileImage: doctorData[0].profileImage,
+          } : null,
+        });
+        setTopDoctors(doctorData);
       }
 
       if (profileRes.status === 'fulfilled') {
