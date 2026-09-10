@@ -6,12 +6,13 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Dimensions, StatusBar,
   Modal, TextInput, KeyboardAvoidingView, Platform, Animated,
-  Linking,
+  Linking, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getPatientProfile, getMyAppointments, updatePatientProfile, deleteAccount } from '../api/patient';
+import { getMyProfile as getDoctorProfile } from '../api/doctor';
 import { logout } from '../api/auth';
 import { useAuth } from '../store/authStore';
 
@@ -429,18 +430,52 @@ export default function ProfileScreen({ navigation, route }) {
 
   const load = useCallback(async () => {
     try {
+      // ✅ FIX: Check if user is a DOCTOR and fetch doctor profile instead
+      const isDoctorRole = user?.role === 'DOCTOR';
+      
       const [profRes, apptRes] = await Promise.all([
-        getPatientProfile(),
+        isDoctorRole ? getDoctorProfile() : getPatientProfile(),
         getMyAppointments({ limit: 10 }).catch(() => null),
       ]);
-      setProfile(profRes.data.data.user);
+      
+      // ✅ FIX: For doctors, the response structure is different
+      if (isDoctorRole) {
+        // Doctor profile response: { success: true, data: { ...profile }, message: "..." }
+        const doctorData = profRes.data.data;
+        // Transform to match patient profile structure for UI compatibility
+        setProfile({
+          id: doctorData.userId,
+          name: doctorData.name,
+          mobile: doctorData.mobile,
+          email: doctorData.email,
+          role: doctorData.role,
+          approvalStatus: doctorData.approvalStatus,
+          isPhoneVerified: doctorData.isPhoneVerified,
+          isEmailVerified: doctorData.isEmailVerified,
+          doctorProfile: {
+            id: doctorData.profileId,
+            fullLegalName: doctorData.fullLegalName,
+            specialization: doctorData.specialization,
+            qualification: doctorData.qualification,
+            experienceYears: doctorData.experienceYears,
+            consultationFee: doctorData.consultationFee,
+            profilePhotoUrl: doctorData.profilePhotoUrl, // ✅ This is the key field for photo
+            bio: doctorData.bio,
+            verificationStatus: doctorData.verificationStatus,
+          },
+          doctorClinics: doctorData.clinics || [],
+        });
+      } else {
+        setProfile(profRes.data.data.user);
+      }
+      
       if (apptRes) {
         const list = apptRes.data.data || [];
         setAppointments(Array.isArray(list) ? list : []);
       }
     } catch (_) {}
     finally { setLoading(false); }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => { load(); }, []);
   
@@ -599,9 +634,18 @@ export default function ProfileScreen({ navigation, route }) {
           <View style={s.profileRow}>
             {/* Avatar with green tick */}
             <View style={s.avatarWrap}>
-              <View style={s.avatar}>
-                <Text style={s.avatarText}>{initials}</Text>
-              </View>
+              {/* ✅ FIX: Show profile photo if available (for doctors) */}
+              {profile?.doctorProfile?.profilePhotoUrl ? (
+                <Image
+                  source={{ uri: profile.doctorProfile.profilePhotoUrl }}
+                  style={s.avatar}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={s.avatar}>
+                  <Text style={s.avatarText}>{initials}</Text>
+                </View>
+              )}
               {isVerified && (
                 <View style={s.verifiedTick}>
                   <Ionicons name="checkmark" size={10} color={WHITE} />
@@ -651,6 +695,82 @@ export default function ProfileScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── Doctor Profile Info (only for doctors) ── */}
+        {profile?.role === 'DOCTOR' && profile?.doctorProfile && (
+          <>
+            <Text style={s.sectionTitle}>Professional Details</Text>
+            <View style={s.infoCard}>
+              {profile.doctorProfile.specialization && (
+                <View style={s.infoRow}>
+                  <Ionicons name="medical-outline" size={18} color={BLUE} />
+                  <View style={s.infoText}>
+                    <Text style={s.infoLabel}>Specialization</Text>
+                    <Text style={s.infoValue}>{profile.doctorProfile.specialization}</Text>
+                  </View>
+                </View>
+              )}
+              {profile.doctorProfile.qualification && (
+                <View style={s.infoRow}>
+                  <Ionicons name="school-outline" size={18} color={PURPLE} />
+                  <View style={s.infoText}>
+                    <Text style={s.infoLabel}>Qualification</Text>
+                    <Text style={s.infoValue}>{profile.doctorProfile.qualification}</Text>
+                  </View>
+                </View>
+              )}
+              {profile.doctorProfile.experienceYears && (
+                <View style={s.infoRow}>
+                  <Ionicons name="time-outline" size={18} color={TEAL} />
+                  <View style={s.infoText}>
+                    <Text style={s.infoLabel}>Experience</Text>
+                    <Text style={s.infoValue}>{profile.doctorProfile.experienceYears} years</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* ── Associated Clinics (only for doctors) ── */}
+            {profile.doctorClinics && profile.doctorClinics.length > 0 && (
+              <>
+                <Text style={s.sectionTitle}>Associated Clinics</Text>
+                <View style={s.clinicsCard}>
+                  <Text style={s.clinicsSubtitle}>
+                    You are associated with {profile.doctorClinics.length} clinic{profile.doctorClinics.length !== 1 ? 's' : ''}.
+                  </Text>
+                  {profile.doctorClinics.map((clinic, idx) => (
+                    <View key={idx} style={s.clinicItem}>
+                      <View style={s.clinicIcon}>
+                        <Ionicons name="business" size={18} color={BLUE} />
+                      </View>
+                      <View style={s.clinicInfo}>
+                        <Text style={s.clinicItemName}>{clinic.clinicName}</Text>
+                        <Text style={s.clinicItemLocation}>
+                          {[clinic.clinicCity, clinic.clinicState].filter(Boolean).join(', ')}
+                        </Text>
+                        <View style={s.clinicStatusRow}>
+                          <View style={[s.statusDot, { backgroundColor: clinic.inviteStatus === 'ACCEPTED' ? GREEN : AMBER }]} />
+                          <Text style={[s.clinicStatus, { color: clinic.inviteStatus === 'ACCEPTED' ? GREEN : AMBER }]}>
+                            {clinic.inviteStatus}
+                          </Text>
+                          {clinic.isActive && (
+                            <>
+                              <View style={s.statusSep} />
+                              <Text style={s.clinicActive}>Active</Text>
+                            </>
+                          )}
+                        </View>
+                        {clinic.consultationFee && (
+                          <Text style={s.clinicFee}>Consultation: ₹{clinic.consultationFee}</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        )}
 
         {/* ── Quick Actions 2×2 ── */}
         <Text style={s.sectionTitle}>Quick Actions</Text>
@@ -910,6 +1030,53 @@ const s = StyleSheet.create({
   actionText:  { flex: 1 },
   actionLabel: { fontSize: 14, fontWeight: '800', color: DARK, marginBottom: 2 },
   actionDesc:  { fontSize: 12, color: GRAY },
+
+  // Doctor profile info card
+  infoCard: {
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoText: { flex: 1 },
+  infoLabel: { fontSize: 12, color: GRAY, fontWeight: '600', marginBottom: 2 },
+  infoValue: { fontSize: 14, fontWeight: '700', color: DARK },
+
+  // Associated clinics card
+  clinicsCard: {
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  clinicsSubtitle: { fontSize: 13, color: GRAY, marginBottom: 14 },
+  clinicItem: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  clinicIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE_L, alignItems: 'center', justifyContent: 'center' },
+  clinicInfo: { flex: 1 },
+  clinicItemName: { fontSize: 15, fontWeight: '800', color: DARK, marginBottom: 2 },
+  clinicItemLocation: { fontSize: 12, color: GRAY, marginBottom: 6 },
+  clinicStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  clinicStatus: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  statusSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: BORDER },
+  clinicActive: { fontSize: 11, fontWeight: '600', color: TEAL },
+  clinicFee: { fontSize: 12, color: SLATE, fontWeight: '600' },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
