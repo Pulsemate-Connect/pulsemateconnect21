@@ -1,0 +1,102 @@
+# Elastic Beanstalk Ignore File
+# Files and directories to exclude from deployment
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env.local
+.env.development
+.env.test
+
+# Testing
+tests/
+*.test.js
+coverage/
+jest.config.js
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Git
+.git/
+.gitignore
+
+# Prisma migrations (deployed via schema push)
+prisma/migrations/
+
+# Database files
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Scripts (development only)
+check-*.js
+test-*.js
+debug-*.js
+verify-*.js
+fix-*.js
+create-test-*.js
+seed-*.js
+cleanup-*.js
+audit-*.js
+diagnose-*.js
+investigate-*.js
+*-admin.js
+approve-and-link-*.js
+associate-*.js
+bootstrap-*.js
+change-*.js
+delete-*.js
+generate-*.js
+get-*.js
+link-*.js
+manually-*.js
+merge-*.js
+reset-*.js
+setup-*.js
+update-*.js
+
+# SQL scripts
+*.sql
+
+# Markdown documentation
+*.md
+!README.md
+
+# Build artifacts
+dist/
+build/
+
+# Uploads (use S3 instead)
+uploads/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Firebase
+.firebaserc
+firebase.json
+functions/
+
+# Temporary files
+*.tmp
+*.temp
+connection-test.log
+pain-clinic-login-details.txt
+
+# Shell scripts
+*.sh
+*.bat
