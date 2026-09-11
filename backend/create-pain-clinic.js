@@ -15,7 +15,7 @@ async function createPainClinic() {
     console.log('👤 Step 1: Creating clinic owner...');
     
     let owner = await prisma.user.findUnique({
-      where: { mobile: '9876543210' }
+      where: { mobile: '+919740809295' }
     });
 
     if (owner) {
@@ -42,8 +42,8 @@ async function createPainClinic() {
       console.log('   ✅ Creating new owner...');
       owner = await prisma.user.create({
         data: {
-          mobile: '9876543210',
-          name: 'Dr. Arjun Upadhyaya',
+          mobile: '+919740809295',
+          name: 'Dr. Arjun Upadhyay',
           role: 'CLINIC_OWNER',
           roles: ['CLINIC_OWNER'],
           primaryRole: 'CLINIC_OWNER',
@@ -70,10 +70,10 @@ async function createPainClinic() {
       ownerProfile = await prisma.clinicOwnerProfile.create({
         data: {
           userId: owner.id,
-          businessName: 'Pain Clinic Physiotherapy',
+          businessName: 'Pain Clinic Physiotherapy and Rehabilitation Center',
           designation: 'Chief Physiotherapist',
-          yearsInHealthcare: 11,
-          bio: 'Experienced physiotherapist providing excellent treatments, care, and personalized exercise programs for various physical pains.',
+          yearsInHealthcare: 10,
+          bio: 'Leading physiotherapist specializing in pain management, sports injury rehabilitation, and manual therapy. Over 10 years of experience providing personalized care.',
           profileCompleted: true,
         }
       });
@@ -88,7 +88,7 @@ async function createPainClinic() {
     
     let clinic = await prisma.clinic.findFirst({
       where: { 
-        name: 'Pain Clinic Physiotherapy',
+        name: 'Pain Clinic Physiotherapy and Rehabilitation Center',
         ownerId: owner.id 
       }
     });
@@ -96,45 +96,45 @@ async function createPainClinic() {
     if (!clinic) {
       clinic = await prisma.clinic.create({
         data: {
-          name: 'Pain Clinic Physiotherapy',
+          name: 'Pain Clinic Physiotherapy and Rehabilitation Center',
           ownerId: owner.id,
-          phone: '9876543210',
-          address: 'Kajubag, Near Nagmangala Hospital',
+          phone: '+919740809295',
+          address: 'G8, Suman Laxmi Enclave, Kajubagh, Kodibag Road',
           city: 'Karwar',
           state: 'Karnataka',
           pincode: '581301',
-          latitude: 14.8127,
-          longitude: 74.1297,
+          latitude: 14.8142,
+          longitude: 74.1288,
           landmark: 'Near Nagmangala Hospital',
-          description: 'Dr. Arjun Upadhyaya and staff provided excellent treatments, care, and personalized exercise programs for various physical pains. Specializing in physiotherapy for women and general physiotherapy services.',
+          description: 'Specialized physiotherapy, pain relief, and rehabilitation services. Offering back and joint pain treatments, sports injury management, manual therapy, acupuncture, and home visit facilities.',
           
-          specialties: ['Physiotherapy', 'Pain Management', 'Women\'s Physiotherapy'],
+          specialties: ['Physiotherapy', 'Pain Management', 'Sports Injury', 'Manual Therapy', 'Acupuncture'],
           clinicType: 'PHYSIOTHERAPY_CLINIC',
           
           isVerified: true,
           approvalStatus: 'VERIFIED',
           isActive: true,
           
-          openingTime: '09:30',
-          closingTime: '18:30',
+          openingTime: '09:00',
+          closingTime: '18:00',
           
           facilities: [
-            'Air Conditioned',
-            'Waiting Area',
-            'Exercise Equipment',
-            'Therapy Rooms',
-            'Wheelchair Accessible'
+            'Manual Therapy',
+            'Acupuncture',
+            'Sports Injury Management',
+            'Home Visit Services',
+            'Back Pain Treatment',
+            'Joint Pain Treatment',
+            'Rehabilitation Programs'
           ],
           
           consultationModes: ['IN_PERSON'],
-          paymentMethods: ['CASH', 'UPI', 'CARD'],
+          paymentMethods: ['CASH', 'UPI'],
           languagesSpoken: ['English', 'Hindi', 'Kannada'],
           
           avgConsultationMinutes: 30,
           appointmentSlotMinutes: 30,
-          dailyPatientCapacity: 20,
-          
-          clinicRegistrationNumber: 'PHYS-KW-2013-001',
+          dailyPatientCapacity: 16,
           
           ownerMobileVerified: true,
           mobileOtpVerifiedAt: new Date(),
@@ -156,7 +156,7 @@ async function createPainClinic() {
     // Check if doctor user exists
     let doctorUser = await prisma.user.findFirst({
       where: {
-        name: 'Dr. Arjun Upadhyaya',
+        name: 'Dr. Arjun Upadhyay',
         role: 'DOCTOR'
       }
     });
@@ -174,21 +174,20 @@ async function createPainClinic() {
       doctorProfile = await prisma.doctorProfile.create({
         data: {
           userId: doctorUser.id,
-          qualification: 'MPT (Master of Physiotherapy)',
-          specialization: 'Physiotherapy, Pain Management, Women\'s Health',
-          experienceYears: 11,
-          medicalRegistrationNumber: 'PHYS-REG-2013-001',
-          registrationAuthority: 'Indian Association of Physiotherapists',
-          bio: 'Experienced physiotherapist specializing in pain management and personalized exercise programs. Over 11 years of experience in treating various physical conditions and providing excellent patient care.',
+          qualification: 'BPT, MPT (Physiotherapy)',
+          specialization: 'Physiotherapy, Pain Management, Sports Physiotherapy',
+          experienceYears: 10,
+          bio: 'Experienced physiotherapist specializing in pain management, sports injuries, and rehabilitation. Expert in manual therapy and acupuncture with over 10 years of practice.',
           approvalStatus: 'VERIFIED',
           verificationStatus: 'VERIFIED',
           profileStatus: 'COMPLETE',
           onlineAvailable: false,
           offlineAvailable: true,
           marketplaceVisible: true,
-          areasOfExpertise: ['Pain Management', 'Physiotherapy', 'Women\'s Health'],
+          areasOfExpertise: ['Pain Management', 'Sports Physiotherapy', 'Manual Therapy', 'Acupuncture', 'Rehabilitation'],
           languagesKnown: ['English', 'Hindi', 'Kannada'],
           avgConsultationMins: 30,
+          consultationFee: 300,
           profileSubmittedAt: new Date(),
         }
       });
@@ -295,7 +294,7 @@ async function createPainClinic() {
     console.log('   JustDial: https://www.justdial.com/Karwar/Pain-Clinic-Physiotherapy-Nagmangala-Hospital-Kajubag/9999P8382-8382-220213212908-H4Z1_BZDET');
     console.log();
     console.log('✅ You can now:');
-    console.log('   1. Login with mobile: 9876543210 (OTP: 123456)');
+    console.log('   1. Login with mobile: +919740809295');
     console.log('   2. Manage clinic schedule and appointments');
     console.log('   3. View patient bookings');
     console.log('   4. Update clinic information');
