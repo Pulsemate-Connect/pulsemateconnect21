@@ -509,10 +509,22 @@ const getMyAppointments = async (req, res, next) => {
         take: parseInt(limit),
         include: {
           doctor: {
-            include: {
-              user: { select: { id: true, name: true } },
+            select: {
+              id: true,
+              userId: true,
+              specialization: true,
+              qualification: true,
+              experienceYears: true,
+              consultationFee: true,
+              profilePhotoUrl: true,  // ✅ FIX: Include photo
+              profileImage: true,      // ✅ FIX: Include legacy photo field
+              user: { 
+                select: { 
+                  id: true, 
+                  name: true,
+                } 
+              },
             },
-            // include profileImage so avatars can be shown
           },
           clinic: { select: { id: true, name: true, address: true, city: true, phone: true, clinicLogoUrl: true } },
           queueItem: true,
@@ -540,7 +552,24 @@ const getAppointmentDetails = async (req, res, next) => {
       where: { id, patientId: req.user.id },
       include: {
         doctor: {
-          include: { user: { select: { id: true, name: true } } },
+          select: {
+            id: true,
+            userId: true,
+            specialization: true,
+            qualification: true,
+            experienceYears: true,
+            consultationFee: true,
+            profilePhotoUrl: true,  // ✅ FIX: Include photo
+            profileImage: true,      // ✅ FIX: Include legacy photo field
+            bio: true,
+            languagesKnown: true,
+            user: { 
+              select: { 
+                id: true, 
+                name: true,
+              } 
+            },
+          },
         },
         clinic: { select: { id: true, name: true, address: true, city: true, phone: true, latitude: true, longitude: true, clinicLogoUrl: true } },
         queueItem: true,
@@ -572,7 +601,23 @@ const getLiveQueue = async (req, res, next) => {
           include: { queue: true },
         },
         doctor: {
-          include: { user: { select: { id: true, name: true } } },
+          select: {
+            id: true,
+            userId: true,
+            specialization: true,
+            qualification: true,
+            experienceYears: true,
+            consultationFee: true,
+            profilePhotoUrl: true,  // ✅ FIX: Include photo
+            profileImage: true,      // ✅ FIX: Include legacy photo field
+            avgConsultationMins: true,
+            user: { 
+              select: { 
+                id: true, 
+                name: true,
+              } 
+            },
+          },
         },
         clinic: { select: { id: true, name: true } },
       },
